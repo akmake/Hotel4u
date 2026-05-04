@@ -1438,4 +1438,62 @@ router.post('/:id/duplicate', asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: copied });
 }));
 
+// POST /api/reservations/:id/send-welcome
+router.post('/:id/send-welcome', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Send welcome requires front-desk permissions');
+  const reservation = await getReservationOr404(req.params.id, res);
+  if (!reservation) return;
+  assertPropertyScope(req, reservation.property);
+
+  // In production: trigger email/SMS/WhatsApp via messaging service
+  const actor = actorFromReq(req);
+  await audit({
+    property: reservation.property,
+    actor: actor.id || null,
+    actorName: actor.name || 'system',
+    action: 'reservation.welcome_sent',
+    entityType: 'Reservation',
+    entityId: reservation._id,
+    after: { channel: 'email' },
+    ip: req.ip,
+  }).catch(() => null);
+
+  res.json({ success: true, data: { sent: true, channel: 'email' } });
+}));
+
+// POST /api/reservations/:id/express-checkout-link
+router.post('/:id/express-checkout-link', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Express checkout link requires front-desk permissions');
+  const reservation = await getReservationOr404(req.params.id, res);
+  if (!reservation) return;
+  assertPropertyScope(req, reservation.property);
+
+  if (!['in_house', 'checked_in', 'confirmed', 'partially_checked_in'].includes(reservation.status)) {
+    return res.status(400).json({ success: false, error: 'הזמנה לא מתאימה ל-Express Checkout' });
+  }
+
+  // Generate a time-limited token (in production: store in DB with expiry + signature)
+  const payload = JSON.stringify({
+    resId: String(reservation._id),
+    conf: reservation.confirmationNumber,
+    exp: Date.now() + 24 * 60 * 60 * 1000,
+  });
+  const token = Buffer.from(payload).toString('base64url');
+  const link = `${req.protocol}://${req.get('host')}/express-checkout/${token}`;
+
+  const actor = actorFromReq(req);
+  await audit({
+    property: reservation.property,
+    actor: actor.id || null,
+    actorName: actor.name || 'system',
+    action: 'reservation.express_checkout_link_sent',
+    entityType: 'Reservation',
+    entityId: reservation._id,
+    after: { link },
+    ip: req.ip,
+  }).catch(() => null);
+
+  res.json({ success: true, data: { link, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() } });
+}));
+
 export default router;

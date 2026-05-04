@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { ChevronRight, ChevronLeft, Crown, RefreshCw, LogIn, Eye } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Crown, RefreshCw, LogIn, Eye, Lock, Unlock, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
@@ -26,6 +26,84 @@ const OPS_BG = {
 };
 
 const TYPE_BORDER = { STD:'#6366f1', DLX:'#0891b2', FAM:'#059669', STE:'#f59e0b' };
+
+// ── Block Room Modal ───────────────────────────────────────────────────────────
+function BlockRoomModal({ room, propertyId, onClose, onDone }) {
+  const isBlocked = room.opsStatus === 'ooo' || room.opsStatus === 'hold';
+  const [opsStatus, setOpsStatus] = useState(isBlocked ? 'available' : 'ooo');
+  const [reason,    setReason]    = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const { toasts, success, error: toastErr } = useToast();
+
+  async function submit(e) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await roomsApi.setOps(String(room._id), opsStatus, reason || undefined, propertyId);
+      success(opsStatus === 'available' ? 'חדר שוחרר למכירה' : `חדר ${room.number} חסום — ${opsStatus.toUpperCase()}`);
+      setTimeout(() => { onDone(); onClose(); }, 600);
+    } catch (e) { toastErr(e.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ direction: 'rtl' }}>
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <ToastContainer toasts={toasts} />
+        <div className="flex items-center justify-between p-5 border-b border-surface-border">
+          <div>
+            <div className="font-bold text-ink flex items-center gap-2">
+              {isBlocked ? <Unlock size={15} /> : <Lock size={15} />}
+              {isBlocked ? `שחרר חדר ${room.number}` : `חסום חדר ${room.number}`}
+            </div>
+            <div className="text-xs text-ink-muted">{room.roomType?.name} · קומה {room.floor}</div>
+          </div>
+          <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={16} /></button>
+        </div>
+        <form onSubmit={submit} className="p-5 flex flex-col gap-4">
+          {!isBlocked && (
+            <div>
+              <label className="text-xs font-semibold text-ink-secondary block mb-1.5">סוג חסימה</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'ooo',  label: 'Out of Order', desc: 'לא ניתן למכירה', color: '#dc2626' },
+                  { value: 'hold', label: 'On Hold',      desc: 'חסום זמנית',     color: '#7c3aed' },
+                  { value: 'oos',  label: 'Out of Service', desc: 'טיפול תחזוקה', color: '#d97706' },
+                  { value: 'internal', label: 'שימוש פנימי', desc: 'צוות/ניהול', color: '#0891b2' },
+                ].map(opt => (
+                  <label key={opt.value}
+                    className={`flex flex-col p-2.5 rounded-xl border-2 cursor-pointer transition-colors ${opsStatus === opt.value ? 'border-brand bg-brand/5' : 'border-surface-border hover:border-ink-faint'}`}>
+                    <input type="radio" name="opsStatus" value={opt.value} checked={opsStatus === opt.value} onChange={() => setOpsStatus(opt.value)} className="hidden" />
+                    <span className="font-bold text-xs" style={{ color: opt.color }}>{opt.label}</span>
+                    <span className="text-xs text-ink-faint">{opt.desc}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {isBlocked && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+              החדר כרגע {room.opsStatus === 'ooo' ? 'Out of Order' : 'On Hold'}. לחיצה על אישור תשחרר אותו למכירה.
+            </div>
+          )}
+          <div>
+            <label className="text-xs font-semibold text-ink-secondary block mb-1.5">
+              {isBlocked ? 'סיבת שחרור (רשות)' : 'סיבה (רשות)'}
+            </label>
+            <input className="input w-full text-sm" placeholder="תיאור..." value={reason} onChange={e => setReason(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className={`btn btn-sm flex-1 justify-center gap-1 ${isBlocked ? 'btn-primary' : 'btn-danger'}`} disabled={loading}>
+              {loading ? '...' : isBlocked ? <><Unlock size={13} /> שחרר חדר</> : <><Lock size={13} /> חסום חדר</>}
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function buildDays(startOffset, count) {
@@ -149,6 +227,7 @@ export default function RoomRackPage() {
   const [tooltip,     setTooltip]     = useState(null); // { res, x, y }
   const [drag,        setDrag]        = useState(null); // { res, resId, sourceRoomId, x, y }
   const [dropRoomId,  setDropRoomId]  = useState(null);
+  const [blockRoom,   setBlockRoom]   = useState(null); // room object
 
   const dragRef    = useRef(null);
   const dropRef    = useRef(null);
@@ -249,6 +328,14 @@ export default function RoomRackPage() {
       <ToastContainer toasts={toasts} />
       <DragGhost drag={drag} />
       {tooltip && <Tooltip res={tooltip.res} x={tooltip.x} y={tooltip.y} />}
+      {blockRoom && (
+        <BlockRoomModal
+          room={blockRoom}
+          propertyId={propertyId}
+          onClose={() => setBlockRoom(null)}
+          onDone={() => { r1(); r2(); }}
+        />
+      )}
 
       {/* Header */}
       <div className="page-header">
@@ -365,6 +452,17 @@ export default function RoomRackPage() {
                           {room.isVip && <Crown size={10} style={{ color:'#f59e0b' }} />}
                           {isOoo  && <span style={{ fontSize:9, fontWeight:800, color:'#dc2626', background:'#fee2e2', padding:'1px 4px', borderRadius:3 }}>OOO</span>}
                           {isHold && <span style={{ fontSize:9, fontWeight:800, color:'#7c3aed', background:'#ede9fe', padding:'1px 4px', borderRadius:3 }}>HOLD</span>}
+                          <button
+                            onClick={e => { e.stopPropagation(); setBlockRoom(room); }}
+                            title={isOoo || isHold ? 'שחרר חדר' : 'חסום חדר'}
+                            style={{
+                              marginRight: 'auto', background: 'transparent', border: 'none', cursor: 'pointer', padding: '1px 3px',
+                              color: isOoo ? '#dc2626' : isHold ? '#7c3aed' : '#94a3b8',
+                              borderRadius: 3, display: 'flex', alignItems: 'center',
+                            }}
+                          >
+                            {isOoo || isHold ? <Unlock size={10} /> : <Lock size={10} />}
+                          </button>
                         </div>
                         <span style={{ fontSize:10, color:'#94a3b8' }}>{room.roomType?.name}</span>
                       </div>

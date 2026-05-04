@@ -66,4 +66,53 @@ router.post('/:folioId/void-line', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { folio, balance } });
 }));
 
+// POST /api/folio/:folioId/deposit — record a deposit / pre-auth
+router.post('/:folioId/deposit', asyncHandler(async (req, res) => {
+  const { amount, description = 'פיקדון', method = 'cash', propertyId } = req.body;
+  const folio = await Folio.findById(req.params.folioId);
+  if (!folio) return res.status(404).json({ success: false, error: 'Folio לא נמצא' });
+  if (folio.status === 'closed') return res.status(400).json({ success: false, error: 'Folio סגור' });
+  if (!(Number(amount) > 0)) return res.status(400).json({ success: false, error: 'amount חייב להיות חיובי' });
+
+  folio.lines.push({
+    type: 'deposit',
+    description: `${description} — ${method}`,
+    amount: -Math.abs(Number(amount)),
+    taxAmount: 0,
+    serviceDate: new Date().toISOString().split('T')[0],
+    source: 'pms',
+    status: 'posted',
+  });
+  await folio.save();
+
+  await audit({ property: folio.property, action: 'folio.deposit', entityType: 'Folio', entityId: folio._id, after: { amount: Number(amount), method }, ip: req.ip });
+  const balance = folio.lines.filter(l => l.status === 'posted').reduce((s, l) => s + l.amount + l.taxAmount, 0);
+  res.json({ success: true, data: { folio, balance } });
+}));
+
+// GET /api/folio/reservation/:resId/receipt — receipt data for printing
+router.get('/reservation/:resId/receipt', asyncHandler(async (req, res) => {
+  const folio = await Folio.findOne({ reservation: req.params.resId })
+    .populate({
+      path: 'reservation',
+      select: 'confirmationNumber arrivalDate departureDate nights ratePerNight totalAmount taxAmount currency',
+      populate: [
+        { path: 'primaryGuest', select: 'firstName lastName email phone' },
+        { path: 'assignedRoom', select: 'number' },
+        { path: 'roomType', select: 'name code' },
+        { path: 'property', select: 'name address phone email' },
+      ],
+    })
+    .lean();
+
+  if (!folio) return res.status(404).json({ success: false, error: 'Folio לא נמצא' });
+
+  const activeLines = folio.lines.filter(l => l.status === 'posted');
+  const totalCharges  = activeLines.filter(l => l.amount > 0).reduce((s, l) => s + l.amount + l.taxAmount, 0);
+  const totalPayments = activeLines.filter(l => l.amount < 0).reduce((s, l) => s + Math.abs(l.amount), 0);
+  const balance       = activeLines.reduce((s, l) => s + l.amount + l.taxAmount, 0);
+
+  res.json({ success: true, data: { folio, totalCharges, totalPayments, balance, generatedAt: new Date().toISOString() } });
+}));
+
 export default router;

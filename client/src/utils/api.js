@@ -62,17 +62,22 @@ export const roomTypes = {
 
 // ── Reservations ──────────────────────────────────────────────────────────────
 export const reservations = {
-  list:         (propertyId, params = {}) => api.get(`/reservations?propertyId=${propertyId}&${new URLSearchParams(params)}`),
-  get:          (id)                      => api.get(`/reservations/${id}`),
-  create:       (data)                    => api.post('/reservations', data),
-  update:       (id, data)                => api.patch(`/reservations/${id}`, data),
-  checkIn:      (id, overrideClean)       => api.post(`/reservations/${id}/check-in`, { overrideClean }),
-  checkOut:     (id, force)               => api.post(`/reservations/${id}/check-out`, { forceCheckout: force }),
-  cancel:       (id, reason)              => api.post(`/reservations/${id}/cancel`, { reason }),
-  noShow:       (id)                      => api.post(`/reservations/${id}/no-show`, {}),
-  availability: (propertyId, roomTypeId, arrivalDate, departureDate) =>
+  list:                (propertyId, params = {}) => api.get(`/reservations?propertyId=${propertyId}&${new URLSearchParams(params)}`),
+  get:                 (id)                      => api.get(`/reservations/${id}`),
+  create:              (data)                    => api.post('/reservations', data),
+  update:              (id, data)                => api.patch(`/reservations/${id}`, data),
+  checkIn:             (id, overrideClean)       => api.post(`/reservations/${id}/check-in`, { overrideClean }),
+  checkOut:            (id, force)               => api.post(`/reservations/${id}/check-out`, { forceCheckout: force }),
+  cancel:              (id, reason)              => api.post(`/reservations/${id}/cancel`, { reason }),
+  noShow:              (id)                      => api.post(`/reservations/${id}/no-show`, {}),
+  sendWelcome:         (id)                      => api.post(`/reservations/${id}/send-welcome`, {}),
+  expressCheckoutLink: (id)                      => api.post(`/reservations/${id}/express-checkout-link`, {}),
+  rooms:               (id)                      => api.get(`/reservations/${id}/rooms`),
+  partialCheckIn:      (id, reservationRoomIds, overrideClean) => api.post(`/reservations/${id}/partial-check-in`, { reservationRoomIds, overrideClean }),
+  partialCheckOut:     (id, reservationRoomIds)  => api.post(`/reservations/${id}/partial-check-out`, { reservationRoomIds }),
+  availability:        (propertyId, roomTypeId, arrivalDate, departureDate) =>
     api.get(`/reservations/availability/check?propertyId=${propertyId}&roomTypeId=${roomTypeId}&arrivalDate=${arrivalDate}&departureDate=${departureDate}`),
-  assignRoom:   (id, roomId) => api.patch(`/reservations/${id}/assign-room`, { roomId }),
+  assignRoom:          (id, roomId) => api.patch(`/reservations/${id}/assign-room`, { roomId }),
 };
 
 // ── Guests ────────────────────────────────────────────────────────────────────
@@ -143,8 +148,10 @@ export const rates = {
 
 // ── Folio ─────────────────────────────────────────────────────────────────────
 export const folio = {
-  getByReservation: (resId)              => api.get(`/folio/reservation/${resId}`),
-  charge:           (folioId, data)      => api.post(`/folio/${folioId}/charge`, data),
-  payment:          (folioId, data)      => api.post(`/folio/${folioId}/payment`, data),
-  voidLine:         (folioId, lineId, reason) => api.post(`/folio/${folioId}/void-line`, { lineId, reason }),
+  getByReservation: (resId)                    => api.get(`/folio/reservation/${resId}`),
+  receipt:          (resId)                    => api.get(`/folio/reservation/${resId}/receipt`),
+  charge:           (folioId, data)            => api.post(`/folio/${folioId}/charge`, data),
+  payment:          (folioId, data)            => api.post(`/folio/${folioId}/payment`, data),
+  deposit:          (folioId, data)            => api.post(`/folio/${folioId}/deposit`, data),
+  voidLine:         (folioId, lineId, reason)  => api.post(`/folio/${folioId}/void-line`, { lineId, reason }),
 };
