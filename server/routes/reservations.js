@@ -74,6 +74,12 @@ router.get('/', asyncHandler(async (req, res) => {
   if (status) filter.status = { $in: String(status).split(',') };
   if (arrivalDate) filter.arrivalDate = { $gte: arrivalDate };
   if (departureDate) filter.departureDate = { $lte: departureDate };
+  if (req.query.company) filter.company = req.query.company;
+  if (req.query.q) {
+    filter.$or = [
+      { confirmationNumber: { $regex: req.query.q, $options: 'i' } },
+    ];
+  }
 
   const total = await Reservation.countDocuments(filter);
   const reservations = await Reservation.find(filter)

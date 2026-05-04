@@ -140,14 +140,6 @@ router.put('/bulk', asyncHandler(async (req, res) => {
     ip: req.ip,
   }).catch(() => null);
 
-  await enqueueChannelUpdate({
-    propertyId: row.property,
-    channel: 'all',
-    eventType: 'availability',
-    payload: { action: 'row_update', inventoryId: row._id, values: update },
-    idempotencyKey: `inv:row:${row._id}:${Date.now()}`,
-  }).catch(() => null);
-
   const docs = await InventoryDate.find({
     property: propertyId,
     roomType: roomTypeId,
@@ -180,11 +172,11 @@ router.patch('/:id', asyncHandler(async (req, res) => {
   }).catch(() => null);
 
   await enqueueChannelUpdate({
-    propertyId,
+    propertyId: row.property,
     channel: 'all',
     eventType: 'availability',
-    payload: { action: 'lock_created', lockId: lock._id, roomTypeId: lock.roomType, arrivalDate, departureDate, roomsCount },
-    idempotencyKey: `inv:lock:create:${propertyId}:${idempotencyKey}`,
+    payload: { action: 'row_update', inventoryId: row._id, values: update },
+    idempotencyKey: `inv:row:${row._id}:${Date.now()}`,
   }).catch(() => null);
 
   res.json({ success: true, data: row });
@@ -249,8 +241,15 @@ router.post('/locks', asyncHandler(async (req, res) => {
     propertyId,
     channel: 'all',
     eventType: 'availability',
-    payload: { action: 'lock_consumed', lockId: lock._id },
-    idempotencyKey: `inv:lock:consume:${propertyId}:${idempotencyKey}`,
+    payload: {
+      action: 'lock_created',
+      lockId: lock._id,
+      roomTypeId: lock.roomType,
+      arrivalDate: lock.arrivalDate,
+      departureDate: lock.departureDate,
+      roomsCount: lock.roomsCount,
+    },
+    idempotencyKey: `inv:lock:create:${propertyId}:${idempotencyKey || lock._id}`,
   }).catch(() => null);
 
   res.status(201).json({ success: true, data: lock });
@@ -281,8 +280,8 @@ router.post('/locks/consume', asyncHandler(async (req, res) => {
     propertyId,
     channel: 'all',
     eventType: 'availability',
-    payload: { action: 'lock_released', lockId: lock._id },
-    idempotencyKey: `inv:lock:release:${propertyId}:${idempotencyKey}`,
+    payload: { action: 'lock_consumed', lockId: lock._id },
+    idempotencyKey: `inv:lock:consume:${propertyId}:${idempotencyKey}`,
   }).catch(() => null);
 
   res.json({ success: true, data: lock });
@@ -308,6 +307,14 @@ router.post('/locks/release', asyncHandler(async (req, res) => {
     after: lock.toObject(),
     reason: 'Availability lock released',
     ip: req.ip,
+  }).catch(() => null);
+
+  await enqueueChannelUpdate({
+    propertyId,
+    channel: 'all',
+    eventType: 'availability',
+    payload: { action: 'lock_released', lockId: lock._id },
+    idempotencyKey: `inv:lock:release:${propertyId}:${idempotencyKey}`,
   }).catch(() => null);
 
   res.json({ success: true, data: lock });

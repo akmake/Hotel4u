@@ -237,7 +237,6 @@ function TaskCard({ task, propertyId, staff, onRefetch, onToast }) {
     </div>
   );
 }
-  }
 
 export default function HousekeepingPage() {
   const { propertyId } = useProperty();

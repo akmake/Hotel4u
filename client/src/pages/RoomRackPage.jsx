@@ -21,16 +21,29 @@ const STATUS_STYLE = {
 };
 
 const OPS_BG = {
-  ooo:  'repeating-linear-gradient(45deg,rgba(239,68,68,0.08),rgba(239,68,68,0.08) 4px,transparent 4px,transparent 12px)',
-  hold: 'repeating-linear-gradient(45deg,rgba(168,85,247,0.08),rgba(168,85,247,0.08) 4px,transparent 4px,transparent 12px)',
+  out_of_order: 'repeating-linear-gradient(45deg,rgba(239,68,68,0.08),rgba(239,68,68,0.08) 4px,transparent 4px,transparent 12px)',
+  maintenance_hold: 'repeating-linear-gradient(45deg,rgba(168,85,247,0.08),rgba(168,85,247,0.08) 4px,transparent 4px,transparent 12px)',
+  out_of_service: 'repeating-linear-gradient(45deg,rgba(217,119,6,0.08),rgba(217,119,6,0.08) 4px,transparent 4px,transparent 12px)',
+  internal_use: 'repeating-linear-gradient(45deg,rgba(8,145,178,0.08),rgba(8,145,178,0.08) 4px,transparent 4px,transparent 12px)',
 };
 
 const TYPE_BORDER = { STD:'#6366f1', DLX:'#0891b2', FAM:'#059669', STE:'#f59e0b' };
+const BLOCKED_STATUSES = new Set(['out_of_order', 'maintenance_hold', 'out_of_service', 'internal_use']);
+const OPS_LABEL = {
+  out_of_order: 'Out of Order',
+  maintenance_hold: 'Maintenance Hold',
+  out_of_service: 'Out of Service',
+  internal_use: 'Internal Use',
+};
+
+function isBlockedStatus(status) {
+  return BLOCKED_STATUSES.has(status);
+}
 
 // ── Block Room Modal ───────────────────────────────────────────────────────────
 function BlockRoomModal({ room, propertyId, onClose, onDone }) {
-  const isBlocked = room.opsStatus === 'ooo' || room.opsStatus === 'hold';
-  const [opsStatus, setOpsStatus] = useState(isBlocked ? 'available' : 'ooo');
+  const isBlocked = isBlockedStatus(room.opsStatus);
+  const [opsStatus, setOpsStatus] = useState(isBlocked ? 'available' : 'out_of_order');
   const [reason,    setReason]    = useState('');
   const [loading,   setLoading]   = useState(false);
   const { toasts, success, error: toastErr } = useToast();
@@ -40,7 +53,8 @@ function BlockRoomModal({ room, propertyId, onClose, onDone }) {
     setLoading(true);
     try {
       await roomsApi.setOps(String(room._id), opsStatus, reason || undefined, propertyId);
-      success(opsStatus === 'available' ? 'חדר שוחרר למכירה' : `חדר ${room.number} חסום — ${opsStatus.toUpperCase()}`);
+      const targetLabel = OPS_LABEL[opsStatus] || opsStatus;
+      success(opsStatus === 'available' ? 'חדר שוחרר למכירה' : `חדר ${room.number} חסום — ${targetLabel}`);
       setTimeout(() => { onDone(); onClose(); }, 600);
     } catch (e) { toastErr(e.message); }
     finally { setLoading(false); }
@@ -67,10 +81,10 @@ function BlockRoomModal({ room, propertyId, onClose, onDone }) {
               <label className="text-xs font-semibold text-ink-secondary block mb-1.5">סוג חסימה</label>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { value: 'ooo',  label: 'Out of Order', desc: 'לא ניתן למכירה', color: '#dc2626' },
-                  { value: 'hold', label: 'On Hold',      desc: 'חסום זמנית',     color: '#7c3aed' },
-                  { value: 'oos',  label: 'Out of Service', desc: 'טיפול תחזוקה', color: '#d97706' },
-                  { value: 'internal', label: 'שימוש פנימי', desc: 'צוות/ניהול', color: '#0891b2' },
+                  { value: 'out_of_order', label: 'Out of Order',   desc: 'לא ניתן למכירה', color: '#dc2626' },
+                  { value: 'maintenance_hold', label: 'On Hold',     desc: 'חסום זמנית',     color: '#7c3aed' },
+                  { value: 'out_of_service', label: 'Out of Service', desc: 'טיפול תחזוקה', color: '#d97706' },
+                  { value: 'internal_use', label: 'שימוש פנימי',    desc: 'צוות/ניהול',     color: '#0891b2' },
                 ].map(opt => (
                   <label key={opt.value}
                     className={`flex flex-col p-2.5 rounded-xl border-2 cursor-pointer transition-colors ${opsStatus === opt.value ? 'border-brand bg-brand/5' : 'border-surface-border hover:border-ink-faint'}`}>
@@ -84,7 +98,7 @@ function BlockRoomModal({ room, propertyId, onClose, onDone }) {
           )}
           {isBlocked && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
-              החדר כרגע {room.opsStatus === 'ooo' ? 'Out of Order' : 'On Hold'}. לחיצה על אישור תשחרר אותו למכירה.
+              החדר כרגע {OPS_LABEL[room.opsStatus] || room.opsStatus}. לחיצה על אישור תשחרר אותו למכירה.
             </div>
           )}
           <div>
@@ -374,8 +388,12 @@ export default function RoomRackPage() {
           </span>
         ))}
         <span className="flex items-center gap-1.5">
-          <span className="w-8 h-3 rounded" style={{ background: OPS_BG.ooo, border: '1px solid #fca5a5' }} />
+          <span className="w-8 h-3 rounded" style={{ background: OPS_BG.out_of_order, border: '1px solid #fca5a5' }} />
           OOO
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-8 h-3 rounded" style={{ background: OPS_BG.maintenance_hold, border: '1px solid #d8b4fe' }} />
+          HOLD
         </span>
         <span className="mr-auto text-xs text-brand font-medium">{allRes.length} הזמנות פעילות · גרור שורה לשינוי חדר</span>
       </div>
@@ -418,8 +436,11 @@ export default function RoomRackPage() {
 
                 {rooms.map(room => {
                   const roomId  = String(room._id);
-                  const isOoo   = room.opsStatus === 'ooo';
-                  const isHold  = room.opsStatus === 'hold';
+                  const isOoo   = room.opsStatus === 'out_of_order';
+                  const isHold  = room.opsStatus === 'maintenance_hold';
+                  const isOos   = room.opsStatus === 'out_of_service';
+                  const isInternal = room.opsStatus === 'internal_use';
+                  const isBlocked = isBlockedStatus(room.opsStatus);
                   const roomRes = resByRoom[roomId] || [];
                   const isDrop  = dropRoomId === roomId && drag?.sourceRoomId !== roomId;
                   const typeCode = room.roomType?.code || 'STD';
@@ -452,16 +473,18 @@ export default function RoomRackPage() {
                           {room.isVip && <Crown size={10} style={{ color:'#f59e0b' }} />}
                           {isOoo  && <span style={{ fontSize:9, fontWeight:800, color:'#dc2626', background:'#fee2e2', padding:'1px 4px', borderRadius:3 }}>OOO</span>}
                           {isHold && <span style={{ fontSize:9, fontWeight:800, color:'#7c3aed', background:'#ede9fe', padding:'1px 4px', borderRadius:3 }}>HOLD</span>}
+                          {isOos && <span style={{ fontSize:9, fontWeight:800, color:'#b45309', background:'#fef3c7', padding:'1px 4px', borderRadius:3 }}>OOS</span>}
+                          {isInternal && <span style={{ fontSize:9, fontWeight:800, color:'#0e7490', background:'#cffafe', padding:'1px 4px', borderRadius:3 }}>INT</span>}
                           <button
                             onClick={e => { e.stopPropagation(); setBlockRoom(room); }}
-                            title={isOoo || isHold ? 'שחרר חדר' : 'חסום חדר'}
+                            title={isBlocked ? 'שחרר חדר' : 'חסום חדר'}
                             style={{
                               marginRight: 'auto', background: 'transparent', border: 'none', cursor: 'pointer', padding: '1px 3px',
-                              color: isOoo ? '#dc2626' : isHold ? '#7c3aed' : '#94a3b8',
+                              color: isOoo ? '#dc2626' : isHold ? '#7c3aed' : isOos ? '#b45309' : isInternal ? '#0e7490' : '#94a3b8',
                               borderRadius: 3, display: 'flex', alignItems: 'center',
                             }}
                           >
-                            {isOoo || isHold ? <Unlock size={10} /> : <Lock size={10} />}
+                            {isBlocked ? <Unlock size={10} /> : <Lock size={10} />}
                           </button>
                         </div>
                         <span style={{ fontSize:10, color:'#94a3b8' }}>{room.roomType?.name}</span>
@@ -473,7 +496,7 @@ export default function RoomRackPage() {
                           width: COL_W, minWidth: COL_W, height: '100%', flexShrink: 0,
                           borderLeft: '1px solid #f8fafc',
                           background: day.isToday ? 'rgba(99,102,241,0.03)' : day.isWeekend ? 'rgba(251,191,36,0.04)' : 'transparent',
-                          ...(isOoo || isHold ? { background: isOoo ? OPS_BG.ooo : OPS_BG.hold } : {}),
+                          ...(isBlocked ? { background: OPS_BG[room.opsStatus] || OPS_BG.out_of_order } : {}),
                         }} />
                       ))}
 

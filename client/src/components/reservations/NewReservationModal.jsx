@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Search, CalendarDays, Users, Crown, ChevronDown } from 'lucide-react';
+import { X, Search, CalendarDays, Users, Crown, ChevronDown, UserPlus } from 'lucide-react';
 import { guests as guestApi, roomTypes as rtApi, reservations as resApi } from '../../utils/api';
 import { TODAY, addDays } from '../../utils/date';
 
@@ -66,7 +66,15 @@ function GuestSearch({ propertyId, value, onChange }) {
           <div className="absolute right-0 top-full mt-1 w-full bg-white border border-surface-border rounded-xl shadow-card-hover z-20 max-h-52 overflow-y-auto">
             {loading && <div className="px-4 py-3 text-xs text-ink-muted">מחפש...</div>}
             {!loading && results.length === 0 && q.trim() && (
-              <div className="px-4 py-3 text-xs text-ink-muted">לא נמצאו אורחים</div>
+              <div className="flex flex-col">
+                <div className="px-4 py-3 text-xs text-ink-muted">לא נמצאו אורחים</div>
+                <button
+                  className="flex items-center gap-2 px-3 py-2.5 hover:bg-surface-hover text-brand text-sm font-medium border-t border-surface-border transition-colors"
+                  onClick={() => { setOpen(false); onChange({ _new: true, query: q }); }}
+                >
+                  <UserPlus size={14} /> + צור אורח חדש
+                </button>
+              </div>
             )}
             {results.map(g => (
               <div key={String(g._id)}
@@ -111,6 +119,9 @@ export default function NewReservationModal({ propertyId, onClose, onCreated }) 
   const [departure, setDeparture] = useState(addDays(TODAY, 3));
   const [rate,      setRate]      = useState('');
   const [adults,    setAdults]    = useState(2);
+  const [children,  setChildren]  = useState(0);
+  const [newGuest,  setNewGuest]  = useState({ firstName:'', lastName:'', email:'', phone:'' });
+  const [creatingGuest, setCreatingGuest] = useState(false);
   const [source,    setSource]    = useState('direct');
   const [notes,     setNotes]     = useState('');
   const [loading,   setLoading]   = useState(false);
@@ -135,7 +146,8 @@ export default function NewReservationModal({ propertyId, onClose, onCreated }) 
   const n = nights(arrival, departure);
   const total = n * Number(rate || 0);
   const selectedRt = rtypes.find(t => String(t._id) === roomTypeId);
-  const canStep1 = !!guest && !!roomTypeId;
+  const isNewGuestPending = guest?._new;
+  const canStep1 = !!guest && !isNewGuestPending && !!roomTypeId;
   const canStep2 = n > 0 && Number(rate) > 0;
 
   async function submit() {
@@ -145,6 +157,7 @@ export default function NewReservationModal({ propertyId, onClose, onCreated }) 
       const res = await resApi.create({
         propertyId,
         primaryGuestId: String(guest._id),
+        children,
         roomTypeId,
         arrivalDate:   arrival,
         departureDate: departure,
@@ -197,7 +210,32 @@ export default function NewReservationModal({ propertyId, onClose, onCreated }) 
             <div className="flex flex-col gap-4">
               <div>
                 <label className="text-xs font-semibold text-ink-secondary block mb-1.5">אורח *</label>
-                <GuestSearch propertyId={propertyId} value={guest} onChange={setGuest} />
+                <GuestSearch propertyId={propertyId} value={guest?._new ? null : guest} onChange={g => { setGuest(g); if (!g?._new) setCreatingGuest(false); }} />
+                {/* inline new guest form */}
+                {guest?._new && (
+                  <div className="mt-2 border border-brand/30 rounded-xl p-3 bg-brand/5 flex flex-col gap-2 animate-fade-in">
+                    <div className="text-xs font-semibold text-brand flex items-center gap-1"><UserPlus size={13}/> אורח חדש</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input className="input text-sm" placeholder="שם פרטי *" value={newGuest.firstName} onChange={e => setNewGuest(g => ({...g, firstName:e.target.value}))} />
+                      <input className="input text-sm" placeholder="שם משפחה *" value={newGuest.lastName} onChange={e => setNewGuest(g => ({...g, lastName:e.target.value}))} />
+                      <input className="input text-sm" placeholder="אימייל" value={newGuest.email} onChange={e => setNewGuest(g => ({...g, email:e.target.value}))} />
+                      <input className="input text-sm" placeholder="טלפון" value={newGuest.phone} onChange={e => setNewGuest(g => ({...g, phone:e.target.value}))} />
+                    </div>
+                    <button
+                      disabled={!newGuest.firstName || !newGuest.lastName || creatingGuest}
+                      onClick={async () => {
+                        setCreatingGuest(true);
+                        try {
+                          const res = await guestApi.create({ ...newGuest, propertyId });
+                          setGuest(res);
+                          setNewGuest({ firstName:'', lastName:'', email:'', phone:'' });
+                        } catch(e) { alert(e.message || 'שגיאה'); }
+                        finally { setCreatingGuest(false); }
+                      }}
+                      className="btn btn-primary btn-sm self-start"
+                    >{creatingGuest ? 'יוצר...' : 'צור אורח'}</button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-semibold text-ink-secondary block mb-1.5">סוג חדר *</label>
@@ -263,12 +301,16 @@ export default function NewReservationModal({ propertyId, onClose, onCreated }) 
                   <input type="number" className="input w-full text-num" min={0} value={rate}
                     onChange={e => setRate(e.target.value)} />
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-ink-secondary block mb-1.5">אורחים</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-semibold text-ink-secondary block">אורחים</label>
                   <div className="flex items-center gap-2 input">
                     <Users size={13} className="text-ink-faint" />
-                    <input type="number" className="flex-1 bg-transparent outline-none text-num" min={1} max={6}
+                    <span className="text-xs text-ink-muted">מבוגרים:</span>
+                    <input type="number" className="w-14 bg-transparent outline-none text-num" min={1} max={6}
                       value={adults} onChange={e => setAdults(Number(e.target.value))} />
+                    <span className="text-xs text-ink-muted mr-2">ילדים:</span>
+                    <input type="number" className="w-14 bg-transparent outline-none text-num" min={0} max={6}
+                      value={children} onChange={e => setChildren(Number(e.target.value))} />
                   </div>
                 </div>
               </div>
@@ -292,7 +334,8 @@ export default function NewReservationModal({ propertyId, onClose, onCreated }) 
                   { label:'יציאה',     value: departure },
                   { label:'לילות',     value: n },
                   { label:'מקור',      value: SOURCES.find(s => s.value === source)?.label },
-                  { label:'אורחים',    value: adults },
+                  { label:'מבוגרים',   value: adults },
+                  { label:'ילדים',      value: children },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center justify-between text-sm">
                     <span className="text-ink-muted">{label}</span>

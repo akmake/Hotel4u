@@ -1,7 +1,14 @@
-﻿import Room from '../models/Room.js';
+﻿import Room, { OPS_STATUS } from '../models/Room.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import { audit } from './auditService.js';
+
+const OPS_STATUS_ALIASES = {
+  ooo: 'out_of_order',
+  hold: 'maintenance_hold',
+  oos: 'out_of_service',
+  internal: 'internal_use',
+};
 
 /**
  * Update room housekeeping status.
@@ -43,8 +50,13 @@ export async function updateOpsStatus({ roomId, opsStatus, outOfServiceUntil, re
   if (!room) throw new Error('Room not found');
 
   const before = room.toObject();
+  const normalizedStatus = OPS_STATUS_ALIASES[opsStatus] || opsStatus;
 
-  if (opsStatus === 'available') {
+  if (!OPS_STATUS.includes(normalizedStatus)) {
+    throw new Error(`Invalid opsStatus: ${opsStatus}`);
+  }
+
+  if (normalizedStatus === 'available') {
     const hasCriticalBlockingTicket = await MaintenanceTicket.exists({
       room: room._id,
       priority: 'critical',
@@ -57,9 +69,9 @@ export async function updateOpsStatus({ roomId, opsStatus, outOfServiceUntil, re
     }
   }
 
-  room.opsStatus = opsStatus;
+  room.opsStatus = normalizedStatus;
 
-  if (opsStatus === 'out_of_service') {
+  if (normalizedStatus === 'out_of_service') {
     room.outOfServiceUntil = outOfServiceUntil || room.outOfServiceUntil;
   } else {
     room.outOfServiceUntil = undefined;
@@ -71,7 +83,7 @@ export async function updateOpsStatus({ roomId, opsStatus, outOfServiceUntil, re
     property: propertyId,
     actor: actorId,
     actorName,
-    action: `room.ops_status.${opsStatus}`,
+    action: `room.ops_status.${normalizedStatus}`,
     entityType: 'Room',
     entityId: room._id,
     before,
@@ -187,3 +199,4 @@ export async function resolveMaintenanceTicket({ ticketId, actorId, actorName, i
 
   return ticket;
 }
+
