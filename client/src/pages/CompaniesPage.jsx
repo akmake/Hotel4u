@@ -428,7 +428,7 @@ export default function CompaniesPage() {
   }, []);
 
   const { data: list, loading, error, refetch } = useApi(
-    () => companiesApi.list(propertyId, search),
+    () => companiesApi.list(propertyId, search ? { q: search } : {}),
     [propertyId, search], skip
   );
 

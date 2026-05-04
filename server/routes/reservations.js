@@ -66,19 +66,31 @@ router.get('/availability/check', asyncHandler(async (req, res) => {
   res.json({ success: true, data: result });
 }));
 
-// GET /api/reservations?propertyId=&status=&arrivalDate=&departureDate=&q=&page=&limit=
+// GET /api/reservations?propertyId=&status=&arrivalDate=&departureDate=&q=&search=&source=&paymentStatus=&dateFrom=&dateTo=&company=&page=&limit=
 router.get('/', asyncHandler(async (req, res) => {
-  const { propertyId, status, arrivalDate, departureDate, q, page = 1, limit = 50 } = req.query;
+  const {
+    propertyId, status, arrivalDate, departureDate,
+    q, search, source, paymentStatus, company, groupCode,
+    dateFrom, dateTo,
+    page = 1, limit = 50,
+  } = req.query;
   assertPropertyScope(req, propertyId);
 
   const filter = { property: propertyId };
-  if (status) filter.status = { $in: String(status).split(',') };
-  if (arrivalDate) filter.arrivalDate = { $gte: arrivalDate };
+  if (status)        filter.status = { $in: String(status).split(',') };
+  if (arrivalDate)   filter.arrivalDate  = { $gte: arrivalDate };
   if (departureDate) filter.departureDate = { $lte: departureDate };
-  if (req.query.company) filter.company = req.query.company;
-  if (req.query.q) {
+  if (dateFrom)      filter.arrivalDate  = { ...(filter.arrivalDate || {}), $gte: dateFrom };
+  if (dateTo)        filter.departureDate = { ...(filter.departureDate || {}), $lte: dateTo };
+  if (company)       filter.company = company;
+  if (groupCode)     filter.groupCode = groupCode;
+  if (source)        filter.source = source;
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
+
+  const searchTerm = q || search;
+  if (searchTerm) {
     filter.$or = [
-      { confirmationNumber: { $regex: req.query.q, $options: 'i' } },
+      { confirmationNumber: { $regex: searchTerm, $options: 'i' } },
     ];
   }
 

@@ -238,7 +238,7 @@ export default function ReservationsPage() {
   const stats = statsData?.data || {};
 
   const listParams = useMemo(() => {
-    const p = { propertyId };
+    const p = {};
     if (statusFilter !== 'all') p.status = statusFilter;
     if (payFilter !== 'all')    p.paymentStatus = payFilter;
     if (sourceFilter !== 'all') p.source = sourceFilter;
@@ -246,10 +246,10 @@ export default function ReservationsPage() {
     if (dateFrom)               p.dateFrom = dateFrom;
     if (dateTo)                 p.dateTo = dateTo;
     return p;
-  }, [propertyId, statusFilter, payFilter, sourceFilter, debouncedSearch, dateFrom, dateTo]);
+  }, [statusFilter, payFilter, sourceFilter, debouncedSearch, dateFrom, dateTo]);
 
   const { data: listData, loading: listLoading, error: listError, refetch } = useApi(
-    () => resApi.list(listParams), [JSON.stringify(listParams)], !propertyId
+    () => resApi.list(propertyId, listParams), [propertyId, JSON.stringify(listParams)], !propertyId
   );
 
   const allRes = useMemo(() => listData?.data || [], [listData]);

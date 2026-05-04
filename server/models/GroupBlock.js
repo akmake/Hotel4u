@@ -37,7 +37,7 @@ const GroupBlockSchema = new Schema({
   property:      { type: Schema.Types.ObjectId, ref: 'Property', required: true, index: true },
 
   name:          { type: String, required: true, trim: true },
-  groupCode:     { type: String, required: true, unique: true, uppercase: true, trim: true },
+  groupCode:     { type: String, required: true, uppercase: true, trim: true },
   description:   String,
 
   arrivalDate:   { type: String, required: true },
