@@ -118,10 +118,15 @@ export const housekeeping = {
 
 // ── Maintenance ───────────────────────────────────────────────────────────────
 export const maintenance = {
-  list:   (propertyId, params = {}) => api.get(`/maintenance?propertyId=${propertyId}&${new URLSearchParams(params)}`),
-  create: (data)                    => api.post('/maintenance', data),
-  assign: (id, userId)              => api.patch(`/maintenance/${id}/assign`, { userId }),
-  status: (id, status, propertyId)  => api.patch(`/maintenance/${id}/status`, { status, propertyId }),
+  list:     (propertyId, params = {}) => api.get(`/maintenance?propertyId=${propertyId}&${new URLSearchParams(params)}`),
+  stats:    (propertyId)              => api.get(`/maintenance/stats?propertyId=${propertyId}`),
+  get:      (id)                      => api.get(`/maintenance/${id}`),
+  create:   (data)                    => api.post('/maintenance', data),
+  assign:   (id, userId)              => api.patch(`/maintenance/${id}/assign`, { userId }),
+  status:   (id, status, propertyId)  => api.patch(`/maintenance/${id}/status`, { status, propertyId }),
+  addNote:  (id, text, authorName)    => api.post(`/maintenance/${id}/notes`, { text, authorName }),
+  priority: (id, priority, propertyId)=> api.patch(`/maintenance/${id}/priority`, { priority, propertyId }),
+  due:      (id, dueDate, propertyId) => api.patch(`/maintenance/${id}/due`, { dueDate, propertyId }),
 };
 
 // ── Reports ───────────────────────────────────────────────────────────────────
@@ -129,6 +134,7 @@ export const reports = {
   summary:            (propertyId, from, to) => api.get(`/reports/summary?propertyId=${propertyId}${from?`&from=${from}`:''}${to?`&to=${to}`:''}`),
   nightAuditPreview:  (propertyId, date)     => api.get(`/reports/night-audit-preview?propertyId=${propertyId}&date=${date}`),
   runNightAudit:      (propertyId, date, markNoShows) => api.post('/reports/night-audit', { propertyId, date, markNoShows }),
+  nightAuditHistory:  (propertyId)           => api.get(`/reports/night-audit-history?propertyId=${propertyId}`),
 };
 
 // ── Users ─────────────────────────────────────────────────────────────────────

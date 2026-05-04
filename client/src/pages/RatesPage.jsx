@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { DollarSign, ChevronLeft, ChevronRight, Lock, RefreshCw, Sliders, Plus, Pencil, X } from 'lucide-react';
+import { DollarSign, ChevronLeft, ChevronRight, Lock, RefreshCw, Sliders, Plus, Pencil, X, Eye, EyeOff, Check, Trash2 } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
@@ -352,6 +352,189 @@ function Legend() {
   );
 }
 
+// ── Pricing Rules Modal ───────────────────────────────────────────────────────
+const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+const ADJ_TYPES = [
+  { value:'fixed',   label:'סכום קבוע (₪)' },
+  { value:'percent', label:'אחוז (%)' },
+  { value:'set',     label:'מחיר מפורש (₪)' },
+];
+
+function PricingRulesModal({ plan, onClose, onSaved, onError }) {
+  const [rules, setRules] = useState(() =>
+    (plan.pricingRules || []).map((r, i) => ({ ...r, _key: i }))
+  );
+  const [saving, setSaving] = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
+
+  const emptyRule = () => ({
+    _key: Date.now(),
+    name: '', active: true, adjustmentType: 'fixed', adjustmentValue: 0,
+    weekdays: [], seasonFrom: '', seasonTo: '', minLos: '', maxLos: '',
+    minLeadDays: '', maxLeadDays: '', channels: [], promoCodes: '', loyaltyTiers: '',
+  });
+
+  function updateRule(idx, k, v) {
+    setRules(rs => rs.map((r, i) => i === idx ? { ...r, [k]: v } : r));
+  }
+
+  function toggleWeekday(idx, d) {
+    setRules(rs => rs.map((r, i) => {
+      if (i !== idx) return r;
+      const wd = r.weekdays || [];
+      return { ...r, weekdays: wd.includes(d) ? wd.filter(x => x !== d) : [...wd, d] };
+    }));
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const clean = rules.map(({ _key, ...r }) => ({
+        ...r,
+        minLos: r.minLos ? Number(r.minLos) : undefined,
+        maxLos: r.maxLos ? Number(r.maxLos) : undefined,
+        minLeadDays: r.minLeadDays ? Number(r.minLeadDays) : undefined,
+        maxLeadDays: r.maxLeadDays ? Number(r.maxLeadDays) : undefined,
+        adjustmentValue: Number(r.adjustmentValue),
+        channels: typeof r.channels === 'string' ? r.channels.split(',').map(s => s.trim()).filter(Boolean) : r.channels,
+        promoCodes: r.promoCodes ? r.promoCodes.split(',').map(s => s.trim()).filter(Boolean) : [],
+        loyaltyTiers: r.loyaltyTiers ? r.loyaltyTiers.split(',').map(s => s.trim()).filter(Boolean) : [],
+      }));
+      await ratesApi.updatePlan(plan._id, { pricingRules: clean });
+      onSaved();
+    } catch (e) {
+      onError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-4 overflow-y-auto" style={{ background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)' }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl" dir="rtl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border">
+          <div className="font-bold text-ink">כללי תמחור — {plan.name}</div>
+          <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={16}/></button>
+        </div>
+
+        <div className="px-6 py-4 flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+          {rules.map((rule, idx) => (
+            <div key={rule._key} className={`border border-surface-border rounded-xl overflow-hidden ${!rule.active ? 'opacity-60' : ''}`}>
+              {/* Rule header */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-hover/60 cursor-pointer"
+                onClick={() => setEditIdx(editIdx === idx ? null : idx)}>
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${rule.active ? 'bg-emerald-500' : 'bg-gray-300'}`}/>
+                <div className="flex-1 font-semibold text-sm text-ink">{rule.name || `כלל ${idx + 1}`}</div>
+                <div className="text-xs text-ink-muted">
+                  {rule.adjustmentType === 'set' ? `₪${rule.adjustmentValue}` :
+                   rule.adjustmentType === 'fixed' ? `${rule.adjustmentValue > 0 ? '+' : ''}₪${rule.adjustmentValue}` :
+                   `${rule.adjustmentValue > 0 ? '+' : ''}${rule.adjustmentValue}%`}
+                </div>
+                <button className="btn btn-ghost btn-sm btn-icon" onClick={e => { e.stopPropagation(); updateRule(idx,'active',!rule.active); }}>
+                  {rule.active ? <EyeOff size={12}/> : <Eye size={12}/>}
+                </button>
+                <button className="btn btn-ghost btn-sm btn-icon text-red-500" onClick={e => { e.stopPropagation(); setRules(rs => rs.filter((_,i) => i !== idx)); }}>
+                  <Trash2 size={12}/>
+                </button>
+              </div>
+
+              {/* Rule editor (expanded) */}
+              {editIdx === idx && (
+                <div className="px-4 py-4 grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">שם הכלל</label>
+                    <input className="input w-full text-sm" value={rule.name} onChange={e => updateRule(idx,'name',e.target.value)} placeholder="שם הכלל..." />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">סוג התאמה</label>
+                    <select className="select w-full text-sm" value={rule.adjustmentType} onChange={e => updateRule(idx,'adjustmentType',e.target.value)}>
+                      {ADJ_TYPES.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">ערך</label>
+                    <input type="number" className="input w-full text-sm text-left" value={rule.adjustmentValue} onChange={e => updateRule(idx,'adjustmentValue',e.target.value)} />
+                  </div>
+
+                  {/* Weekdays */}
+                  <div className="col-span-2">
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1.5">ימי שבוע (ריק = כל הימים)</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {DAYS_HE.map((d, i) => (
+                        <button key={i} type="button" onClick={() => toggleWeekday(idx, i)}
+                          className={`w-9 h-9 rounded-lg text-xs font-semibold border transition-all ${(rule.weekdays||[]).includes(i) ? 'bg-brand text-white border-brand' : 'border-surface-border text-ink-secondary hover:border-brand/40'}`}>
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Season */}
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">עונה מ</label>
+                    <input type="date" className="input w-full text-sm" value={rule.seasonFrom} onChange={e => updateRule(idx,'seasonFrom',e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">עונה עד</label>
+                    <input type="date" className="input w-full text-sm" value={rule.seasonTo} onChange={e => updateRule(idx,'seasonTo',e.target.value)} />
+                  </div>
+
+                  {/* LOS + Lead */}
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">מינ' לינות</label>
+                    <input type="number" min={1} className="input w-full text-sm text-left" value={rule.minLos} onChange={e => updateRule(idx,'minLos',e.target.value)} placeholder="—" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">מקס' לינות</label>
+                    <input type="number" min={1} className="input w-full text-sm text-left" value={rule.maxLos} onChange={e => updateRule(idx,'maxLos',e.target.value)} placeholder="—" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">מינ' ימי הזמנה מראש</label>
+                    <input type="number" min={0} className="input w-full text-sm text-left" value={rule.minLeadDays} onChange={e => updateRule(idx,'minLeadDays',e.target.value)} placeholder="—" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">מקס' ימי הזמנה מראש</label>
+                    <input type="number" min={0} className="input w-full text-sm text-left" value={rule.maxLeadDays} onChange={e => updateRule(idx,'maxLeadDays',e.target.value)} placeholder="—" />
+                  </div>
+
+                  {/* Channels + promo */}
+                  <div className="col-span-2">
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">ערוצים (מופרדים בפסיק)</label>
+                    <input className="input w-full text-sm" value={Array.isArray(rule.channels) ? rule.channels.join(',') : rule.channels} onChange={e => updateRule(idx,'channels',e.target.value)} placeholder="direct,booking,expedia" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">קודי פרומו</label>
+                    <input className="input w-full text-sm" value={rule.promoCodes} onChange={e => updateRule(idx,'promoCodes',e.target.value)} placeholder="SUMMER25,LOYAL10" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">רמות נאמנות</label>
+                    <input className="input w-full text-sm" value={rule.loyaltyTiers} onChange={e => updateRule(idx,'loyaltyTiers',e.target.value)} placeholder="gold,platinum" />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {rules.length === 0 && (
+            <div className="text-center text-ink-faint py-6 text-sm">אין כללי תמחור. לחץ "+ הוסף כלל" להוספה.</div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-surface-border flex gap-2">
+          <button className="btn btn-secondary gap-1.5" onClick={() => { setRules(rs => [...rs, emptyRule()]); setEditIdx(rules.length); }}>
+            <Plus size={14}/> הוסף כלל
+          </button>
+          <div className="flex-1"/>
+          <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
+          <button className="btn btn-primary gap-1.5" onClick={save} disabled={saving}>
+            {saving ? <Spinner size={13}/> : <Check size={13}/>} שמור כללים
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function RatesPage() {
   const { propertyId } = useProperty();
@@ -364,13 +547,16 @@ export default function RatesPage() {
   const [saving,     setSaving]     = useState(false);
   const [showBulk,   setShowBulk]   = useState(false);
   const [planModal,  setPlanModal]  = useState(null); // null | 'new' | plan object
+  const [showInactive, setShowInactive] = useState(false);
+  const [pricingRulesFor, setPricingRulesFor] = useState(null); // plan object | null
 
   const { data: plans, loading: plansLoading, refetch: refetchPlans } = useApi(
     () => ratesApi.plans(propertyId, true),
     [propertyId], skip
   );
 
-  const activePlans = (plans || []).filter(p => p.active !== false);
+  const activePlans   = (plans || []).filter(p => p.active !== false);
+  const inactivePlans = (plans || []).filter(p => p.active === false);
   const planId = activePlan || (activePlans[0] ? String(activePlans[0]._id) : null);
 
   const { data: gridData, loading: gridLoading, error: gridError, refetch } = useApi(
@@ -410,6 +596,16 @@ export default function RatesPage() {
       refetchPlans();
       if (activePlan === String(plan._id)) setActivePlan(null);
       success('תכנית הושבתה');
+    } catch (e) {
+      toastError(e.message);
+    }
+  }
+
+  async function activatePlan(plan) {
+    try {
+      await ratesApi.updatePlan(plan._id, { active: true });
+      refetchPlans();
+      success('תכנית הופעלה מחדש');
     } catch (e) {
       toastError(e.message);
     }
@@ -471,6 +667,13 @@ export default function RatesPage() {
               >
                 <Pencil size={11} />
               </button>
+              <button
+                className={`btn btn-sm rounded-l-none border-r-0 ${planId === String(p._id) ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setPricingRulesFor(p)}
+                title="כללי תמחור"
+              >
+                <Sliders size={11} />
+              </button>
             </div>
           ))}
         </div>
@@ -484,6 +687,30 @@ export default function RatesPage() {
       )}
 
       <Legend />
+
+      {/* Inactive plans toggle */}
+      {inactivePlans.length > 0 && (
+        <div className="mb-4">
+          <button className="btn btn-ghost btn-sm gap-1.5 text-ink-muted hover:text-ink"
+            onClick={() => setShowInactive(v => !v)}>
+            {showInactive ? <EyeOff size={13}/> : <Eye size={13}/>}
+            {showInactive ? 'הסתר מושבתות' : `הצג תכניות מושבתות (${inactivePlans.length})`}
+          </button>
+          {showInactive && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {inactivePlans.map(p => (
+                <div key={String(p._id)} className="flex items-center gap-1 bg-surface-hover border border-surface-border rounded-xl px-3 py-2 opacity-60">
+                  <span className="font-mono font-semibold text-xs text-ink-secondary">{p.code}</span>
+                  <span className="text-xs text-ink-muted">— {p.name}</span>
+                  <button className="btn btn-ghost btn-sm gap-1 text-emerald-600 mr-1 text-xs" onClick={() => activatePlan(p)}>
+                    <Check size={11}/> הפעל
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Grid */}
       {gridLoading ? (
@@ -607,6 +834,15 @@ export default function RatesPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {pricingRulesFor && (
+        <PricingRulesModal
+          plan={pricingRulesFor}
+          onClose={() => setPricingRulesFor(null)}
+          onSaved={() => { setPricingRulesFor(null); success('כללי תמחור נשמרו'); }}
+          onError={toastError}
+        />
       )}
 
       {/* Modals */}

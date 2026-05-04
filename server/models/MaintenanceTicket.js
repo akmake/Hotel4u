@@ -5,6 +5,13 @@ export const MT_CATEGORY = ['electricity','water','hvac','furniture','cleaning',
 export const MT_PRIORITY = ['critical','high','medium','low'];
 export const MT_STATUS   = ['new','assigned','in_progress','waiting_parts','waiting_vendor','resolved','verified','closed','reopened'];
 
+const NoteSchema = new Schema({
+  text:       { type: String, required: true },
+  author:     { type: Schema.Types.ObjectId, ref: 'User' },
+  authorName: String,
+  createdAt:  { type: Date, default: Date.now },
+}, { _id: true });
+
 const MaintenanceTicketSchema = new Schema({
   property:      { type: Schema.Types.ObjectId, ref: 'Property', required: true },
   room:          { type: Schema.Types.ObjectId, ref: 'Room' },
@@ -19,12 +26,15 @@ const MaintenanceTicketSchema = new Schema({
   estimatedCost: Number,
   actualCost:    Number,
   dueDate:       Date,
+  startedAt:     Date,
   resolvedAt:    Date,
-  notes:         String,
+  notes:         String,                                   // legacy single notes field
+  internalNotes: { type: [NoteSchema], default: [] },     // timeline of notes
   blocksRoom:    { type: Boolean, default: false },        // if true, room goes OOO
 }, { timestamps: true });
 
 MaintenanceTicketSchema.index({ property: 1, status: 1 });
+MaintenanceTicketSchema.index({ property: 1, priority: 1 });
 MaintenanceTicketSchema.index({ room: 1 });
 
 export default model('MaintenanceTicket', MaintenanceTicketSchema);
