@@ -157,4 +157,74 @@ router.post('/:id/notes', asyncHandler(async (req, res) => {
   res.json({ success: true, data: ticket });
 }));
 
+// POST /api/maintenance/:id/approve-close — manager approval for critical ticket closure (Ch. 22.4)
+router.post('/:id/approve-close', asyncHandler(async (req, res) => {
+  requireRoles(req, ['super_admin','property_admin','general_manager','maintenance_manager'], 'Approving critical ticket closure requires manager permissions');
+  const ticket = await MaintenanceTicket.findById(req.params.id);
+  if (!ticket) return res.status(404).json({ success: false, error: 'Ticket not found' });
+  assertPropertyScope(req, ticket.property);
+
+  if (ticket.priority !== 'critical') {
+    return res.status(400).json({ success: false, error: 'Only critical tickets require closing approval' });
+  }
+  if (!['resolved'].includes(ticket.status)) {
+    return res.status(400).json({ success: false, error: 'Ticket must be resolved before closing approval' });
+  }
+
+  const actor = actorOrSystem(req);
+  ticket.closingApprovedBy = actor.id || undefined;
+  ticket.closingApprovedAt = new Date();
+  ticket.status = 'verified';
+  await ticket.save();
+
+  res.json({ success: true, data: ticket });
+}));
+
+// POST /api/maintenance/:id/photos — attach photo URLs to ticket
+router.post('/:id/photos', asyncHandler(async (req, res) => {
+  requireRoles(req, MAINTENANCE_ROLES, 'Permission required');
+  const { url, caption } = req.body;
+  if (!url?.trim()) return res.status(400).json({ success: false, error: 'url is required' });
+
+  const ticket = await MaintenanceTicket.findById(req.params.id);
+  if (!ticket) return res.status(404).json({ success: false, error: 'Ticket not found' });
+  assertPropertyScope(req, ticket.property);
+
+  const actor = actorOrSystem(req);
+  ticket.photos.push({ url: url.trim(), caption: caption?.trim() || undefined, uploadedBy: actor.id || undefined });
+  await ticket.save();
+
+  res.json({ success: true, data: ticket.photos });
+}));
+
+// PATCH /api/maintenance/:id/parts — update parts-needed list
+router.patch('/:id/parts', asyncHandler(async (req, res) => {
+  requireRoles(req, MAINTENANCE_ROLES, 'Permission required');
+  const { parts } = req.body;
+  if (!Array.isArray(parts)) return res.status(400).json({ success: false, error: 'parts must be an array' });
+
+  const ticket = await MaintenanceTicket.findById(req.params.id);
+  if (!ticket) return res.status(404).json({ success: false, error: 'Ticket not found' });
+  assertPropertyScope(req, ticket.property);
+
+  ticket.partsNeeded = parts;
+  await ticket.save();
+
+  res.json({ success: true, data: ticket.partsNeeded });
+}));
+
+// PATCH /api/maintenance/:id/vendor — set vendor contact
+router.patch('/:id/vendor', asyncHandler(async (req, res) => {
+  requireRoles(req, MAINTENANCE_ROLES, 'Permission required');
+  const { name, phone, email } = req.body;
+  const ticket = await MaintenanceTicket.findById(req.params.id);
+  if (!ticket) return res.status(404).json({ success: false, error: 'Ticket not found' });
+  assertPropertyScope(req, ticket.property);
+
+  ticket.vendorContact = { name, phone, email };
+  await ticket.save();
+
+  res.json({ success: true, data: ticket.vendorContact });
+}));
+
 export default router;

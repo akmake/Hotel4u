@@ -612,9 +612,9 @@ router.patch('/:id', asyncHandler(async (req, res) => {
 // POST /api/reservations/:id/check-in
 router.post('/:id/check-in', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Check-in requires front-desk permissions');
-  const { overrideClean } = req.body;
-  if (overrideClean) {
-    requireRoles(req, HIGH_PRIV_CHECKIN_ROLES, 'Override clean check-in requires manager privileges');
+  const { overrideClean, overrideEarlyArrival } = req.body;
+  if (overrideClean || overrideEarlyArrival) {
+    requireRoles(req, HIGH_PRIV_CHECKIN_ROLES, 'Override clean/early check-in requires manager privileges');
   }
   const existing = await getReservationOr404(req.params.id, res);
   if (!existing) return;
@@ -623,6 +623,7 @@ router.post('/:id/check-in', asyncHandler(async (req, res) => {
   const reservation = await checkIn({
     reservationId: req.params.id,
     overrideClean: !!overrideClean,
+    overrideEarlyArrival: !!overrideEarlyArrival,
     actorId: actor.id,
     actorName: actor.name,
     ip: req.ip,

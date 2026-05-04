@@ -89,7 +89,7 @@ export const reservations = {
   split:            (id, roomIds)    => api.post(`/reservations/${id}/split`, { reservationRoomIds: roomIds }),
 
   // Operations
-  checkIn:          (id, overrideClean) => api.post(`/reservations/${id}/check-in`, { overrideClean }),
+  checkIn:          (id, overrideClean, overrideEarlyArrival) => api.post(`/reservations/${id}/check-in`, { overrideClean, overrideEarlyArrival }),
   checkOut:         (id, force)         => api.post(`/reservations/${id}/check-out`, { forceCheckout: force }),
   partialCheckIn:   (id, reservationRoomIds, overrideClean) =>
     api.post(`/reservations/${id}/partial-check-in`, { reservationRoomIds, overrideClean }),
@@ -168,7 +168,11 @@ export const maintenance = {
   status:   (id, status, propertyId)  => api.patch(`/maintenance/${id}/status`, { status, propertyId }),
   priority: (id, priority, propertyId)=> api.patch(`/maintenance/${id}/priority`, { priority, propertyId }),
   due:      (id, dueDate, propertyId) => api.patch(`/maintenance/${id}/due`, { dueDate, propertyId }),
-  addNote:  (id, text, authorName)    => api.post(`/maintenance/${id}/notes`, { text, authorName }),
+  addNote:      (id, text, authorName)       => api.post(`/maintenance/${id}/notes`, { text, authorName }),
+  approveClose: (id)                         => api.post(`/maintenance/${id}/approve-close`, {}),
+  addPhoto:     (id, url, caption)           => api.post(`/maintenance/${id}/photos`, { url, caption }),
+  updateParts:  (id, parts)                  => api.patch(`/maintenance/${id}/parts`, { parts }),
+  setVendor:    (id, name, phone, email)     => api.patch(`/maintenance/${id}/vendor`, { name, phone, email }),
 };
 
 // ── Reports ───────────────────────────────────────────────────────────────────
