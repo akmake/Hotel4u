@@ -14,6 +14,7 @@ export const SOURCE = ['direct', 'booking', 'expedia', 'agoda', 'airbnb', 'gds',
 const ReservationSchema = new Schema({
   property:          { type: Schema.Types.ObjectId, ref: 'Property', required: true },
   confirmationNumber:{ type: String, required: true, unique: true },
+  idempotencyKey:    String,
   status:            { type: String, enum: RES_STATUS, default: 'confirmed' },
 
   // Guests
@@ -70,5 +71,6 @@ ReservationSchema.index({ property: 1, arrivalDate: 1 });
 ReservationSchema.index({ property: 1, departureDate: 1 });
 ReservationSchema.index({ property: 1, status: 1 });
 ReservationSchema.index({ primaryGuest: 1 });
+ReservationSchema.index({ property: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
 
 export default model('Reservation', ReservationSchema);

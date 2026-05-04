@@ -3,44 +3,73 @@ import Room from '../models/Room.js';
 import Folio from '../models/Folio.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import GuestProfile from '../models/GuestProfile.js';
-import { checkAvailability, incrementInventory } from './availabilityService.js';
+import {
+  checkAvailability,
+  incrementInventory,
+  consumeAvailabilityLock,
+} from './availabilityService.js';
+import { enqueueChannelUpdate } from './channelQueueService.js';
 import { audit } from './auditService.js';
 
 let _counter = 1000;
+
 async function nextConfirmationNumber() {
-  // In production use an atomic counter in DB; this is fine for MVP
   const last = await Reservation.findOne().sort({ createdAt: -1 }).select('confirmationNumber');
   if (last?.confirmationNumber) {
     const n = parseInt(last.confirmationNumber.replace('RES-', ''), 10);
-    if (!isNaN(n)) _counter = n;
+    if (!Number.isNaN(n)) _counter = n;
   }
   return `RES-${++_counter}`;
 }
 
-// ─── Create Reservation ────────────────────────────────────────────────────────
 export async function createReservation({ propertyId, data, actorId, actorName, ip }) {
-  const { roomTypeId, arrivalDate, departureDate, primaryGuestId, adults, children,
-          ratePlanId, ratePerNight, source, specialRequests, isVip } = data;
+  const {
+    roomTypeId,
+    arrivalDate,
+    departureDate,
+    primaryGuestId,
+    adults,
+    children,
+    ratePlanId,
+    ratePerNight,
+    source,
+    specialRequests,
+    isVip,
+    idempotencyKey,
+  } = data;
+
+  if (idempotencyKey) {
+    const existing = await Reservation.findOne({ property: propertyId, idempotencyKey });
+    if (existing) return existing;
+  }
 
   const nights = Math.round((new Date(departureDate) - new Date(arrivalDate)) / 86400000);
-  if (nights <= 0) throw new Error('תאריכים לא תקינים');
+  if (nights <= 0) throw new Error('Invalid stay dates');
 
-  // 1. Availability check
-  const avail = await checkAvailability({ propertyId, roomTypeId, arrivalDate, departureDate });
-  if (!avail.available) throw new Error(`אין זמינות: ${avail.reason}`);
+  const avail = await checkAvailability({
+    propertyId,
+    roomTypeId,
+    arrivalDate,
+    departureDate,
+    ignoreIdempotencyKey: idempotencyKey || null,
+  });
+  if (!avail.available) throw new Error(`No availability: ${avail.reason}`);
 
-  // 2. Assign best available room (clean + inspected first)
-  let assignedRoom = avail.availableRooms.find(r => ['clean','inspected'].includes(r.cleanStatus))
+  if (idempotencyKey) {
+    await consumeAvailabilityLock({ propertyId, idempotencyKey }).catch(() => null);
+  }
+
+  const assignedRoom = avail.availableRooms.find(r => ['clean', 'inspected'].includes(r.cleanStatus))
     || avail.availableRooms[0]
     || null;
 
-  const totalAmount = ratePerNight * nights;
+  const totalAmount = Number(ratePerNight) * nights;
   const confNum = await nextConfirmationNumber();
 
-  // 3. Create reservation
   const res = await Reservation.create({
     property: propertyId,
     confirmationNumber: confNum,
+    idempotencyKey: idempotencyKey || undefined,
     status: 'confirmed',
     primaryGuest: primaryGuestId,
     adults: adults || 2,
@@ -52,7 +81,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     roomType: roomTypeId,
     ratePlan: ratePlanId,
     assignedRoom: assignedRoom?._id || null,
-    ratePerNight,
+    ratePerNight: Number(ratePerNight),
     totalAmount,
     taxAmount: Math.round(totalAmount * 0.17),
     paymentStatus: 'unpaid',
@@ -63,7 +92,6 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     updatedBy: actorId,
   });
 
-  // 4. Open folio
   await Folio.create({
     property: propertyId,
     reservation: res._id,
@@ -73,48 +101,71 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     lines: [],
   });
 
-  // 5. Update inventory
-  await incrementInventory(propertyId, roomTypeId, arrivalDate, departureDate, 1);
+  await incrementInventory(propertyId, roomTypeId, arrivalDate, departureDate, 1, {
+    propertyId,
+    actorId,
+    actorName,
+    ip,
+    action: 'inventory.reservation_created',
+    reason: `Reservation ${confNum}`,
+  });
 
-  // 6. Update room occupancy status
   if (assignedRoom) {
     await Room.findByIdAndUpdate(assignedRoom._id, { occStatus: 'due_in' });
   }
 
-  // 7. Audit
-  await audit({ property: propertyId, actor: actorId, actorName, action: 'reservation.created',
-    entityType: 'Reservation', entityId: res._id, after: res.toObject(), ip });
+  await audit({
+    property: propertyId,
+    actor: actorId,
+    actorName,
+    action: 'reservation.created',
+    entityType: 'Reservation',
+    entityId: res._id,
+    after: res.toObject(),
+    ip,
+  });
+
+  await enqueueChannelUpdate({
+    propertyId,
+    channel: source || 'direct',
+    eventType: 'reservation',
+    payload: {
+      action: 'created',
+      reservationId: String(res._id),
+      confirmationNumber: res.confirmationNumber,
+      roomTypeId,
+      arrivalDate,
+      departureDate,
+    },
+    idempotencyKey: idempotencyKey ? `${idempotencyKey}:reservation:created` : undefined,
+  }).catch(() => null);
 
   return res;
 }
 
-// ─── Check-in ─────────────────────────────────────────────────────────────────
 export async function checkIn({ reservationId, actorId, actorName, ip, overrideClean = false }) {
   const res = await Reservation.findById(reservationId).populate('assignedRoom');
-  if (!res) throw new Error('הזמנה לא נמצאה');
-  if (!['confirmed','modified'].includes(res.status)) throw new Error(`לא ניתן לצ'ק-אין מסטטוס: ${res.status}`);
+  if (!res) throw new Error('Reservation not found');
+  if (!['confirmed', 'modified'].includes(res.status)) throw new Error(`Cannot check in from status ${res.status}`);
 
   const today = new Date().toISOString().split('T')[0];
-  if (res.arrivalDate > today) throw new Error(`תאריך הגעה הוא ${res.arrivalDate} — מוקדם מדי לצ'ק-אין`);
+  if (res.arrivalDate > today) throw new Error(`Arrival date is ${res.arrivalDate}; too early for check-in`);
 
   const room = res.assignedRoom;
-  if (!room) throw new Error('אין חדר מוקצה להזמנה');
-  if (!overrideClean && !['clean','inspected'].includes(room.cleanStatus)) {
-    throw new Error(`חדר ${room.number} לא נקי (${room.cleanStatus}) — נדרשת הרשאה לעקיפה`);
+  if (!room) throw new Error('No assigned room');
+  if (!overrideClean && !['clean', 'inspected'].includes(room.cleanStatus)) {
+    throw new Error(`Room ${room.number} is not clean (${room.cleanStatus})`);
   }
 
   const before = res.toObject();
 
-  // Update reservation
   res.status = 'in_house';
   res.checkedInAt = new Date();
   res.updatedBy = actorId;
   await res.save();
 
-  // Update room
   await Room.findByIdAndUpdate(room._id, { occStatus: 'occupied' });
 
-  // Post room charges to folio for each night
   const folio = await Folio.findOne({ reservation: reservationId, status: 'open' });
   if (folio) {
     const dates = [];
@@ -127,7 +178,7 @@ export async function checkIn({ reservationId, actorId, actorName, ip, overrideC
     for (const date of dates) {
       folio.lines.push({
         type: 'charge',
-        description: 'לינה',
+        description: 'Room Night',
         amount: res.ratePerNight,
         taxAmount: Math.round(res.ratePerNight * 0.17),
         department: 'rooms',
@@ -140,29 +191,37 @@ export async function checkIn({ reservationId, actorId, actorName, ip, overrideC
     await folio.save();
   }
 
-  // Update guest stats
-  await GuestProfile.findByIdAndUpdate(res.primaryGuest, { $inc: { totalStays: 1, totalRevenue: res.totalAmount } });
+  await GuestProfile.findByIdAndUpdate(res.primaryGuest, {
+    $inc: { totalStays: 1, totalRevenue: res.totalAmount },
+  });
 
-  await audit({ property: res.property, actor: actorId, actorName, action: 'reservation.check_in',
-    entityType: 'Reservation', entityId: res._id, before, after: res.toObject(), ip });
+  await audit({
+    property: res.property,
+    actor: actorId,
+    actorName,
+    action: 'reservation.check_in',
+    entityType: 'Reservation',
+    entityId: res._id,
+    before,
+    after: res.toObject(),
+    ip,
+  });
 
   return res;
 }
 
-// ─── Check-out ────────────────────────────────────────────────────────────────
 export async function checkOut({ reservationId, actorId, actorName, ip, forceCheckout = false }) {
   const res = await Reservation.findById(reservationId).populate('assignedRoom');
-  if (!res) throw new Error('הזמנה לא נמצאה');
-  if (!['in_house','checked_in'].includes(res.status)) throw new Error(`לא ניתן לצ'ק-אאוט מסטטוס: ${res.status}`);
+  if (!res) throw new Error('Reservation not found');
+  if (!['in_house', 'checked_in'].includes(res.status)) throw new Error(`Cannot check out from status ${res.status}`);
 
-  // Check folio balance
   const folio = await Folio.findOne({ reservation: reservationId, status: 'open' });
   if (folio) {
     const balance = folio.lines
       .filter(l => l.status === 'posted')
       .reduce((s, l) => s + l.amount + l.taxAmount, 0);
     if (balance > 0 && !forceCheckout) {
-      throw new Error(`יתרה פתוחה: ₪${balance.toFixed(2)} — יש לסגור לפני יציאה`);
+      throw new Error(`Open balance: ${balance.toFixed(2)}`);
     }
     folio.status = 'closed';
     folio.closedAt = new Date();
@@ -178,10 +237,8 @@ export async function checkOut({ reservationId, actorId, actorName, ip, forceChe
 
   const room = res.assignedRoom;
   if (room) {
-    // Room becomes dirty automatically
     await Room.findByIdAndUpdate(room._id, { occStatus: 'checked_out', cleanStatus: 'dirty' });
 
-    // Auto-create housekeeping checkout task
     const today = new Date().toISOString().split('T')[0];
     await HousekeepingTask.create({
       property: res.property,
@@ -197,17 +254,25 @@ export async function checkOut({ reservationId, actorId, actorName, ip, forceChe
     });
   }
 
-  await audit({ property: res.property, actor: actorId, actorName, action: 'reservation.check_out',
-    entityType: 'Reservation', entityId: res._id, before, after: res.toObject(), ip });
+  await audit({
+    property: res.property,
+    actor: actorId,
+    actorName,
+    action: 'reservation.check_out',
+    entityType: 'Reservation',
+    entityId: res._id,
+    before,
+    after: res.toObject(),
+    ip,
+  });
 
   return res;
 }
 
-// ─── Cancel Reservation ────────────────────────────────────────────────────────
 export async function cancelReservation({ reservationId, reason, actorId, actorName, ip }) {
   const res = await Reservation.findById(reservationId);
-  if (!res) throw new Error('הזמנה לא נמצאה');
-  if (['cancelled','checked_out'].includes(res.status)) throw new Error('הזמנה כבר בוטלה/יצאה');
+  if (!res) throw new Error('Reservation not found');
+  if (['cancelled', 'checked_out'].includes(res.status)) throw new Error('Reservation already closed/cancelled');
 
   const before = res.toObject();
   res.status = 'cancelled';
@@ -216,50 +281,85 @@ export async function cancelReservation({ reservationId, reason, actorId, actorN
   res.updatedBy = actorId;
   await res.save();
 
-  // Release inventory
-  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1);
+  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1, {
+    propertyId: res.property,
+    actorId,
+    actorName,
+    ip,
+    action: 'inventory.reservation_cancelled',
+    reason: `Reservation ${res.confirmationNumber}`,
+  });
 
-  // Free the room
   if (res.assignedRoom) {
     await Room.findByIdAndUpdate(res.assignedRoom, { occStatus: 'vacant' });
   }
 
-  await audit({ property: res.property, actor: actorId, actorName, action: 'reservation.cancelled',
-    entityType: 'Reservation', entityId: res._id, before, after: res.toObject(), reason, ip });
+  await audit({
+    property: res.property,
+    actor: actorId,
+    actorName,
+    action: 'reservation.cancelled',
+    entityType: 'Reservation',
+    entityId: res._id,
+    before,
+    after: res.toObject(),
+    reason,
+    ip,
+  });
+
+  await enqueueChannelUpdate({
+    propertyId: res.property,
+    channel: res.source || 'direct',
+    eventType: 'reservation',
+    payload: { action: 'cancelled', reservationId: String(res._id), confirmationNumber: res.confirmationNumber },
+    idempotencyKey: res.idempotencyKey ? `${res.idempotencyKey}:reservation:cancelled` : undefined,
+  }).catch(() => null);
 
   return res;
 }
 
-// ─── Modify Reservation ───────────────────────────────────────────────────────
 export async function modifyReservation({ reservationId, data, actorId, actorName, ip }) {
   const res = await Reservation.findById(reservationId);
-  if (!res) throw new Error('הזמנה לא נמצאה');
+  if (!res) throw new Error('Reservation not found');
   if (!['confirmed', 'modified'].includes(res.status)) {
-    throw new Error(`לא ניתן לשנות הזמנה בסטטוס: ${res.status}`);
+    throw new Error(`Cannot modify reservation from status ${res.status}`);
   }
 
   const before = res.toObject();
   const {
-    arrivalDate, departureDate, roomTypeId, ratePerNight,
-    ratePlanId, adults, children, specialRequests, internalNotes, priceOverrideReason,
+    arrivalDate,
+    departureDate,
+    roomTypeId,
+    ratePerNight,
+    ratePlanId,
+    adults,
+    children,
+    specialRequests,
+    internalNotes,
+    priceOverrideReason,
   } = data;
 
-  const datesChanged = (arrivalDate && arrivalDate !== res.arrivalDate) ||
-                       (departureDate && departureDate !== res.departureDate);
-  const typeChanged  = roomTypeId && String(roomTypeId) !== String(res.roomType);
+  const datesChanged = (arrivalDate && arrivalDate !== res.arrivalDate)
+    || (departureDate && departureDate !== res.departureDate);
+  const typeChanged = roomTypeId && String(roomTypeId) !== String(res.roomType);
 
   if (datesChanged || typeChanged) {
-    const newArrival    = arrivalDate    || res.arrivalDate;
-    const newDeparture  = departureDate  || res.departureDate;
-    const newRoomTypeId = roomTypeId     || String(res.roomType);
+    const newArrival = arrivalDate || res.arrivalDate;
+    const newDeparture = departureDate || res.departureDate;
+    const newRoomTypeId = roomTypeId || String(res.roomType);
 
     const nights = Math.round((new Date(newDeparture) - new Date(newArrival)) / 86400000);
-    if (nights <= 0) throw new Error('תאריכים לא תקינים');
+    if (nights <= 0) throw new Error('Invalid dates');
 
-    // Release old inventory
-    await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1);
+    await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1, {
+      propertyId: res.property,
+      actorId,
+      actorName,
+      ip,
+      action: 'inventory.reservation_modify_release_old',
+      reason: `Reservation ${res.confirmationNumber}`,
+    });
 
-    // Check new availability (exclude self so the old assigned room isn't counted)
     const avail = await checkAvailability({
       propertyId: String(res.property),
       roomTypeId: newRoomTypeId,
@@ -267,55 +367,80 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
       departureDate: newDeparture,
       excludeReservationId: String(res._id),
     });
+
     if (!avail.available) {
-      // Restore old inventory on failure
-      await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, 1);
-      throw new Error(`אין זמינות לתאריכים החדשים: ${avail.reason}`);
+      await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, 1, {
+        propertyId: res.property,
+        actorId,
+        actorName,
+        ip,
+        action: 'inventory.reservation_modify_rollback_old',
+        reason: `Reservation ${res.confirmationNumber}`,
+      });
+      throw new Error(`No availability for new dates: ${avail.reason}`);
     }
 
-    // Re-lock new inventory
-    await incrementInventory(res.property, newRoomTypeId, newArrival, newDeparture, 1);
+    await incrementInventory(res.property, newRoomTypeId, newArrival, newDeparture, 1, {
+      propertyId: res.property,
+      actorId,
+      actorName,
+      ip,
+      action: 'inventory.reservation_modify_commit_new',
+      reason: `Reservation ${res.confirmationNumber}`,
+    });
 
-    res.arrivalDate   = newArrival;
+    res.arrivalDate = newArrival;
     res.departureDate = newDeparture;
-    res.nights        = nights;
+    res.nights = nights;
     if (typeChanged) res.roomType = newRoomTypeId;
 
-    const rate = (ratePerNight != null ? ratePerNight : res.ratePerNight);
-    res.ratePerNight  = rate;
-    res.totalAmount   = rate * nights;
-    res.taxAmount     = Math.round(res.totalAmount * 0.17);
+    const rate = (ratePerNight != null ? Number(ratePerNight) : res.ratePerNight);
+    res.ratePerNight = rate;
+    res.totalAmount = rate * nights;
+    res.taxAmount = Math.round(res.totalAmount * 0.17);
 
-    // Reassign best available room if type changed
     if (typeChanged) {
-      const bestRoom = avail.availableRooms.find(r => ['clean','inspected'].includes(r.cleanStatus))
-        || avail.availableRooms[0] || null;
+      const bestRoom = avail.availableRooms.find(r => ['clean', 'inspected'].includes(r.cleanStatus))
+        || avail.availableRooms[0]
+        || null;
       res.assignedRoom = bestRoom?._id || null;
     }
-  } else if (ratePerNight != null && ratePerNight !== res.ratePerNight) {
-    res.ratePerNight  = ratePerNight;
-    res.totalAmount   = ratePerNight * res.nights;
-    res.taxAmount     = Math.round(res.totalAmount * 0.17);
+  } else if (ratePerNight != null && Number(ratePerNight) !== res.ratePerNight) {
+    res.ratePerNight = Number(ratePerNight);
+    res.totalAmount = Number(ratePerNight) * res.nights;
+    res.taxAmount = Math.round(res.totalAmount * 0.17);
   }
 
   if (ratePlanId !== undefined) res.ratePlan = ratePlanId || null;
-  if (adults     !== undefined) res.adults     = adults;
-  if (children   !== undefined) res.children   = children;
+  if (adults !== undefined) res.adults = adults;
+  if (children !== undefined) res.children = children;
   if (specialRequests !== undefined) res.specialRequests = specialRequests;
-  if (internalNotes   !== undefined) res.internalNotes   = internalNotes;
+  if (internalNotes !== undefined) res.internalNotes = internalNotes;
 
-  res.status    = 'modified';
+  res.status = 'modified';
   res.updatedBy = actorId;
   await res.save();
 
   await audit({
-    property: res.property, actor: actorId, actorName,
+    property: res.property,
+    actor: actorId,
+    actorName,
     action: 'reservation.modified',
-    entityType: 'Reservation', entityId: res._id,
-    before, after: res.toObject(),
-    reason: priceOverrideReason || 'שינוי הזמנה',
+    entityType: 'Reservation',
+    entityId: res._id,
+    before,
+    after: res.toObject(),
+    reason: priceOverrideReason || 'Reservation update',
     ip,
   });
+
+  await enqueueChannelUpdate({
+    propertyId: res.property,
+    channel: res.source || 'direct',
+    eventType: 'reservation',
+    payload: { action: 'modified', reservationId: String(res._id), confirmationNumber: res.confirmationNumber },
+    idempotencyKey: res.idempotencyKey ? `${res.idempotencyKey}:reservation:modified` : undefined,
+  }).catch(() => null);
 
   return Reservation.findById(res._id)
     .populate('primaryGuest', 'firstName lastName email phone vipLevel country')
@@ -325,18 +450,45 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     .lean();
 }
 
-// ─── No-show ──────────────────────────────────────────────────────────────────
 export async function markNoShow({ reservationId, actorId, actorName, ip }) {
   const res = await Reservation.findById(reservationId);
-  if (!res) throw new Error('הזמנה לא נמצאה');
+  if (!res) throw new Error('Reservation not found');
   const before = res.toObject();
+
   res.status = 'no_show';
   res.noShowAt = new Date();
   res.updatedBy = actorId;
   await res.save();
-  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1);
+
+  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1, {
+    propertyId: res.property,
+    actorId,
+    actorName,
+    ip,
+    action: 'inventory.reservation_no_show',
+    reason: `Reservation ${res.confirmationNumber}`,
+  });
   if (res.assignedRoom) await Room.findByIdAndUpdate(res.assignedRoom, { occStatus: 'vacant' });
-  await audit({ property: res.property, actor: actorId, actorName, action: 'reservation.no_show',
-    entityType: 'Reservation', entityId: res._id, before, after: res.toObject(), ip });
+
+  await audit({
+    property: res.property,
+    actor: actorId,
+    actorName,
+    action: 'reservation.no_show',
+    entityType: 'Reservation',
+    entityId: res._id,
+    before,
+    after: res.toObject(),
+    ip,
+  });
+
+  await enqueueChannelUpdate({
+    propertyId: res.property,
+    channel: res.source || 'direct',
+    eventType: 'reservation',
+    payload: { action: 'no_show', reservationId: String(res._id), confirmationNumber: res.confirmationNumber },
+    idempotencyKey: res.idempotencyKey ? `${res.idempotencyKey}:reservation:no_show` : undefined,
+  }).catch(() => null);
+
   return res;
 }

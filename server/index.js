@@ -20,6 +20,7 @@ import reportsRouter      from './routes/reports.js';
 import ratesRouter        from './routes/rates.js';
 import usersRouter        from './routes/users.js';
 import companiesRouter    from './routes/companies.js';
+import inventoryRouter    from './routes/inventory.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/reports',      reportsRouter);
 app.use('/api/rates',        ratesRouter);
 app.use('/api/users',        usersRouter);
 app.use('/api/companies',    companiesRouter);
+app.use('/api/inventory',    inventoryRouter);
 
 // ── Static (production) ───────────────────────────────────────────────────────
 const clientDist = path.join(__dirname, '../client/dist');
