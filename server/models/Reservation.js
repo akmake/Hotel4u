@@ -27,6 +27,7 @@ const ReservationSchema = new Schema({
   arrivalDate:       { type: String, required: true },    // 'YYYY-MM-DD'
   departureDate:     { type: String, required: true },
   nights:            { type: Number, required: true },
+  roomsCount:        { type: Number, default: 1 },
 
   // Booking details
   source:            { type: String, enum: SOURCE, default: 'direct' },
@@ -40,21 +41,32 @@ const ReservationSchema = new Schema({
   totalAmount:       { type: Number, required: true },
   taxAmount:         { type: Number, default: 0 },
   discountAmount:    { type: Number, default: 0 },
+  surchargeAmount:   { type: Number, default: 0 },
   paymentStatus:     { type: String, enum: PAYMENT_STATUS, default: 'unpaid' },
   depositAmount:     { type: Number, default: 0 },
   depositPaid:       { type: Number, default: 0 },
   currency:          { type: String, default: 'ILS' },
+  guaranteeType:     { type: String, enum: ['none', 'credit_card', 'deposit', 'voucher', 'company_guarantee'], default: 'none' },
+  confirmationSent:  { type: Boolean, default: false },
+  cancellationPolicy:String,
+  depositPolicy:     String,
+  quoteExpiresAt:    Date,
+  holdExpiresAt:     Date,
+  holdReleasedAt:    Date,
 
   // Relations
   company:           { type: Schema.Types.ObjectId, ref: 'Company' },
+  travelAgent:       { type: Schema.Types.ObjectId, ref: 'Company' },
   group:             String,
 
   // Meta
   isVip:             { type: Boolean, default: false },
   specialRequests:   String,
+  guestNotes:        String,
   internalNotes:     String,
   language:          { type: String, default: 'he' },
   externalId:        String,                              // OTA reservation ID
+  channelReservationId: String,
 
   // Timestamps for operations
   checkedInAt:       Date,

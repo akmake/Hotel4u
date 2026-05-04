@@ -2,12 +2,15 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Room from '../models/Room.js';
 import { updateCleanStatus, updateOpsStatus } from '../services/roomService.js';
+import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 
 const router = Router();
+const ROOM_MANAGER_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'housekeeping_manager', 'maintenance_manager'];
 
 // GET /api/rooms?propertyId=&floor=&type=&opsStatus=&cleanStatus=
 router.get('/', asyncHandler(async (req, res) => {
   const { propertyId, floor, type, opsStatus, cleanStatus } = req.query;
+  assertPropertyScope(req, propertyId);
   const filter = { property: propertyId, active: true };
   if (floor) filter.floor = Number(floor);
   if (opsStatus) filter.opsStatus = opsStatus;
@@ -36,11 +39,13 @@ router.get('/:id', asyncHandler(async (req, res) => {
     .lean();
 
   if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+  assertPropertyScope(req, room.property?._id || room.property);
   res.json({ success: true, data: room });
 }));
 
 // POST /api/rooms
 router.post('/', asyncHandler(async (req, res) => {
+  requireRoles(req, ROOM_MANAGER_ROLES, 'Room management requires manager permissions');
   const {
     propertyId,
     roomTypeId,
@@ -66,6 +71,7 @@ router.post('/', asyncHandler(async (req, res) => {
   if (!propertyId || !roomTypeId || !number || floor === undefined) {
     return res.status(400).json({ success: false, error: 'Required: propertyId, roomTypeId, number, floor' });
   }
+  assertPropertyScope(req, propertyId);
 
   const room = await Room.create({
     property: propertyId,
@@ -99,6 +105,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
 // PATCH /api/rooms/:id
 router.patch('/:id', asyncHandler(async (req, res) => {
+  requireRoles(req, ROOM_MANAGER_ROLES, 'Room management requires manager permissions');
   const allowed = [
     'number',
     'floor',
@@ -123,6 +130,9 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     if (req.body[k] !== undefined) update[k] = req.body[k];
   });
 
+  const existing = await Room.findById(req.params.id).lean();
+  if (!existing) return res.status(404).json({ success: false, error: 'Room not found' });
+  assertPropertyScope(req, existing.property);
   const room = await Room.findByIdAndUpdate(req.params.id, update, { new: true })
     .populate('roomType', 'name code')
     .populate('preferredAlternateRoom', 'number floor')
@@ -134,6 +144,10 @@ router.patch('/:id', asyncHandler(async (req, res) => {
 
 // DELETE /api/rooms/:id (soft delete)
 router.delete('/:id', asyncHandler(async (req, res) => {
+  requireRoles(req, ROOM_MANAGER_ROLES, 'Room management requires manager permissions');
+  const existing = await Room.findById(req.params.id).lean();
+  if (!existing) return res.status(404).json({ success: false, error: 'Room not found' });
+  assertPropertyScope(req, existing.property);
   const room = await Room.findByIdAndUpdate(req.params.id, { active: false }, { new: true }).lean();
   if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
   res.json({ success: true, data: room });
@@ -141,13 +155,16 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 
 // PATCH /api/rooms/:id/clean-status
 router.patch('/:id/clean-status', asyncHandler(async (req, res) => {
+  requireRoles(req, ROOM_MANAGER_ROLES, 'Changing room status requires manager permissions');
   const { cleanStatus, propertyId } = req.body;
+  assertPropertyScope(req, propertyId);
+  const actor = actorOrSystem(req);
   const room = await updateCleanStatus({
     roomId: req.params.id,
     cleanStatus,
     propertyId,
-    actorId: null,
-    actorName: 'system',
+    actorId: actor.id,
+    actorName: actor.name,
     ip: req.ip,
   });
   res.json({ success: true, data: room });
@@ -155,15 +172,18 @@ router.patch('/:id/clean-status', asyncHandler(async (req, res) => {
 
 // PATCH /api/rooms/:id/ops-status
 router.patch('/:id/ops-status', asyncHandler(async (req, res) => {
+  requireRoles(req, ROOM_MANAGER_ROLES, 'Changing room status requires manager permissions');
   const { opsStatus, outOfServiceUntil, reason, propertyId } = req.body;
+  assertPropertyScope(req, propertyId);
+  const actor = actorOrSystem(req);
   const room = await updateOpsStatus({
     roomId: req.params.id,
     opsStatus,
     outOfServiceUntil,
     reason,
     propertyId,
-    actorId: null,
-    actorName: 'system',
+    actorId: actor.id,
+    actorName: actor.name,
     ip: req.ip,
   });
   res.json({ success: true, data: room });

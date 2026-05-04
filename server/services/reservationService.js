@@ -3,6 +3,8 @@ import Room from '../models/Room.js';
 import Folio from '../models/Folio.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import GuestProfile from '../models/GuestProfile.js';
+import ReservationRoom from '../models/ReservationRoom.js';
+import StaySegment from '../models/StaySegment.js';
 import {
   checkAvailability,
   incrementInventory,
@@ -36,6 +38,22 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     specialRequests,
     isVip,
     idempotencyKey,
+    language,
+    currency,
+    marketSegment,
+    companyId,
+    travelAgentId,
+    guaranteeType,
+    guestNotes,
+    internalNotes,
+    channelReservationId,
+    externalId,
+    roomsCount,
+    bookingStatus,
+    cancellationPolicy,
+    depositPolicy,
+    quoteExpiresAt,
+    holdExpiresAt,
   } = data;
 
   if (idempotencyKey) {
@@ -45,39 +63,58 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
 
   const nights = Math.round((new Date(departureDate) - new Date(arrivalDate)) / 86400000);
   if (nights <= 0) throw new Error('Invalid stay dates');
+  const normalizedRoomsCount = Math.max(1, Number(roomsCount) || 1);
 
-  const avail = await checkAvailability({
-    propertyId,
-    roomTypeId,
-    arrivalDate,
-    departureDate,
-    ignoreIdempotencyKey: idempotencyKey || null,
-  });
+  const allowedStatus = new Set(['draft', 'quote', 'hold', 'pending_payment', 'confirmed']);
+  const normalizedStatus = allowedStatus.has(String(bookingStatus || '').toLowerCase())
+    ? String(bookingStatus).toLowerCase()
+    : 'confirmed';
+  const shouldCheckAvailability = normalizedStatus !== 'draft';
+  const shouldCommitInventory = ['confirmed', 'pending_payment', 'hold'].includes(normalizedStatus);
+  const shouldCreateFolio = ['confirmed', 'pending_payment', 'hold'].includes(normalizedStatus);
+  const shouldAssignRoom = !['quote', 'draft'].includes(normalizedStatus);
+
+  const avail = shouldCheckAvailability
+    ? await checkAvailability({
+        propertyId,
+        roomTypeId,
+        arrivalDate,
+        departureDate,
+        requiredRooms: normalizedRoomsCount,
+        ignoreIdempotencyKey: idempotencyKey || null,
+      })
+    : { available: true, availableRooms: [], reason: null };
   if (!avail.available) throw new Error(`No availability: ${avail.reason}`);
 
-  if (idempotencyKey) {
+  if (idempotencyKey && shouldCommitInventory) {
     await consumeAvailabilityLock({ propertyId, idempotencyKey }).catch(() => null);
   }
 
-  const assignedRoom = avail.availableRooms.find(r => ['clean', 'inspected'].includes(r.cleanStatus))
+  const assignedRoom = !shouldAssignRoom
+    ? null
+    : avail.availableRooms.find(r => ['clean', 'inspected'].includes(r.cleanStatus))
     || avail.availableRooms[0]
     || null;
 
-  const totalAmount = Number(ratePerNight) * nights;
+  const totalAmount = Number(ratePerNight) * nights * normalizedRoomsCount;
   const confNum = await nextConfirmationNumber();
 
   const res = await Reservation.create({
     property: propertyId,
     confirmationNumber: confNum,
     idempotencyKey: idempotencyKey || undefined,
-    status: 'confirmed',
+    status: normalizedStatus,
     primaryGuest: primaryGuestId,
     adults: adults || 2,
     children: children || 0,
     arrivalDate,
     departureDate,
     nights,
+    roomsCount: normalizedRoomsCount,
     source: source || 'direct',
+    marketSegment: marketSegment || undefined,
+    company: companyId || undefined,
+    travelAgent: travelAgentId || undefined,
     roomType: roomTypeId,
     ratePlan: ratePlanId,
     assignedRoom: assignedRoom?._id || null,
@@ -85,34 +122,90 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     totalAmount,
     taxAmount: Math.round(totalAmount * 0.17),
     paymentStatus: 'unpaid',
-    currency: 'ILS',
+    currency: currency || 'ILS',
+    guaranteeType: guaranteeType || 'none',
+    confirmationSent: false,
+    cancellationPolicy: cancellationPolicy || undefined,
+    depositPolicy: depositPolicy || undefined,
+    quoteExpiresAt: quoteExpiresAt ? new Date(quoteExpiresAt) : undefined,
+    holdExpiresAt: holdExpiresAt ? new Date(holdExpiresAt) : undefined,
     isVip: !!isVip,
+    language: language || 'he',
+    externalId: externalId || undefined,
+    channelReservationId: channelReservationId || undefined,
+    internalNotes: internalNotes || undefined,
+    guestNotes: guestNotes || undefined,
     specialRequests,
     createdBy: actorId,
     updatedBy: actorId,
   });
 
-  await Folio.create({
-    property: propertyId,
-    reservation: res._id,
-    ownerType: 'guest',
-    status: 'open',
-    currency: 'ILS',
-    lines: [],
-  });
-
-  await incrementInventory(propertyId, roomTypeId, arrivalDate, departureDate, 1, {
-    propertyId,
-    actorId,
-    actorName,
-    ip,
-    action: 'inventory.reservation_created',
-    reason: `Reservation ${confNum}`,
-  });
-
-  if (assignedRoom) {
-    await Room.findByIdAndUpdate(assignedRoom._id, { occStatus: 'due_in' });
+  if (shouldCreateFolio) {
+    await Folio.create({
+      property: propertyId,
+      reservation: res._id,
+      ownerType: 'guest',
+      status: 'open',
+      currency: currency || 'ILS',
+      lines: [],
+    });
   }
+
+  if (shouldCommitInventory) {
+    await incrementInventory(propertyId, roomTypeId, arrivalDate, departureDate, normalizedRoomsCount, {
+      propertyId,
+      actorId,
+      actorName,
+      ip,
+      action: 'inventory.reservation_created',
+      reason: `Reservation ${confNum}`,
+    });
+  }
+
+  const selectedRooms = shouldAssignRoom ? (avail.availableRooms || []).slice(0, normalizedRoomsCount) : [];
+  if (selectedRooms.length > 0 && shouldCommitInventory) {
+    await Room.updateMany(
+      { _id: { $in: selectedRooms.map((r) => r._id) } },
+      { $set: { occStatus: 'due_in' } }
+    );
+  }
+
+  const reservationRoomDocs = [];
+  for (let i = 0; i < normalizedRoomsCount; i++) {
+    const selectedRoom = selectedRooms[i] || null;
+    reservationRoomDocs.push({
+      reservation: res._id,
+      property: propertyId,
+      roomTypeBooked: roomTypeId,
+      assignedRoom: selectedRoom?._id || null,
+      arrivalDate,
+      departureDate,
+      ratePlan: ratePlanId || null,
+      nightlyRate: Number(ratePerNight),
+      guests: i === 0 ? [primaryGuestId] : [],
+      status: normalizedStatus === 'draft' ? 'tentative' : 'reserved',
+      notes: specialRequests || undefined,
+    });
+  }
+
+  const insertedRooms = await ReservationRoom.insertMany(reservationRoomDocs);
+
+  const segmentDocs = insertedRooms.map((rr) => ({
+    reservationRoom: rr._id,
+    reservation: res._id,
+    property: propertyId,
+    fromDate: arrivalDate,
+    toDate: departureDate,
+    roomType: roomTypeId,
+    room: rr.assignedRoom || null,
+    ratePerNight: Number(ratePerNight),
+    ratePlan: ratePlanId || null,
+    changeReason: 'Initial booking',
+    createdBy: actorId || undefined,
+    createdByName: actorName || 'system',
+  }));
+
+  await StaySegment.insertMany(segmentDocs);
 
   await audit({
     property: propertyId,
@@ -136,6 +229,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
       roomTypeId,
       arrivalDate,
       departureDate,
+      status: normalizedStatus,
     },
     idempotencyKey: idempotencyKey ? `${idempotencyKey}:reservation:created` : undefined,
   }).catch(() => null);
@@ -281,7 +375,7 @@ export async function cancelReservation({ reservationId, reason, actorId, actorN
   res.updatedBy = actorId;
   await res.save();
 
-  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1, {
+  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -(res.roomsCount || 1), {
     propertyId: res.property,
     actorId,
     actorName,
@@ -335,8 +429,18 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     adults,
     children,
     specialRequests,
+    guestNotes,
     internalNotes,
+    marketSegment,
+    companyId,
+    travelAgentId,
+    group,
+    guaranteeType,
+    channelReservationId,
+    externalId,
     priceOverrideReason,
+    cancellationPolicy,
+    depositPolicy,
   } = data;
 
   const datesChanged = (arrivalDate && arrivalDate !== res.arrivalDate)
@@ -351,7 +455,7 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     const nights = Math.round((new Date(newDeparture) - new Date(newArrival)) / 86400000);
     if (nights <= 0) throw new Error('Invalid dates');
 
-    await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1, {
+    await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -(res.roomsCount || 1), {
       propertyId: res.property,
       actorId,
       actorName,
@@ -369,7 +473,7 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     });
 
     if (!avail.available) {
-      await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, 1, {
+      await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, (res.roomsCount || 1), {
         propertyId: res.property,
         actorId,
         actorName,
@@ -380,7 +484,7 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
       throw new Error(`No availability for new dates: ${avail.reason}`);
     }
 
-    await incrementInventory(res.property, newRoomTypeId, newArrival, newDeparture, 1, {
+    await incrementInventory(res.property, newRoomTypeId, newArrival, newDeparture, (res.roomsCount || 1), {
       propertyId: res.property,
       actorId,
       actorName,
@@ -415,7 +519,17 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
   if (adults !== undefined) res.adults = adults;
   if (children !== undefined) res.children = children;
   if (specialRequests !== undefined) res.specialRequests = specialRequests;
+  if (guestNotes !== undefined) res.guestNotes = guestNotes;
   if (internalNotes !== undefined) res.internalNotes = internalNotes;
+  if (marketSegment !== undefined) res.marketSegment = marketSegment;
+  if (companyId !== undefined) res.company = companyId || null;
+  if (travelAgentId !== undefined) res.travelAgent = travelAgentId || null;
+  if (group !== undefined) res.group = group || null;
+  if (guaranteeType !== undefined) res.guaranteeType = guaranteeType || 'none';
+  if (channelReservationId !== undefined) res.channelReservationId = channelReservationId || null;
+  if (externalId !== undefined) res.externalId = externalId || null;
+  if (cancellationPolicy !== undefined) res.cancellationPolicy = cancellationPolicy || null;
+  if (depositPolicy !== undefined) res.depositPolicy = depositPolicy || null;
 
   res.status = 'modified';
   res.updatedBy = actorId;
@@ -460,7 +574,7 @@ export async function markNoShow({ reservationId, actorId, actorName, ip }) {
   res.updatedBy = actorId;
   await res.save();
 
-  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -1, {
+  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -(res.roomsCount || 1), {
     propertyId: res.property,
     actorId,
     actorName,

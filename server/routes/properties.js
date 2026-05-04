@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Property from '../models/Property.js';
 import RoomType from '../models/RoomType.js';
+import { assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 
 const router = Router();
+const PROPERTY_ADMIN_ROLES = ['super_admin', 'property_admin', 'general_manager'];
 
 const NUMERIC_FIELDS = new Set([
   'vatRate', 'invoiceSequence', 'reservationSequence', 'defaultCancellationHours',
@@ -29,6 +31,7 @@ async function loadPropertyOr404(id, res) {
 // -------- Room types --------
 router.get('/room-types', asyncHandler(async (req, res) => {
   const { propertyId, all } = req.query;
+  assertPropertyScope(req, propertyId);
   const filter = { property: propertyId };
   if (!all) filter.active = true;
   const types = await RoomType.find(filter).sort({ sortOrder: 1 }).lean();
@@ -36,6 +39,7 @@ router.get('/room-types', asyncHandler(async (req, res) => {
 }));
 
 router.post('/room-types', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Room type management requires property admin permissions');
   const {
     propertyId, code, name, shortDesc, fullDesc,
     capacityBase, capacityMax, adultsMax, childrenMax, baseRate,
@@ -47,6 +51,7 @@ router.post('/room-types', asyncHandler(async (req, res) => {
   if (!propertyId || !code || !name || baseRate === undefined) {
     return res.status(400).json({ success: false, error: 'Required: propertyId, code, name, baseRate' });
   }
+  assertPropertyScope(req, propertyId);
 
   const rt = await RoomType.create({
     property: propertyId,
@@ -81,6 +86,7 @@ router.post('/room-types', asyncHandler(async (req, res) => {
 }));
 
 router.patch('/room-types/:id', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Room type management requires property admin permissions');
   const allowed = [
     'name', 'shortDesc', 'fullDesc', 'baseRate', 'capacityBase', 'capacityMax', 'adultsMax', 'childrenMax',
     'bedType', 'extraBedAllowed', 'cribAllowed', 'roomSizeSqm', 'view', 'amenities', 'images',
@@ -102,6 +108,7 @@ router.patch('/room-types/:id', asyncHandler(async (req, res) => {
 }));
 
 router.delete('/room-types/:id', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Room type management requires property admin permissions');
   const rt = await RoomType.findByIdAndUpdate(req.params.id, { active: false }, { new: true }).lean();
   if (!rt) return res.status(404).json({ success: false, error: 'Room type not found' });
   res.json({ success: true, data: rt });
@@ -109,6 +116,7 @@ router.delete('/room-types/:id', asyncHandler(async (req, res) => {
 
 // -------- Property setup collections --------
 router.get('/:id/setup', asyncHandler(async (req, res) => {
+  assertPropertyScope(req, req.params.id);
   const row = await Property.findById(req.params.id).lean();
   if (!row) return res.status(404).json({ success: false, error: 'Property not found' });
 
@@ -137,6 +145,8 @@ router.get('/:id/setup', asyncHandler(async (req, res) => {
 }));
 
 router.put('/:id/setup/:collection', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Property setup update requires property admin permissions');
+  assertPropertyScope(req, req.params.id);
   const allowed = [
     'buildings', 'housekeepingZones', 'publicAreas',
     'taxes', 'surcharges', 'paymentMethods',
@@ -159,6 +169,8 @@ router.put('/:id/setup/:collection', asyncHandler(async (req, res) => {
 }));
 
 router.post('/:id/buildings', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Property setup update requires property admin permissions');
+  assertPropertyScope(req, req.params.id);
   const row = await loadPropertyOr404(req.params.id, res);
   if (!row) return;
 
@@ -171,6 +183,8 @@ router.post('/:id/buildings', asyncHandler(async (req, res) => {
 }));
 
 router.post('/:id/buildings/:buildingId/floors', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Property setup update requires property admin permissions');
+  assertPropertyScope(req, req.params.id);
   const row = await loadPropertyOr404(req.params.id, res);
   if (!row) return;
 
@@ -186,6 +200,8 @@ router.post('/:id/buildings/:buildingId/floors', asyncHandler(async (req, res) =
 }));
 
 router.post('/:id/buildings/:buildingId/floors/:floorId/wings', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Property setup update requires property admin permissions');
+  assertPropertyScope(req, req.params.id);
   const row = await loadPropertyOr404(req.params.id, res);
   if (!row) return;
 
@@ -204,6 +220,8 @@ router.post('/:id/buildings/:buildingId/floors/:floorId/wings', asyncHandler(asy
 }));
 
 router.patch('/:id/numbering', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Property setup update requires property admin permissions');
+  assertPropertyScope(req, req.params.id);
   const row = await loadPropertyOr404(req.params.id, res);
   if (!row) return;
 
@@ -222,11 +240,16 @@ router.patch('/:id/numbering', asyncHandler(async (req, res) => {
 
 // -------- Core property --------
 router.get('/', asyncHandler(async (req, res) => {
-  const properties = await Property.find({ active: true }).lean();
+  const filter = { active: true };
+  if (req.actor?.propertyId && req.actor.role !== 'super_admin') {
+    filter._id = req.actor.propertyId;
+  }
+  const properties = await Property.find(filter).lean();
   res.json({ success: true, data: properties });
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Creating property requires property admin permissions');
   const payload = normalizeUpdate(req.body || {});
   if (!payload.name) {
     return res.status(400).json({ success: false, error: 'name is required' });
@@ -236,12 +259,15 @@ router.post('/', asyncHandler(async (req, res) => {
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
+  assertPropertyScope(req, req.params.id);
   const property = await Property.findById(req.params.id).lean();
   if (!property) return res.status(404).json({ success: false, error: 'Property not found' });
   res.json({ success: true, data: property });
 }));
 
 router.patch('/:id', asyncHandler(async (req, res) => {
+  requireRoles(req, PROPERTY_ADMIN_ROLES, 'Property update requires property admin permissions');
+  assertPropertyScope(req, req.params.id);
   const allowed = [
     'name', 'propertyCode', 'legalName', 'timezone', 'defaultCurrency', 'city', 'state', 'postalCode', 'address', 'country',
     'phone', 'email', 'website', 'logoUrl', 'activeLanguages',

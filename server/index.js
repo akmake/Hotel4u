@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectDB } from './config/db.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { attachActor } from './middleware/authContext.js';
 
 // Routes
 import authRouter         from './routes/auth.js';
@@ -30,6 +31,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({ origin: ['http://localhost:5173','http://localhost:5174', process.env.CLIENT_URL].filter(Boolean), credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(attachActor);
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status:'ok', ts: new Date().toISOString() }));
