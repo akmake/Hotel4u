@@ -5,6 +5,14 @@ export const HK_TYPE     = ['checkout_clean','stayover','deep_clean','turndown',
 export const HK_PRIORITY = ['urgent','high','medium','low'];
 export const HK_STATUS   = ['new','assigned','in_progress','paused','completed','failed_inspection','inspected','cancelled'];
 
+const LostFoundSchema = new Schema({
+  itemDescription: { type: String, required: true },
+  foundLocation:   String,
+  reportedBy:      String,
+  status:          { type: String, enum: ['found','claimed','donated','discarded'], default: 'found' },
+  reportedAt:      { type: Date, default: Date.now },
+}, { _id: true });
+
 const HousekeepingTaskSchema = new Schema({
   property:    { type: Schema.Types.ObjectId, ref: 'Property', required: true },
   room:        { type: Schema.Types.ObjectId, ref: 'Room', required: true },
@@ -18,14 +26,29 @@ const HousekeepingTaskSchema = new Schema({
   assignedAt:  Date,
   startedAt:   Date,
   completedAt: Date,
+  pausedAt:    Date,
+  pauseReason: String,
+  cancelledAt: Date,
+  cancelReason:String,
   inspectedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   inspectedAt: Date,
   notes:       String,
   inspectionNotes: String,
-  autoCreated: { type: Boolean, default: false },          // created by checkout trigger
+  supplies:    [{ item: String, qty: Number }],
+  photos:      [String],                                   // URLs / base64 refs
+  isDND:       { type: Boolean, default: false },          // Do Not Disturb
+  isNoService: { type: Boolean, default: false },          // Guest declined service
+  lostFound:   [LostFoundSchema],
+  issueReported: {
+    description: String,
+    reportedAt:  Date,
+    ticketId:    { type: Schema.Types.ObjectId, ref: 'MaintenanceTicket' },
+  },
+  autoCreated: { type: Boolean, default: false },
 }, { timestamps: true });
 
 HousekeepingTaskSchema.index({ property: 1, date: 1, status: 1 });
 HousekeepingTaskSchema.index({ room: 1, date: 1 });
 
 export default model('HousekeepingTask', HousekeepingTaskSchema);
+

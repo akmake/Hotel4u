@@ -82,19 +82,38 @@ export const reservations = {
 
 // ── Guests ────────────────────────────────────────────────────────────────────
 export const guests = {
-  list:   (propertyId, q) => api.get(`/guests?propertyId=${propertyId}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
-  get:    (id)             => api.get(`/guests/${id}`),
-  create: (data)           => api.post('/guests', data),
-  update: (id, data)       => api.patch(`/guests/${id}`, data),
+  list:            (propertyId, params = {}) => api.get(`/guests?propertyId=${propertyId}&${new URLSearchParams(params)}`),
+  get:             (id)                      => api.get(`/guests/${id}`),
+  create:          (data)                    => api.post('/guests', data),
+  update:          (id, data)                => api.patch(`/guests/${id}`, data),
+  addTag:          (id, tag)                 => api.post(`/guests/${id}/tags`, { action: 'add', tag }),
+  removeTag:       (id, tag)                 => api.post(`/guests/${id}/tags`, { action: 'remove', tag }),
+  addNote:         (id, text, createdBy)     => api.post(`/guests/${id}/notes`, { text, createdBy }),
+  deleteNote:      (id, noteId)              => api.delete(`/guests/${id}/notes/${noteId}`),
+  merge:           (targetId, sourceId)      => api.post(`/guests/${targetId}/merge`, { sourceId }),
+  anonymize:       (id, reason)              => api.post(`/guests/${id}/anonymize`, { reason }),
+  detectReturning: (propertyId, email, phone)=> api.post('/guests/detect-returning', { propertyId, email, phone }),
 };
 
 // ── Housekeeping ──────────────────────────────────────────────────────────────
 export const housekeeping = {
-  list:     (propertyId, params = {}) => api.get(`/housekeeping?propertyId=${propertyId}&${new URLSearchParams(params)}`),
-  assign:   (id, userId)              => api.patch(`/housekeeping/${id}/assign`, { userId }),
-  start:    (id)                      => api.patch(`/housekeeping/${id}/start`, {}),
-  complete: (id, propertyId)          => api.post(`/housekeeping/${id}/complete`, { propertyId }),
-  inspect:  (id, approved, notes, propertyId) => api.post(`/housekeeping/${id}/inspect`, { approved, notes, propertyId }),
+  list:          (propertyId, params = {}) => api.get(`/housekeeping?propertyId=${propertyId}&${new URLSearchParams(params)}`),
+  staffSummary:  (propertyId, date)        => api.get(`/housekeeping/staff-summary?propertyId=${propertyId}${date ? `&date=${date}` : ''}`),
+  generate:      (propertyId, date)        => api.post('/housekeeping/generate', { propertyId, date }),
+  autoAssign:    (propertyId, date)        => api.post('/housekeeping/auto-assign', { propertyId, date }),
+  assign:        (id, userId)              => api.patch(`/housekeeping/${id}/assign`, { userId }),
+  start:         (id)                      => api.patch(`/housekeeping/${id}/start`, {}),
+  pause:         (id, reason)              => api.patch(`/housekeeping/${id}/pause`, { reason }),
+  resume:        (id)                      => api.patch(`/housekeeping/${id}/resume`, {}),
+  cancel:        (id, reason)              => api.patch(`/housekeeping/${id}/cancel`, { reason }),
+  complete:      (id, propertyId)          => api.post(`/housekeeping/${id}/complete`, { propertyId }),
+  inspect:       (id, approved, notes, propertyId) => api.post(`/housekeeping/${id}/inspect`, { approved, notes, propertyId }),
+  setDND:        (id, isDND)               => api.patch(`/housekeeping/${id}/dnd`, { isDND }),
+  setNoService:  (id, isNoService)         => api.patch(`/housekeeping/${id}/no-service`, { isNoService }),
+  reportIssue:   (id, data)               => api.post(`/housekeeping/${id}/report-issue`, data),
+  addLostFound:  (id, data)               => api.post(`/housekeeping/${id}/lost-found`, data),
+  updateLostFound:(id, itemId, status)     => api.patch(`/housekeeping/${id}/lost-found/${itemId}`, { status }),
+  setSupplies:   (id, supplies)            => api.patch(`/housekeeping/${id}/supplies`, { supplies }),
 };
 
 // ── Maintenance ───────────────────────────────────────────────────────────────
@@ -148,10 +167,17 @@ export const rates = {
 
 // ── Folio ─────────────────────────────────────────────────────────────────────
 export const folio = {
-  getByReservation: (resId)                    => api.get(`/folio/reservation/${resId}`),
-  receipt:          (resId)                    => api.get(`/folio/reservation/${resId}/receipt`),
-  charge:           (folioId, data)            => api.post(`/folio/${folioId}/charge`, data),
-  payment:          (folioId, data)            => api.post(`/folio/${folioId}/payment`, data),
-  deposit:          (folioId, data)            => api.post(`/folio/${folioId}/deposit`, data),
-  voidLine:         (folioId, lineId, reason)  => api.post(`/folio/${folioId}/void-line`, { lineId, reason }),
+  getByReservation: (resId)                       => api.get(`/folio/reservation/${resId}`),
+  receipt:          (resId)                       => api.get(`/folio/reservation/${resId}/receipt`),
+  invoice:          (resId)                       => api.get(`/folio/reservation/${resId}/invoice`),
+  charge:           (folioId, data)               => api.post(`/folio/${folioId}/charge`, data),
+  payment:          (folioId, data)               => api.post(`/folio/${folioId}/payment`, data),
+  deposit:          (folioId, data)               => api.post(`/folio/${folioId}/deposit`, data),
+  discount:         (folioId, data)               => api.post(`/folio/${folioId}/discount`, data),
+  adjustment:       (folioId, data)               => api.post(`/folio/${folioId}/adjustment`, data),
+  refund:           (folioId, data)               => api.post(`/folio/${folioId}/refund`, data),
+  voidLine:         (folioId, lineId, reason)      => api.post(`/folio/${folioId}/void-line`, { lineId, reason }),
+  transferLine:     (folioId, lineId, targetFolioId, reason) => api.post(`/folio/${folioId}/transfer-line`, { lineId, targetFolioId, reason }),
+  close:            (folioId, propertyId)         => api.post(`/folio/${folioId}/close`, { propertyId }),
+  reopen:           (folioId, reason, propertyId) => api.post(`/folio/${folioId}/reopen`, { reason, propertyId }),
 };

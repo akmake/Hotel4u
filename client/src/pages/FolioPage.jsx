@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Search, CreditCard, Plus, Slash, Receipt, ChevronDown, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Search, CreditCard, Plus, Slash, Receipt, AlertCircle, CheckCircle2, Lock, Unlock, FileText, Tag, MinusCircle, ArrowLeftRight } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
@@ -9,11 +9,14 @@ import { ToastContainer } from '../components/ui/Toast';
 
 // ── Folio line type colors ────────────────────────────────────────────────────
 const LINE_CONFIG = {
-  charge:  { label:'חיוב',    color:'#dc2626', bg:'rgba(239,68,68,0.08)' },
-  payment: { label:'תשלום',   color:'#059669', bg:'rgba(16,185,129,0.08)' },
-  void:    { label:'ביטול',   color:'#94a3b8', bg:'rgba(148,163,184,0.08)' },
-  tax:     { label:'מס',      color:'#d97706', bg:'rgba(245,158,11,0.08)' },
-  deposit: { label:'מקדמה',   color:'#6366f1', bg:'rgba(99,102,241,0.08)' },
+  charge:     { label:'חיוב',    color:'#dc2626', bg:'rgba(239,68,68,0.08)' },
+  payment:    { label:'תשלום',   color:'#059669', bg:'rgba(16,185,129,0.08)' },
+  void:       { label:'ביטול',   color:'#94a3b8', bg:'rgba(148,163,184,0.08)' },
+  tax:        { label:'מס',      color:'#d97706', bg:'rgba(245,158,11,0.08)' },
+  deposit:    { label:'מקדמה',   color:'#6366f1', bg:'rgba(99,102,241,0.08)' },
+  discount:   { label:'הנחה',    color:'#8b5cf6', bg:'rgba(139,92,246,0.08)' },
+  adjustment: { label:'תיקון',   color:'#0ea5e9', bg:'rgba(14,165,233,0.08)' },
+  refund:     { label:'החזר',    color:'#f59e0b', bg:'rgba(245,158,11,0.08)' },
 };
 
 const DEPT_LABELS = {
@@ -95,12 +98,123 @@ function AddPaymentPanel({ folioId, propertyId, balance, onDone }) {
   );
 }
 
+function AddDiscountPanel({ folioId, propertyId, onDone }) {
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [loading,setLoading]= useState(false);
+  const [error,  setError]  = useState('');
+
+  async function submit(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    try {
+      await folioApi.discount(folioId, { amount: Number(amount), reason, propertyId });
+      onDone();
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-surface-hover rounded-xl p-4 flex flex-col gap-3 border border-surface-border">
+      <div className="text-xs font-bold text-ink mb-0.5">הוסף הנחה</div>
+      <div className="grid grid-cols-2 gap-2">
+        <input className="input text-num" type="number" placeholder="סכום הנחה ₪ *" min={0} step={0.01} value={amount} onChange={e=>setAmount(e.target.value)} required />
+        <input className="input text-sm" placeholder="סיבה *" value={reason} onChange={e=>setReason(e.target.value)} required />
+      </div>
+      {error && <div className="text-xs text-red-600">{error}</div>}
+      <div className="flex gap-2">
+        <button type="submit" className="btn btn-sm flex-1 justify-center" style={{background:'rgba(139,92,246,0.1)',color:'#7c3aed',border:'1px solid rgba(139,92,246,0.3)'}} disabled={loading}>
+          {loading ? '...' : 'החל הנחה'}
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onDone}>ביטול</button>
+      </div>
+    </form>
+  );
+}
+
+function AddAdjustmentPanel({ folioId, propertyId, onDone }) {
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [loading,setLoading]= useState(false);
+  const [error,  setError]  = useState('');
+
+  async function submit(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    try {
+      await folioApi.adjustment(folioId, { amount: Number(amount), reason, propertyId });
+      onDone();
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-surface-hover rounded-xl p-4 flex flex-col gap-3 border border-surface-border">
+      <div className="text-xs font-bold text-ink mb-0.5">תיקון / Adjustment</div>
+      <div className="text-xs text-ink-muted mb-1">חיובי = הוספת חיוב, שלילי = הפחתה</div>
+      <div className="grid grid-cols-2 gap-2">
+        <input className="input text-num" type="number" placeholder="סכום ₪ (± מותר) *" step={0.01} value={amount} onChange={e=>setAmount(e.target.value)} required />
+        <input className="input text-sm" placeholder="סיבה *" value={reason} onChange={e=>setReason(e.target.value)} required />
+      </div>
+      {error && <div className="text-xs text-red-600">{error}</div>}
+      <div className="flex gap-2">
+        <button type="submit" className="btn btn-sm flex-1 justify-center" style={{background:'rgba(14,165,233,0.1)',color:'#0284c7',border:'1px solid rgba(14,165,233,0.3)'}} disabled={loading}>
+          {loading ? '...' : 'בצע תיקון'}
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onDone}>ביטול</button>
+      </div>
+    </form>
+  );
+}
+
+function AddRefundPanel({ folioId, propertyId, onDone }) {
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('cash');
+  const [reason, setReason] = useState('');
+  const [loading,setLoading]= useState(false);
+  const [error,  setError]  = useState('');
+
+  async function submit(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    try {
+      await folioApi.refund(folioId, { amount: Number(amount), method, reason, propertyId });
+      onDone();
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-surface-hover rounded-xl p-4 flex flex-col gap-3 border border-surface-border">
+      <div className="text-xs font-bold text-ink mb-0.5">החזר כספי</div>
+      <div className="grid grid-cols-3 gap-2">
+        <input className="input text-num" type="number" placeholder="סכום ₪ *" min={0} step={0.01} value={amount} onChange={e=>setAmount(e.target.value)} required />
+        <select className="select" value={method} onChange={e=>setMethod(e.target.value)}>
+          <option value="cash">מזומן</option>
+          <option value="credit">כרטיס אשראי</option>
+          <option value="bank_transfer">העברה בנקאית</option>
+        </select>
+        <input className="input text-sm" placeholder="סיבה *" value={reason} onChange={e=>setReason(e.target.value)} required />
+      </div>
+      {error && <div className="text-xs text-red-600">{error}</div>}
+      <div className="flex gap-2">
+        <button type="submit" className="btn btn-sm flex-1 justify-center" style={{background:'rgba(245,158,11,0.1)',color:'#b45309',border:'1px solid rgba(245,158,11,0.3)'}} disabled={loading}>
+          {loading ? '...' : 'בצע החזר'}
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onDone}>ביטול</button>
+      </div>
+    </form>
+  );
+}
+
 // ── Folio drawer for one reservation ─────────────────────────────────────────
 function FolioDrawer({ res, propertyId, onClose }) {
-  const [panel,   setPanel]   = useState(null); // 'charge' | 'payment' | null
-  const [voidId,  setVoidId]  = useState(null);
-  const [voidReason, setVoidR]= useState('');
-  const [voidLoad,setVoidLoad]= useState(false);
+  const [panel,      setPanel]      = useState(null); // 'charge'|'payment'|'discount'|'adjustment'|'refund'|null
+  const [voidId,     setVoidId]     = useState(null);
+  const [voidReason, setVoidR]      = useState('');
+  const [voidLoad,   setVoidLoad]   = useState(false);
+  const [closingFolio,  setClosing]    = useState(false);
+  const [reopenFolio,   setReopening]  = useState(false);
+  const [reopenReason,  setReopenR]    = useState('');
+  const [showReopen,    setShowReopen] = useState(false);
+  const [invoiceModal,  setInvoiceMod] = useState(null);
   const { toasts, success, error: toastErr } = useToast();
 
   const { data, loading, error, refetch } = useApi(
@@ -120,16 +234,98 @@ function FolioDrawer({ res, propertyId, onClose }) {
     finally { setVoidLoad(false); }
   }
 
-  const lines  = data?.lines || [];
-  const active = lines.filter(l => l.status === 'posted');
+  async function closeFolio() {
+    setClosing(true);
+    try {
+      await folioApi.close(String(data._id), propertyId);
+      success('Folio נסגר בהצלחה');
+      refetch();
+    } catch (e) { toastErr(e.message); }
+    finally { setClosing(false); }
+  }
+
+  async function doReopen() {
+    if (!reopenReason.trim()) { toastErr('יש להזין סיבה לפתיחת Folio'); return; }
+    setReopening(true);
+    try {
+      await folioApi.reopen(String(data._id), reopenReason, propertyId);
+      success('Folio נפתח מחדש');
+      setShowReopen(false); setReopenR('');
+      refetch();
+    } catch (e) { toastErr(e.message); }
+    finally { setReopening(false); }
+  }
+
+  async function openInvoice() {
+    try {
+      const inv = await folioApi.invoice(String(res._id));
+      setInvoiceMod(inv);
+    } catch (e) { toastErr(e.message); }
+  }
+
+  const lines   = data?.lines || [];
+  const active  = lines.filter(l => l.status === 'posted');
   const balance = data?.balance ?? 0;
   const folioId = data?._id ? String(data._id) : null;
+  const isClosed = data?.status === 'closed';
 
   return (
     <div className="fixed inset-0 z-50 flex" style={{ direction:'rtl' }}>
       <div className="flex-1 bg-black/40" onClick={onClose} />
       <div className="w-full max-w-xl bg-white flex flex-col shadow-2xl overflow-hidden">
         <ToastContainer toasts={toasts} />
+
+        {/* Invoice modal */}
+        {invoiceModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" style={{direction:'rtl'}}>
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-bold text-ink text-lg">חשבונית מס</span>
+                <div className="flex gap-2">
+                  <button className="btn btn-primary btn-sm gap-1" onClick={() => window.print()}>
+                    <FileText size={12}/> הדפסה
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setInvoiceMod(null)}>✕</button>
+                </div>
+              </div>
+              <div className="border-b border-surface-border pb-4 mb-4">
+                <div className="text-lg font-bold text-ink">{invoiceModal.property?.name}</div>
+                <div className="text-xs text-ink-muted">{invoiceModal.property?.address}</div>
+                {invoiceModal.property?.vatNumber && <div className="text-xs text-ink-muted">מע"מ: {invoiceModal.property.vatNumber}</div>}
+              </div>
+              <div className="text-xs text-ink-muted mb-4">
+                <div>אורח: {invoiceModal.guest?.firstName} {invoiceModal.guest?.lastName}</div>
+                {invoiceModal.company && <div>חברה: {invoiceModal.company?.name}</div>}
+                <div>הגעה: {invoiceModal.arrivalDate} | יציאה: {invoiceModal.departureDate}</div>
+              </div>
+              <table className="data-table mb-4">
+                <thead>
+                  <tr>
+                    <th>תיאור</th>
+                    <th>נטו</th>
+                    <th>מע"מ</th>
+                    <th>ברוטו</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(invoiceModal.lines || []).map((l, i) => (
+                    <tr key={i}>
+                      <td className="text-sm">{l.description}</td>
+                      <td className="text-num text-xs">₪{l.net?.toFixed(2)}</td>
+                      <td className="text-num text-xs">₪{l.tax?.toFixed(2)}</td>
+                      <td className="text-num text-xs font-bold">₪{l.gross?.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="border-t border-surface-border pt-3 flex flex-col gap-1 items-end text-sm">
+                <div className="flex gap-6"><span className="text-ink-muted">סה"כ נטו</span><span className="text-num font-bold">₪{invoiceModal.totals?.net?.toFixed(2)}</span></div>
+                <div className="flex gap-6"><span className="text-ink-muted">מע"מ ({invoiceModal.vatRate || 0}%)</span><span className="text-num">₪{invoiceModal.totals?.tax?.toFixed(2)}</span></div>
+                <div className="flex gap-6 text-base font-black"><span>סה"כ לתשלום</span><span className="text-num text-brand">₪{invoiceModal.totals?.gross?.toFixed(2)}</span></div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-surface-border flex items-start justify-between">
@@ -138,7 +334,12 @@ function FolioDrawer({ res, propertyId, onClose }) {
             <div className="text-xs text-ink-muted">{res.confirmationNumber} · {res.roomType?.name} · חדר {res.assignedRoom?.number || '—'}</div>
             <div className="text-xs text-ink-muted">{res.arrivalDate} → {res.departureDate}</div>
           </div>
-          <button className="btn btn-ghost btn-icon" onClick={onClose}><Slash size={16} /></button>
+          <div className="flex items-center gap-2">
+            <button className="btn btn-secondary btn-sm gap-1" onClick={openInvoice}>
+              <FileText size={12} /> חשבונית
+            </button>
+            <button className="btn btn-ghost btn-icon" onClick={onClose}><Slash size={16} /></button>
+          </div>
         </div>
 
         {/* Balance banner */}
@@ -151,7 +352,10 @@ function FolioDrawer({ res, propertyId, onClose }) {
               <div className={`text-sm font-bold ${balance > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
                 {balance > 0 ? `יתרה לתשלום: ₪${balance.toFixed(2)}` : 'חשבון מאוזן'}
               </div>
-              <div className="text-xs text-ink-muted">{active.length} שורות פעילות</div>
+              <div className="text-xs text-ink-muted">
+                {active.length} שורות פעילות
+                {isClosed && <span className="ml-2 font-semibold text-slate-500">· Folio סגור</span>}
+              </div>
             </div>
             <div className="text-2xl font-black text-num" style={{ color: balance > 0 ? '#dc2626' : '#059669' }}>
               ₪{Math.abs(balance).toFixed(2)}
@@ -169,6 +373,7 @@ function FolioDrawer({ res, propertyId, onClose }) {
                 <tr>
                   <th>תאריך</th>
                   <th>תיאור</th>
+                  <th>סוג</th>
                   <th>מחלקה</th>
                   <th>סכום</th>
                   <th></th>
@@ -176,8 +381,9 @@ function FolioDrawer({ res, propertyId, onClose }) {
               </thead>
               <tbody>
                 {lines.map(line => {
-                  const isVoided = line.status === 'voided';
-                  const isPayment = line.type === 'payment';
+                  const isVoided  = line.status === 'voided';
+                  const isPayment = line.type === 'payment' || line.type === 'refund';
+                  const lconf     = LINE_CONFIG[line.type] || LINE_CONFIG.charge;
                   return (
                     <tr key={String(line._id)} style={{ opacity: isVoided ? 0.4 : 1 }}>
                       <td className="text-num text-xs">{line.serviceDate}</td>
@@ -185,12 +391,16 @@ function FolioDrawer({ res, propertyId, onClose }) {
                         <div className="text-sm font-medium text-ink">{line.description}</div>
                         {isVoided && <div className="text-xs text-ink-faint">בוטל: {line.voidReason}</div>}
                       </td>
+                      <td>
+                        <span className="text-xs font-semibold px-1.5 py-0.5 rounded"
+                          style={{ background: lconf.bg, color: lconf.color }}>{lconf.label}</span>
+                      </td>
                       <td className="text-xs text-ink-muted">{DEPT_LABELS[line.department] || line.department || '—'}</td>
                       <td className={`text-num font-bold text-sm ${isPayment ? 'text-emerald-600' : isVoided ? 'text-ink-faint' : 'text-red-600'}`}>
                         {isPayment ? '-' : ''}₪{Math.abs(line.amount).toFixed(2)}
                       </td>
                       <td>
-                        {!isVoided && !isPayment && folioId && (
+                        {!isVoided && !isPayment && folioId && !isClosed && (
                           voidId === String(line._id)
                             ? (
                               <div className="flex items-center gap-1">
@@ -214,7 +424,7 @@ function FolioDrawer({ res, propertyId, onClose }) {
                   );
                 })}
                 {lines.length === 0 && (
-                  <tr><td colSpan={5} className="text-center py-8 text-xs text-ink-faint">אין שורות בפוליו</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-xs text-ink-faint">אין שורות בפוליו</td></tr>
                 )}
               </tbody>
             </table>
@@ -224,32 +434,66 @@ function FolioDrawer({ res, propertyId, onClose }) {
         {/* Action panels */}
         {panel && folioId && (
           <div className="px-6 py-4 border-t border-surface-border">
-            {panel === 'charge' && (
-              <AddChargePanel folioId={folioId} propertyId={propertyId}
-                onDone={() => { setPanel(null); refetch(); success('חיוב נוסף'); }} />
-            )}
-            {panel === 'payment' && (
-              <AddPaymentPanel folioId={folioId} propertyId={propertyId} balance={balance}
-                onDone={() => { setPanel(null); refetch(); success('תשלום נרשם'); }} />
-            )}
+            {panel === 'charge'     && <AddChargePanel     folioId={folioId} propertyId={propertyId} onDone={() => { setPanel(null); refetch(); success('חיוב נוסף'); }} />}
+            {panel === 'payment'    && <AddPaymentPanel    folioId={folioId} propertyId={propertyId} balance={balance} onDone={() => { setPanel(null); refetch(); success('תשלום נרשם'); }} />}
+            {panel === 'discount'   && <AddDiscountPanel   folioId={folioId} propertyId={propertyId} onDone={() => { setPanel(null); refetch(); success('הנחה נרשמה'); }} />}
+            {panel === 'adjustment' && <AddAdjustmentPanel folioId={folioId} propertyId={propertyId} onDone={() => { setPanel(null); refetch(); success('תיקון בוצע'); }} />}
+            {panel === 'refund'     && <AddRefundPanel     folioId={folioId} propertyId={propertyId} onDone={() => { setPanel(null); refetch(); success('החזר נרשם'); }} />}
+          </div>
+        )}
+
+        {/* Reopen reason form */}
+        {showReopen && (
+          <div className="px-6 py-4 border-t border-surface-border bg-amber-50">
+            <div className="text-xs font-bold text-amber-800 mb-2">פתיחת Folio סגור — הזן סיבה</div>
+            <div className="flex gap-2">
+              <input className="input text-sm flex-1" placeholder="סיבה לפתיחה מחדש *"
+                value={reopenReason} onChange={e => setReopenR(e.target.value)} />
+              <button className="btn btn-sm gap-1" style={{background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d'}}
+                onClick={doReopen} disabled={reopenFolio || !reopenReason.trim()}>
+                {reopenFolio ? '...' : <><Unlock size={11}/> פתח</>}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowReopen(false)}>ביטול</button>
+            </div>
           </div>
         )}
 
         {/* Footer actions */}
-        {!panel && folioId && data?.status !== 'closed' && (
-          <div className="flex gap-2 px-6 py-4 border-t border-surface-border bg-surface-hover">
-            <button className="btn btn-secondary btn-sm flex-1 justify-center gap-1" onClick={() => setPanel('charge')}>
-              <Plus size={13} /> חיוב
-            </button>
-            <button className="btn btn-primary btn-sm flex-1 justify-center gap-1" onClick={() => setPanel('payment')}>
-              <CreditCard size={13} /> תשלום
-            </button>
-          </div>
-        )}
-        {data?.status === 'closed' && (
-          <div className="px-6 py-3 border-t border-surface-border text-center text-xs text-ink-muted bg-surface-hover">
-            Folio סגור — לאחר צ׳ק-אאוט
-          </div>
+        {!panel && !showReopen && folioId && (
+          isClosed ? (
+            <div className="flex gap-2 px-6 py-4 border-t border-surface-border bg-surface-hover">
+              <div className="flex-1 text-xs text-ink-muted flex items-center gap-1"><Lock size={12}/> Folio סגור</div>
+              <button className="btn btn-secondary btn-sm gap-1" onClick={() => setShowReopen(true)}>
+                <Unlock size={12}/> פתח מחדש
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 px-6 py-4 border-t border-surface-border bg-surface-hover">
+              <button className="btn btn-secondary btn-sm gap-1" onClick={() => setPanel('charge')}>
+                <Plus size={12}/> חיוב
+              </button>
+              <button className="btn btn-primary btn-sm gap-1" onClick={() => setPanel('payment')}>
+                <CreditCard size={12}/> תשלום
+              </button>
+              <button className="btn btn-sm gap-1" style={{background:'rgba(139,92,246,0.1)',color:'#7c3aed',border:'1px solid rgba(139,92,246,0.25)'}}
+                onClick={() => setPanel('discount')}>
+                <Tag size={12}/> הנחה
+              </button>
+              <button className="btn btn-sm gap-1" style={{background:'rgba(14,165,233,0.1)',color:'#0284c7',border:'1px solid rgba(14,165,233,0.25)'}}
+                onClick={() => setPanel('adjustment')}>
+                <ArrowLeftRight size={12}/> תיקון
+              </button>
+              <button className="btn btn-sm gap-1" style={{background:'rgba(245,158,11,0.1)',color:'#b45309',border:'1px solid rgba(245,158,11,0.25)'}}
+                onClick={() => setPanel('refund')}>
+                <MinusCircle size={12}/> החזר
+              </button>
+              <button className="btn btn-sm gap-1 mr-auto" style={{background: balance !== 0 ? 'rgba(148,163,184,0.1)':'rgba(16,185,129,0.1)', color: balance !== 0 ? '#94a3b8':'#065f46', border: balance !== 0 ? '1px solid #e2e8f0':'1px solid rgba(16,185,129,0.3)', cursor: balance !== 0 ? 'not-allowed' : 'pointer' }}
+                onClick={balance === 0 ? closeFolio : undefined}
+                title={balance !== 0 ? 'יש לאזן את החשבון לפני סגירה' : ''}>
+                {closingFolio ? '...' : <><Lock size={12}/> סגור Folio</>}
+              </button>
+            </div>
+          )
         )}
       </div>
     </div>
