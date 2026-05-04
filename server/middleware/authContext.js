@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+
 function safeVerifyToken(token) {
-  const secret = process.env.JWT_SECRET;
-  if (!secret || !token) return null;
+  const secret = JWT_SECRET;
+  if (!token) return null;
   try {
     return jwt.verify(token, secret);
   } catch {

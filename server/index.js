@@ -1,6 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectDB } from './config/db.js';
@@ -23,19 +27,64 @@ import usersRouter        from './routes/users.js';
 import companiesRouter    from './routes/companies.js';
 import inventoryRouter    from './routes/inventory.js';
 import auditLogRouter     from './routes/audit-log.js';
+import integrationsRouter from './routes/integrations.js';
+import automationRouter   from './routes/automation.js';
+import paymentsRouter      from './routes/payments.js';
+import groupsRouter        from './routes/groups.js';
+import notificationsRouter from './routes/notifications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ── Middleware ────────────────────────────────────────────────────────────────
+// ── Security & Performance middleware (פרק כג) ───────────────────────────────
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false, // handled by frontend build
+}));
+app.use(compression());
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', {
+  skip: (req) => req.path === '/api/health',
+}));
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({ origin: ['http://localhost:5173','http://localhost:5174', process.env.CLIENT_URL].filter(Boolean), credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(attachActor);
 
-// ── Health ────────────────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => res.json({ status:'ok', ts: new Date().toISOString() }));
+// ── Rate limiting (פרק כד) ────────────────────────────────────────────────────
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests, please try again later' },
+  skip: (req) => req.path === '/api/health',
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many login attempts, please try again later' },
+});
+app.use('/api/', apiLimiter);
+app.use('/api/auth/', authLimiter);
+
+// ── Health (enhanced) ─────────────────────────────────────────────────────────
+app.get('/api/health', async (req, res) => {
+  const mongoose = (await import('mongoose')).default;
+  const dbState = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  res.json({
+    status: 'ok',
+    ts: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development',
+    db: dbState[mongoose.connection.readyState] || 'unknown',
+    uptime: Math.floor(process.uptime()),
+    memory: process.memoryUsage().rss,
+  });
+});
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth',         authRouter);
@@ -53,6 +102,11 @@ app.use('/api/users',        usersRouter);
 app.use('/api/companies',    companiesRouter);
 app.use('/api/inventory',    inventoryRouter);
 app.use('/api/audit-log',    auditLogRouter);
+app.use('/api/integrations', integrationsRouter);
+app.use('/api/automation',   automationRouter);
+app.use('/api/payments',     paymentsRouter);
+app.use('/api/groups',       groupsRouter);
+app.use('/api/notifications',notificationsRouter);
 
 // ── Static (production) ───────────────────────────────────────────────────────
 const clientDist = path.join(__dirname, '../client/dist');

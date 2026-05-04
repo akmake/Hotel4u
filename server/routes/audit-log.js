@@ -38,7 +38,10 @@ router.get('/entity/:type/:id', asyncHandler(async (req, res) => {
   const { propertyId } = req.query;
   assertPropertyScope(req, propertyId);
 
-  const logs = await AuditLog.find({ entityType: type, entityId: id })
+  const filter = { entityType: type, entityId: id };
+  if (propertyId) filter.property = propertyId;
+
+  const logs = await AuditLog.find(filter)
     .sort({ createdAt: -1 })
     .limit(100)
     .lean();

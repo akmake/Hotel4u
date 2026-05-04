@@ -57,19 +57,25 @@ router.get('/:id/reservations', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { reservations, total, summary, page: Number(page), pages: Math.ceil(total / Number(limit)) } });
 }));
 
-// GET /api/companies/:id/balance — open folio balance
+// GET /api/companies/:id/balance — open folio balance for this company's reservations
 router.get('/:id/balance', asyncHandler(async (req, res) => {
   const company = await Company.findById(req.params.id).lean();
   if (!company) return res.status(404).json({ success: false, error: 'חברה לא נמצאה' });
   assertPropertyScope(req, String(company.property));
 
+  // Find all reservations linked to this company (either as company or travelAgent)
+  const companyReservations = await Reservation.find({
+    $or: [{ company: company._id }, { travelAgent: company._id }],
+  }).select('_id').lean();
+  const resIds = companyReservations.map(r => r._id);
+
   const openFolios = await Folio.find({
-    property: String(company.property),
+    reservation: { $in: resIds },
     status: 'open',
   }).lean();
 
   const openBalance = openFolios.reduce((sum, f) => {
-    const balance = f.lines?.reduce((s, l) => s + (l.status === 'posted' ? (l.amount || 0) : 0), 0) || 0;
+    const balance = f.lines?.filter(l => l.status === 'posted').reduce((s, l) => s + (l.amount || 0), 0) || 0;
     return sum + balance;
   }, 0);
 

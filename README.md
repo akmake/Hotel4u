@@ -2147,37 +2147,322 @@ Folio הוא ספר חיובים. חשבונית היא מסמך שיוצא ממ
 
 אם הם בנויים לא נכון — המערכת תישבר בדיוק במקומות שמלונות באמת חיים בהם: שינויי הזמנה, מעבר חדר, חיובים, ביטולים, צ׳ק־אין חלקי, OTA ותפעול חדרים.
 
+---
 
+# חלק כט׳ — מנגנונים פנימיים שיושמו
 
+## 65. Authentication & Session Management
 
-עשיתי. פתחתי לך מסמך אפיון v1 מלא בצד.
+### 65.1 JWT Auth
 
-הוא כולל:
+המערכת משתמשת ב־JWT עם שני טוקנים:
 
-* חזון מוצר
-* הנחות עבודה
-* מודולים
-* משתמשים ותפקידים
-* חדרים ומלאי
-* הזמנות
-* צ׳ק־אין / צ׳ק־אאוט
-* folio / billing / payments
-* חדרנות
-* תחזוקה
-* ערוצי מכירה
-* מנוע הזמנות
-* קבוצות וחברות
-* דוחות
-* הרשאות
-* אינטגרציות
-* אוטומציות
-* מודל דאטה ראשוני
-* MVP בשלבים
-* מקרי קצה
+* **Access token** — תוקף 8 שעות, נשלח ב־Authorization header.
+* **Refresh token** — תוקף 7 ימים, מחדש access token.
 
-הכיוון מבוסס על דפוסים של מערכות PMS ו־Hospitality OS מודרניות: OPERA מתייחסת לניהול הזמנות, billing, folio, תשלומים וחדרנות כחלקים מרכזיים במערכת; Mews מציגה PMS כ־hospitality operating system עם PMS, POS, payments ואינטגרציות; SiteMinder ו־Cloudbeds מדגישות סנכרון בזמן אמת של זמינות ומחירים מול ערוצי מכירה כדי למנוע double bookings. ([Oracle Docs][1])
+### 65.2 נקודות קצה
 
-ההחלטה הכי חשובה כרגע:
-לא להתחיל מעיצוב ולא ממנוע הזמנות. להתחיל מ־**מודל הדאטה והזרימות הקריטיות** — כי שם המערכת תקום או תיפול.
+* `POST /api/auth/login` — אימות עם email + password, החזרת שני טוקנים.
+* `POST /api/auth/refresh` — חידוש access token.
+* `POST /api/auth/logout` — logout סטייטלס עם audit.
+* `GET /api/auth/me` — פרטי המשתמש הנוכחי.
+* `POST /api/auth/change-password` — שינוי סיסמה עם אימות הסיסמה הקיימת.
 
-[1]: https://docs.oracle.com/cd/F34189_01/doc.201/f42091/c_managing_reservations_managing_reservations.htm?utm_source=chatgpt.com "Managing Reservations"
+### 65.3 Middleware
+
+* `attachActor(req)` — מפרסר את ה־JWT ומחבר actor לכל request.
+* `requireRoles(req, roles)` — אוכף גישה לפי תפקיד, מחזיר 403 אם לא מורשה.
+* `assertPropertyScope(req, propertyId)` — מוודא שהמשתמש שייך לאותו מלון (super_admin מעקף).
+
+### 65.4 Rate Limiting
+
+* כל ה־API — 300 בקשות ל־15 דקות לכל IP.
+* נקודות Auth — 20 בקשות ל־15 דקות לכל IP.
+
+---
+
+## 66. InventoryLock — מניעת Race Conditions
+
+### 66.1 הגדרה
+
+כאשר שתי הזמנות נוצרות בו-זמנית לאותו חדר ותאריכים, ה-PMS חייב למנוע מצב שבו שתיהן יאושרו.
+
+`InventoryLock` הוא נעילה זמנית על מלאי בזמן יצירת הזמנה.
+
+### 66.2 שדות
+
+* `property`, `roomType`, `arrivalDate`, `departureDate`, `roomsCount`.
+* `idempotencyKey` — מזהה ייחודי למניעת כפילויות.
+* `source` — pms / booking_engine / channel / api.
+* `status` — pending / consumed / released / expired.
+* `expiresAt` — TTL אוטומטי (MongoDB TTL index).
+
+### 66.3 זרימה
+
+1. לפני יצירת הזמנה — נוצר lock עם TTL.
+2. הזמנה מאושרת — lock עובר consumed, מלאי מתעדכן.
+3. הזמנה נכשלה או פגה — lock עובר expired, מלאי משתחרר אוטומטית.
+4. כל lock כולל idempotencyKey — שליחה כפולה מערוץ חיצוני לא תיצור שתי הזמנות.
+
+---
+
+## 67. ChannelUpdateQueue — תור עדכוני ערוצים
+
+### 67.1 הגדרה
+
+כל שינוי מלאי, מחיר או restriction שנוצר ב-PMS נדחף לתור לשם שליחה לערוצי מכירה חיצוניים.
+
+### 67.2 שדות
+
+* `property`, `channel`, `eventType` — availability / rate / restriction / stop_sell.
+* `payload` — נתוני העדכון.
+* `idempotencyKey` — מניעת כפילות שליחה.
+* `status` — pending / sent / failed / retrying / cancelled.
+* `attempts`, `nextAttemptAt`, `lastError`.
+
+### 67.3 כללים
+
+* כל שינוי מלאי מפעיל `enqueueChannelUpdate`.
+* retry אוטומטי על כשלים.
+* כל עדכון נרשם ב-`IntegrationLog`.
+* ערוצים: Booking.com, Expedia, Agoda, GDS ועוד.
+
+---
+
+## 68. RateOverrideLog — היסטוריית שינויי מחיר
+
+### 68.1 הגדרה
+
+כל שינוי מחיר ידני מחוץ לתעריף המוגדר נרשם בלוג ייעודי.
+
+### 68.2 שדות
+
+* `property`, `ratePlan`, `roomType`, `date`.
+* `originalPrice`, `newPrice`, `reason`.
+* `changedBy`, `changedByName`, `changedByRole`.
+* `afterCheckIn` — האם השינוי בוצע לאחר צ׳ק־אין.
+* `approvedHighPrivilege` — האם השינוי אושר על ידי גורם בכיר.
+
+### 68.3 כללים
+
+* שינוי מחיר לאחר צ׳ק־אין דורש הרשאה גבוהה יותר.
+* שינוי מחיר תמיד דורש סיבה.
+* לא ניתן למחוק שורות מה-log.
+
+---
+
+## 69. StaySegment — מעבר חדר ושינוי מחיר mid-stay
+
+### 69.1 הגדרה
+
+כאשר אורח עובר חדר או משנה rate plan באמצע שהייה, לא משנים את הזמנה המקורית — יוצרים StaySegment חדש.
+
+### 69.2 שדות
+
+* `reservationRoom`, `reservation`, `property`.
+* `fromDate`, `toDate`.
+* `roomType`, `room`.
+* `ratePerNight`, `ratePlan`.
+* `changeReason`, `createdBy`, `createdByName`.
+
+### 69.3 שימושים
+
+* upgrade לסוג חדר יקר יותר באמצע שהייה.
+* מעבר לחדר פיזי אחר (אותו סוג, נזק / בקשת אורח).
+* שינוי מחיר למחצית שהייה.
+* כל segment מחויב בנפרד ב-folio.
+
+---
+
+## 70. Automation Rules — מנוע אוטומציות
+
+### 70.1 מבנה
+
+כל חוק מורכב מ:
+
+* `trigger` — האירוע המפעיל.
+* `conditions[]` — תנאים (field / operator / value).
+* `action` — הפעולה לביצוע.
+* `actionParams` — פרמטרים לפעולה.
+* `exceptions[]` — מתי לא להפעיל.
+* `owner` — מי הגדיר.
+* `lastRunAt`, `runCount`, `lastError` — מעקב ביצוע.
+
+### 70.2 Triggers
+
+* `reservation_created`
+* `reservation_confirmed`
+* `reservation_cancelled`
+* `reservation_no_show`
+* `check_in`
+* `check_out`
+* `payment_failed`
+* `payment_received`
+* `housekeeping_completed`
+* `maintenance_created`
+* `maintenance_resolved`
+* `room_status_changed`
+* `vip_arrival_tomorrow`
+* `balance_open_at_checkout`
+
+### 70.3 Actions
+
+* `send_message` — מייל / SMS / WhatsApp לאורח.
+* `create_notification` — הודעה למשתמש פנימי.
+* `create_housekeeping_task` — משימת ניקיון.
+* `create_maintenance_ticket` — תקלת תחזוקה.
+* `change_room_status` — שינוי סטטוס חדר.
+* `post_charge` — חיוב אוטומטי ל-folio.
+* `send_payment_link` — שליחת Pay by Link.
+* `flag_reservation` — סימון הזמנה לטיפול.
+* `notify_role` — שליחת התראה לתפקיד.
+* `webhook` — שליחת webhook לשרת חיצוני.
+
+### 70.4 דוגמאות פועלות
+
+* הזמנה non-refundable נוצרת → שלח payment link.
+* חדר checked-out → צור housekeeping task.
+* housekeeping completed → שנה סטטוס ל-clean pending inspection.
+* תשלום נכשל → שלח הודעה ופתח משימה.
+* VIP מגיע מחר → התראה למנהל.
+* balance פתוחה ביציאה → דגל הזמנה + התראה לקבלה.
+
+---
+
+## 71. Webhooks
+
+### 71.1 הגדרה
+
+המערכת מאפשרת הרשמה ל-webhooks חיצוניים לאירועי ליבה.
+
+### 71.2 אירועים
+
+* `reservation.created`
+* `reservation.modified`
+* `reservation.cancelled`
+* `guest.checked_in`
+* `guest.checked_out`
+* `room.status_changed`
+* `payment.succeeded`
+* `payment.failed`
+* `folio.closed`
+* `invoice.created`
+* `maintenance.created`
+* `housekeeping.completed`
+
+### 71.3 אבטחה
+
+* כל webhook חתום ב-HMAC-SHA256 עם secret ייחודי לכל מנוי.
+* לאחר 5 כשלים רצופים — webhook מושבת אוטומטית.
+* כל delivery נרשם ב-IntegrationLog.
+
+---
+
+## 72. IntegrationLog — לוג אינטגרציות
+
+כל קריאה לשירות חיצוני נרשמת:
+
+* `source` — 24 מקורות אפשריים (Booking.com, Expedia, Stripe, ועוד).
+* `destination`, `eventType`, `direction` — inbound / outbound.
+* `payloadId`, `requestBody`, `responseBody`.
+* `statusCode`, `status` — success / failed / retrying / partial / skipped.
+* `retryCount`, `errorMessage`, `durationMs`.
+* `relatedEntity` — קישור לישות ב-PMS.
+
+---
+
+## 73. Notification System
+
+### 73.1 סוגי התראות (21 סוגים)
+
+* הזמנות: `reservation_created`, `reservation_modified`, `reservation_cancelled`, `no_show`, `vip_arrival`.
+* תפעול: `room_dirty`, `room_ooo`, `check_in_pending`, `check_out_pending`.
+* כספי: `payment_failed`, `balance_open`, `deposit_due`.
+* חדרנות: `housekeeping_delayed`, `inspection_failed`.
+* תחזוקה: `maintenance_sla_breach`, `maintenance_critical`.
+* ערוצים: `channel_sync_failed`, `overbooking_risk`.
+* מערכת: `audit_alert`, `system_health`.
+
+### 73.2 עדיפויות
+
+* `info` / `warning` / `urgent` / `critical`.
+
+### 73.3 ערוצי שליחה
+
+* In-app (frontend notifications).
+* Email.
+* SMS.
+* Push (עתידי).
+
+### 73.4 כללים
+
+* התראות נשמרות עם TTL (נמחקות אוטומטית לאחר X ימים).
+* ניתן לקרוא / לבטל / לדחות.
+* ניתן לשלוח לתפקיד שלם (לא רק למשתמש ספציפי).
+
+---
+
+# חלק ל׳ — סטטוס מימוש MVP שלב 1
+
+## 74. מה מומש (Backend)
+
+| מודול | סטטוס |
+|-------|--------|
+| Property Setup | ✅ מלא |
+| Room Types | ✅ מלא |
+| Physical Rooms + Statuses | ✅ מלא |
+| Inventory & Availability | ✅ מלא (כולל locks) |
+| Rate Plans + Rate Dates | ✅ מלא |
+| Rate Restrictions | ✅ מלא |
+| Rate Override Log | ✅ מלא |
+| Reservations (כל הזרימות) | ✅ מלא |
+| Stay Segments | ✅ מלא |
+| Guest Profiles | ✅ מלא |
+| Check-in / Check-out | ✅ מלא |
+| Partial Check-in / Check-out | ✅ מלא |
+| Folio + Lines | ✅ מלא |
+| Payments + Tokenization | ✅ מלא |
+| Housekeeping Tasks | ✅ מלא |
+| Maintenance Tickets | ✅ מלא |
+| Groups & Corporate | ✅ מלא |
+| Companies + Agents | ✅ מלא |
+| Users, Roles & Permissions | ✅ מלא |
+| Audit Log | ✅ מלא |
+| Webhooks | ✅ מלא |
+| Automation Rules (model) | ✅ model — engine בפיתוח |
+| Notifications | ✅ model + routes |
+| Integration Log | ✅ מלא |
+| Channel Update Queue | ✅ מלא |
+| Reports | 🟡 בפיתוח |
+| Night Audit | 🟡 בפיתוח |
+| Auth & JWT | ✅ מלא |
+
+## 75. מה חסר לפני שלב 2
+
+1. **Night Audit flow** — closing יום עסקי, posting room charges, no-show sweep.
+2. **Email / SMS שליחה** — חיבור לספק (SendGrid, Twilio, או WhatsApp API).
+3. **Pay by Link** — יצירת לינק תשלום + אימות token + סגירת folio.
+4. **Promo codes** — לוגיקת אימות קוד מבצע ב-rate plan.
+5. **Reports** — פירוט דוחות תפעוליים + כספיים.
+6. **Frontend wiring** — חיבור כל מסכי הלקוח ל-API (כרגע חלק ממסכי הפרונטאנד משתמשים ב-mockData).
+7. **Multi-language UI** — i18n לעברית + אנגלית.
+
+## 76. שלב 2 — Booking Engine + תשלומים
+
+1. Booking Engine ציבורי — חיבור API לזמינות ומחירים בזמן אמת.
+2. Payment Gateway — Stripe / Cardcom / Hyp.
+3. Pay by Link — מייל עם לינק תשלום מאובטח.
+4. Channel Manager ראשון — Booking.com XML / REST API.
+5. Night Audit — flow מלא.
+6. חשבוניות — ממשק לספק חשבוניות ישראלי.
+7. דוחות כספיים — מלאים.
+
+## 77. שלב 3 — הרחבה עסקית
+
+1. POS — ממשק קופה מלא.
+2. CRM מתקדם — קמפיינים, סגמנטציה, loyalty.
+3. BI — dashboards מתקדמים, KPI, תחזיות.
+4. Multi-property — ניהול כמה מלונות מחשבון אחד.
+5. Mobile Housekeeping — app לחדרניות.
+6. Kiosk / Self check-in — נקודת קצה ציבורית.
+7. Automation Engine — ביצוע חוקי אוטומציה בפועל.

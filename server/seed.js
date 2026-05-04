@@ -24,12 +24,6 @@ function d(offset = 0) {
   dt.setDate(dt.getDate() + offset);
   return dt.toISOString().split('T')[0];
 }
-function dDate(offset = 0) {
-  const dt = new Date(BASE);
-  dt.setDate(dt.getDate() + offset);
-  return dt;
-}
-
 async function seed() {
   await mongoose.connect(MONGO_URI);
   console.log('Connected to MongoDB');
@@ -207,8 +201,6 @@ async function seed() {
   ];
 
   // ── HISTORICAL: past 60 days ──────────────────────────────────────────────
-  const sources = ['direct','booking','expedia','agoda'];
-  const allGuests = [david, sarah, michael, aviv, sophie, noa, yossi, ahmad, rachel, emma, gadi, mia];
   const rtArr = [
     { rt: std, rate: 380, plan: barPlan },
     { rt: dlx, rate: 520, plan: barPlan },
@@ -289,14 +281,11 @@ async function seed() {
 
   // ── Folios — today + historical only (future: no folio yet) ───────────────
   const today = d(0);
-  const todayAndHistIds = new Set([
-    ...todayReservations.map(r => r.confirmationNumber),
-    ...histReservations.map(r => r.confirmationNumber),
-  ]);
+  const futureConfNums = new Set(futureReservations.map(r => r.confirmationNumber));
 
   const folios = [];
   for (const res of reservations) {
-    const skip = futureReservations.some(fr => fr.confirmationNumber === res.confirmationNumber);
+    const skip = futureConfNums.has(res.confirmationNumber);
     if (skip) continue;
 
     const nights = res.nights;

@@ -1,9 +1,10 @@
 ﻿import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { assertPropertyScope, requireRoles } from '../middleware/authContext.js';
+import { assertPropertyScope } from '../middleware/authContext.js';
 import { audit, auditCtxFromReq } from '../services/auditService.js';
 import User, { ROLES } from '../models/User.js';
+import { actorPermissions } from '../middleware/permissions.js';
 
 const router = Router();
 const ADMIN_ROLES = ['super_admin', 'property_admin', 'general_manager'];
@@ -100,6 +101,15 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(req.params.id, { active: false });
   await audit({ property: String(user.property), ...auditCtxFromReq(req), action: 'user.deactivate', entityType: 'User', entityId: user._id });
   res.json({ success: true, data: { deactivated: true } });
+}));
+
+// GET /api/users/me/permissions
+// Returns the authenticated actor's full permission list (פרק י"ח section 35)
+router.get('/me/permissions', asyncHandler(async (req, res) => {
+  const actor = req.actor;
+  if (!actor) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const permissions = actorPermissions(actor);
+  res.json({ success: true, data: { role: actor.role, permissions } });
 }));
 
 export default router;

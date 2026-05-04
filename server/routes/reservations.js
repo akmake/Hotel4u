@@ -17,6 +17,7 @@ import {
 } from '../services/reservationService.js';
 import { audit } from '../services/auditService.js';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
+import { emit } from '../services/webhookService.js';
 
 const router = Router();
 const OVERRIDE_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
@@ -138,6 +139,7 @@ const createSchema = z.object({
   depositPolicy: z.string().optional(),
   quoteExpiresAt: z.string().optional(),
   holdExpiresAt: z.string().optional(),
+  allowOverbooking: z.boolean().optional(),
 });
 
 // POST /api/reservations
@@ -150,6 +152,12 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const { propertyId, ...data } = parsed.data;
   assertPropertyScope(req, propertyId);
+
+  // Overbooking requires elevated permissions (פרק כה)
+  if (data.allowOverbooking) {
+    requireRoles(req, OVERRIDE_ROLES, 'Overbooking override requires manager permissions');
+  }
+
   const actor = actorFromReq(req);
   const reservation = await createReservation({
     propertyId,
@@ -625,10 +633,13 @@ router.post('/:id/check-in', asyncHandler(async (req, res) => {
     { $set: { status: 'in_house' } }
   );
 
-  res.json({ success: true, data: reservation });
-}));
+  emit(String(reservation.property), 'guest.checked_in', {
+    reservationId: String(reservation._id),
+    confirmationNumber: reservation.confirmationNumber,
+    checkedInAt: reservation.checkedInAt,
+  }).catch(() => null);
 
-// POST /api/reservations/:id/check-out
+  res.json({ success: true, data: reservation });
 router.post('/:id/check-out', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Check-out requires front-desk permissions');
   const { forceCheckout } = req.body;
@@ -652,10 +663,13 @@ router.post('/:id/check-out', asyncHandler(async (req, res) => {
     { $set: { status: 'checked_out' } }
   );
 
-  res.json({ success: true, data: reservation });
-}));
+  emit(String(reservation.property), 'guest.checked_out', {
+    reservationId: String(reservation._id),
+    confirmationNumber: reservation.confirmationNumber,
+    checkedOutAt: reservation.checkedOutAt,
+  }).catch(() => null);
 
-// POST /api/reservations/:id/cancel
+  res.json({ success: true, data: reservation });
 router.post('/:id/cancel', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Cancellation requires commercial/front-desk permissions');
   const { reason } = req.body;
@@ -1467,8 +1481,108 @@ router.post('/:id/send-welcome', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { sent: true, channel: 'email' } });
 }));
 
+// POST /api/reservations/:id/add-service — פרק כב + 11.5 + 27.3
+// Add service/extra charge to reservation folio (F&B, spa, etc.)
+router.post('/:id/add-service', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Adding services requires front-desk permissions');
+  const { description, amount, department = 'service', quantity = 1, serviceDate, taxRate = 0.17 } = req.body;
+  if (!description || !(Number(amount) > 0)) {
+    return res.status(400).json({ success: false, error: 'description and amount are required' });
+  }
+
+  const reservation = await getReservationOr404(req.params.id, res);
+  if (!reservation) return;
+  assertPropertyScope(req, reservation.property);
+
+  if (['cancelled', 'no_show'].includes(reservation.status)) {
+    return res.status(400).json({ success: false, error: 'Cannot add services to cancelled/no-show reservation' });
+  }
+
+  let folio = await Folio.findOne({ reservation: reservation._id, status: 'open' });
+  if (!folio) {
+    folio = await Folio.create({
+      property: reservation.property,
+      reservation: reservation._id,
+      ownerType: 'guest',
+      status: 'open',
+      currency: reservation.currency || 'ILS',
+      lines: [],
+    });
+  }
+
+  const unitAmount = Number(amount);
+  const qty = Math.max(1, Number(quantity));
+  const lineAmount = unitAmount * qty;
+  const lineTax = Math.round(lineAmount * Number(taxRate));
+
+  folio.lines.push({
+    type: 'service',
+    description,
+    amount: lineAmount,
+    taxAmount: lineTax,
+    quantity: qty,
+    unitPrice: unitAmount,
+    department,
+    serviceDate: serviceDate || new Date().toISOString().split('T')[0],
+    source: 'manual',
+    status: 'posted',
+  });
+  await folio.save();
+
+  const actor = actorFromReq(req);
+  await audit({
+    property: reservation.property,
+    actor: actor.id || null,
+    actorName: actor.name || 'system',
+    action: 'folio.service_added',
+    entityType: 'Folio',
+    entityId: folio._id,
+    after: { description, amount: lineAmount, department, reservationId: reservation._id },
+    ip: req.ip,
+  }).catch(() => null);
+
+  res.status(201).json({ success: true, data: folio });
+}));
+
+// POST /api/reservations/:id/link-group — פרק כה + 26 (Group Blocks)
+// Link or unlink reservation to a group block
+router.post('/:id/link-group', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Linking to group requires commercial/front-desk permissions');
+  const { groupId, groupCode, groupName } = req.body;
+
+  const reservation = await getReservationOr404(req.params.id, res);
+  if (!reservation) return;
+  assertPropertyScope(req, reservation.property);
+
+  if (['cancelled', 'no_show', 'checked_out'].includes(reservation.status)) {
+    return res.status(400).json({ success: false, error: 'Cannot link group to closed reservation' });
+  }
+
+  const actor = actorFromReq(req);
+  const groupRef = groupId || null;
+
+  const updated = await Reservation.findByIdAndUpdate(
+    reservation._id,
+    { $set: { group: groupRef, groupCode: groupCode || null, groupName: groupName || null, status: 'modified' } },
+    { new: true }
+  ).lean();
+
+  await audit({
+    property: reservation.property,
+    actor: actor.id || null,
+    actorName: actor.name || 'system',
+    action: 'reservation.group_linked',
+    entityType: 'Reservation',
+    entityId: reservation._id,
+    before: { group: reservation.group },
+    after: { group: groupRef, groupCode, groupName },
+    ip: req.ip,
+  }).catch(() => null);
+
+  res.json({ success: true, data: updated });
+}));
+
 // POST /api/reservations/:id/express-checkout-link
-router.post('/:id/express-checkout-link', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Express checkout link requires front-desk permissions');
   const reservation = await getReservationOr404(req.params.id, res);
   if (!reservation) return;

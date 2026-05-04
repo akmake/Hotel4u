@@ -54,6 +54,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     depositPolicy,
     quoteExpiresAt,
     holdExpiresAt,
+    allowOverbooking,
   } = data;
 
   if (idempotencyKey) {
@@ -84,7 +85,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
         ignoreIdempotencyKey: idempotencyKey || null,
       })
     : { available: true, availableRooms: [], reason: null };
-  if (!avail.available) throw new Error(`No availability: ${avail.reason}`);
+  if (!avail.available && !allowOverbooking) throw new Error(`No availability: ${avail.reason}`);
 
   if (idempotencyKey && shouldCommitInventory) {
     await consumeAvailabilityLock({ propertyId, idempotencyKey }).catch(() => null);
@@ -130,6 +131,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     quoteExpiresAt: quoteExpiresAt ? new Date(quoteExpiresAt) : undefined,
     holdExpiresAt: holdExpiresAt ? new Date(holdExpiresAt) : undefined,
     isVip: !!isVip,
+    isOverbooking: !!allowOverbooking,
     language: language || 'he',
     externalId: externalId || undefined,
     channelReservationId: channelReservationId || undefined,

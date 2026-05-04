@@ -58,9 +58,12 @@ const ReservationSchema = new Schema({
   company:           { type: Schema.Types.ObjectId, ref: 'Company' },
   travelAgent:       { type: Schema.Types.ObjectId, ref: 'Company' },
   group:             String,
+  groupCode:         String,
+  groupName:         String,
 
   // Meta
   isVip:             { type: Boolean, default: false },
+  isOverbooking:     { type: Boolean, default: false },
   specialRequests:   String,
   guestNotes:        String,
   internalNotes:     String,

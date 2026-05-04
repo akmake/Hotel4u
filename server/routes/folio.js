@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Folio from '../models/Folio.js';
 import Reservation from '../models/Reservation.js';
+import Company from '../models/Company.js';
 import { audit } from '../services/auditService.js';
+import { assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 
 const router = Router();
 
@@ -209,9 +211,14 @@ router.post('/:folioId/close', asyncHandler(async (req, res) => {
   res.json({ success: true, data: folio });
 }));
 
-// POST /api/folio/:folioId/reopen
+// POST /api/folio/:folioId/reopen — spec 58: requires manager permission
 router.post('/:folioId/reopen', asyncHandler(async (req, res) => {
+  requireRoles(req,
+    ['super_admin', 'property_admin', 'general_manager', 'finance_manager', 'front_desk_manager'],
+    'Reopening a closed folio requires manager permissions'
+  );
   const { reason, propertyId } = req.body;
+  if (!reason) return res.status(400).json({ success: false, error: 'reason is required to reopen a folio' });
   const folio = await Folio.findById(req.params.folioId);
   if (!folio) return res.status(404).json({ success: false, error: 'Folio לא נמצא' });
   if (folio.status !== 'closed') return res.status(400).json({ success: false, error: 'Folio אינו סגור' });
@@ -332,6 +339,98 @@ router.get('/reservation/:resId/receipt', asyncHandler(async (req, res) => {
   const balance       = activeLines.reduce((s, l) => s + l.amount + l.taxAmount, 0);
 
   res.json({ success: true, data: { folio, totalCharges, totalPayments, balance, generatedAt: new Date().toISOString() } });
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// פרק כה — Edge Cases
+// ══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/folio/:folioId/post-checkout-charge
+// Damage / POS charge after checkout. Requires manager role + reason.
+// Automatically reopens and re-closes the folio.
+router.post('/:folioId/post-checkout-charge', asyncHandler(async (req, res) => {
+  requireRoles(req, ['super_admin', 'property_admin', 'general_manager', 'finance_manager', 'front_desk_manager'],
+    'Post-checkout charges require manager permissions');
+
+  const { description, amount, taxAmount = 0, department = 'damage', reason, propertyId } = req.body;
+  if (!description || !(Number(amount) > 0)) {
+    return res.status(400).json({ success: false, error: 'description and amount are required' });
+  }
+  if (!reason) {
+    return res.status(400).json({ success: false, error: 'reason is required for post-checkout charges' });
+  }
+
+  const folio = await Folio.findById(req.params.folioId);
+  if (!folio) return res.status(404).json({ success: false, error: 'Folio לא נמצא' });
+
+  if (propertyId) assertPropertyScope(req, propertyId);
+
+  const wasClosed = folio.status === 'closed';
+
+  // Reopen temporarily
+  if (wasClosed) {
+    folio.status = 'open';
+    folio.closedAt = undefined;
+  }
+
+  folio.lines.push({
+    type: 'charge',
+    description: `[Post-Checkout] ${description}`,
+    amount: Number(amount),
+    taxAmount: Number(taxAmount),
+    department,
+    serviceDate: new Date().toISOString().split('T')[0],
+    source: 'manual',
+    status: 'posted',
+    reference: `reason: ${reason}`,
+  });
+
+  // Leave folio open so payment can be collected — manager decides when to close again
+  await folio.save();
+
+  await audit({
+    property: folio.property,
+    action: 'folio.post_checkout_charge',
+    entityType: 'Folio',
+    entityId: folio._id,
+    after: { description, amount: Number(amount), department, reason, wasClosed },
+    ip: req.ip,
+  });
+
+  res.status(201).json({ success: true, data: { folio, balance: calcBalance(folio) } });
+}));
+
+// POST /api/folio/:folioId/check-company-credit
+// Returns whether charging amount to a company folio would exceed credit limit.
+router.post('/:folioId/check-company-credit', asyncHandler(async (req, res) => {
+  const { amount } = req.body;
+  const folio = await Folio.findById(req.params.folioId).populate('company').lean();
+  if (!folio) return res.status(404).json({ success: false, error: 'Folio לא נמצא' });
+
+  if (folio.ownerType !== 'company' || !folio.company) {
+    return res.json({ success: true, data: { applicable: false, withinLimit: true } });
+  }
+
+  const company = folio.company;
+  const creditLimit = Number(company.creditLimit || 0);
+  const currentBalance = folio.lines
+    .filter(l => l.status === 'posted')
+    .reduce((s, l) => s + l.amount + l.taxAmount, 0);
+
+  const projected = currentBalance + Number(amount || 0);
+  const withinLimit = creditLimit === 0 || projected <= creditLimit;
+
+  res.json({
+    success: true,
+    data: {
+      applicable: true,
+      creditLimit,
+      currentBalance,
+      projectedBalance: projected,
+      withinLimit,
+      overage: withinLimit ? 0 : projected - creditLimit,
+    },
+  });
 }));
 
 export default router;
