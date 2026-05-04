@@ -405,6 +405,44 @@ router.get('/:id/pickup-report', asyncHandler(async (req, res) => {
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /api/groups/:id/rooming-list — bulk import/replace rooming list entries
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/:id/rooming-list', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Importing rooming list requires commercial permissions');
+  const { entries = [], replace = false } = req.body;
+
+  const group = await GroupBlock.findById(req.params.id);
+  if (!group) return res.status(404).json({ success: false, error: 'Group block not found' });
+  assertPropertyScope(req, group.property);
+
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return res.status(400).json({ success: false, error: 'entries array is required and must not be empty' });
+  }
+
+  if (replace) {
+    group.roomingList = entries;
+  } else {
+    group.roomingList.push(...entries);
+  }
+
+  await group.save();
+
+  const a = actor(req);
+  await audit({
+    property: group.property,
+    actor: a.id || null,
+    actorName: a.name || 'system',
+    action: 'group.rooming_list_imported',
+    entityType: 'GroupBlock',
+    entityId: group._id,
+    after: { count: group.roomingList.length, replace },
+    ip: req.ip,
+  }).catch(() => null);
+
+  res.json({ success: true, data: { roomingList: group.roomingList, count: group.roomingList.length } });
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DELETE /api/groups/:id — only if tentative, no reservations
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete('/:id', asyncHandler(async (req, res) => {

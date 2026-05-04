@@ -191,7 +191,7 @@ export const reports = {
   departures:           (propertyId, date) =>
     api.get(`/reports/departures?propertyId=${propertyId}&date=${date}`),
   inhouse:              (propertyId, date) =>
-    api.get(`/reports/inhouse?propertyId=${propertyId}&date=${date}`),
+    api.get(`/reports/in-house?propertyId=${propertyId}&date=${date}`),
   cancellations:        (propertyId, from, to) =>
     api.get(`/reports/cancellations?propertyId=${propertyId}&from=${from}&to=${to}`),
   noShows:              (propertyId, from, to) =>
@@ -252,6 +252,14 @@ export const groups = {
   get:          (id)                      => api.get(`/groups/${id}`),
   create:       (data)                    => api.post('/groups', data),
   update:       (id, data)                => api.patch(`/groups/${id}`, data),
+  confirm:      (id)                      => api.post(`/groups/${id}/confirm`, {}),
+  cancel:       (id, reason)              => api.post(`/groups/${id}/cancel`, { reason }),
+  pickup:       (id, roomTypeId, count)   => api.post(`/groups/${id}/pickup`, { roomTypeId, count }),
+  release:      (id, roomTypeId)          => api.post(`/groups/${id}/release`, { roomTypeId }),
+  reservations: (id)                      => api.get(`/groups/${id}/reservations`),
+  pickupReport: (id)                      => api.get(`/groups/${id}/pickup-report`),
+  importRoomingList: (id, entries)        => api.post(`/groups/${id}/rooming-list`, { entries }),
+  remove:       (id)                      => api.delete(`/groups/${id}`),
 };
 
 // ── Properties ────────────────────────────────────────────────────────────────
@@ -358,6 +366,31 @@ export const automation = {
   updateRule:      (id, data)         => api.patch(`/automation/rules/${id}`, data),
   toggleRule:      (id, active)       => api.patch(`/automation/rules/${id}`, { active }),
   deleteRule:      (id)               => api.delete(`/automation/rules/${id}`),
+};
+
+// ── Guest Requests ────────────────────────────────────────────────────────────
+export const guestRequests = {
+  list:        (propertyId, params = {}) => api.get(`/guest-requests?propertyId=${propertyId}${qs(params)}`),
+  stats:       (propertyId)              => api.get(`/guest-requests/stats?propertyId=${propertyId}`),
+  meta:        ()                        => api.get('/guest-requests/meta'),
+  get:         (id)                      => api.get(`/guest-requests/${id}`),
+  create:      (data)                    => api.post('/guest-requests', data),
+  assign:      (id, userId, department)  => api.patch(`/guest-requests/${id}/assign`, { userId, department }),
+  start:       (id)                      => api.patch(`/guest-requests/${id}/start`, {}),
+  resolve:     (id, notes, score)        => api.post(`/guest-requests/${id}/resolve`, { resolutionNotes: notes, satisfactionScore: score }),
+  close:       (id)                      => api.post(`/guest-requests/${id}/close`, {}),
+  notifyGuest: (id)                      => api.patch(`/guest-requests/${id}/notify-guest`, {}),
+  cancel:      (id)                      => api.delete(`/guest-requests/${id}`),
+};
+
+// ── Folio Routing ─────────────────────────────────────────────────────────────
+export const folioRouting = {
+  list:   (propertyId, reservationId) =>
+    api.get(`/folio-routing?propertyId=${propertyId}${reservationId ? `&reservationId=${reservationId}` : ''}`),
+  create: (data)      => api.post('/folio-routing', data),
+  update: (id, data)  => api.patch(`/folio-routing/${id}`, data),
+  remove: (id)        => api.delete(`/folio-routing/${id}`),
+  apply:  (data)      => api.post('/folio-routing/apply', data),
 };
 
 // ── Integrations ──────────────────────────────────────────────────────────────

@@ -239,18 +239,31 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
   return res;
 }
 
-export async function checkIn({ reservationId, actorId, actorName, ip, overrideClean = false }) {
-  const res = await Reservation.findById(reservationId).populate('assignedRoom');
+export async function checkIn({ reservationId, actorId, actorName, ip, overrideClean = false, overrideEarlyArrival = false }) {
+  const res = await Reservation.findById(reservationId)
+    .populate('assignedRoom')
+    .populate('primaryGuest', 'isBlacklisted blacklistReason firstName lastName');
   if (!res) throw new Error('Reservation not found');
-  if (!['confirmed', 'modified'].includes(res.status)) throw new Error(`Cannot check in from status ${res.status}`);
+  if (!['confirmed', 'modified', 'pending_payment'].includes(res.status)) throw new Error(`Cannot check in from status ${res.status}`);
 
+  // 14.1 — Blacklist check
+  if (res.primaryGuest?.isBlacklisted) {
+    throw new Error(`Guest ${res.primaryGuest.firstName} ${res.primaryGuest.lastName} is blacklisted: ${res.primaryGuest.blacklistReason || 'no reason given'}`);
+  }
+
+  // 14.1 — Arrival date validation
   const today = new Date().toISOString().split('T')[0];
-  if (res.arrivalDate > today) throw new Error(`Arrival date is ${res.arrivalDate}; too early for check-in`);
+  if (res.arrivalDate > today && !overrideEarlyArrival) {
+    throw new Error(`Arrival date is ${res.arrivalDate}; early check-in requires manager override`);
+  }
 
   const room = res.assignedRoom;
-  if (!room) throw new Error('No assigned room');
+  if (!room) throw new Error('No assigned room — assign a room before check-in');
   if (!overrideClean && !['clean', 'inspected'].includes(room.cleanStatus)) {
     throw new Error(`Room ${room.number} is not clean (${room.cleanStatus})`);
+  }
+  if (room.opsStatus === 'out_of_order') {
+    throw new Error(`Room ${room.number} is out of order`);
   }
 
   const before = res.toObject();

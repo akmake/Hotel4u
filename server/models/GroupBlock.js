@@ -3,75 +3,84 @@ import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 export const GROUP_STATUSES = [
-  'tentative',       // ראשוני, לא מאושר
-  'confirmed',       // מאושר
-  'active',          // בית מלון - קבוצה נמצאת
-  'completed',       // סיים שהות
-  'cancelled',       // בוטל
+  'tentative',
+  'confirmed',
+  'active',
+  'completed',
+  'cancelled',
 ];
 
 const AllotmentSchema = new Schema({
   roomTypeId:    { type: Schema.Types.ObjectId, ref: 'RoomType', required: true },
   roomTypeName:  String,
-  blocked:       { type: Number, default: 0, min: 0 },  // חדרים שנחסמו
-  picked:        { type: Number, default: 0, min: 0 },  // חדרים שנרשמו
-  released:      { type: Number, default: 0, min: 0 },  // חדרים שחזרו למלאי
-  negotiatedRate:{ type: Number, min: 0 },              // תעריף מוסכם
+  blocked:       { type: Number, default: 0, min: 0 },
+  picked:        { type: Number, default: 0, min: 0 },
+  released:      { type: Number, default: 0, min: 0 },
+  negotiatedRate:{ type: Number, min: 0 },
 }, { _id: false });
+
+// Rooming list entry — one row per guest/room
+const RoomingListEntrySchema = new Schema({
+  guestName:     String,
+  guestEmail:    String,
+  guestPhone:    String,
+  roomTypeId:    { type: Schema.Types.ObjectId, ref: 'RoomType' },
+  roomTypeName:  String,
+  arrivalDate:   String,
+  departureDate: String,
+  specialRequests: String,
+  reservationId: { type: Schema.Types.ObjectId, ref: 'Reservation' },  // filled after pickup
+  notes:         String,
+}, { _id: true });
 
 const GroupBlockSchema = new Schema({
   property:      { type: Schema.Types.ObjectId, ref: 'Property', required: true, index: true },
 
-  // פרטי הקבוצה
   name:          { type: String, required: true, trim: true },
   groupCode:     { type: String, required: true, unique: true, uppercase: true, trim: true },
   description:   String,
 
-  // תאריכים
-  arrivalDate:   { type: String, required: true },     // YYYY-MM-DD
+  arrivalDate:   { type: String, required: true },
   departureDate: { type: String, required: true },
   nights:        { type: Number, min: 1 },
 
-  // חסימת חדרים לפי סוג
   allotments:    [AllotmentSchema],
 
-  // קאט-אוף — תאריך אחרון לשמירת חדרים
-  cutoffDate:    { type: String },                     // YYYY-MM-DD
+  cutoffDate:    { type: String },
 
-  // קשרים
-  company:       { type: Schema.Types.ObjectId, ref: 'Company' },    // חברה / סוכנות
+  // Master folio — all group charges consolidated here
+  masterFolioId: { type: Schema.Types.ObjectId, ref: 'Folio' },
+
+  // Rooming list
+  roomingList:   { type: [RoomingListEntrySchema], default: [] },
+
+  company:       { type: Schema.Types.ObjectId, ref: 'Company' },
   contactName:   String,
   contactEmail:  String,
   contactPhone:  String,
 
-  // תנאים
-  status:        { type: String, enum: GROUP_STATUSES, default: 'tentative' },
-  cancellationPolicy: String,
-  depositPolicy: String,
-  depositAmount: { type: Number, min: 0, default: 0 },
-  depositDueDate:String,
+  status:              { type: String, enum: GROUP_STATUSES, default: 'tentative' },
+  cancellationPolicy:  String,
+  depositPolicy:       String,
+  depositAmount:       { type: Number, min: 0, default: 0 },
+  depositDueDate:      String,
 
-  // פרטים כספיים
-  totalRoomsBlocked: { type: Number, default: 0 },
-  totalRoomsPicked:  { type: Number, default: 0 },
-  totalRevenue:      { type: Number, default: 0 },
+  totalRoomsBlocked:   { type: Number, default: 0 },
+  totalRoomsPicked:    { type: Number, default: 0 },
+  totalRevenue:        { type: Number, default: 0 },
 
-  // תנאי שחרור אוטומטי
   autoReleaseOnCutoff: { type: Boolean, default: true },
   releasedAt:          Date,
 
-  // ביטול
-  cancelledAt:    Date,
-  cancellationReason: String,
+  cancelledAt:         Date,
+  cancellationReason:  String,
 
-  // הערות
-  internalNotes:  String,
-  guestNotes:     String,
+  internalNotes:       String,
+  guestNotes:          String,
 
   createdBy:     { type: Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
-// חישוב אוטומטי של nights ו-totalRoomsBlocked לפני שמירה
 GroupBlockSchema.pre('save', function (next) {
   if (this.arrivalDate && this.departureDate) {
     this.nights = Math.round(
@@ -79,7 +88,7 @@ GroupBlockSchema.pre('save', function (next) {
     );
   }
   this.totalRoomsBlocked = (this.allotments || []).reduce((s, a) => s + a.blocked, 0);
-  this.totalRoomsPicked  = (this.allotments || []).reduce((s, a) => s + a.picked,  0);
+  this.totalRoomsPicked  = (this.allotments || []).reduce((s, a) => s + a.picked, 0);
   next();
 });
 

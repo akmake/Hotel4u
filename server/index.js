@@ -32,6 +32,8 @@ import automationRouter   from './routes/automation.js';
 import paymentsRouter      from './routes/payments.js';
 import groupsRouter        from './routes/groups.js';
 import notificationsRouter from './routes/notifications.js';
+import guestRequestsRouter from './routes/guest-requests.js';
+import folioRoutingRouter  from './routes/folio-routing.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -106,7 +108,9 @@ app.use('/api/integrations', integrationsRouter);
 app.use('/api/automation',   automationRouter);
 app.use('/api/payments',     paymentsRouter);
 app.use('/api/groups',       groupsRouter);
-app.use('/api/notifications',notificationsRouter);
+app.use('/api/notifications',  notificationsRouter);
+app.use('/api/guest-requests', guestRequestsRouter);
+app.use('/api/folio-routing',  folioRoutingRouter);
 
 // ── Static (production) ───────────────────────────────────────────────────────
 const clientDist = path.join(__dirname, '../client/dist');

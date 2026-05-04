@@ -12,25 +12,62 @@ const NoteSchema = new Schema({
   createdAt:  { type: Date, default: Date.now },
 }, { _id: true });
 
+const PhotoSchema = new Schema({
+  url:        { type: String, required: true },
+  caption:    String,
+  uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  uploadedAt: { type: Date, default: Date.now },
+}, { _id: true });
+
+const PartSchema = new Schema({
+  name:     { type: String, required: true },
+  quantity: { type: Number, default: 1, min: 1 },
+  ordered:  { type: Boolean, default: false },
+  orderedAt:Date,
+  notes:    String,
+}, { _id: true });
+
 const MaintenanceTicketSchema = new Schema({
   property:      { type: Schema.Types.ObjectId, ref: 'Property', required: true },
   room:          { type: Schema.Types.ObjectId, ref: 'Room' },
-  areaId:        String,                                   // public area if not a room
+  areaId:        String,
   category:      { type: String, enum: MT_CATEGORY, required: true },
   description:   { type: String, required: true },
   priority:      { type: String, enum: MT_PRIORITY, default: 'medium' },
   status:        { type: String, enum: MT_STATUS, default: 'new' },
   reportedBy:    { type: Schema.Types.ObjectId, ref: 'User' },
   assignedTo:    { type: Schema.Types.ObjectId, ref: 'User' },
+
+  // Vendor
   vendor:        String,
+  vendorContact: {
+    name:  String,
+    phone: String,
+    email: String,
+  },
+
+  // Cost
   estimatedCost: Number,
   actualCost:    Number,
+
+  // Timeline
   dueDate:       Date,
   startedAt:     Date,
   resolvedAt:    Date,
-  notes:         String,                                   // legacy single notes field
-  internalNotes: { type: [NoteSchema], default: [] },     // timeline of notes
-  blocksRoom:    { type: Boolean, default: false },        // if true, room goes OOO
+
+  // Documentation
+  photos:        { type: [PhotoSchema], default: [] },
+  partsNeeded:   { type: [PartSchema], default: [] },
+
+  // Notes
+  notes:         String,
+  internalNotes: { type: [NoteSchema], default: [] },
+
+  blocksRoom:    { type: Boolean, default: false },
+
+  // Closing requires approval for critical
+  closingApprovedBy:   { type: Schema.Types.ObjectId, ref: 'User' },
+  closingApprovedAt:   Date,
 }, { timestamps: true });
 
 MaintenanceTicketSchema.index({ property: 1, status: 1 });

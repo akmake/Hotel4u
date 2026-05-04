@@ -9,7 +9,6 @@ import GuestProfile from '../models/GuestProfile.js';
 import AuditLog from '../models/AuditLog.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
-import RatePlan from '../models/RatePlan.js';
 import Company from '../models/Company.js';
 
 const router = Router();
@@ -1000,6 +999,146 @@ router.get('/avg-los', asyncHandler(async (req, res) => {
     .sort((a, b) => b.avgLos - a.avgLos);
 
   res.json({ success: true, data: { from, to, avgLos, total, totalNights, bySegment, bySource } });
+}));
+
+// GET /api/reports/arrivals?propertyId=&date=
+router.get('/arrivals', asyncHandler(async (req, res) => {
+  const { propertyId } = req.query;
+  assertPropertyScope(req, propertyId);
+  const date = req.query.date || new Date().toISOString().split('T')[0];
+
+  const arrivals = await Reservation.find({
+    property: propertyId,
+    arrivalDate: date,
+    status: { $in: ['confirmed','modified','pending_payment','in_house','checked_in'] },
+  })
+    .populate('primaryGuest', 'firstName lastName phone email vipLevel nationality')
+    .populate('roomType', 'name code')
+    .populate('assignedRoom', 'number floor cleanStatus')
+    .populate('ratePlan', 'name code')
+    .lean();
+
+  const stats = {
+    total:       arrivals.length,
+    checkedIn:   arrivals.filter(r => ['in_house','checked_in'].includes(r.status)).length,
+    pending:     arrivals.filter(r => ['confirmed','modified','pending_payment'].includes(r.status)).length,
+    vip:         arrivals.filter(r => r.isVip || (r.primaryGuest?.vipLevel || 0) > 0).length,
+    earlyArrival:arrivals.filter(r => r.specialRequests?.toLowerCase().includes('early')).length,
+  };
+
+  res.json({ success: true, data: { date, stats, list: arrivals } });
+}));
+
+// GET /api/reports/departures?propertyId=&date=
+router.get('/departures', asyncHandler(async (req, res) => {
+  const { propertyId } = req.query;
+  assertPropertyScope(req, propertyId);
+  const date = req.query.date || new Date().toISOString().split('T')[0];
+
+  const departures = await Reservation.find({
+    property: propertyId,
+    departureDate: date,
+    status: { $in: ['in_house','checked_in','checked_out'] },
+  })
+    .populate('primaryGuest', 'firstName lastName phone email vipLevel')
+    .populate('roomType', 'name code')
+    .populate('assignedRoom', 'number floor')
+    .lean();
+
+  // Attach open folio balances
+  const resIds = departures.map(r => r._id);
+  const openFolios = resIds.length
+    ? await Folio.find({ reservation: { $in: resIds }, status: 'open' }).lean()
+    : [];
+  const balanceMap = {};
+  for (const f of openFolios) {
+    const balance = (f.lines || [])
+      .filter(l => l.status === 'posted')
+      .reduce((s, l) => s + (l.amount || 0) + (l.taxAmount || 0), 0);
+    balanceMap[String(f.reservation)] = Math.round(balance * 100) / 100;
+  }
+
+  const list = departures.map(r => ({ ...r, openBalance: balanceMap[String(r._id)] || 0 }));
+
+  const stats = {
+    total:       list.length,
+    checkedOut:  list.filter(r => r.status === 'checked_out').length,
+    remaining:   list.filter(r => ['in_house','checked_in'].includes(r.status)).length,
+    lateCheckout:list.filter(r => r.specialRequests?.toLowerCase().includes('late')).length,
+    openBalances:list.filter(r => r.openBalance > 0).length,
+  };
+
+  res.json({ success: true, data: { date, stats, list } });
+}));
+
+// GET /api/reports/payments?propertyId=&from=&to=&method=
+router.get('/payments', asyncHandler(async (req, res) => {
+  const { propertyId, method } = req.query;
+  assertPropertyScope(req, propertyId);
+  const to   = req.query.to   || new Date().toISOString().split('T')[0];
+  const from = req.query.from || addDays(to, -29);
+  const dayStart = new Date(from + 'T00:00:00Z');
+  const dayEnd   = new Date(to   + 'T23:59:59Z');
+
+  const folios = await Folio.find({ property: propertyId }).lean();
+
+  const methodMap = {};
+  let totalPayments = 0;
+  let totalRefunds  = 0;
+  let totalDeposits = 0;
+  const transactions = [];
+
+  for (const folio of folios) {
+    for (const line of (folio.lines || [])) {
+      if (!line.postedAt) continue;
+      const at = new Date(line.postedAt);
+      if (at < dayStart || at > dayEnd) continue;
+      if (line.status !== 'posted') continue;
+      if (!['payment','refund','deposit'].includes(line.type)) continue;
+      if (method && line.paymentMethod !== method) continue;
+
+      const amt = Math.abs(line.amount || 0);
+      const pm  = line.paymentMethod || 'other';
+
+      if (line.type === 'payment') {
+        methodMap[pm] = (methodMap[pm] || 0) + amt;
+        totalPayments += amt;
+      } else if (line.type === 'refund') {
+        totalRefunds += amt;
+      } else if (line.type === 'deposit') {
+        totalDeposits += amt;
+      }
+
+      transactions.push({
+        folioId:       String(folio._id),
+        type:          line.type,
+        paymentMethod: pm,
+        amount:        amt,
+        description:   line.description,
+        postedAt:      line.postedAt,
+        reference:     line.reference,
+      });
+    }
+  }
+
+  const byMethod = Object.entries(methodMap)
+    .map(([m, amount]) => ({ method: m, amount: Math.round(amount * 100) / 100 }))
+    .sort((a, b) => b.amount - a.amount);
+
+  transactions.sort((a, b) => new Date(b.postedAt) - new Date(a.postedAt));
+
+  res.json({
+    success: true,
+    data: {
+      from, to,
+      totalPayments: Math.round(totalPayments * 100) / 100,
+      totalRefunds:  Math.round(totalRefunds  * 100) / 100,
+      totalDeposits: Math.round(totalDeposits * 100) / 100,
+      net:           Math.round((totalPayments + totalDeposits - totalRefunds) * 100) / 100,
+      byMethod,
+      transactions,
+    },
+  });
 }));
 
 export default router;

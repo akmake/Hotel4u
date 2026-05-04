@@ -640,6 +640,9 @@ router.post('/:id/check-in', asyncHandler(async (req, res) => {
   }).catch(() => null);
 
   res.json({ success: true, data: reservation });
+}));
+
+// POST /api/reservations/:id/check-out
 router.post('/:id/check-out', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Check-out requires front-desk permissions');
   const { forceCheckout } = req.body;
@@ -670,6 +673,9 @@ router.post('/:id/check-out', asyncHandler(async (req, res) => {
   }).catch(() => null);
 
   res.json({ success: true, data: reservation });
+}));
+
+// POST /api/reservations/:id/cancel
 router.post('/:id/cancel', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Cancellation requires commercial/front-desk permissions');
   const { reason } = req.body;
@@ -1583,6 +1589,7 @@ router.post('/:id/link-group', asyncHandler(async (req, res) => {
 }));
 
 // POST /api/reservations/:id/express-checkout-link
+router.post('/:id/express-checkout-link', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Express checkout link requires front-desk permissions');
   const reservation = await getReservationOr404(req.params.id, res);
   if (!reservation) return;

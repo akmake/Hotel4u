@@ -84,11 +84,23 @@ router.get('/:id/balance', asyncHandler(async (req, res) => {
 
 // POST /api/companies
 router.post('/', asyncHandler(async (req, res) => {
-  const { propertyId, name, type, contactName, email, phone, address, taxId, creditLimit, discountPct, notes } = req.body;
+  const {
+    propertyId, name, type, contactName, contactTitle, email, phone, address, taxId,
+    creditLimit, discountPct, paymentTerms, currency,
+    contractNumber, contractStartDate, contractEndDate,
+    agentCode, commissionPct, rateCodes,
+    notes,
+  } = req.body;
   assertPropertyScope(req, propertyId);
   if (!name) return res.status(400).json({ success: false, error: 'שם חברה נדרש' });
 
-  const company = await Company.create({ property: propertyId, name, type, contactName, email, phone, address, taxId, creditLimit, discountPct, notes });
+  const company = await Company.create({
+    property: propertyId, name, type, contactName, contactTitle, email, phone, address, taxId,
+    creditLimit, discountPct, paymentTerms, currency,
+    contractNumber, contractStartDate, contractEndDate,
+    agentCode, commissionPct, rateCodes,
+    notes,
+  });
 
   await audit({ property: propertyId, ...auditCtxFromReq(req), action: 'company.create', entityType: 'Company', entityId: company._id, after: company.toObject() });
   res.status(201).json({ success: true, data: company });
@@ -100,7 +112,13 @@ router.patch('/:id', asyncHandler(async (req, res) => {
   if (!company) return res.status(404).json({ success: false, error: 'חברה לא נמצאה' });
   assertPropertyScope(req, String(company.property));
 
-  const allowed = ['name','type','contactName','email','phone','address','taxId','creditLimit','discountPct','notes','active'];
+  const allowed = [
+    'name','type','contactName','contactTitle','email','phone','address','taxId',
+    'creditLimit','discountPct','paymentTerms','currency',
+    'contractNumber','contractStartDate','contractEndDate','contractDocuments',
+    'agentCode','commissionPct','rateCodes',
+    'notes','active',
+  ];
   const before = company.toObject();
   const update = {};
   allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
