@@ -38,7 +38,7 @@ import crmCoreRouter       from './routes/crm-core.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PMS_PORT || 5000;
 
 // ── Security & Performance middleware (פרק כג) ───────────────────────────────
 app.use(helmet({

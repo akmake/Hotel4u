@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Search, Bell, PanelRightOpen, PanelRightClose, RefreshCw, LogOut, ChevronDown } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Search, Bell, PanelRightOpen, PanelRightClose, RefreshCw, LogOut, ChevronDown, ArrowLeftRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { TODAY, formatLong } from '../../utils/date';
 
@@ -16,6 +17,9 @@ export default function TopBar({ collapsed, onToggle, title }) {
   const { user, logout } = useAuth();
   const [query,       setQuery]       = useState('');
   const [userMenuOpen, setUserMenu]   = useState(false);
+  const nav = useNavigate();
+  const { pathname } = useLocation();
+  const isPMS = pathname.startsWith('/pms');
 
   const initials = user ? `${user.firstName?.slice(0,1)}${user.lastName?.slice(0,1)}` : '?';
 
@@ -34,6 +38,19 @@ export default function TopBar({ collapsed, onToggle, title }) {
       <div className="flex-1">
         {title && <span className="font-semibold text-ink text-sm">{title}</span>}
       </div>
+
+      {/* Switch area button */}
+      <button
+        onClick={() => nav(isPMS ? '/' : '/pms')}
+        className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border"
+        style={{ borderColor: 'rgba(99,102,241,0.3)', color: '#6366f1', background: 'rgba(99,102,241,0.06)' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.14)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
+        title={isPMS ? 'מעבר לאזור מכירות' : 'מעבר לאזור קבלה'}
+      >
+        <ArrowLeftRight size={13} />
+        {isPMS ? 'מכירות' : 'קבלה'}
+      </button>
 
       {/* Search */}
       <div className="relative hidden sm:flex">

@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Segoe UI Variable Display', 'Segoe UI', 'Tahoma', 'Arial', 'sans-serif'],
+        sans: ['Assistant', 'Segoe UI', 'Tahoma', 'Arial', 'sans-serif'],
         mono: ['Consolas', 'Monaco', 'Courier New', 'monospace'],
       },
       colors: {

@@ -1,3 +1,36 @@
+import axios from 'axios';
+
+// ── Axios instance (default export) — used by ziporiclass pages ───────────────
+// Uses withCredentials for HttpOnly cookie auth + CSRF support
+const axiosApi = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+// CSRF token management
+let csrfPromise = null;
+const fetchCsrf = () => {
+  if (!csrfPromise) {
+    csrfPromise = axiosApi.get('/csrf-token')
+      .then(r => {
+        const token = r.data?.csrfToken;
+        if (token) axiosApi.defaults.headers.common['X-CSRF-Token'] = token;
+        return token;
+      })
+      .catch(() => { csrfPromise = null; });
+  }
+  return csrfPromise;
+};
+
+axiosApi.interceptors.request.use(async (config) => {
+  if (['post','put','patch','delete'].includes(config.method)) await fetchCsrf();
+  return config;
+});
+
+export default axiosApi;
+
+// ── Legacy fetch-based helpers (named exports) — used by hotel4u PMS pages ───
 const BASE = '/api';
 
 function getToken() {

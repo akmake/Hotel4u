@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../stores/authStore';
 import { Eye, EyeOff, Lock, Mail, AlertCircle, Hotel } from 'lucide-react';
 
 const DEMO_USERS = [
@@ -10,7 +11,8 @@ const DEMO_USERS = [
 ];
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login } = useAuthStore();
+  const navigate = useNavigate();
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPwd,  setShowPwd]  = useState(false);
@@ -21,9 +23,10 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(em, pw);
+      await login({ email: em, password: pw });
+      navigate('/', { replace: true });
     } catch (err) {
-      setError(err.message || 'שגיאה בהתחברות');
+      setError(err.response?.data?.message || err.message || 'שגיאה בהתחברות');
     } finally {
       setLoading(false);
     }

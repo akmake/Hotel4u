@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import path from 'path';
 
 export default defineConfig({
   plugins: [
@@ -33,10 +34,22 @@ export default defineConfig({
       },
     }),
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     proxy: {
-      '/api': {
+      // PMS server (hotel4u, port 5000)
+      '^/api/(dashboard|properties|reservations|housekeeping|maintenance|guests|folio|reports|rates|companies|inventory|audit-log|crm|integrations|automation|payments|groups|notifications|guest-requests|folio-routing)(/.*)?$': {
         target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Legacy ziporiclass server (port 4000) — catch-all
+      '/api': {
+        target: 'http://localhost:4000',
         changeOrigin: true,
         secure: false,
       },
