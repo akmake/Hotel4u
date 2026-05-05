@@ -652,6 +652,24 @@ export default function LeadInboxPage() {
         </div>
       )}
 
+      {bulkUndo?.items?.length > 0 && (
+        <div className="card p-3 mb-4 border-emerald-300 bg-emerald-50/40">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm text-emerald-900">
+              <span className="font-semibold">Bulk action applied.</span> You can undo {bulkUndo.items.length} updates.
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="btn btn-secondary btn-sm" onClick={undoLastBulk} disabled={bulkBusy}>
+                {bulkBusy ? <Spinner size={12} /> : 'Undo'}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setBulkUndoWindow(null)} disabled={bulkBusy}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-5">
           <div className="card">

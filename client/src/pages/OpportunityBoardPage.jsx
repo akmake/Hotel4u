@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -15,7 +15,8 @@ import {
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import { crm } from '../utils/api';
+import { crm, properties as propertiesApi } from '../utils/api';
+import { normalizeCrmSla } from '../utils/crmSla';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
 
@@ -26,9 +27,9 @@ const HEALTH_BADGE = {
 };
 
 const HEALTH_LABEL = {
-  healthy: 'תקין',
-  at_risk: 'בסיכון',
-  stalled: 'תקוע',
+  healthy: '׳×׳§׳™׳',
+  at_risk: '׳‘׳¡׳™׳›׳•׳',
+  stalled: '׳×׳§׳•׳¢',
 };
 
 function fmtMoney(amount, currency = 'ILS') {
@@ -39,7 +40,7 @@ function fmtMoney(amount, currency = 'ILS') {
       maximumFractionDigits: 0,
     }).format(Number(amount || 0));
   } catch {
-    return `₪${Number(amount || 0).toLocaleString('he-IL')}`;
+    return `ג‚×${Number(amount || 0).toLocaleString('he-IL')}`;
   }
 }
 
@@ -66,18 +67,23 @@ function isClosed(stage) {
   return stage === 'closed_won' || stage === 'closed_lost';
 }
 
-function attentionScore(opportunity) {
+function attentionScore(opportunity, sla) {
   let score = 0;
   if (opportunity.healthStatus === 'stalled') score += 35;
+  if (inactive >= stalledDays) flags.push('SLA stalled window passed');
   if (opportunity.healthStatus === 'at_risk') score += 22;
 
   const inactive = daysAgo(opportunity.lastActivityAt || opportunity.updatedAt) || 0;
-  if (inactive >= 21) score += 28;
-  else if (inactive >= 14) score += 18;
-  else if (inactive >= 7) score += 8;
+  const riskDays = Number(sla?.oppAtRiskInactiveDays || 14);
+  const stalledDays = Number(sla?.oppStalledInactiveDays || 30);
+  if (inactive >= stalledDays) score += 28;
+  else if (inactive >= riskDays) score += 18;
+  else if (inactive >= Math.max(3, riskDays - 7)) score += 8;
 
   const closeDate = parseAnyDate(opportunity.expectedCloseDate);
-  if (closeDate && closeDate.getTime() < Date.now() && !isClosed(opportunity.stage)) score += 24;
+  const overdueDays = closeDate ? Math.floor((Date.now() - closeDate.getTime()) / 86400000) : -1;
+  const closeEscalationDays = Number(sla?.oppOverdueCloseEscalationDays || 0);
+  if (closeDate && overdueDays >= closeEscalationDays && !isClosed(opportunity.stage)) score += 24;
   if (Number(opportunity.probability || 0) >= 70 && inactive >= 10) score += 12;
   if (Number(opportunity.amount || 0) >= 100000 && inactive >= 5) score += 9;
 
@@ -85,23 +91,29 @@ function attentionScore(opportunity) {
   return score;
 }
 
-function opportunityFlags(opportunity) {
+function opportunityFlags(opportunity, sla) {
   const flags = [];
   const inactive = daysAgo(opportunity.lastActivityAt || opportunity.updatedAt) || 0;
   const closeDate = parseAnyDate(opportunity.expectedCloseDate);
-  const overdueClose = closeDate && closeDate.getTime() < Date.now() && !isClosed(opportunity.stage);
+  const closeEscalationDays = Number(sla?.oppOverdueCloseEscalationDays || 0);
+  const overdueClose = closeDate
+    && Math.floor((Date.now() - closeDate.getTime()) / 86400000) >= closeEscalationDays
+    && !isClosed(opportunity.stage);
+  const riskDays = Number(sla?.oppAtRiskInactiveDays || 14);
+  const stalledDays = Number(sla?.oppStalledInactiveDays || 30);
 
-  if (overdueClose) flags.push('סגירה צפויה באיחור');
-  if (inactive >= 14) flags.push(`אין פעילות ${inactive} ימים`);
-  if (opportunity.healthStatus === 'at_risk') flags.push('בריאות בסיכון');
-  if (opportunity.healthStatus === 'stalled') flags.push('בריאות תקועה');
+  if (overdueClose) flags.push('׳¡׳’׳™׳¨׳” ׳¦׳₪׳•׳™׳” ׳‘׳׳™׳—׳•׳¨');
+  if (inactive >= riskDays) flags.push(`׳׳™׳ ׳₪׳¢׳™׳׳•׳× ${inactive} ׳™׳׳™׳`);
+  if (inactive >= stalledDays) flags.push('SLA stalled window passed');
+  if (opportunity.healthStatus === 'at_risk') flags.push('׳‘׳¨׳™׳׳•׳× ׳‘׳¡׳™׳›׳•׳');
+  if (opportunity.healthStatus === 'stalled') flags.push('׳‘׳¨׳™׳׳•׳× ׳×׳§׳•׳¢׳”');
   return flags;
 }
 
 export default function OpportunityBoardPage() {
   const { propertyId } = useProperty();
   const skip = !propertyId;
-  const { toasts, success, error: toastError, warn } = useToast();
+  const { toasts, success, error: toastError } = useToast();
 
   const [pipelineKey, setPipelineKey] = useState('default');
   const [q, setQ] = useState('');
@@ -154,6 +166,17 @@ export default function OpportunityBoardPage() {
     skip
   );
 
+  const { data: propertyDetails } = useApi(
+    () => propertiesApi.get(propertyId),
+    [propertyId],
+    skip
+  );
+
+  const crmSla = useMemo(
+    () => normalizeCrmSla(propertyDetails?.crmSla || {}),
+    [propertyDetails?.crmSla]
+  );
+
   const pipelines = pipelineList || [];
   const selectedPipeline = useMemo(() => {
     const exact = pipelines.find((p) => p.key === pipelineKey && p.active !== false);
@@ -184,9 +207,9 @@ export default function OpportunityBoardPage() {
 
     if (!showClosed) items = items.filter((op) => !isClosed(op.stage));
     if (healthFilter !== 'all') items = items.filter((op) => op.healthStatus === healthFilter);
-    if (attentionOnly) items = items.filter((op) => attentionScore(op) >= 24);
+    if (attentionOnly) items = items.filter((op) => attentionScore(op, crmSla) >= Number(crmSla.oppAttentionScoreThreshold || 24));
     return items;
-  }, [oppResp, pipelineKey, showClosed, healthFilter, attentionOnly]);
+  }, [oppResp, pipelineKey, showClosed, healthFilter, attentionOnly, crmSla]);
 
   const grouped = useMemo(() => {
     const bucket = {};
@@ -197,13 +220,13 @@ export default function OpportunityBoardPage() {
     });
     Object.keys(bucket).forEach((k) => {
       bucket[k] = bucket[k].sort((a, b) => {
-        const att = attentionScore(b) - attentionScore(a);
+        const att = attentionScore(b, crmSla) - attentionScore(a, crmSla);
         if (att !== 0) return att;
         return Number(b.amount || 0) - Number(a.amount || 0);
       });
     });
     return bucket;
-  }, [stages, opportunities]);
+  }, [stages, opportunities, crmSla]);
 
   const selectedOpportunity = useMemo(
     () => opportunities.find((op) => op._id === selectedOpportunityId) || opportunities[0] || null,
@@ -231,13 +254,13 @@ export default function OpportunityBoardPage() {
     const openAmount = open.reduce((sum, op) => sum + Number(op.amount || 0), 0);
     const weighted = open.reduce((sum, op) => sum + (Number(op.amount || 0) * Number(op.probability || 0) / 100), 0);
     const winRate = won.length + lost.length > 0 ? Math.round((won.length / (won.length + lost.length)) * 100) : 0;
-    const attentionCount = open.filter((op) => attentionScore(op) >= 24).length;
+    const attentionCount = open.filter((op) => attentionScore(op, crmSla) >= Number(crmSla.oppAttentionScoreThreshold || 24)).length;
     return { openAmount, weighted, winRate, attentionCount };
-  }, [opportunities]);
+  }, [opportunities, crmSla]);
 
   const attentionDeals = useMemo(
-    () => opportunities.filter((op) => attentionScore(op) >= 24).slice(0, 6),
-    [opportunities]
+    () => opportunities.filter((op) => attentionScore(op, crmSla) >= Number(crmSla.oppAttentionScoreThreshold || 24)).slice(0, 6),
+    [opportunities, crmSla]
   );
 
   async function refreshAll() {
@@ -250,10 +273,10 @@ export default function OpportunityBoardPage() {
     setBusyKey(key);
     try {
       await crm.changeOpportunityStage(opportunity._id, { stage: toStage });
-      success('שלב העסקה עודכן');
+      success('׳©׳׳‘ ׳”׳¢׳¡׳§׳” ׳¢׳•׳“׳›׳');
       refreshAll();
     } catch (e) {
-      toastError(e.message || 'מעבר שלב נכשל');
+      toastError(e.message || '׳׳¢׳‘׳¨ ׳©׳׳‘ ׳ ׳›׳©׳');
     } finally {
       setBusyKey('');
     }
@@ -264,26 +287,26 @@ export default function OpportunityBoardPage() {
     setBusyKey(key);
     try {
       await crm.closeOpportunityWon(opportunity._id, {});
-      success('העסקה נסגרה כ-Won');
+      success('׳”׳¢׳¡׳§׳” ׳ ׳¡׳’׳¨׳” ׳›-Won');
       refreshAll();
     } catch (e) {
-      toastError(e.message || 'סגירת העסקה נכשלה');
+      toastError(e.message || '׳¡׳’׳™׳¨׳× ׳”׳¢׳¡׳§׳” ׳ ׳›׳©׳׳”');
     } finally {
       setBusyKey('');
     }
   }
 
   async function closeLost(opportunity) {
-    const reason = prompt('סיבת הפסד:');
+    const reason = prompt('׳¡׳™׳‘׳× ׳”׳₪׳¡׳“:');
     if (!reason) return;
     const key = `lost:${opportunity._id}`;
     setBusyKey(key);
     try {
       await crm.closeOpportunityLost(opportunity._id, { reason });
-      success('העסקה נסגרה כ-Lost');
+      success('׳”׳¢׳¡׳§׳” ׳ ׳¡׳’׳¨׳” ׳›-Lost');
       refreshAll();
     } catch (e) {
-      toastError(e.message || 'סגירה כ-Lost נכשלה');
+      toastError(e.message || '׳¡׳’׳™׳¨׳” ׳›-Lost ׳ ׳›׳©׳׳”');
     } finally {
       setBusyKey('');
     }
@@ -294,11 +317,11 @@ export default function OpportunityBoardPage() {
     setBusyKey(key);
     try {
       await crm.recalcOpportunityHealth(opportunity._id);
-      success('בריאות העסקה חושבה מחדש');
+      success('׳‘׳¨׳™׳׳•׳× ׳”׳¢׳¡׳§׳” ׳—׳•׳©׳‘׳” ׳׳—׳“׳©');
       refetchOpps();
       refetchForecast();
     } catch (e) {
-      toastError(e.message || 'חישוב בריאות נכשל');
+      toastError(e.message || '׳—׳™׳©׳•׳‘ ׳‘׳¨׳™׳׳•׳× ׳ ׳›׳©׳');
     } finally {
       setBusyKey('');
     }
@@ -314,11 +337,11 @@ export default function OpportunityBoardPage() {
         expectedCloseDate: editCloseDate || null,
         healthStatus: editHealth,
       });
-      success('פרטי העסקה נשמרו');
+      success('׳₪׳¨׳˜׳™ ׳”׳¢׳¡׳§׳” ׳ ׳©׳׳¨׳•');
       refetchOpps();
       refetchForecast();
     } catch (e) {
-      toastError(e.message || 'שמירה נכשלה');
+      toastError(e.message || '׳©׳׳™׳¨׳” ׳ ׳›׳©׳׳”');
     } finally {
       setBusyKey('');
     }
@@ -349,13 +372,13 @@ export default function OpportunityBoardPage() {
             Opportunity Board
           </h1>
           <p className="page-subtitle">
-            {opportunities.length} עסקאות לאחר סינון • Pipeline: {selectedPipeline?.name || pipelineKey}
+            {opportunities.length} ׳¢׳¡׳§׳׳•׳× ׳׳׳—׳¨ ׳¡׳™׳ ׳•׳ ג€¢ Pipeline: {selectedPipeline?.name || pipelineKey}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
-            <input className="input pr-9 w-56" placeholder="חיפוש עסקה..." value={q} onChange={(e) => onSearch(e.target.value)} />
+            <input className="input pr-9 w-56" placeholder="׳—׳™׳₪׳•׳© ׳¢׳¡׳§׳”..." value={q} onChange={(e) => onSearch(e.target.value)} />
           </div>
           <button className="btn btn-ghost btn-icon" onClick={refreshAll}>
             <RefreshCw size={15} />
@@ -368,10 +391,10 @@ export default function OpportunityBoardPage() {
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2 text-red-700 text-sm font-semibold">
               <AlertTriangle size={15} />
-              עסקאות שדורשות טיפול עכשיו ({summary.attentionCount})
+              ׳¢׳¡׳§׳׳•׳× ׳©׳“׳•׳¨׳©׳•׳× ׳˜׳™׳₪׳•׳ ׳¢׳›׳©׳™׳• ({summary.attentionCount})
             </div>
             <button className="btn btn-ghost btn-sm" onClick={() => setAttentionOnly((v) => !v)}>
-              {attentionOnly ? 'הצג הכל' : 'סנן לדחופות'}
+              {attentionOnly ? '׳”׳¦׳’ ׳”׳›׳' : '׳¡׳ ׳ ׳׳“׳—׳•׳₪׳•׳×'}
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -395,18 +418,18 @@ export default function OpportunityBoardPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-ink-muted mb-1 block">בריאות</label>
+            <label className="text-xs text-ink-muted mb-1 block">׳‘׳¨׳™׳׳•׳×</label>
             <select className="select w-full" value={healthFilter} onChange={(e) => setHealthFilter(e.target.value)}>
-              <option value="all">הכל</option>
-              <option value="healthy">תקין</option>
-              <option value="at_risk">בסיכון</option>
-              <option value="stalled">תקוע</option>
+              <option value="all">׳”׳›׳</option>
+              <option value="healthy">׳×׳§׳™׳</option>
+              <option value="at_risk">׳‘׳¡׳™׳›׳•׳</option>
+              <option value="stalled">׳×׳§׳•׳¢</option>
             </select>
           </div>
           <div className="flex items-end">
             <label className="inline-flex items-center gap-2 text-sm text-ink-secondary">
               <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
-              להציג גם סגורות
+              ׳׳”׳¦׳™׳’ ׳’׳ ׳¡׳’׳•׳¨׳•׳×
             </label>
           </div>
           <div className="stat-card">
@@ -455,18 +478,18 @@ export default function OpportunityBoardPage() {
                     <div className="card-header">
                       <div>
                         <div className="font-semibold text-ink text-sm">{stage.name}</div>
-                        <div className="text-xs text-ink-muted">{column.length} עסקאות</div>
+                        <div className="text-xs text-ink-muted">{column.length} ׳¢׳¡׳§׳׳•׳×</div>
                       </div>
                       <div className="text-xs text-num text-ink-muted">{fmtMoney(columnAmount)}</div>
                     </div>
 
                     <div className="p-3 flex flex-col gap-2 max-h-[72vh] overflow-y-auto">
                       {!column.length ? (
-                        <div className="text-center text-xs text-ink-faint py-5">גרור עסקה לכאן</div>
+                        <div className="text-center text-xs text-ink-faint py-5">׳’׳¨׳•׳¨ ׳¢׳¡׳§׳” ׳׳›׳׳</div>
                       ) : column.map((op) => {
                         const stale = daysAgo(op.lastActivityAt || op.updatedAt) || 0;
                         const selected = selectedOpportunity?._id === op._id;
-                        const flags = opportunityFlags(op);
+                        const flags = opportunityFlags(op, crmSla);
                         return (
                           <div
                             key={op._id}
@@ -490,7 +513,7 @@ export default function OpportunityBoardPage() {
                             <div className="flex items-start justify-between gap-2 mb-1">
                               <div className="min-w-0">
                                 <div className="font-semibold text-ink text-sm truncate">{op.name}</div>
-                                <div className="text-xs text-ink-muted truncate">{op.account?.name || 'ללא חשבון'}</div>
+                                <div className="text-xs text-ink-muted truncate">{op.account?.name || '׳׳׳ ׳—׳©׳‘׳•׳'}</div>
                               </div>
                               <span className={`badge ${HEALTH_BADGE[op.healthStatus] || 'badge-pending'}`}>{HEALTH_LABEL[op.healthStatus] || op.healthStatus}</span>
                             </div>
@@ -498,7 +521,7 @@ export default function OpportunityBoardPage() {
                               <span className="font-bold text-num">{fmtMoney(op.amount, op.currency)}</span>
                               <span className={`badge ${Number(op.probability || 0) >= 70 ? 'badge-arrival' : 'badge-pending'}`}>{Number(op.probability || 0)}%</span>
                             </div>
-                            <div className="text-xs text-ink-faint mt-2">אחרון: {stale} ימים • סגירה: {op.expectedCloseDate || '—'}</div>
+                            <div className="text-xs text-ink-faint mt-2">׳׳—׳¨׳•׳: {stale} ׳™׳׳™׳ ג€¢ ׳¡׳’׳™׳¨׳”: {op.expectedCloseDate || 'ג€”'}</div>
                             {flags.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {flags.slice(0, 2).map((flag) => (
@@ -522,7 +545,7 @@ export default function OpportunityBoardPage() {
             <div className="card h-full">
               <div className="empty-state min-h-[320px]">
                 <Activity size={28} className="empty-state-icon" />
-                <span>בחר עסקה כדי לעבוד עליה בעומק</span>
+                <span>׳‘׳—׳¨ ׳¢׳¡׳§׳” ׳›׳“׳™ ׳׳¢׳‘׳•׳“ ׳¢׳׳™׳” ׳‘׳¢׳•׳׳§</span>
               </div>
             </div>
           ) : (
@@ -530,7 +553,7 @@ export default function OpportunityBoardPage() {
               <div className="card-header">
                 <div>
                   <div className="font-semibold text-ink">{selectedOpportunity.name}</div>
-                  <div className="text-xs text-ink-muted">{selectedOpportunity.account?.name || 'ללא חשבון'}</div>
+                  <div className="text-xs text-ink-muted">{selectedOpportunity.account?.name || '׳׳׳ ׳—׳©׳‘׳•׳'}</div>
                 </div>
                 <span className={`badge ${HEALTH_BADGE[selectedOpportunity.healthStatus] || 'badge-pending'}`}>
                   {HEALTH_LABEL[selectedOpportunity.healthStatus] || selectedOpportunity.healthStatus}
@@ -549,7 +572,7 @@ export default function OpportunityBoardPage() {
                       onClick={() => moveStage(selectedOpportunity, selectedStage)}
                       disabled={busyKey === `stage:${selectedOpportunity._id}` || selectedStage === selectedOpportunity.stage}
                     >
-                      {busyKey === `stage:${selectedOpportunity._id}` ? <Spinner size={12} /> : 'עדכן'}
+                      {busyKey === `stage:${selectedOpportunity._id}` ? <Spinner size={12} /> : '׳¢׳“׳›׳'}
                     </button>
                   </div>
                 </div>
@@ -558,7 +581,7 @@ export default function OpportunityBoardPage() {
                   <div className="text-xs font-bold text-ink-secondary uppercase tracking-wide mb-2">Deal Profile</div>
                   <div className="space-y-2">
                     <div>
-                      <label className="text-xs text-ink-muted mb-1 block">סכום</label>
+                      <label className="text-xs text-ink-muted mb-1 block">׳¡׳›׳•׳</label>
                       <input className="input" type="number" min="0" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
                     </div>
                     <div>
@@ -566,19 +589,19 @@ export default function OpportunityBoardPage() {
                       <input className="input" type="number" min="0" max="100" value={editProbability} onChange={(e) => setEditProbability(e.target.value)} />
                     </div>
                     <div>
-                      <label className="text-xs text-ink-muted mb-1 block">תאריך סגירה צפוי</label>
+                      <label className="text-xs text-ink-muted mb-1 block">׳×׳׳¨׳™׳ ׳¡׳’׳™׳¨׳” ׳¦׳₪׳•׳™</label>
                       <input className="input" type="date" value={editCloseDate} onChange={(e) => setEditCloseDate(e.target.value)} />
                     </div>
                     <div>
                       <label className="text-xs text-ink-muted mb-1 block">Health</label>
                       <select className="select w-full" value={editHealth} onChange={(e) => setEditHealth(e.target.value)}>
-                        <option value="healthy">תקין</option>
-                        <option value="at_risk">בסיכון</option>
-                        <option value="stalled">תקוע</option>
+                        <option value="healthy">׳×׳§׳™׳</option>
+                        <option value="at_risk">׳‘׳¡׳™׳›׳•׳</option>
+                        <option value="stalled">׳×׳§׳•׳¢</option>
                       </select>
                     </div>
                     <button className="btn btn-primary w-full justify-center" onClick={() => saveOpportunityProfile(selectedOpportunity)} disabled={busyKey === `save:${selectedOpportunity._id}`}>
-                      {busyKey === `save:${selectedOpportunity._id}` ? <Spinner size={12} /> : 'שמור פרופיל עסקה'}
+                      {busyKey === `save:${selectedOpportunity._id}` ? <Spinner size={12} /> : '׳©׳׳•׳¨ ׳₪׳¨׳•׳₪׳™׳ ׳¢׳¡׳§׳”'}
                     </button>
                   </div>
                 </div>
@@ -597,14 +620,14 @@ export default function OpportunityBoardPage() {
                   </div>
                   <button className="btn btn-ghost btn-sm w-full justify-center gap-1 mt-2" disabled={busyKey === `health:${selectedOpportunity._id}`} onClick={() => recalcHealth(selectedOpportunity)}>
                     {busyKey === `health:${selectedOpportunity._id}` ? <Spinner size={12} /> : <ShieldAlert size={13} />}
-                    חשב בריאות מחדש
+                    ׳—׳©׳‘ ׳‘׳¨׳™׳׳•׳× ׳׳—׳“׳©
                   </button>
                 </div>
 
                 <div className="card p-3">
                   <div className="text-xs font-bold text-ink-secondary uppercase tracking-wide mb-2">Signals & SLA</div>
                   <div className="text-sm text-ink-secondary flex items-center justify-between mb-1">
-                    <span className="flex items-center gap-1"><CalendarClock size={13} /> ימים ללא פעילות</span>
+                    <span className="flex items-center gap-1"><CalendarClock size={13} /> ׳™׳׳™׳ ׳׳׳ ׳₪׳¢׳™׳׳•׳×</span>
                     <span className="font-semibold text-num">{daysAgo(selectedOpportunity.lastActivityAt || selectedOpportunity.updatedAt) || 0}</span>
                   </div>
                   <div className="text-sm text-ink-secondary flex items-center justify-between mb-2">
@@ -612,11 +635,11 @@ export default function OpportunityBoardPage() {
                     <span className="font-semibold text-num">{fmtMoney((Number(selectedOpportunity.amount || 0) * Number(selectedOpportunity.probability || 0)) / 100, selectedOpportunity.currency)}</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {opportunityFlags(selectedOpportunity).map((flag) => (
+                    {opportunityFlags(selectedOpportunity, crmSla).map((flag) => (
                       <span key={`${selectedOpportunity._id}:${flag}`} className="badge badge-dirty">{flag}</span>
                     ))}
-                    {opportunityFlags(selectedOpportunity).length === 0 && (
-                      <span className="badge badge-clean">אין חריגות SLA כרגע</span>
+                    {opportunityFlags(selectedOpportunity, crmSla).length === 0 && (
+                      <span className="badge badge-clean">׳׳™׳ ׳—׳¨׳™׳’׳•׳× SLA ׳›׳¨׳’׳¢</span>
                     )}
                   </div>
                 </div>
@@ -628,3 +651,4 @@ export default function OpportunityBoardPage() {
     </div>
   );
 }
+
