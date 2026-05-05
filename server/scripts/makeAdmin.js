@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import User from '../models/userModel.js';
+import User from '../models/User.js';
 
 // טען את .env מהשורש של server
 dotenv.config({ path: './.env', override: true });

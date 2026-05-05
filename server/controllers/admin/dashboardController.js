@@ -1,7 +1,7 @@
 // server/controllers/admin/dashboardController.js
 import { catchAsync } from '../../middlewares/errorHandler.js';
 import Order from '../../models/Order.js';
-import User from '../../models/userModel.js';
+import User from '../../models/User.js';
 import InboundEmail from '../../models/InboundEmail.js';
 
 export const getDashboardStats = catchAsync(async (req, res, next) => {

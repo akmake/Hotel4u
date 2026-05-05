@@ -31,7 +31,8 @@ axiosApi.interceptors.request.use(async (config) => {
 export default axiosApi;
 
 // ── Legacy fetch-based helpers (named exports) — used by hotel4u PMS pages ───
-const BASE = '/api';
+const PMS_BASE  = '/api/pms'; // PMS routes (hotel4u) — ראוטר נפרד ב-app.js
+const AUTH_BASE = '/api';     // Auth routes (זהה לשני הצדדים)
 
 function getToken() {
   return localStorage.getItem('hotel4u_token');
@@ -47,7 +48,16 @@ async function request(method, path, body) {
     },
   };
   if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch(`${BASE}${path}`, opts);
+  const res = await fetch(`${PMS_BASE}${path}`, opts);
+  const data = await res.json();
+  if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.data;
+}
+
+async function authRequest(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(`${AUTH_BASE}${path}`, opts);
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
   return data.data;
@@ -68,11 +78,11 @@ export const api = {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const auth = {
-  login:          (email, password) => api.post('/auth/login', { email, password }),
-  logout:         ()                => api.post('/auth/logout', {}),
-  me:             ()                => api.get('/auth/me'),
-  refresh:        (refreshToken)    => api.post('/auth/refresh', { refreshToken }),
-  changePassword: (current, next)   => api.post('/auth/change-password', { currentPassword: current, newPassword: next }),
+  login:          (email, password) => authRequest('POST', '/auth/login', { email, password }),
+  logout:         ()                => authRequest('POST', '/auth/logout', {}),
+  me:             ()                => authRequest('GET',  '/auth/me'),
+  refresh:        (refreshToken)    => authRequest('POST', '/auth/refresh', { refreshToken }),
+  changePassword: (current, next)   => authRequest('POST', '/auth/change-password', { currentPassword: current, newPassword: next }),
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

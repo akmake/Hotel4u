@@ -1,4 +1,4 @@
-import User from '../models/userModel.js';
+import User from '../models/User.js';
 import { catchAsync } from '../middlewares/errorHandler.js';
 
 // שליפת משתמשים (תומך בסינון ?role=housekeeper)

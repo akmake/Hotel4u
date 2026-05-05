@@ -1,8 +1,10 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js';
+import User from '../models/User.js';
 import { createAndSendTokens } from '../utils/tokenHandler.js';
-import { logAction } from '../utils/auditLogger.js'; // ✨ ייבוא
+import { logAction } from '../utils/auditLogger.js';
+
+const PMS_JWT_SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
 
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
@@ -69,24 +71,37 @@ export const loginUser = async (req, res) => {
 
   await user.resetLoginAttempts();
 
-  // ✨ שליחת ההרשאות החדשות לקליינט
+  const propertyId = user.property ? String(user.property) : null;
   const userPayload = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      canManagePriceLists: user.canManagePriceLists,
-      canViewCommissions: user.canViewCommissions
+    _id: user._id,
+    name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    role: user.role,
+    propertyId,
+    canManagePriceLists: user.canManagePriceLists,
+    canViewCommissions: user.canViewCommissions,
   };
 
-  createAndSendTokens(user, res);
+  // Bearer token for PMS pages (stored in localStorage by client)
+  const bearerToken = jwt.sign(
+    { id: String(user._id), firstName: user.firstName, lastName: user.lastName,
+      email: user.email, role: user.role, propertyId },
+    PMS_JWT_SECRET,
+    { expiresIn: '8h' }
+  );
 
-  // ✨ תיעוד התחברות
-  // מכניסים את המשתמש ל-req ידנית כי ה-middleware עוד לא רץ בנקודה זו
-  req.user = user; 
+  createAndSendTokens(user, res); // sets HttpOnly cookies for Ziporiclass routes
+
+  req.user = user;
   await logAction(req, 'LOGIN', 'System', null, 'התחברות למערכת');
 
-  return res.status(200).json({ message: "התחברת בהצלחה", user: userPayload });
+  return res.status(200).json({
+    success: true,
+    message: 'התחברת בהצלחה',
+    data: { token: bearerToken, user: userPayload },
+  });
 };
 
 export const logout = async (req, res) => {

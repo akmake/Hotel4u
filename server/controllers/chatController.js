@@ -1,5 +1,5 @@
 import Message from '../models/Message.js';
-import User from '../models/userModel.js';
+import User from '../models/User.js';
 import { getSocketIO } from '../socket.js';
 import { sendPushToUser } from '../utils/pushHandler.js';
 

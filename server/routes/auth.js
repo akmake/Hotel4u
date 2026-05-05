@@ -1,7 +1,11 @@
 ﻿import { Router } from 'express';
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 import { loginUser, logout, refresh, registerUser } from '../controllers/authController.js';
 import requireAuth from '../middlewares/requireAuth.js';
 import requireRefresh from '../middlewares/requireRefresh.js';
+
+const PMS_JWT_SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
 
 const router = Router();
 
@@ -17,14 +21,38 @@ router.post('/logout', logout);
 // POST /api/auth/refresh
 router.post('/refresh', requireRefresh, refresh);
 
-// GET /api/auth/me
-router.get('/me', requireAuth, (req, res) => {
+// GET /api/auth/me — supports both Bearer token (PMS) and HttpOnly cookie (Ziporiclass)
+router.get('/me', async (req, res, next) => {
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) {
+    try {
+      const payload = jwt.verify(auth.slice(7), PMS_JWT_SECRET);
+      const user = await User.findOne({ _id: payload.id, active: true }).select('-passwordHash').lean();
+      if (!user) return res.status(401).json({ success: false, error: 'משתמש לא פעיל' });
+      return res.json({
+        _id: user._id,
+        name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        propertyId: user.property ? String(user.property) : null,
+        canManagePriceLists: user.canManagePriceLists,
+        canViewCommissions: user.canViewCommissions,
+      });
+    } catch {
+      return res.status(401).json({ success: false, error: 'Token פג תוקף' });
+    }
+  }
+  requireAuth(req, res, next);
+}, (req, res) => {
   const user = req.user;
   res.json({
     _id: user._id,
     name: user.name,
     email: user.email,
     role: user.role,
+    propertyId: user.property ? String(user.property) : null,
     canManagePriceLists: user.canManagePriceLists,
     canViewCommissions: user.canViewCommissions,
   });

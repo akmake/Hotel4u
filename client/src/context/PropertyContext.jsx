@@ -8,7 +8,7 @@ export function PropertyProvider({ children }) {
   const [error, setError]       = useState(null);
 
   useEffect(() => {
-    fetch('/api/properties')
+    fetch('/api/pms/properties')
       .then(r => r.json())
       .then(d => {
         if (d.success && d.data.length > 0) setProperty(d.data[0]);

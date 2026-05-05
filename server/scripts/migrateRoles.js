@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import User from '../models/userModel.js';
+import User from '../models/User.js';
 
 // --- הגדרת נתיבים לטעינת משתני הסביבה ---
 const __filename = fileURLToPath(import.meta.url);

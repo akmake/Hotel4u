@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import api from '@/utils/api.js';
 
-// ✅ תיקון: שומרים רק מידע מינימלי ב-localStorage (בלי role/email מלאים)
 const getSavedUser = () => {
   try {
     const saved = localStorage.getItem('user');
@@ -11,6 +10,15 @@ const getSavedUser = () => {
     return null;
   }
 };
+
+function saveUser(user) {
+  localStorage.setItem('user', JSON.stringify({
+    _id: user._id,
+    name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    role: user.role,
+    propertyId: user.propertyId || null,
+  }));
+}
 
 export const useAuthStore = create((set, get) => ({
   user: getSavedUser(),
@@ -22,32 +30,21 @@ export const useAuthStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.post('/auth/login', credentials);
-      const data = response.data || response;
+      const outer = response.data || response;
+      // Support { data: { token, user } } (new) and { user } (old fallback)
+      const payload = outer.data || outer;
+      const user    = payload.user || outer.user;
+      const token   = payload.token;
 
-      // בדיקה שחזרו פרטי משתמש (הטוקן ב-Cookie)
-      if (!data || !data.user) {
-        throw new Error('התחברות נכשלה: לא התקבלו פרטי משתמש מהשרת');
-      }
+      if (!user) throw new Error('התחברות נכשלה: לא התקבלו פרטי משתמש מהשרת');
 
-      // ✅ תיקון: שמירת מינימום הכרחי בלבד ב-localStorage
-      // ה-user המלא נשמר רק ב-memory (Zustand state)
-      localStorage.setItem('user', JSON.stringify({
-        _id: data.user._id,
-        name: data.user.name,
-        role: data.user.role,
-      }));
+      if (token) localStorage.setItem('hotel4u_token', token);
+      saveUser(user);
 
-      set({
-        isAuthenticated: true,
-        user: data.user,
-        isLoading: false,
-        error: null
-      });
-
-      return data.user;
+      set({ isAuthenticated: true, user, isLoading: false, error: null });
+      return user;
     } catch (error) {
-      console.error('Login error:', error);
-      const message = error.response?.data?.message || error.message || 'שגיאה בהתחברות';
+      const message = error.response?.data?.error || error.response?.data?.message || error.message || 'שגיאה בהתחברות';
       set({ error: message, isLoading: false });
       throw error;
     }
@@ -59,34 +56,49 @@ export const useAuthStore = create((set, get) => ({
     } finally {
       localStorage.removeItem('user');
       localStorage.removeItem('token');
+      localStorage.removeItem('hotel4u_token');
       set({ isAuthenticated: false, user: null, error: null });
       window.location.href = '/login';
     }
   },
 
-  // checkAuth — מרענן את פרטי המשתמש מהשרת (Cookie-based)
   checkAuth: async () => {
     set({ isLoading: true });
     try {
+      // Try cookie-based auth first (works for Ziporiclass + PMS if cookies are fresh)
       const response = await api.get('/auth/me');
       const data = response.data || response;
       const user = data.data || data;
 
       if (user && user._id) {
-          set({ isAuthenticated: true, user: user, isLoading: false });
-          // ✅ תיקון: שמירה מינימלית
-          localStorage.setItem('user', JSON.stringify({
-            _id: user._id,
-            name: user.name,
-            role: user.role,
-          }));
-      } else {
-          throw new Error('No user data');
+        saveUser(user);
+        set({ isAuthenticated: true, user, isLoading: false });
+        return;
       }
-    } catch (error) {
-      set({ isAuthenticated: false, user: null, isLoading: false });
+      throw new Error('No user data');
+    } catch {
+      // Cookie auth failed — try Bearer token from localStorage
+      const token = localStorage.getItem('hotel4u_token');
+      if (token) {
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const user = await res.json();
+            if (user?._id) {
+              saveUser(user);
+              set({ isAuthenticated: true, user, isLoading: false });
+              return;
+            }
+          }
+        } catch {}
+      }
+      // Both auth methods failed
       localStorage.removeItem('user');
       localStorage.removeItem('token');
+      localStorage.removeItem('hotel4u_token');
+      set({ isAuthenticated: false, user: null, isLoading: false });
     }
-  }
+  },
 }));

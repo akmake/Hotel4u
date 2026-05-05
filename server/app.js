@@ -46,6 +46,28 @@ import whatsappChatRoutes from './routes/whatsappChatRoutes.js';
 import { initScheduler } from './services/scheduler.js';
 import { getCalendarData } from './controllers/admin/calendarController.js';
 
+// --- ייבוא נתיבי PMS (hotel4u) ---
+import { attachActor }       from './middleware/authContext.js';
+import pmsDashboardRouter    from './routes/dashboard.js';
+import pmsPropertiesRouter   from './routes/properties.js';
+import pmsRoomsRouter        from './routes/rooms.js';
+import pmsReservationsRouter from './routes/reservations.js';
+import pmsHousekeepingRouter from './routes/housekeeping.js';
+import pmsMaintenanceRouter  from './routes/maintenance.js';
+import pmsGuestsRouter       from './routes/guests.js';
+import pmsFolioRouter        from './routes/folio.js';
+import pmsReportsRouter      from './routes/reports.js';
+import pmsRatesRouter        from './routes/rates.js';
+import pmsCompaniesRouter    from './routes/companies.js';
+import pmsInventoryRouter    from './routes/inventory.js';
+import pmsAuditLogRouter     from './routes/audit-log.js';
+import pmsCrmRouter          from './routes/crm-core.js';
+import pmsNotificationsRouter from './routes/notifications.js';
+import pmsUsersRouter        from './routes/users.js';
+import pmsAutomationRouter   from './routes/automation.js';
+import pmsPaymentsRouter     from './routes/payments.js';
+import pmsGroupsRouter       from './routes/groups.js';
+
 // --- חיבור למסד הנתונים ---
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -162,14 +184,42 @@ apiRouter.use('/whatsapp', whatsappChatRoutes);
 apiRouter.use('/admin/auto-replies', adminAutoReplyRoutes);
 
 // =========================================================================
+// 🏨 PMS hotel4u — ראוטר נפרד תחת /pms (עוקף CSRF)
+// =========================================================================
+const pmsRouter = express.Router();
+pmsRouter.use(attachActor);
+pmsRouter.use('/dashboard',     pmsDashboardRouter);
+pmsRouter.use('/properties',    pmsPropertiesRouter);
+pmsRouter.use('/rooms',         pmsRoomsRouter);
+pmsRouter.use('/reservations',  pmsReservationsRouter);
+pmsRouter.use('/housekeeping',  pmsHousekeepingRouter);
+pmsRouter.use('/maintenance',   pmsMaintenanceRouter);
+pmsRouter.use('/guests',        pmsGuestsRouter);
+pmsRouter.use('/folio',         pmsFolioRouter);
+pmsRouter.use('/reports',       pmsReportsRouter);
+pmsRouter.use('/rates',         pmsRatesRouter);
+pmsRouter.use('/companies',     pmsCompaniesRouter);
+pmsRouter.use('/inventory',     pmsInventoryRouter);
+pmsRouter.use('/audit-log',     pmsAuditLogRouter);
+pmsRouter.use('/crm',           pmsCrmRouter);
+pmsRouter.use('/notifications', pmsNotificationsRouter);
+pmsRouter.use('/users',         pmsUsersRouter);
+pmsRouter.use('/automation',    pmsAutomationRouter);
+pmsRouter.use('/payments',      pmsPaymentsRouter);
+pmsRouter.use('/groups',        pmsGroupsRouter);
+
+// =========================================================================
 // ✨ הפתרון הכפול: חיבור ה-Router לשני הנתיבים
 // =========================================================================
 
-// 1. עבור Localhost (כשהלקוח שולח /api/...)
+// 1. PMS routes (לפני apiRouter — עוקפים CSRF)
+app.use('/api/pms', pmsRouter);
+app.use('/pms',     pmsRouter);
+
+// 2. עבור Localhost (כשהלקוח שולח /api/...)
 app.use('/api', apiRouter);
 
-// 2. עבור Production/Nginx (כשה-Nginx חותך את ה-/api)
-// הערה: שמים את זה אחרי /api כדי למנוע התנגשויות
+// 3. עבור Production/Nginx (כשה-Nginx חותך את ה-/api)
 app.use('/', apiRouter);
 
 // =========================================================================

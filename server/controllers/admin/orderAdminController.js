@@ -2,7 +2,7 @@
 // ✅ תיקון: הוספת סנכרון CRM כשמנהל משנה סטטוס/שם דרך ניהול הזמנות
 
 import Order from '../../models/Order.js';
-import User from '../../models/userModel.js';
+import User from '../../models/User.js';
 import CustomerCard from '../../models/CustomerCard.js';
 import { logAction } from '../../utils/auditLogger.js';
 
