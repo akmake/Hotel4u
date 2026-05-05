@@ -356,6 +356,63 @@ export const auditLog = {
   forEntity: (type, id)                => api.get(`/audit-log/entity/${type}/${id}`),
 };
 
+// ── CRM Core ────────────────────────────────────────────────────────────────
+export const crm = {
+  overview: (propertyId) => api.get(`/crm/overview?propertyId=${propertyId}`),
+
+  // Leads
+  leads: (propertyId, params = {}) =>
+    api.get(`/crm/leads?propertyId=${propertyId}${qs(params)}`),
+  updateLead: (leadId, data) =>
+    api.patch(`/crm/leads/${leadId}`, data),
+  routeLead: (leadId, data = {}) =>
+    api.post(`/crm/leads/${leadId}/route`, data),
+  convertLead: (leadId, data = {}) =>
+    api.post(`/crm/leads/${leadId}/convert`, data),
+
+  // Lead routing rules
+  leadRoutingRules: (propertyId) =>
+    api.get(`/crm/lead-routing-rules?propertyId=${propertyId}`),
+  createLeadRoutingRule: (data) =>
+    api.post('/crm/lead-routing-rules', data),
+  updateLeadRoutingRule: (id, data) =>
+    api.patch(`/crm/lead-routing-rules/${id}`, data),
+  removeLeadRoutingRule: (id) =>
+    api.delete(`/crm/lead-routing-rules/${id}`),
+
+  // Opportunities
+  opportunities: (propertyId, params = {}) =>
+    api.get(`/crm/opportunities?propertyId=${propertyId}${qs(params)}`),
+  updateOpportunity: (id, data) =>
+    api.patch(`/crm/opportunities/${id}`, data),
+  changeOpportunityStage: (id, data) =>
+    api.post(`/crm/opportunities/${id}/stage`, data),
+  closeOpportunityWon: (id, data = {}) =>
+    api.post(`/crm/opportunities/${id}/close-won`, data),
+  closeOpportunityLost: (id, data = {}) =>
+    api.post(`/crm/opportunities/${id}/close-lost`, data),
+  recalcOpportunityHealth: (id) =>
+    api.post(`/crm/opportunities/${id}/health/recalculate`, {}),
+
+  // Pipelines + Forecast
+  pipelines: (propertyId) =>
+    api.get(`/crm/pipelines?propertyId=${propertyId}`),
+  createPipeline: (data) =>
+    api.post('/crm/pipelines', data),
+  updatePipeline: (id, data) =>
+    api.patch(`/crm/pipelines/${id}`, data),
+  removePipeline: (id) =>
+    api.delete(`/crm/pipelines/${id}`),
+  forecast: (propertyId, params = {}) =>
+    api.get(`/crm/forecast?propertyId=${propertyId}${qs(params)}`),
+
+  // Timeline
+  timeline: (propertyId, params = {}) =>
+    api.get(`/crm/timeline?propertyId=${propertyId}${qs(params)}`),
+  addTimelineEvent: (data) =>
+    api.post('/crm/timeline', data),
+};
+
 // ── Automation & Command Center ───────────────────────────────────────────────
 export const automation = {
   // Command Center

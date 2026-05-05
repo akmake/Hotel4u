@@ -13,6 +13,8 @@ const PAGE_TITLES = {
   '/maintenance':   'תחזוקה',
   '/guests':        'אורחים',
   '/companies':     'חברות וסוכנים',
+  '/crm/leads':     'Lead Inbox',
+  '/crm/opportunities': 'Opportunity Board',
   '/folio':         'Folio ותשלומים',
   '/reports':       'דוחות',
   '/settings':      'הגדרות',

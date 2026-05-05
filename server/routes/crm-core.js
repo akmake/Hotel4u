@@ -518,7 +518,7 @@ function listEntities(kind) {
   return asyncHandler(async (req, res) => {
     const cfg = registry[kind];
     const propertyId = resolvePropertyId(req);
-    const { q, status, page = 1, limit = 50 } = req.query;
+    const { q, status, source, page = 1, limit = 50 } = req.query;
     const parsedPage = Math.max(1, Number(page) || 1);
     const parsedLimit = Math.min(200, Math.max(1, Number(limit) || 50));
     const skip = (parsedPage - 1) * parsedLimit;
@@ -531,6 +531,7 @@ function listEntities(kind) {
       }));
     }
     if (status && cfg.statusField) filter[cfg.statusField] = status;
+    if (source && hasPath(cfg.model, 'source')) filter.source = source;
 
     const total = await cfg.model.countDocuments(filter);
     const query = cfg.model.find(filter).sort(cfg.sort).skip(skip).limit(parsedLimit);

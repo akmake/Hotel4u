@@ -11,9 +11,35 @@ const NUMERIC_FIELDS = new Set([
   'vatRate', 'invoiceSequence', 'reservationSequence', 'defaultCancellationHours',
 ]);
 
+const CRM_SLA_NUMERIC_FIELDS = [
+  'leadStaleDays',
+  'leadDueGraceHours',
+  'leadHighScoreThreshold',
+  'leadHighScoreUnassignedEscalationHours',
+  'leadAttentionScoreThreshold',
+  'oppAtRiskInactiveDays',
+  'oppStalledInactiveDays',
+  'oppOverdueCloseEscalationDays',
+  'oppAttentionScoreThreshold',
+];
+
+function normalizeCrmSla(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const out = {};
+  for (const key of CRM_SLA_NUMERIC_FIELDS) {
+    if (value[key] !== undefined) out[key] = Number(value[key]);
+  }
+  return out;
+}
+
 function normalizeUpdate(payload) {
   const out = {};
   for (const [k, v] of Object.entries(payload || {})) {
+    if (k === 'crmSla') {
+      const normalizedSla = normalizeCrmSla(v);
+      if (normalizedSla) out[k] = normalizedSla;
+      continue;
+    }
     out[k] = NUMERIC_FIELDS.has(k) && v != null ? Number(v) : v;
   }
   return out;
@@ -276,6 +302,7 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     'reservationPrefix', 'reservationSequence',
     'defaultCancellationHours', 'defaultCancellationFee', 'defaultDepositPolicy',
     'petPolicy', 'smokingPolicy', 'childrenPolicy',
+    'crmSla',
     'active',
   ];
 

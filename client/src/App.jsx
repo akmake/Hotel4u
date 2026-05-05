@@ -19,7 +19,8 @@ const NightAuditPage   = lazy(() => import('./pages/NightAuditPage'));
 const RatesPage        = lazy(() => import('./pages/RatesPage'));
 const SettingsPage     = lazy(() => import('./pages/SettingsPage'));
 const CompaniesPage    = lazy(() => import('./pages/CompaniesPage'));
-const PlaceholderPage  = lazy(() => import('./pages/PlaceholderPage'));
+const LeadInboxPage    = lazy(() => import('./pages/LeadInboxPage'));
+const OpportunityBoardPage = lazy(() => import('./pages/OpportunityBoardPage'));
 
 function PageLoader() {
   return (
@@ -51,6 +52,8 @@ export default function App() {
           <Route path="guests"         element={<GuestsPage />} />
           <Route path="folio"          element={<FolioPage />} />
           <Route path="companies"      element={<CompaniesPage />} />
+          <Route path="crm/leads"      element={<LeadInboxPage />} />
+          <Route path="crm/opportunities" element={<OpportunityBoardPage />} />
           <Route path="reports"        element={<ReportsPage />} />
           <Route path="night-audit"    element={<NightAuditPage />} />
           <Route path="rates"          element={<RatesPage />} />

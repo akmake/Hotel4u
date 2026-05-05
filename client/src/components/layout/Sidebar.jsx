@@ -3,6 +3,7 @@ import {
   LayoutDashboard, Calendar, BedDouble, LogIn, LogOut,
   Sparkles, Wrench, Users, BarChart3, Settings,
   Hotel, BriefcaseBusiness, CreditCard, ClipboardList, Building2, Moon, Tag,
+  Funnel, Kanban,
 } from 'lucide-react';
 import { useProperty } from '../../context/PropertyContext';
 import { useApi } from '../../hooks/useApi';
@@ -49,6 +50,8 @@ const NAV = [
       { path: '/guests',        icon: Users,            label: 'אורחים' },
       { path: '/companies',     icon: BriefcaseBusiness,label: 'חברות וסוכנים' },
       { path: '/folio',         icon: CreditCard,       label: 'Folio & תשלומים' },
+      { path: '/crm/leads',     icon: Funnel,           label: 'Lead Inbox' },
+      { path: '/crm/opportunities', icon: Kanban,       label: 'Opportunity Board' },
     ],
   },
   {

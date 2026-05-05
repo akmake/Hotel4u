@@ -71,6 +71,18 @@ const DocumentTemplateSchema = new Schema({
   active: { type: Boolean, default: true },
 }, { _id: true });
 
+const CrmSlaSchema = new Schema({
+  leadStaleDays: { type: Number, default: 7, min: 1 },
+  leadDueGraceHours: { type: Number, default: 0, min: 0 },
+  leadHighScoreThreshold: { type: Number, default: 65, min: 0, max: 100 },
+  leadHighScoreUnassignedEscalationHours: { type: Number, default: 24, min: 0 },
+  leadAttentionScoreThreshold: { type: Number, default: 85, min: 0 },
+  oppAtRiskInactiveDays: { type: Number, default: 14, min: 1 },
+  oppStalledInactiveDays: { type: Number, default: 30, min: 1 },
+  oppOverdueCloseEscalationDays: { type: Number, default: 0, min: 0 },
+  oppAttentionScoreThreshold: { type: Number, default: 24, min: 0 },
+}, { _id: false });
+
 const PropertySchema = new Schema({
   name:             { type: String, required: true },
   propertyCode:     String,
@@ -118,6 +130,7 @@ const PropertySchema = new Schema({
   paymentMethods:   { type: [PaymentMethodSchema], default: [] },
   messageTemplates: { type: [MessageTemplateSchema], default: [] },
   documentTemplates:{ type: [DocumentTemplateSchema], default: [] },
+  crmSla:           { type: CrmSlaSchema, default: () => ({}) },
 
   requiredGuestFields:   { type: [String], default: ['firstName', 'lastName'] },
   requiredCheckInFields: { type: [String], default: ['primaryGuest', 'assignedRoom'] },

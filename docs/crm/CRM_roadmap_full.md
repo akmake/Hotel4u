@@ -15,8 +15,8 @@
 
 ## סטטוס נוכחי
 
-- planned: 225
-- in_progress: 18
+- planned: 223
+- in_progress: 20
 - done: 0
 
 ## W00 Foundations & Governance
@@ -180,9 +180,9 @@
 | 134 | החלטה 5 — AI מגיע אחרי תהליך ודאטה | חלק לב׳ — החלטות קריטיות | P0 | planned |
 | 135 | החלטה 6 — Reporting צריך להיבנות מהיום הראשון | חלק לב׳ — החלטות קריטיות | P0 | planned |
 | 136 | Global Home | חלק לג׳ — מסכים עיקריים | P1 | planned |
-| 137 | Lead Inbox | חלק לג׳ — מסכים עיקריים | P1 | planned |
+| 137 | Lead Inbox | חלק לג׳ — מסכים עיקריים | P1 | in_progress |
 | 138 | Account 360 | חלק לג׳ — מסכים עיקריים | P1 | planned |
-| 139 | Opportunity Board | חלק לג׳ — מסכים עיקריים | P1 | planned |
+| 139 | Opportunity Board | חלק לג׳ — מסכים עיקריים | P1 | in_progress |
 | 140 | Activity Center | חלק לג׳ — מסכים עיקריים | P1 | planned |
 | 141 | Sales Manager Dashboard | חלק לג׳ — מסכים עיקריים | P1 | planned |
 | 142 | Campaign Dashboard | חלק לג׳ — מסכים עיקריים | P1 | planned |

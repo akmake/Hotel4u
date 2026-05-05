@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import {
   Settings, Users, BedDouble, Building2, Plus, Trash2,
-  CheckCircle2, XCircle, Pencil, Save, X, Eye, EyeOff, Home,
+  CheckCircle2, XCircle, Pencil, Save, X, Eye, EyeOff, Home, SlidersHorizontal,
 } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
 import { users as usersApi, properties as propertiesApi, rooms as roomsApi, roomTypes as rtApi } from '../utils/api';
+import { normalizeCrmSla } from '../utils/crmSla';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
 
@@ -61,6 +62,7 @@ const TABS = [
   { id:'property',  label:'פרטי הנכס',   icon: Building2 },
   { id:'roomtypes', label:'סוגי חדרים',  icon: BedDouble },
   { id:'rooms',     label:'חדרים',       icon: Home },
+  { id:'crm-sla',   label:'CRM SLA',      icon: SlidersHorizontal },
   { id:'users',     label:'משתמשים',     icon: Users },
 ];
 
@@ -908,6 +910,154 @@ function UsersTab({ propertyId, success, toastError }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // Main
 // ══════════════════════════════════════════════════════════════════════════════
+function CrmSlaTab({ propertyId, success, toastError }) {
+  const { data: prop, loading, error, refetch } = useApi(
+    () => propertiesApi.get(propertyId), [propertyId], !propertyId
+  );
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  if (loading) return <PageSpinner />;
+  if (error) return <ErrorState message={error} onRetry={refetch} />;
+
+  const source = form || prop || {};
+  const sla = normalizeCrmSla(source.crmSla || {});
+
+  function setSla(field, rawValue) {
+    setForm((prev) => {
+      const base = prev || prop || {};
+      const current = normalizeCrmSla(base.crmSla || {});
+      return {
+        ...base,
+        crmSla: {
+          ...current,
+          [field]: Number(rawValue),
+        },
+      };
+    });
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      await propertiesApi.update(propertyId, { crmSla: normalizeCrmSla((form || prop || {}).crmSla || {}) });
+      success('CRM SLA settings updated');
+      setForm(null);
+      refetch();
+    } catch (e) {
+      toastError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function NumberField({ label, field, min = 0, max = 365, help }) {
+    return (
+      <div>
+        <label className="form-label">{label}</label>
+        <input
+          className="input w-full"
+          type="number"
+          min={min}
+          max={max}
+          value={sla[field]}
+          onChange={(e) => setSla(field, e.target.value)}
+        />
+        {help && <div className="text-xs text-ink-faint mt-1">{help}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="card p-6">
+        <div className="text-sm font-bold text-ink mb-4 pb-2 border-b border-surface-border">Lead SLA</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <NumberField
+            label="Stale lead days"
+            field="leadStaleDays"
+            min={1}
+            max={365}
+            help="Lead becomes stale after this many days without activity."
+          />
+          <NumberField
+            label="Next action grace (hours)"
+            field="leadDueGraceHours"
+            min={0}
+            max={168}
+            help="Grace period before a due next-action is marked late."
+          />
+          <NumberField
+            label="High score threshold"
+            field="leadHighScoreThreshold"
+            min={0}
+            max={100}
+            help="Lead score considered high value."
+          />
+          <NumberField
+            label="Unassigned escalation (hours)"
+            field="leadHighScoreUnassignedEscalationHours"
+            min={0}
+            max={168}
+            help="High-score unassigned lead escalates after this delay."
+          />
+          <NumberField
+            label="Attention score threshold"
+            field="leadAttentionScoreThreshold"
+            min={0}
+            max={200}
+            help="Priority score threshold for urgent queue."
+          />
+        </div>
+      </div>
+
+      <div className="card p-6">
+        <div className="text-sm font-bold text-ink mb-4 pb-2 border-b border-surface-border">Opportunity SLA</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <NumberField
+            label="At-risk inactive days"
+            field="oppAtRiskInactiveDays"
+            min={1}
+            max={365}
+            help="No activity window to mark a deal at risk."
+          />
+          <NumberField
+            label="Stalled inactive days"
+            field="oppStalledInactiveDays"
+            min={1}
+            max={365}
+            help="No activity window to mark a deal stalled."
+          />
+          <NumberField
+            label="Overdue close escalation days"
+            field="oppOverdueCloseEscalationDays"
+            min={0}
+            max={365}
+            help="Days after expected close date before escalation."
+          />
+          <NumberField
+            label="Attention score threshold"
+            field="oppAttentionScoreThreshold"
+            min={0}
+            max={300}
+            help="Score threshold for urgent opportunity queue."
+          />
+        </div>
+      </div>
+
+      {form && (
+        <div className="flex justify-end gap-2">
+          <button className="btn btn-secondary" onClick={() => setForm(null)}>Cancel</button>
+          <button className="btn btn-primary gap-2" onClick={save} disabled={saving}>
+            {saving && <Spinner size={14} />}
+            Save SLA Settings
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { propertyId } = useProperty();
   const [tab, setTab] = useState('property');
@@ -949,6 +1099,7 @@ export default function SettingsPage() {
       {tab === 'property'  && <PropertyTab  propertyId={propertyId} success={success} toastError={toastError} />}
       {tab === 'roomtypes' && <RoomTypesTab propertyId={propertyId} success={success} toastError={toastError} />}
       {tab === 'rooms'     && <RoomsTab     propertyId={propertyId} success={success} toastError={toastError} />}
+      {tab === 'crm-sla'   && <CrmSlaTab    propertyId={propertyId} success={success} toastError={toastError} />}
       {tab === 'users'     && <UsersTab     propertyId={propertyId} success={success} toastError={toastError} />}
     </div>
   );
