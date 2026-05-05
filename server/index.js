@@ -34,6 +34,7 @@ import groupsRouter        from './routes/groups.js';
 import notificationsRouter from './routes/notifications.js';
 import guestRequestsRouter from './routes/guest-requests.js';
 import folioRoutingRouter  from './routes/folio-routing.js';
+import crmCoreRouter       from './routes/crm-core.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -111,6 +112,7 @@ app.use('/api/groups',       groupsRouter);
 app.use('/api/notifications',  notificationsRouter);
 app.use('/api/guest-requests', guestRequestsRouter);
 app.use('/api/folio-routing',  folioRoutingRouter);
+app.use('/api/crm',           crmCoreRouter);
 
 // ── Static (production) ───────────────────────────────────────────────────────
 const clientDist = path.join(__dirname, '../client/dist');
