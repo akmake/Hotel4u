@@ -136,3 +136,88 @@
 1. `cmd /c npm --prefix client run build` passed successfully after integration.
 - Recommended next step:
 1. Stage 5.3: add true bulk-actions endpoint + UI (multi-select list actions) and complete end-to-end UX for mass operations.
+
+## Update 2026-05-06 - Stage 5.3 Bulk Actions Implemented
+- Backend:
+1. Added `POST /api/pms/reservations/bulk-actions` in `server/routes/reservations.js`.
+2. Supported actions:
+   - `send_confirmation`
+   - `cancel`
+   - `mark_no_show`
+   - `check_in`
+   - `check_out`
+   - `link_group`
+   - `unlink_group`
+3. Behavior:
+   - validates `propertyId`, `reservationIds`, `action`
+   - enforces RBAC including override/force privileges
+   - processes reservations one-by-one with per-item success/failure result
+   - returns batch summary: `total/processed/succeeded/failed/results`
+- Frontend:
+1. Added `reservations.bulkActions(...)` API helper in `client/src/utils/api.js`.
+2. Added multi-select bulk UI in `client/src/pages/ReservationsPage.jsx`:
+   - row checkbox + select-all visible
+   - bulk action bar with action-specific inputs (cancel reason, group fields, override flags)
+   - execution with toast summary and automatic refresh.
+- Validation:
+1. `node --check server/routes/reservations.js` passed.
+2. `cmd /c npm --prefix client run build` passed.
+- Recommended next step:
+1. Stage 5.4: add automated integration coverage for `/bulk-actions` and then polish UX (confirm dialog + progress indicator per action).
+
+## Update 2026-05-06 - Stage 5.4 Integration Coverage Completed
+- Automated integration coverage for bulk actions is now implemented in `server/scripts/stage4ReservationsIntegration.mjs`:
+1. RBAC denial path on bulk endpoint (`restricted` actor -> `403`).
+2. Validation path for missing `reservationIds` (`400` + failure envelope).
+3. Validation path for unsupported `action` (`400` + failure envelope).
+4. Success path for single-item bulk confirmation (`200` + `total/processed/succeeded/failed` assertions).
+5. Mixed-result path (`200`) with one valid reservation and one non-existent ID, including per-item result assertions.
+6. High-privilege gate path for bulk check-in override (`receptionist` + override -> `403`).
+- Validation run:
+1. Full suite executed against isolated API instance on `http://localhost:4010/api/pms`.
+2. Summary: `PASS=78 FAIL=0 SKIP=0`.
+- Recommended next step:
+1. Stage 5.5: UI polish for bulk-actions UX (confirmation modal, in-flight progress/disabled states, and clearer per-result feedback).
+
+## Update 2026-05-06 - Stage 5.5 Bulk UX Polish Completed
+- Bulk actions UX on reservations page polished end-to-end:
+1. Confirmation dialog added before executing bulk action (`action + selected count + relevant parameters` preview).
+2. In-flight UX hardened:
+   - bulk inputs/checkboxes/selection controls disabled while request is running
+   - clear loading state shown (`מריץ...`) with action label + selected count
+3. Result feedback upgraded:
+   - post-action summary card shows `total/processed/succeeded/failed`
+   - failure details list shown per reservation (including reservation label + error)
+   - on partial failure, failed reservations remain selected for quick retry
+4. Implementation file:
+   - `client/src/pages/ReservationsPage.jsx`
+- Validation:
+1. `cmd /c npm --prefix client run build` passed.
+- Recommended next step:
+1. Stage 5.6: add server-side/background job mode for large bulk batches (progress polling + cancellable execution) to avoid long blocking requests for very large selections.
+
+## Update 2026-05-06 - Stage 5.6 Background Bulk Jobs Implemented
+- Backend:
+1. `POST /api/pms/reservations/bulk-actions` upgraded with background mode support.
+2. Automatic background fallback for large batches (threshold-based) + explicit request flag support (`background: true`).
+3. New endpoints:
+   - `GET /api/pms/reservations/bulk-actions/jobs/:jobId?propertyId=...&includeResults=1`
+   - `POST /api/pms/reservations/bulk-actions/jobs/:jobId/cancel`
+4. In-memory bulk job manager added:
+   - job lifecycle: `queued -> running -> completed/failed/cancelled`
+   - progress counters: `total/processed/succeeded/failed`
+   - per-item results + TTL cleanup of completed jobs
+- Frontend:
+1. `client/src/utils/api.js` added:
+   - `reservations.bulkJobStatus(...)`
+   - `reservations.cancelBulkJob(...)`
+2. `client/src/pages/ReservationsPage.jsx` added:
+   - automatic background mode for large selections
+   - polling progress loop for background jobs
+   - live progress display + cancel button
+   - final result summary reuse when background job completes
+- Validation:
+1. `node --check server/routes/reservations.js` passed.
+2. `cmd /c npm --prefix client run build` passed.
+- Recommended next step:
+1. Stage 5.7: persist bulk jobs in Mongo (instead of in-memory) for crash-safe resume and cross-instance scalability.

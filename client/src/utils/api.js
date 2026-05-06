@@ -130,6 +130,11 @@ export const reservations = {
   duplicate:        (id, data)       => api.post(`/reservations/${id}/duplicate`, data),
   merge:            (targetReservationId, sourceReservationId, transferCharges = true) =>
     api.post('/reservations/merge', { targetReservationId, sourceReservationId, transferCharges }),
+  bulkActions:      (data)           => api.post('/reservations/bulk-actions', data),
+  bulkJobStatus:    (jobId, propertyId, includeResults = false) =>
+    api.get(`/reservations/bulk-actions/jobs/${jobId}?propertyId=${propertyId}${includeResults ? '&includeResults=1' : ''}`),
+  cancelBulkJob:    (jobId, propertyId) =>
+    api.post(`/reservations/bulk-actions/jobs/${jobId}/cancel`, { propertyId }),
   split:            (id, roomIdsOrPayload, extras = {}) => {
     const payload = Array.isArray(roomIdsOrPayload)
       ? { reservationRoomIds: roomIdsOrPayload, ...extras }

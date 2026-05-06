@@ -26,6 +26,21 @@ const OVERRIDE_ROLES = ['super_admin', 'property_admin', 'general_manager', 'fro
 const HIGH_PRIV_CHECKIN_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const HIGH_PRIV_CHECKOUT_ROLES = ['super_admin', 'property_admin', 'general_manager', 'finance_manager', 'cashier'];
 const COMMERCIAL_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'revenue_manager', 'sales_manager'];
+const BULK_ACTIONS_SUPPORTED = new Set([
+  'send_confirmation',
+  'cancel',
+  'mark_no_show',
+  'check_in',
+  'check_out',
+  'link_group',
+  'unlink_group',
+]);
+const BULK_ACTION_ALLOWED_NO_SHOW_STATUSES = new Set(['confirmed', 'modified', 'pending_payment', 'hold']);
+const BULK_ACTION_AUTO_BACKGROUND_THRESHOLD = Math.max(50, Number(process.env.BULK_ACTION_BACKGROUND_THRESHOLD || 120) || 120);
+const BULK_ACTION_JOB_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.BULK_ACTION_JOB_TTL_MS || (30 * 60 * 1000)) || (30 * 60 * 1000));
+const BULK_ACTION_MAX_ITEMS = 300;
+const BULK_ACTION_TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+const bulkActionJobs = new Map();
 
 const asyncHandler = (fn) => async (req, res, next) => {
   try {
@@ -56,6 +71,276 @@ async function getReservationOr404(resId, res) {
 
 function calcNights(fromDate, toDate) {
   return Math.round((new Date(toDate) - new Date(fromDate)) / 86400000);
+}
+
+function normalizeBulkReservationIds(reservationIds = []) {
+  return [...new Set((Array.isArray(reservationIds) ? reservationIds : []).map((id) => String(id)).filter(Boolean))]
+    .slice(0, BULK_ACTION_MAX_ITEMS);
+}
+
+function makeBulkJobId() {
+  return new mongoose.Types.ObjectId().toHexString();
+}
+
+function compactBulkResultRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  return {
+    reservationId: row.reservationId,
+    success: !!row.success,
+    status: row.status || undefined,
+    error: row.error || undefined,
+  };
+}
+
+function buildBulkJobSnapshot(job, includeResults = false) {
+  return {
+    jobId: job.jobId,
+    propertyId: job.propertyId,
+    actorId: job.actorId,
+    action: job.action,
+    status: job.status,
+    cancelRequested: !!job.cancelRequested,
+    total: Number(job.total || 0),
+    processed: Number(job.processed || 0),
+    succeeded: Number(job.succeeded || 0),
+    failed: Number(job.failed || 0),
+    queuedAt: job.queuedAt,
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    mode: 'background',
+    error: job.error || null,
+    results: includeResults ? (job.results || []).map(compactBulkResultRow).filter(Boolean) : undefined,
+  };
+}
+
+function scheduleBulkJobCleanup(jobId) {
+  const timer = setTimeout(() => {
+    const existing = bulkActionJobs.get(jobId);
+    if (!existing) return;
+    if (!BULK_ACTION_TERMINAL_STATUSES.has(existing.status)) return;
+    bulkActionJobs.delete(jobId);
+  }, BULK_ACTION_JOB_TTL_MS);
+  if (typeof timer?.unref === 'function') timer.unref();
+}
+
+async function executeBulkReservationAction({
+  existing,
+  reservationId,
+  action,
+  propertyId,
+  actor,
+  ip,
+  reason,
+  overrideClean,
+  overrideEarlyArrival,
+  forceCheckout,
+  groupId,
+  groupCode,
+  groupName,
+}) {
+  if (!existing) return { reservationId, success: false, error: 'Reservation not found' };
+  if (String(existing.property) !== String(propertyId)) {
+    return { reservationId, success: false, error: 'Reservation does not belong to propertyId' };
+  }
+
+  if (action === 'send_confirmation') {
+    const updated = await Reservation.findByIdAndUpdate(
+      existing._id,
+      { $set: { confirmationSent: true, updatedBy: actor.id || undefined } },
+      { new: true }
+    ).lean();
+
+    await audit({
+      property: existing.property,
+      actor: actor.id || null,
+      actorName: actor.name || 'system',
+      action: 'reservation.confirmation_sent',
+      entityType: 'Reservation',
+      entityId: existing._id,
+      after: { confirmationSent: true, mode: 'bulk' },
+      ip,
+    }).catch(() => null);
+
+    return { reservationId, success: true, status: updated?.status || existing.status };
+  }
+
+  if (action === 'cancel') {
+    const cancelled = await cancelReservation({
+      reservationId: String(existing._id),
+      reason,
+      actorId: actor.id,
+      actorName: actor.name,
+      ip,
+    });
+    await ReservationRoom.updateMany({ reservation: cancelled._id }, { $set: { status: 'cancelled' } });
+    return { reservationId, success: true, status: cancelled.status };
+  }
+
+  if (action === 'mark_no_show') {
+    if (!BULK_ACTION_ALLOWED_NO_SHOW_STATUSES.has(existing.status)) {
+      return { reservationId, success: false, error: `Cannot mark no-show from status ${existing.status}` };
+    }
+    const noShow = await markNoShow({
+      reservationId: String(existing._id),
+      actorId: actor.id,
+      actorName: actor.name,
+      ip,
+    });
+    await ReservationRoom.updateMany({ reservation: noShow._id }, { $set: { status: 'no_show' } });
+    return { reservationId, success: true, status: noShow.status };
+  }
+
+  if (action === 'check_in') {
+    const checkedIn = await checkIn({
+      reservationId: String(existing._id),
+      overrideClean: !!overrideClean,
+      overrideEarlyArrival: !!overrideEarlyArrival,
+      actorId: actor.id,
+      actorName: actor.name,
+      ip,
+    });
+    await ReservationRoom.updateMany(
+      { reservation: checkedIn._id, status: { $in: ['reserved', 'tentative'] } },
+      { $set: { status: 'in_house' } }
+    );
+    emit(String(checkedIn.property), 'guest.checked_in', {
+      reservationId: String(checkedIn._id),
+      confirmationNumber: checkedIn.confirmationNumber,
+      checkedInAt: checkedIn.checkedInAt,
+      mode: 'bulk',
+    }).catch(() => null);
+    return { reservationId, success: true, status: checkedIn.status };
+  }
+
+  if (action === 'check_out') {
+    const checkedOut = await checkOut({
+      reservationId: String(existing._id),
+      forceCheckout: !!forceCheckout,
+      actorId: actor.id,
+      actorName: actor.name,
+      ip,
+    });
+    await ReservationRoom.updateMany(
+      { reservation: checkedOut._id, status: { $nin: ['cancelled', 'no_show'] } },
+      { $set: { status: 'checked_out' } }
+    );
+    emit(String(checkedOut.property), 'guest.checked_out', {
+      reservationId: String(checkedOut._id),
+      confirmationNumber: checkedOut.confirmationNumber,
+      checkedOutAt: checkedOut.checkedOutAt,
+      mode: 'bulk',
+    }).catch(() => null);
+    return { reservationId, success: true, status: checkedOut.status };
+  }
+
+  if (action === 'link_group' || action === 'unlink_group') {
+    if (['cancelled', 'no_show', 'checked_out'].includes(existing.status)) {
+      return { reservationId, success: false, error: 'Cannot link group to closed reservation' };
+    }
+
+    const nextGroupId = action === 'unlink_group' ? null : (groupId || null);
+    const nextGroupCode = action === 'unlink_group' ? null : (groupCode || null);
+    const nextGroupName = action === 'unlink_group' ? null : (groupName || null);
+
+    const updated = await Reservation.findByIdAndUpdate(
+      existing._id,
+      {
+        $set: {
+          group: nextGroupId,
+          groupCode: nextGroupCode,
+          groupName: nextGroupName,
+          status: 'modified',
+          updatedBy: actor.id || undefined,
+        },
+      },
+      { new: true }
+    ).lean();
+
+    await audit({
+      property: existing.property,
+      actor: actor.id || null,
+      actorName: actor.name || 'system',
+      action: 'reservation.group_linked',
+      entityType: 'Reservation',
+      entityId: existing._id,
+      before: { group: existing.group, groupCode: existing.groupCode, groupName: existing.groupName },
+      after: { group: nextGroupId, groupCode: nextGroupCode, groupName: nextGroupName, mode: 'bulk' },
+      ip,
+    }).catch(() => null);
+
+    return { reservationId, success: true, status: updated?.status || 'modified' };
+  }
+
+  return { reservationId, success: false, error: `Unsupported bulk action: ${action}` };
+}
+
+async function executeBulkReservationBatch({
+  reservationIds,
+  propertyId,
+  action,
+  actor,
+  ip,
+  reason,
+  overrideClean,
+  overrideEarlyArrival,
+  forceCheckout,
+  groupId,
+  groupCode,
+  groupName,
+  onProgress,
+  shouldStop,
+}) {
+  const results = [];
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const reservationId of reservationIds) {
+    if (shouldStop?.()) break;
+
+    let row;
+    try {
+      const existing = await Reservation.findById(reservationId);
+      row = await executeBulkReservationAction({
+        existing,
+        reservationId,
+        action,
+        propertyId,
+        actor,
+        ip,
+        reason,
+        overrideClean,
+        overrideEarlyArrival,
+        forceCheckout,
+        groupId,
+        groupCode,
+        groupName,
+      });
+    } catch (err) {
+      row = { reservationId, success: false, error: err?.message || 'Bulk action failed' };
+    }
+
+    results.push(row);
+    if (row.success) succeeded += 1;
+    else failed += 1;
+
+    if (onProgress) {
+      onProgress({
+        processed: results.length,
+        succeeded,
+        failed,
+        row,
+      });
+    }
+  }
+
+  return {
+    action,
+    total: reservationIds.length,
+    processed: results.length,
+    succeeded,
+    failed,
+    results,
+  };
 }
 
 function escapeRegex(value = '') {
@@ -369,6 +654,217 @@ router.post('/merge', asyncHandler(async (req, res) => {
   }).catch(() => null);
 
   res.json({ success: true, data: { mergedInto: String(target._id), mergedFrom: String(source._id) } });
+}));
+
+// POST /api/reservations/bulk-actions
+router.post('/bulk-actions', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');
+
+  const {
+    propertyId,
+    reservationIds = [],
+    action,
+    reason,
+    overrideClean = false,
+    overrideEarlyArrival = false,
+    forceCheckout = false,
+    groupId,
+    groupCode,
+    groupName,
+    background = false,
+  } = req.body || {};
+
+  if (!propertyId) {
+    return res.status(400).json({ success: false, error: 'propertyId is required' });
+  }
+  if (!Array.isArray(reservationIds) || reservationIds.length === 0) {
+    return res.status(400).json({ success: false, error: 'reservationIds is required' });
+  }
+  if (!action) {
+    return res.status(400).json({ success: false, error: 'action is required' });
+  }
+  if (!BULK_ACTIONS_SUPPORTED.has(action)) {
+    return res.status(400).json({ success: false, error: `Unsupported bulk action: ${action}` });
+  }
+
+  assertPropertyScope(req, propertyId);
+
+  if ((action === 'check_in') && (overrideClean || overrideEarlyArrival)) {
+    requireRoles(req, HIGH_PRIV_CHECKIN_ROLES, 'Override clean/early check-in requires manager privileges');
+  }
+  if ((action === 'check_out') && forceCheckout) {
+    requireRoles(req, HIGH_PRIV_CHECKOUT_ROLES, 'Force checkout requires finance/manager privileges');
+  }
+
+  const uniqueReservationIds = normalizeBulkReservationIds(reservationIds);
+  const actor = actorFromReq(req);
+
+  const shouldRunInBackground = Boolean(background) || uniqueReservationIds.length >= BULK_ACTION_AUTO_BACKGROUND_THRESHOLD;
+  if (!shouldRunInBackground) {
+    const batch = await executeBulkReservationBatch({
+      reservationIds: uniqueReservationIds,
+      propertyId,
+      action,
+      actor,
+      ip: req.ip,
+      reason,
+      overrideClean,
+      overrideEarlyArrival,
+      forceCheckout,
+      groupId,
+      groupCode,
+      groupName,
+    });
+    return res.json({
+      success: true,
+      data: {
+        ...batch,
+        mode: 'sync',
+      },
+    });
+  }
+
+  const jobId = makeBulkJobId();
+  const queuedAt = new Date().toISOString();
+  const job = {
+    jobId,
+    propertyId: String(propertyId),
+    actorId: actor.id || null,
+    action,
+    status: 'queued',
+    cancelRequested: false,
+    total: uniqueReservationIds.length,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+    queuedAt,
+    startedAt: null,
+    completedAt: null,
+    error: null,
+    results: [],
+  };
+  bulkActionJobs.set(jobId, job);
+
+  setImmediate(async () => {
+    if (job.cancelRequested || job.status === 'cancelled') {
+      if (!job.completedAt) job.completedAt = new Date().toISOString();
+      scheduleBulkJobCleanup(jobId);
+      return;
+    }
+    job.status = 'running';
+    job.startedAt = new Date().toISOString();
+    try {
+      const batch = await executeBulkReservationBatch({
+        reservationIds: uniqueReservationIds,
+        propertyId,
+        action,
+        actor,
+        ip: req.ip,
+        reason,
+        overrideClean,
+        overrideEarlyArrival,
+        forceCheckout,
+        groupId,
+        groupCode,
+        groupName,
+        shouldStop: () => job.cancelRequested,
+        onProgress: ({ processed, succeeded, failed, row }) => {
+          job.processed = processed;
+          job.succeeded = succeeded;
+          job.failed = failed;
+          if (row) job.results.push(compactBulkResultRow(row));
+        },
+      });
+      job.processed = batch.processed;
+      job.succeeded = batch.succeeded;
+      job.failed = batch.failed;
+      if (job.cancelRequested) {
+        job.status = 'cancelled';
+      } else {
+        job.status = 'completed';
+      }
+    } catch (err) {
+      job.status = 'failed';
+      job.error = err?.message || 'Bulk background job failed';
+    } finally {
+      job.completedAt = new Date().toISOString();
+      scheduleBulkJobCleanup(jobId);
+    }
+  });
+
+  res.status(202).json({
+    success: true,
+    data: {
+      mode: 'background',
+      job: buildBulkJobSnapshot(job, false),
+    },
+  });
+}));
+
+// GET /api/reservations/bulk-actions/jobs/:jobId?propertyId=&includeResults=1
+router.get('/bulk-actions/jobs/:jobId', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');
+  const { jobId } = req.params;
+  const { propertyId, includeResults = '0' } = req.query;
+
+  if (!propertyId) {
+    return res.status(400).json({ success: false, error: 'propertyId is required' });
+  }
+  assertPropertyScope(req, propertyId);
+
+  const job = bulkActionJobs.get(String(jobId));
+  if (!job) {
+    return res.status(404).json({ success: false, error: 'Bulk action job not found' });
+  }
+  if (String(job.propertyId) !== String(propertyId)) {
+    return res.status(404).json({ success: false, error: 'Bulk action job not found' });
+  }
+
+  const includeRows = ['1', 'true', 'yes'].includes(String(includeResults).toLowerCase());
+  res.json({
+    success: true,
+    data: {
+      job: buildBulkJobSnapshot(job, includeRows),
+    },
+  });
+}));
+
+// POST /api/reservations/bulk-actions/jobs/:jobId/cancel
+router.post('/bulk-actions/jobs/:jobId/cancel', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');
+  const { jobId } = req.params;
+  const { propertyId } = req.body || {};
+
+  if (!propertyId) {
+    return res.status(400).json({ success: false, error: 'propertyId is required' });
+  }
+  assertPropertyScope(req, propertyId);
+
+  const job = bulkActionJobs.get(String(jobId));
+  if (!job) {
+    return res.status(404).json({ success: false, error: 'Bulk action job not found' });
+  }
+  if (String(job.propertyId) !== String(propertyId)) {
+    return res.status(404).json({ success: false, error: 'Bulk action job not found' });
+  }
+
+  if (BULK_ACTION_TERMINAL_STATUSES.has(job.status)) {
+    return res.status(409).json({ success: false, error: `Job already ${job.status}` });
+  }
+
+  job.cancelRequested = true;
+  if (job.status === 'queued') {
+    job.status = 'cancelled';
+    job.completedAt = new Date().toISOString();
+    scheduleBulkJobCleanup(job.jobId);
+  }
+
+  res.json({
+    success: true,
+    data: {
+      job: buildBulkJobSnapshot(job, false),
+    },
+  });
 }));
 
 // POST /api/reservations/:id/split

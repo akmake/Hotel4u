@@ -121,3 +121,19 @@ cmd /c npm run qa:reservations:integration
 3. Validation run:
 - Full suite executed against isolated API instance on `http://localhost:4020/api/pms`.
 - Summary: `PASS=71 FAIL=0 SKIP=0`.
+
+## Update 2026-05-06 - Stage 5.4
+1. Added bulk-actions integration coverage in `server/scripts/stage4ReservationsIntegration.mjs`:
+- RBAC guard (`restricted` role forbidden on bulk endpoint).
+- Validation guards (`reservationIds` required + unsupported action).
+- Successful single-item bulk execution assertions.
+- Mixed-result bulk execution assertions (success + not-found in one request).
+- High-privilege override RBAC guard on bulk `check_in`.
+2. Latest full-suite result:
+- `PASS=78 FAIL=0 SKIP=0`.
+3. Isolated run command used:
+```powershell
+cd server
+$env:PMS_BASE_URL="http://localhost:4010/api/pms"
+cmd /c npm run qa:reservations:integration
+```

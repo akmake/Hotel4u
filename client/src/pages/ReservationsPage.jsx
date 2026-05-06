@@ -11,6 +11,9 @@ import { useToast } from '../hooks/useToast';
 import { reservations as resApi, dashboard } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '../components/ui/Dialog';
 import ReservationDrawer from '../components/reservations/ReservationDrawer';
 
 /* ── constants ─────────────────────────────────────── */
@@ -52,6 +55,19 @@ const SOURCE_LABELS = {
   all: 'כל מקורות', direct: 'ישיר', booking: 'Booking', expedia: 'Expedia',
   agoda: 'Agoda', airbnb: 'Airbnb', phone: 'טלפון', walk_in: 'Walk-in',
 };
+const BULK_ACTION_OPTIONS = [
+  { value: 'send_confirmation', label: 'שליחת אישור' },
+  { value: 'cancel', label: 'ביטול הזמנות' },
+  { value: 'mark_no_show', label: 'סימון No Show' },
+  { value: 'check_in', label: "צ'ק-אין מרובה" },
+  { value: 'check_out', label: "צ'ק-אאוט מרובה" },
+  { value: 'link_group', label: 'שיוך לקבוצה' },
+  { value: 'unlink_group', label: 'ניתוק מקבוצה' },
+];
+const BULK_BACKGROUND_UI_THRESHOLD = 80;
+function getBulkActionLabel(action) {
+  return BULK_ACTION_OPTIONS.find((o) => o.value === action)?.label || action || '';
+}
 
 function todayStr() {
   return new Date().toISOString().split('T')[0];
@@ -219,9 +235,22 @@ export default function ReservationsPage() {
   const [calMonth, setCalMonth]         = useState(new Date().getMonth());
   const [calYear, setCalYear]           = useState(new Date().getFullYear());
   const [dayFilter, setDayFilter]       = useState('');
+  const [selectedReservationIds, setSelectedReservationIds] = useState([]);
+  const [bulkAction, setBulkAction]     = useState('');
+  const [bulkReason, setBulkReason]     = useState('');
+  const [bulkGroupId, setBulkGroupId]   = useState('');
+  const [bulkGroupCode, setBulkGroupCode] = useState('');
+  const [bulkGroupName, setBulkGroupName] = useState('');
+  const [bulkOverrideClean, setBulkOverrideClean] = useState(false);
+  const [bulkForceCheckout, setBulkForceCheckout] = useState(false);
+  const [bulkLoading, setBulkLoading]   = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkResultSummary, setBulkResultSummary] = useState(null);
+  const [bulkJob, setBulkJob] = useState(null);
   const navigate = useNavigate();
   const [drawerRes, setDrawerRes]       = useState(null);
   const debounceRef = useRef(null);
+  const bulkPollRef = useRef(null);
 
   /* ── debounce search ── */
   const handleSearch = useCallback(v => {
@@ -229,6 +258,18 @@ export default function ReservationsPage() {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setDebounced(v), 350);
   }, []);
+
+  const stopBulkJobPolling = useCallback(() => {
+    if (bulkPollRef.current) {
+      clearInterval(bulkPollRef.current);
+      bulkPollRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => {
+    clearTimeout(debounceRef.current);
+    stopBulkJobPolling();
+  }, [stopBulkJobPolling]);
 
   /* ── data ── */
   const statsKey = [propertyId];
@@ -259,11 +300,34 @@ export default function ReservationsPage() {
     if (!dayFilter) return allRes;
     return allRes.filter(r => r.arrivalDate === dayFilter || r.departureDate === dayFilter);
   }, [allRes, dayFilter]);
+  const filteredIds = useMemo(
+    () => filteredRes.map((r) => String(r._id)),
+    [filteredRes]
+  );
+
+  useEffect(() => {
+    const allIds = new Set(allRes.map((r) => String(r._id)));
+    setSelectedReservationIds((prev) => {
+      const next = prev.filter((id) => allIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [allRes]);
 
   /* ── total revenue ── */
   const totalRevenue = useMemo(() =>
     filteredRes.reduce((s, r) => s + (r.totalAmount || 0), 0), [filteredRes]
   );
+  const allVisibleSelected = filteredIds.length > 0
+    && filteredIds.every((id) => selectedReservationIds.includes(id));
+  const selectedCount = selectedReservationIds.length;
+  const bulkActionLabel = useMemo(() => getBulkActionLabel(bulkAction), [bulkAction]);
+  const reservationLabelsMap = useMemo(() => {
+    const map = new Map();
+    allRes.forEach((r) => {
+      map.set(String(r._id), r.confirmationNumber || String(r._id).slice(-6).toUpperCase());
+    });
+    return map;
+  }, [allRes]);
 
   /* ── calendar nav ── */
   const handleCalPrev = () => {
@@ -274,6 +338,214 @@ export default function ReservationsPage() {
     if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
     else setCalMonth(m => m + 1);
   };
+
+  const toggleSelectOne = useCallback((reservationId) => {
+    setSelectedReservationIds((prev) => (
+      prev.includes(reservationId)
+        ? prev.filter((id) => id !== reservationId)
+        : [...prev, reservationId]
+    ));
+  }, []);
+
+  const toggleSelectAllVisible = useCallback(() => {
+    setSelectedReservationIds((prev) => {
+      if (allVisibleSelected) {
+        return prev.filter((id) => !filteredIds.includes(id));
+      }
+      const nextSet = new Set(prev);
+      filteredIds.forEach((id) => nextSet.add(id));
+      return Array.from(nextSet);
+    });
+  }, [allVisibleSelected, filteredIds]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedReservationIds([]);
+  }, []);
+
+  const finalizeBulkJobResult = useCallback((jobSnapshot) => {
+    const failedRows = (jobSnapshot?.results || []).filter((row) => !row?.success);
+    const summary = {
+      action: jobSnapshot?.action || bulkAction,
+      actionLabel: getBulkActionLabel(jobSnapshot?.action || bulkAction),
+      total: Number(jobSnapshot?.total || 0),
+      processed: Number(jobSnapshot?.processed || 0),
+      succeeded: Number(jobSnapshot?.succeeded || 0),
+      failed: Number(jobSnapshot?.failed || 0),
+      failedRows,
+      completedAt: jobSnapshot?.completedAt || new Date().toISOString(),
+    };
+    setBulkResultSummary(summary);
+
+    if (summary.failed > 0) {
+      const firstErr = failedRows[0]?.error;
+      toastError(`בוצעו ${summary.succeeded} הצלחות, ${summary.failed} כשלונות${firstErr ? `: ${firstErr}` : ''}`);
+      setSelectedReservationIds(failedRows.map((row) => String(row.reservationId)).filter(Boolean));
+    } else {
+      toastSuccess(`בוצעה פעולה בהצלחה על ${summary.succeeded} הזמנות`);
+      setSelectedReservationIds([]);
+    }
+  }, [bulkAction, toastError, toastSuccess]);
+
+  const startBulkJobPolling = useCallback((jobId) => {
+    if (!propertyId || !jobId) return;
+    stopBulkJobPolling();
+
+    bulkPollRef.current = setInterval(async () => {
+      try {
+        const payload = await resApi.bulkJobStatus(jobId, propertyId, true);
+        const jobSnapshot = payload?.job;
+        if (!jobSnapshot) return;
+
+        setBulkJob(jobSnapshot);
+        if (['completed', 'failed', 'cancelled'].includes(jobSnapshot.status)) {
+          stopBulkJobPolling();
+          setBulkLoading(false);
+          setBulkJob(null);
+
+          if (jobSnapshot.status === 'failed') {
+            toastError(jobSnapshot.error || 'פעולת רקע נכשלה');
+          } else if (jobSnapshot.status === 'cancelled') {
+            toastError('פעולת bulk בוטלה');
+          } else {
+            finalizeBulkJobResult(jobSnapshot);
+          }
+
+          refetch();
+        }
+      } catch (err) {
+        stopBulkJobPolling();
+        setBulkLoading(false);
+        setBulkJob(null);
+        toastError(err.message || 'שגיאה במעקב סטטוס פעולת bulk');
+      }
+    }, 1200);
+  }, [finalizeBulkJobResult, propertyId, refetch, stopBulkJobPolling, toastError]);
+
+  const cancelBulkJob = useCallback(async () => {
+    if (!bulkJob?.jobId || !propertyId) return;
+    try {
+      await resApi.cancelBulkJob(bulkJob.jobId, propertyId);
+      toastSuccess('בקשת ביטול נשלחה למשימה');
+    } catch (err) {
+      toastError(err.message || 'שגיאה בביטול משימה');
+    }
+  }, [bulkJob, propertyId, toastError, toastSuccess]);
+
+  const getBulkValidationError = useCallback(() => {
+    if (!propertyId) return 'Property לא זמין';
+    if (!bulkAction) return 'בחר פעולה מרובה';
+    if (selectedReservationIds.length === 0) return 'לא נבחרו הזמנות';
+    if (bulkAction === 'cancel' && !bulkReason.trim()) return 'נדרשת סיבת ביטול לפעולת ביטול מרובה';
+    if (bulkAction === 'link_group' && !bulkGroupId && !bulkGroupCode && !bulkGroupName) {
+      return 'מלא לפחות שדה קבוצה אחד (ID / Code / Name)';
+    }
+    return null;
+  }, [
+    propertyId,
+    bulkAction,
+    selectedReservationIds,
+    bulkReason,
+    bulkGroupId,
+    bulkGroupCode,
+    bulkGroupName,
+  ]);
+
+  const requestBulkActionConfirmation = useCallback(() => {
+    const validationError = getBulkValidationError();
+    if (validationError) {
+      toastError(validationError);
+      return;
+    }
+    setBulkConfirmOpen(true);
+  }, [getBulkValidationError, toastError]);
+
+  const runBulkAction = useCallback(async () => {
+    const validationError = getBulkValidationError();
+    if (validationError) {
+      toastError(validationError);
+      return;
+    }
+
+    setBulkConfirmOpen(false);
+    const payload = {
+      propertyId,
+      reservationIds: selectedReservationIds,
+      action: bulkAction,
+      background: selectedReservationIds.length >= BULK_BACKGROUND_UI_THRESHOLD,
+    };
+    if (bulkAction === 'cancel') payload.reason = bulkReason.trim();
+    if (bulkAction === 'check_in') payload.overrideClean = bulkOverrideClean;
+    if (bulkAction === 'check_out') payload.forceCheckout = bulkForceCheckout;
+    if (bulkAction === 'link_group') {
+      payload.groupId = bulkGroupId || undefined;
+      payload.groupCode = bulkGroupCode || undefined;
+      payload.groupName = bulkGroupName || undefined;
+    }
+
+    setBulkLoading(true);
+    setBulkResultSummary(null);
+    setBulkJob(null);
+    let delegatedToBackground = false;
+    try {
+      const result = await resApi.bulkActions(payload);
+      if (result?.mode === 'background' && result?.job?.jobId) {
+        delegatedToBackground = true;
+        setBulkJob(result.job);
+        toastSuccess(`הפעולה עברה לרקע. מזהה משימה: ${result.job.jobId.slice(-8)}`);
+        startBulkJobPolling(result.job.jobId);
+        return;
+      }
+
+      const total = Number(result?.total || selectedReservationIds.length || 0);
+      const processed = Number(result?.processed || 0);
+      const succeeded = Number(result?.succeeded || 0);
+      const failed = Number(result?.failed || 0);
+      const resultRows = Array.isArray(result?.results) ? result.results : [];
+      const failedRows = resultRows.filter((row) => !row?.success);
+
+      setBulkResultSummary({
+        action: bulkAction,
+        actionLabel: bulkActionLabel,
+        total,
+        processed,
+        succeeded,
+        failed,
+        failedRows,
+        completedAt: new Date().toISOString(),
+      });
+
+      if (failed > 0) {
+        const firstErr = failedRows[0]?.error;
+        toastError(`בוצעו ${succeeded} הצלחות, ${failed} כשלונות${firstErr ? `: ${firstErr}` : ''}`);
+        setSelectedReservationIds(failedRows.map((row) => String(row.reservationId)).filter(Boolean));
+      } else {
+        toastSuccess(`בוצעה פעולה בהצלחה על ${succeeded} הזמנות`);
+        setSelectedReservationIds([]);
+      }
+      refetch();
+    } catch (err) {
+      toastError(err.message || 'שגיאה בפעולת bulk');
+    } finally {
+      if (!delegatedToBackground) setBulkLoading(false);
+    }
+  }, [
+    propertyId,
+    bulkAction,
+    bulkActionLabel,
+    selectedReservationIds,
+    bulkReason,
+    bulkOverrideClean,
+    bulkForceCheckout,
+    bulkGroupId,
+    bulkGroupCode,
+    bulkGroupName,
+    getBulkValidationError,
+    finalizeBulkJobResult,
+    refetch,
+    startBulkJobPolling,
+    toastError,
+    toastSuccess,
+  ]);
 
   /* ── clear all filters ── */
   const hasFilters = statusFilter !== 'all' || payFilter !== 'all' || sourceFilter !== 'all'
@@ -293,6 +565,8 @@ export default function ReservationsPage() {
 
   /* ── table row ── */
   function ResRow({ r }) {
+    const rowId = String(r._id);
+    const isSelected = selectedReservationIds.includes(rowId);
     const gFirst = r.primaryGuest?.firstName || '';
     const gLast  = r.primaryGuest?.lastName  || '';
     const vip    = r.primaryGuest?.vipLevel;
@@ -310,6 +584,17 @@ export default function ReservationsPage() {
           ${isDepartureToday ? 'border-r-4 border-r-amber-500' : ''}
         `}
       >
+        {/* בחירה מרובה */}
+        <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => toggleSelectOne(rowId)}
+            disabled={bulkLoading}
+            className="w-4 h-4 rounded"
+            aria-label={`בחר הזמנה ${r.confirmationNumber || rowId}`}
+          />
+        </td>
         {/* אישור */}
         <td className="px-3 py-2 text-xs font-mono text-ink-secondary">
           {r.confirmationNumber || r._id?.slice(-6).toUpperCase()}
@@ -524,6 +809,159 @@ export default function ReservationsPage() {
         </div>
       )}
 
+      {/* ─── bulk actions ─── */}
+      {selectedReservationIds.length > 0 && (
+        <div className="card p-3 flex flex-wrap gap-2 items-center">
+          <span className="text-sm font-medium text-ink-secondary">
+            נבחרו {selectedReservationIds.length} הזמנות
+          </span>
+
+          <select
+            className="select text-sm py-1"
+            value={bulkAction}
+            onChange={(e) => setBulkAction(e.target.value)}
+            disabled={bulkLoading}
+          >
+            <option value="">בחר פעולה מרובה...</option>
+            {BULK_ACTION_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          {bulkAction === 'cancel' && (
+            <input
+              className="input text-sm py-1 px-2 min-w-56"
+              value={bulkReason}
+              onChange={(e) => setBulkReason(e.target.value)}
+              placeholder="סיבת ביטול..."
+              disabled={bulkLoading}
+            />
+          )}
+          {bulkAction === 'check_in' && (
+            <label className="flex items-center gap-1 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                className="w-3.5 h-3.5 rounded"
+                checked={bulkOverrideClean}
+                onChange={(e) => setBulkOverrideClean(e.target.checked)}
+                disabled={bulkLoading}
+              />
+              Override ניקיון
+            </label>
+          )}
+          {bulkAction === 'check_out' && (
+            <label className="flex items-center gap-1 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                className="w-3.5 h-3.5 rounded"
+                checked={bulkForceCheckout}
+                onChange={(e) => setBulkForceCheckout(e.target.checked)}
+                disabled={bulkLoading}
+              />
+              Force checkout
+            </label>
+          )}
+          {bulkAction === 'link_group' && (
+            <>
+              <input
+                className="input text-sm py-1 px-2 min-w-36"
+                value={bulkGroupId}
+                onChange={(e) => setBulkGroupId(e.target.value)}
+                placeholder="Group ID"
+                disabled={bulkLoading}
+              />
+              <input
+                className="input text-sm py-1 px-2 min-w-28"
+                value={bulkGroupCode}
+                onChange={(e) => setBulkGroupCode(e.target.value)}
+                placeholder="Group Code"
+                disabled={bulkLoading}
+              />
+              <input
+                className="input text-sm py-1 px-2 min-w-40"
+                value={bulkGroupName}
+                onChange={(e) => setBulkGroupName(e.target.value)}
+                placeholder="Group Name"
+                disabled={bulkLoading}
+              />
+            </>
+          )}
+
+          <button
+            onClick={requestBulkActionConfirmation}
+            disabled={bulkLoading || !bulkAction}
+            className="btn btn-primary btn-sm flex items-center gap-1"
+          >
+            {bulkLoading ? <Spinner size="xs" /> : <CheckCircle2 size={12} />}
+            {bulkLoading ? 'מריץ...' : 'בצע'}
+          </button>
+          <button onClick={clearSelection} disabled={bulkLoading} className="btn btn-ghost btn-sm text-red-500 disabled:opacity-50">
+            נקה בחירה
+          </button>
+
+          {bulkLoading && (
+            <div className="w-full flex items-center gap-2 text-xs text-brand">
+              <Spinner size="xs" />
+              {bulkJob
+                ? `משימה ברקע: ${bulkJob.processed || 0}/${bulkJob.total || selectedCount} (${bulkJob.status})`
+                : `מריץ "${bulkActionLabel}" על ${selectedCount} הזמנות...`}
+              {bulkJob?.jobId && !['completed', 'failed', 'cancelled'].includes(String(bulkJob.status || '')) && (
+                <button
+                  className="btn btn-ghost btn-sm text-red-600 ml-2"
+                  onClick={cancelBulkJob}
+                >
+                  בטל משימה
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {bulkResultSummary && (
+        <div className={`card p-3 ${bulkResultSummary.failed > 0 ? 'border border-amber-300 bg-amber-50/50' : 'border border-emerald-300 bg-emerald-50/50'}`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm">
+              <span className="font-semibold text-ink">סיכום פעולה:</span>{' '}
+              <span className="text-ink-secondary">{bulkResultSummary.actionLabel || bulkResultSummary.action}</span>{' '}
+              <span className="text-ink-muted">({new Date(bulkResultSummary.completedAt).toLocaleTimeString('he-IL')})</span>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => setBulkResultSummary(null)} disabled={bulkLoading}>
+              הסתר
+            </button>
+          </div>
+
+          <div className="mt-2 text-xs text-ink-secondary flex flex-wrap gap-x-4 gap-y-1">
+            <span>סה"כ: <strong className="text-ink">{bulkResultSummary.total}</strong></span>
+            <span>טופלו: <strong className="text-ink">{bulkResultSummary.processed}</strong></span>
+            <span>הצלחות: <strong className="text-emerald-700">{bulkResultSummary.succeeded}</strong></span>
+            <span>כשלונות: <strong className={bulkResultSummary.failed > 0 ? 'text-red-700' : 'text-ink'}>{bulkResultSummary.failed}</strong></span>
+          </div>
+
+          {bulkResultSummary.failedRows?.length > 0 && (
+            <div className="mt-2">
+              <div className="text-xs font-medium text-red-700 mb-1">פרטי כשלים:</div>
+              <div className="space-y-1">
+                {bulkResultSummary.failedRows.slice(0, 6).map((row) => {
+                  const rid = String(row?.reservationId || '');
+                  const label = reservationLabelsMap.get(rid) || rid || '—';
+                  return (
+                    <div key={rid} className="text-xs text-red-700">
+                      #{label}: {row?.error || 'שגיאה לא ידועה'}
+                    </div>
+                  );
+                })}
+              </div>
+              {bulkResultSummary.failedRows.length > 6 && (
+                <div className="text-xs text-red-700 mt-1">
+                  ועוד {bulkResultSummary.failedRows.length - 6} כשלים...
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ─── table ─── */}
       {listLoading ? (
         <div className="flex-1 flex items-center justify-center"><PageSpinner /></div>
@@ -540,6 +978,16 @@ export default function ReservationsPage() {
           <table className="data-table w-full">
             <thead>
               <tr className="text-xs text-ink-muted">
+                <th className="px-2 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    disabled={bulkLoading}
+                    className="w-4 h-4 rounded"
+                    aria-label="בחר הכל"
+                  />
+                </th>
                 <th className="px-3 py-2 text-right">אישור</th>
                 <th className="px-3 py-2 text-right">אורח</th>
                 <th className="px-3 py-2 text-right">חדר / סוג</th>
@@ -571,6 +1019,50 @@ export default function ReservationsPage() {
       )}
 
       {/* ─── modals ─── */}
+      <Dialog open={bulkConfirmOpen} onOpenChange={(open) => { if (!bulkLoading) setBulkConfirmOpen(open); }}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>אישור פעולה מרובה</DialogTitle>
+            <DialogDescription>
+              עומדים לבצע "{bulkActionLabel}" על {selectedCount} הזמנות. הפעולה עשויה להשפיע על סטטוס ההזמנה ולא תמיד ניתנת לשחזור.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="text-sm text-ink-secondary space-y-1">
+            {bulkAction === 'cancel' && <div>סיבת ביטול: <strong className="text-ink">{bulkReason.trim() || '—'}</strong></div>}
+            {bulkAction === 'check_in' && <div>Override ניקיון: <strong className="text-ink">{bulkOverrideClean ? 'כן' : 'לא'}</strong></div>}
+            {bulkAction === 'check_out' && <div>Force checkout: <strong className="text-ink">{bulkForceCheckout ? 'כן' : 'לא'}</strong></div>}
+            {bulkAction === 'link_group' && (
+              <div>
+                קבוצה:
+                {' '}
+                <strong className="text-ink">
+                  {bulkGroupName || bulkGroupCode || bulkGroupId || '—'}
+                </strong>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <button
+              className="btn btn-ghost"
+              onClick={() => setBulkConfirmOpen(false)}
+              disabled={bulkLoading}
+            >
+              ביטול
+            </button>
+            <button
+              className="btn btn-primary flex items-center gap-2"
+              onClick={runBulkAction}
+              disabled={bulkLoading}
+            >
+              {bulkLoading ? <Spinner size="xs" /> : <CheckCircle2 size={14} />}
+              {bulkLoading ? 'מבצע...' : 'אישור וביצוע'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {drawerRes && (
         <ReservationDrawer
           res={drawerRes}

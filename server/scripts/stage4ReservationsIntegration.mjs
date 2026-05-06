@@ -223,6 +223,10 @@ async function run() {
     stage45RoomPatchNightlyRate: Number(env.ratePerNight) + 88,
     stage45SegmentFromDate: datePlus(26),
     stage45SegmentToDate: datePlus(27),
+    createdReservationM: null,
+    stage54ArrivalDate: datePlus(33),
+    stage54DepartureDate: datePlus(35),
+    stage54MissingReservationId: randomObjectIdLike(),
     transferSourceLineId: null,
     transferSourceDescription: `Stage4.2 transfer source ${Date.now()}`,
     createdRoutingRuleId: null,
@@ -1906,6 +1910,178 @@ async function run() {
         return null;
       },
     },
+    {
+      id: 'S5.4-RBAC-RESTRICTED-BULK-FORBIDDEN',
+      skip: () => {
+        if (!ctx.restrictedToken) return 'restricted-role user not found';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions`,
+        token: ctx.restrictedToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationIds: [ctx.existingReservationId],
+          action: 'send_confirmation',
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S5.4-VALIDATION-BULK-MISSING-RESERVATIONIDS',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          action: 'send_confirmation',
+        },
+      }),
+      expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.4-WRITE-CREATE-M',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'POST',
+        url: baseReservations,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          roomTypeId: ctx.roomTypeId,
+          arrivalDate: state.stage54ArrivalDate,
+          departureDate: state.stage54DepartureDate,
+          primaryGuestId: ctx.primaryGuestId,
+          adults: 2,
+          children: 0,
+          roomsCount: 1,
+          ratePerNight: env.ratePerNight,
+          source: 'direct',
+          marketSegment: 'stage5_4',
+          specialRequests: 'stage5.4 bulk-actions coverage',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'missing created reservation M id';
+        return null;
+      },
+      capture: (r) => { state.createdReservationM = r.json?.data?._id || null; },
+    },
+    {
+      id: 'S5.4-RBAC-RECEPTION-BULK-CHECKIN-OVERRIDE-FORBIDDEN',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationM)) return 'created reservation M unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions`,
+        token: ctx.receptionistToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationIds: [state.createdReservationM],
+          action: 'check_in',
+          overrideEarlyArrival: true,
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S5.4-WRITE-BULK-SEND-CONFIRMATION-SUCCESS',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationM)) return 'created reservation M unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationIds: [state.createdReservationM],
+          action: 'send_confirmation',
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const data = r.json?.data || {};
+        if (data.action !== 'send_confirmation') return `expected action send_confirmation, got ${String(data.action)}`;
+        if (Number(data.total) !== 1) return `expected total=1, got ${String(data.total)}`;
+        if (Number(data.processed) !== 1) return `expected processed=1, got ${String(data.processed)}`;
+        if (Number(data.succeeded) !== 1) return `expected succeeded=1, got ${String(data.succeeded)}`;
+        if (Number(data.failed) !== 0) return `expected failed=0, got ${String(data.failed)}`;
+        const rows = Array.isArray(data.results) ? data.results : [];
+        if (rows.length !== 1) return `expected one result row, got ${rows.length}`;
+        if (String(rows[0]?.reservationId) !== String(state.createdReservationM)) return 'bulk result reservationId mismatch';
+        if (rows[0]?.success !== true) return 'bulk success row expected success=true';
+        return null;
+      },
+    },
+    {
+      id: 'S5.4-WRITE-BULK-SEND-CONFIRMATION-MIXED',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationM)) return 'created reservation M unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationIds: [state.createdReservationM, state.stage54MissingReservationId],
+          action: 'send_confirmation',
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const data = r.json?.data || {};
+        if (Number(data.total) !== 2) return `expected total=2, got ${String(data.total)}`;
+        if (Number(data.processed) !== 2) return `expected processed=2, got ${String(data.processed)}`;
+        if (Number(data.succeeded) !== 1) return `expected succeeded=1, got ${String(data.succeeded)}`;
+        if (Number(data.failed) !== 1) return `expected failed=1, got ${String(data.failed)}`;
+        const rows = Array.isArray(data.results) ? data.results : [];
+        const okRow = rows.find((row) => String(row?.reservationId) === String(state.createdReservationM));
+        if (!okRow || okRow.success !== true) return 'expected success row for reservation M';
+        const failRow = rows.find((row) => String(row?.reservationId) === String(state.stage54MissingReservationId));
+        if (!failRow || failRow.success !== false) return 'expected failed row for missing reservation id';
+        return null;
+      },
+    },
+    {
+      id: 'S5.4-VALIDATION-BULK-UNSUPPORTED-ACTION',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationM)) return 'created reservation M unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationIds: [state.createdReservationM],
+          action: 'totally_not_supported',
+        },
+      }),
+      expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
   ];
 
   const results = [];
@@ -1967,6 +2143,7 @@ async function run() {
     state.duplicatedReservationFromB,
     state.createdReservationK,
     state.createdReservationL,
+    state.createdReservationM,
     state.splitChildReservationId,
   ].filter(ensureObjectIdLike);
   for (const reservationId of cleanupTargets) {
