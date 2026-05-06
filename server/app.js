@@ -44,7 +44,8 @@ import userRoutes from './routes/userRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import adminTriggerRoutes from './routes/adminTriggers.js';
 import whatsappChatRoutes from './routes/whatsappChatRoutes.js';
-import { initScheduler } from './services/scheduler.js';
+import { initScheduler }    from './services/scheduler.js';
+import { initPmsScheduler } from './services/pmsScheduler.js';
 import { getCalendarData } from './controllers/admin/calendarController.js';
 
 // --- ייבוא נתיבי PMS (hotel4u) ---
@@ -76,6 +77,7 @@ try {
   await mongoose.connect(process.env.MONGO_URI);
   console.log('✔ Mongo connected');
   initScheduler();
+  initPmsScheduler();
 } catch (err) {
   console.error('Mongo connection error:', err);
   process.exit(1);

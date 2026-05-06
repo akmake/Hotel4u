@@ -280,3 +280,36 @@
 3. `npm --prefix client run build` passed.
 - Recommended next step:
 1. Stage 5.9: start frontend wiring sprint — replace mockData in DashboardPage, RoomRackPage, CheckInPage, CheckOutPage, HousekeepingPage, GuestsPage with real API calls.
+
+## Update 2026-05-06 - Stage 5.9 Automation Engine Implemented
+- Note: Frontend wiring (originally planned for 5.9) was already complete from prior sessions — all pages wired to API, zero mockData imports.
+- Stage 5.9 scope pivoted to Automation Engine (higher Phase 1 value).
+- Implemented `server/services/automationEngine.js`:
+  1. `fireEvent(trigger, context)` — main entry point, fire-and-forget, never throws to caller.
+  2. Condition evaluator: dot-notation field resolver + 9 operators (eq, ne, gt, lt, gte, lte, in, nin, contains).
+  3. Exception conditions: conditions that prevent firing even when trigger+conditions match.
+  4. Action dispatcher for all 10 action types:
+     - `create_alert` / `notify_staff` → in-app Notification via notificationService
+     - `create_housekeeping_task` → HousekeepingTask (deduplication: skips if open task exists)
+     - `create_maintenance_ticket` → MaintenanceTicket
+     - `update_room_status` → Room.opsStatus / cleanStatus
+     - `update_reservation` → safe field patch (allowlist)
+     - `post_charge` → FolioLine on open folio
+     - `send_message` → Notification fallback (email/SMS pending provider)
+     - `send_payment_link` → Notification fallback
+     - `webhook` → webhookService.emit
+  5. Template interpolation: `{{reservation.confirmationNumber}}` etc. in title/body/description fields.
+  6. Per-rule runtime stats update: `runCount`, `lastRunAt`, `lastError`.
+- Trigger hookups added:
+  1. `reservationService.js` — `reservation.created`, `reservation.modified`, `reservation.cancelled`, `reservation.noshow`, `checkin.completed`, `checkout.completed`.
+  2. `routes/housekeeping.js` — `housekeeping.completed` (on task complete).
+  3. `routes/maintenance.js` — `maintenance.created` (on ticket open).
+- PMS Scheduler (`server/services/pmsScheduler.js`):
+  1. `schedule.hourly` — fires every hour for all active properties.
+  2. `schedule.daily` — fires at 00:05 daily for all active properties.
+  3. Initialized from `app.js` after DB connect.
+- Validation:
+  1. All modified/new server files pass `node --check`.
+  2. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.10: Email/SMS integration (SendGrid + Twilio) to complete the `send_message` action in automationEngine, and wire the Notification channel dispatch to actual delivery.

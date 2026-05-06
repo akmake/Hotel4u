@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import { createMaintenanceTicket, resolveMaintenanceTicket } from '../services/roomService.js';
+import { fireEvent } from '../services/automationEngine.js';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 
 const router = Router();
@@ -78,6 +79,14 @@ router.post('/', asyncHandler(async (req, res) => {
   if (estimatedCost != null) ticket.estimatedCost = Number(estimatedCost);
   if (notes?.trim()) ticket.notes = notes.trim();
   if (estimatedCost != null || notes?.trim()) await ticket.save();
+
+  fireEvent('maintenance.created', {
+    property: String(propertyId),
+    ticket:   ticket?.toObject ? ticket.toObject() : ticket,
+    room:     roomId ? { _id: String(roomId) } : null,
+    actor:    { id: actor.id, name: actor.name },
+  }).catch(() => null);
+
   res.status(201).json({ success: true, data: ticket });
 }));
 
