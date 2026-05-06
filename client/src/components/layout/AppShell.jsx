@@ -5,6 +5,7 @@ import TopBar from './TopBar';
 
 const PAGE_TITLES = {
   '/':              'לוח בקרה — Front Desk',
+  '/tape-chart':    'Tape Chart',
   '/room-rack':     'Room Rack',
   '/reservations':  'הזמנות',
   '/check-in':      'צ׳ק-אין',

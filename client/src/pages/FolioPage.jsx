@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Search, CreditCard, Plus, Slash, Receipt, AlertCircle, CheckCircle2, Lock, Unlock, FileText, Tag, MinusCircle, ArrowLeftRight, ReceiptText, X, Printer, Download } from 'lucide-react';
+import { Search, CreditCard, Plus, Slash, Receipt, AlertCircle, CheckCircle2, Lock, Unlock, FileText, Tag, MinusCircle, ArrowLeftRight, ReceiptText, X, Printer, Download, Banknote, Building2, Ticket, Wallet } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
@@ -139,18 +139,34 @@ function AddChargePanel({ folioId, propertyId, onDone }) {
   );
 }
 
+const PAY_METHODS = [
+  { value: 'cash',          label: 'מזומן',    Icon: Banknote    },
+  { value: 'credit',        label: 'אשראי',    Icon: CreditCard  },
+  { value: 'check',         label: 'המחאה',    Icon: FileText    },
+  { value: 'bank_transfer', label: 'העברה',    Icon: Building2   },
+  { value: 'voucher',       label: 'שובר',     Icon: Ticket      },
+  { value: 'other',         label: 'אחר',      Icon: Wallet      },
+];
+
 function AddPaymentPanel({ folioId, propertyId, balance, onDone }) {
-  const [amount, setAmount] = useState(balance > 0 ? String(balance.toFixed(2)) : '');
-  const [desc,   setDesc]   = useState('תשלום במזומן');
-  const [loading,setLoading]= useState(false);
-  const [error,  setError]  = useState('');
+  const [amount,  setAmount]  = useState(balance > 0 ? String(balance.toFixed(2)) : '');
+  const [method,  setMethod]  = useState('cash');
+  const [ref,     setRef]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
 
   async function submit(e) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await folioApi.payment(folioId, { amount: Number(amount), description: desc, propertyId });
+      const description = PAY_METHODS.find(m => m.value === method)?.label || method;
+      await folioApi.payment(folioId, {
+        amount: Number(amount),
+        method,
+        description: ref ? `${description} — אסמכתא: ${ref}` : description,
+        propertyId,
+      });
       onDone();
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -159,14 +175,59 @@ function AddPaymentPanel({ folioId, propertyId, balance, onDone }) {
   return (
     <form onSubmit={submit} className="bg-surface-hover rounded-xl p-4 flex flex-col gap-3 border border-surface-border">
       <div className="text-xs font-bold text-ink mb-0.5">רשום תשלום</div>
-      <div className="grid grid-cols-2 gap-2">
-        <input className="input text-num" type="number" placeholder={`סכום ₪ *`} min={0} step={0.01} value={amount} onChange={e=>setAmount(e.target.value)} required />
-        <input className="input text-sm" placeholder="אמצעי תשלום" value={desc} onChange={e=>setDesc(e.target.value)} />
+
+      {/* Method selector */}
+      <div>
+        <div className="text-xs text-ink-muted mb-1.5">אמצעי תשלום</div>
+        <div className="flex flex-wrap gap-1.5">
+          {PAY_METHODS.map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMethod(value)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                method === value
+                  ? 'bg-brand text-white border-brand shadow-sm'
+                  : 'bg-white text-ink-secondary border-surface-border hover:border-brand/40'
+              }`}
+            >
+              <Icon size={11} />{label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Amount + reference */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-xs text-ink-muted mb-1">סכום ₪ *</div>
+          <input
+            className="input text-num w-full"
+            type="number" placeholder="0.00" min={0} step={0.01}
+            value={amount} onChange={e => setAmount(e.target.value)} required
+          />
+        </div>
+        <div>
+          <div className="text-xs text-ink-muted mb-1">אסמכתא / מס' כרטיס (4 ספרות)</div>
+          <input
+            className="input text-sm w-full"
+            placeholder={method === 'credit' ? '···· 1234' : 'אופציונלי'}
+            value={ref} onChange={e => setRef(e.target.value)}
+            maxLength={20}
+          />
+        </div>
+      </div>
+
+      {balance > 0 && Number(amount) < balance && (
+        <div className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">
+          תשלום חלקי — נשאר: ₪{(balance - Number(amount || 0)).toFixed(2)}
+        </div>
+      )}
+
       {error && <div className="text-xs text-red-600">{error}</div>}
       <div className="flex gap-2">
-        <button type="submit" className="btn btn-primary btn-sm flex-1 justify-center" disabled={loading}>
-          {loading ? '...' : 'רשום'}
+        <button type="submit" className="btn btn-primary btn-sm flex-1 justify-center gap-1.5" disabled={loading}>
+          {loading && <span className="animate-spin">⏳</span>} רשום תשלום
         </button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={onDone}>ביטול</button>
       </div>
@@ -481,7 +542,11 @@ function FolioDrawer({ res, propertyId, onClose }) {
         <div className="flex-1 overflow-y-auto">
           {loading && <div className="flex justify-center py-12"><Spinner size={24} /></div>}
           {error && <div className="px-6 py-4 text-xs text-red-500">{error}</div>}
-          {!loading && !error && (
+          {!loading && !error && (() => {
+            const totalCharges  = lines.filter(l => l.status === 'posted' && l.amount > 0).reduce((s,l) => s + l.amount + (l.taxAmount||0), 0);
+            const totalPayments = lines.filter(l => l.status === 'posted' && l.amount < 0).reduce((s,l) => s + Math.abs(l.amount), 0);
+            return (
+            <>
             <table className="data-table">
               <thead>
                 <tr>
@@ -542,7 +607,30 @@ function FolioDrawer({ res, propertyId, onClose }) {
                 )}
               </tbody>
             </table>
-          )}
+
+            {/* Totals summary */}
+            {lines.length > 0 && (
+              <div className="border-t-2 border-surface-border mx-6 my-3 pt-3 flex flex-col gap-1.5">
+                <div className="flex justify-between text-xs text-ink-muted">
+                  <span>סה"כ חיובים</span>
+                  <span className="text-num font-semibold text-red-600">₪{totalCharges.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-ink-muted">
+                  <span>סה"כ תשלומים</span>
+                  <span className="text-num font-semibold text-emerald-600">₪{totalPayments.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-black border-t border-surface-border pt-1.5 mt-0.5">
+                  <span>יתרה לתשלום</span>
+                  <span className={`text-num ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    ₪{Math.abs(balance).toFixed(2)}
+                    {balance <= 0 && <CheckCircle2 size={12} className="inline mr-1 text-emerald-500" />}
+                  </span>
+                </div>
+              </div>
+            )}
+            </>
+            );
+          })()}
         </div>
 
         {/* Action panels */}

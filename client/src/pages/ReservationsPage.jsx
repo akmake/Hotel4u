@@ -1,4 +1,5 @@
 ﻿import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, Crown, AlertCircle, Calendar, ChevronLeft, ChevronRight,
   X, Filter, TrendingUp, Users, DoorOpen, DoorClosed, BedDouble,
@@ -10,7 +11,6 @@ import { useToast } from '../hooks/useToast';
 import { reservations as resApi, dashboard } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
-import NewReservationModal from '../components/reservations/NewReservationModal';
 import ReservationDrawer from '../components/reservations/ReservationDrawer';
 
 /* ── constants ─────────────────────────────────────── */
@@ -219,7 +219,7 @@ export default function ReservationsPage() {
   const [calMonth, setCalMonth]         = useState(new Date().getMonth());
   const [calYear, setCalYear]           = useState(new Date().getFullYear());
   const [dayFilter, setDayFilter]       = useState('');
-  const [showNew, setShowNew]           = useState(false);
+  const navigate = useNavigate();
   const [drawerRes, setDrawerRes]       = useState(null);
   const debounceRef = useRef(null);
 
@@ -427,7 +427,7 @@ export default function ReservationsPage() {
             לוח שנה
           </button>
           <button
-            onClick={() => setShowNew(true)}
+            onClick={() => navigate('/pms/reservations/new')}
             className="btn btn-primary flex items-center gap-2"
           >
             <Plus size={16} /> הזמנה חדשה
@@ -571,12 +571,6 @@ export default function ReservationsPage() {
       )}
 
       {/* ─── modals ─── */}
-      {showNew && (
-        <NewReservationModal
-          onClose={() => setShowNew(false)}
-          onCreated={() => { setShowNew(false); refetch(); toastSuccess('הזמנה נוצרה בהצלחה'); }}
-        />
-      )}
       {drawerRes && (
         <ReservationDrawer
           res={drawerRes}

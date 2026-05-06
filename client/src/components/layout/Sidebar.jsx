@@ -69,6 +69,7 @@ const PMS_NAV = [
     group: 'קבלה',
     items: [
       { path: '/pms',              icon: LayoutDashboard, label: 'לוח בקרה' },
+      { path: '/pms/tape-chart',   icon: CalendarDays,    label: 'Tape Chart' },
       { path: '/pms/room-rack',    icon: Calendar,        label: 'Room Rack' },
       { path: '/pms/reservations', icon: ClipboardList,   label: 'הזמנות' },
       { path: '/pms/check-in',     icon: LogIn,           label: "צ'ק-אין" },

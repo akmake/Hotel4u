@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   LogIn, LogOut, Users, BedDouble, Sparkles, Wrench, AlertTriangle,
   AlertCircle, Info, Crown, TrendingUp, RefreshCw, Plus, Calendar, X,
-  ChevronRight,
+  ChevronRight, Clock, DollarSign, Target, BarChart2, Star,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -27,8 +27,25 @@ function fmtDate(d) {
 function fmtDayShort(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'short', day:'numeric' });
 }
+function fmtDayMini(d) {
+  const date = new Date(d + 'T00:00:00');
+  return {
+    weekday: date.toLocaleDateString('he-IL', { weekday:'short' }),
+    day: date.getDate(),
+    month: date.toLocaleDateString('he-IL', { month:'short' }),
+  };
+}
 function initials(g) {
   return ((g?.firstName?.[0] || '') + (g?.lastName?.[0] || '')).toUpperCase();
+}
+function fmtMoney(n) {
+  if (!n) return '₪0';
+  return '₪' + Number(n).toLocaleString('he-IL');
+}
+function fmtCountdown(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2,'0')}`;
 }
 
 /* ── live clock ──────────────────────────────────────────────────────────── */
@@ -61,6 +78,197 @@ function StatCard({ icon: Icon, label, value, sub, color, bgColor, urgent, onCli
         {sub && <div className="text-xs text-ink-faint mt-0.5">{sub}</div>}
       </div>
       {urgent && <AlertCircle size={14} className="text-red-500 flex-shrink-0 self-start mt-1" />}
+    </div>
+  );
+}
+
+/* ── revenue kpis strip ──────────────────────────────────────────────────── */
+function RevenueKpis({ todayDaily, totalRooms, occupancy }) {
+  const rev     = todayDaily?.revenue    || 0;
+  const arr     = todayDaily?.arrivals   || 0;
+  const adr     = arr > 0 ? Math.round(rev / arr) : 0;
+  const revpar  = totalRooms > 0 ? Math.round(rev / totalRooms) : 0;
+
+  const kpis = [
+    {
+      icon: DollarSign,
+      label: 'הכנסות היום',
+      value: fmtMoney(rev),
+      color: '#059669',
+      bg: 'rgba(16,185,129,0.08)',
+      border: 'border-emerald-200',
+    },
+    {
+      icon: Target,
+      label: 'ADR',
+      value: fmtMoney(adr),
+      sub: 'ממוצע לחדר',
+      color: '#6366f1',
+      bg: 'rgba(99,102,241,0.08)',
+      border: 'border-indigo-200',
+    },
+    {
+      icon: BarChart2,
+      label: 'RevPAR',
+      value: fmtMoney(revpar),
+      sub: 'הכנסה לחדר זמין',
+      color: '#0891b2',
+      bg: 'rgba(6,182,212,0.08)',
+      border: 'border-cyan-200',
+    },
+    {
+      icon: BedDouble,
+      label: 'תפוסה',
+      value: `${occupancy || 0}%`,
+      sub: `${todayDaily?.occupied || 0} / ${totalRooms || 0} חדרים`,
+      color: '#d97706',
+      bg: 'rgba(245,158,11,0.08)',
+      border: 'border-amber-200',
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      {kpis.map(({ icon: Icon, label, value, sub, color, bg, border }) => (
+        <div
+          key={label}
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${border}`}
+          style={{ background: bg }}
+        >
+          <div className="rounded-lg p-2 flex-shrink-0" style={{ background: `${bg}`, border: `1px solid ${border}` }}>
+            <Icon size={16} style={{ color }} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs text-ink-muted font-medium">{label}</div>
+            <div className="text-lg font-bold text-num leading-tight" style={{ color }}>{value}</div>
+            {sub && <div className="text-xs text-ink-faint">{sub}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── vip callout ─────────────────────────────────────────────────────────── */
+function VipCallout({ arrivals, onNavigate }) {
+  const vips = arrivals.filter(r => r.isVip || (r.primaryGuest?.vipLevel && r.primaryGuest.vipLevel > 0));
+  if (!vips.length) return null;
+
+  const VIP_LEVEL_LABEL = { 1:'VIP', 2:'VIP++', 3:'SVIP', 4:'Diamond', 5:'Celebrity' };
+
+  return (
+    <div className="mb-4 rounded-xl border border-amber-300 overflow-hidden"
+      style={{ background: 'linear-gradient(135deg,rgba(254,243,199,0.6) 0%,rgba(255,255,255,0.8) 100%)' }}>
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200"
+        style={{ background: 'rgba(245,158,11,0.08)' }}>
+        <Crown size={14} className="text-amber-500" />
+        <span className="font-semibold text-amber-800 text-sm">
+          {vips.length} אורח{vips.length > 1 ? 'ים' : ''} VIP מגיע{vips.length > 1 ? 'ים' : ''} היום
+        </span>
+        <span className="mr-auto text-xs text-amber-600">טיפול מיוחד נדרש</span>
+      </div>
+      <div className="divide-y divide-amber-100">
+        {vips.map(res => {
+          const g = res.primaryGuest;
+          const room = res.assignedRoom;
+          const roomReady = room && ['clean','inspected'].includes(room.cleanStatus);
+          const level = g?.vipLevel || 1;
+          return (
+            <div
+              key={res._id}
+              onClick={() => onNavigate('/check-in')}
+              className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-amber-50/60 transition-colors"
+            >
+              <div className="avatar flex-shrink-0"
+                style={{ width:34, height:34, fontSize:12, background:'rgba(245,158,11,0.15)', color:'#b45309' }}>
+                {initials(g)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm text-ink">
+                    {g ? `${g.firstName} ${g.lastName}` : '—'}
+                  </span>
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded"
+                    style={{ background:'rgba(245,158,11,0.15)', color:'#b45309' }}>
+                    {VIP_LEVEL_LABEL[level] || 'VIP'}
+                  </span>
+                </div>
+                <div className="text-xs text-ink-muted">{res.roomType?.name}</div>
+              </div>
+              <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                {room ? (
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full
+                    ${roomReady ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                    {roomReady ? `חדר ${room.number} מוכן ✓` : `חדר ${room.number} לא נקי!`}
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                    ⚠ ללא חדר
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── 7-day forecast strip ────────────────────────────────────────────────── */
+function ForecastStrip({ daily, totalRooms }) {
+  if (!daily?.length) return null;
+  const todayS = todayStr();
+
+  return (
+    <div className="card p-4 mb-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Calendar size={14} className="text-brand" />
+        <span className="font-semibold text-ink text-sm">תחזית 7 ימים</span>
+        <span className="text-xs text-ink-muted mr-auto">הגעות / יציאות / תפוסה</span>
+      </div>
+      <div className="grid grid-cols-7 gap-2">
+        {daily.slice(0, 7).map((d, i) => {
+          const { weekday, day, month } = fmtDayMini(d.date);
+          const isToday = d.date === todayS;
+          const occ = d.occupancy || 0;
+          const occColor = occ >= 80 ? '#059669' : occ >= 50 ? '#d97706' : '#6366f1';
+          const occBg    = occ >= 80 ? 'rgba(16,185,129,0.08)' : occ >= 50 ? 'rgba(245,158,11,0.08)' : 'rgba(99,102,241,0.06)';
+
+          return (
+            <div
+              key={d.date}
+              className={`rounded-lg p-2 text-center border transition-all
+                ${isToday
+                  ? 'border-indigo-300 ring-2 ring-indigo-200'
+                  : 'border-surface-border hover:border-brand/30'}
+              `}
+              style={{ background: isToday ? 'rgba(99,102,241,0.06)' : occBg }}
+            >
+              <div className={`text-xs font-medium mb-0.5 ${isToday ? 'text-indigo-600' : 'text-ink-muted'}`}>
+                {isToday ? 'היום' : weekday}
+              </div>
+              <div className={`text-base font-bold text-num ${isToday ? 'text-indigo-700' : 'text-ink'}`}>
+                {day}
+              </div>
+              <div className="text-xs text-ink-faint mb-1.5">{month}</div>
+              <div className="text-base font-bold text-num" style={{ color: occColor }}>
+                {occ}%
+              </div>
+              <div className="flex justify-center gap-1.5 mt-1">
+                <span className="flex items-center gap-0.5 text-xs text-violet-600" title="הגעות">
+                  <LogIn size={9} />
+                  {d.arrivals || 0}
+                </span>
+                <span className="flex items-center gap-0.5 text-xs text-orange-500" title="יציאות">
+                  <LogOut size={9} />
+                  {d.departures || 0}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -216,7 +424,7 @@ function OccupancyChart({ daily, totalRooms }) {
     <div className="card p-4">
       <div className="flex items-center gap-2 mb-3">
         <TrendingUp size={14} className="text-brand" />
-        <span className="font-semibold text-ink text-sm">תפוסה 7 ימים</span>
+        <span className="font-semibold text-ink text-sm">תפוסה 7 ימים אחרונים</span>
       </div>
       <ResponsiveContainer width="100%" height={120}>
         <BarChart data={chartData} barSize={14} margin={{ top:4, right:4, bottom:0, left:-24 }}>
@@ -354,12 +562,27 @@ export default function DashboardPage() {
 
   const [dismissed, setDismissed] = useState(new Set());
 
-  const { data: statsRaw,   loading: l1, error: e1, refetch } = useApi(() => dashboard.stats(propertyId),      [propertyId], skip);
-  const { data: alertsRaw,  loading: l2 }                     = useApi(() => dashboard.alerts(propertyId),     [propertyId], skip);
-  const { data: arrData,    loading: l3 }                     = useApi(() => dashboard.arrivals(propertyId),   [propertyId], skip);
-  const { data: depData,    loading: l4 }                     = useApi(() => dashboard.departures(propertyId), [propertyId], skip);
-  const { data: inHouseData, loading: l5 }                    = useApi(() => dashboard.inhouse(propertyId),    [propertyId], skip);
-  const { data: reportRaw,  loading: l6 }                     = useApi(() => reports.summary(propertyId, from7, addDaysStr(today, 1)), [propertyId], skip);
+  // ── auto-refresh every 2 minutes ──────────────────────────────────────────
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [countdown, setCountdown] = useState(120);
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { setRefreshKey(k => k + 1); return 120; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, []);
+
+  // ── data fetching ─────────────────────────────────────────────────────────
+  const { data: statsRaw,    loading: l1, error: e1, refetch } = useApi(() => dashboard.stats(propertyId),      [propertyId, refreshKey], skip);
+  const { data: alertsRaw,   loading: l2 }                     = useApi(() => dashboard.alerts(propertyId),     [propertyId, refreshKey], skip);
+  const { data: arrData,     loading: l3 }                     = useApi(() => dashboard.arrivals(propertyId),   [propertyId, refreshKey], skip);
+  const { data: depData,     loading: l4 }                     = useApi(() => dashboard.departures(propertyId), [propertyId, refreshKey], skip);
+  const { data: inHouseData, loading: l5 }                     = useApi(() => dashboard.inhouse(propertyId),    [propertyId, refreshKey], skip);
+  const { data: reportRaw,   loading: l6 }                     = useApi(() => reports.summary(propertyId, from7, addDaysStr(today, 1)), [propertyId, refreshKey], skip);
+  const { data: forecastRaw, loading: l7 }                     = useApi(() => reports.summary(propertyId, today, addDaysStr(today, 8)), [propertyId, refreshKey], skip);
 
   if (skip || l1 || l2 || l3 || l4 || l5) return <PageSpinner />;
   if (e1) return <ErrorState message={e1} onRetry={refetch} />;
@@ -369,8 +592,10 @@ export default function DashboardPage() {
   const departures = depData    || [];
   const inhouse    = inHouseData || [];
   const daily      = reportRaw?.daily || [];
+  const forecast   = forecastRaw?.daily || [];
 
   const activeAlerts = (alertsRaw || []).filter(a => !dismissed.has(a.id));
+  const todayDaily   = forecast[0]; // today's data from the forward-looking report
 
   // VIP arrivals first, then unassigned last
   const sortedArrivals = [...arrivals].sort((a, b) => {
@@ -381,6 +606,7 @@ export default function DashboardPage() {
   const todayLabel = new Date().toLocaleDateString('he-IL', {
     weekday:'long', day:'numeric', month:'long', year:'numeric',
   });
+  const isRefreshing = l1 || l2 || l3 || l4 || l5 || l6 || l7;
 
   return (
     <div className="animate-fade-in">
@@ -393,8 +619,18 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <LiveClock />
-          <button onClick={refetch} className="btn btn-ghost btn-icon" title="רענן">
-            <RefreshCw size={15} />
+          {/* auto-refresh countdown */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-hover">
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isRefreshing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+            <Clock size={11} className="text-ink-faint" />
+            <span className="font-mono text-xs text-ink-muted tabular-nums">{fmtCountdown(countdown)}</span>
+          </div>
+          <button
+            onClick={() => { setRefreshKey(k => k + 1); setCountdown(120); }}
+            className="btn btn-ghost btn-icon"
+            title="רענן עכשיו"
+          >
+            <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
@@ -422,13 +658,22 @@ export default function DashboardPage() {
 
       {/* ─── stat cards ─── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-        <StatCard icon={LogIn}     label="הגעות היום"   value={s.arrivals}    color="#7c3aed" bgColor="rgba(139,92,246,0.1)" sub={s.vipArrivals > 0 ? `${s.vipArrivals} VIP` : undefined}         onClick={() => navigate('/check-in')} />
-        <StatCard icon={LogOut}    label="יציאות היום"  value={s.departures}  color="#ea580c" bgColor="rgba(249,115,22,0.1)" sub={s.openBalances > 0 ? `${s.openBalances} יתרות` : undefined}     onClick={() => navigate('/check-out')} urgent={s.openBalances > 0} />
-        <StatCard icon={Users}     label="In House"     value={s.inHouse}     color="#2563eb" bgColor="rgba(59,130,246,0.1)" sub={`תפוסה ${s.occupancy || 0}%`}                                   onClick={() => navigate('/reservations')} />
-        <StatCard icon={BedDouble} label="חדרים נקיים" value={s.cleanRooms}  color="#059669" bgColor="rgba(16,185,129,0.1)" sub={`${s.dirtyRooms || 0} מלוכלכים`}                               onClick={() => navigate('/rooms')} />
-        <StatCard icon={Wrench}    label="Out of Order" value={s.oooRooms}    color="#dc2626" bgColor="rgba(239,68,68,0.1)"  sub={`${s.holdRooms || 0} Hold`} urgent={s.oooRooms > 0}            onClick={() => navigate('/maintenance')} />
-        <StatCard icon={TrendingUp} label="תפוסה"       value={`${s.occupancy || 0}%`} color="#0891b2" bgColor="rgba(6,182,212,0.1)" sub={`${s.inHouse || 0} / ${s.totalRooms || 0} חדרים`}     onClick={() => {}} />
+        <StatCard icon={LogIn}      label="הגעות היום"   value={s.arrivals}    color="#7c3aed" bgColor="rgba(139,92,246,0.1)" sub={s.vipArrivals > 0 ? `${s.vipArrivals} VIP` : undefined}         onClick={() => navigate('/check-in')} />
+        <StatCard icon={LogOut}     label="יציאות היום"  value={s.departures}  color="#ea580c" bgColor="rgba(249,115,22,0.1)" sub={s.openBalances > 0 ? `${s.openBalances} יתרות` : undefined}     onClick={() => navigate('/check-out')} urgent={s.openBalances > 0} />
+        <StatCard icon={Users}      label="In House"     value={s.inHouse}     color="#2563eb" bgColor="rgba(59,130,246,0.1)" sub={`תפוסה ${s.occupancy || 0}%`}                                   onClick={() => navigate('/reservations')} />
+        <StatCard icon={BedDouble}  label="חדרים נקיים" value={s.cleanRooms}  color="#059669" bgColor="rgba(16,185,129,0.1)" sub={`${s.dirtyRooms || 0} מלוכלכים`}                               onClick={() => navigate('/rooms')} />
+        <StatCard icon={Wrench}     label="Out of Order" value={s.oooRooms}    color="#dc2626" bgColor="rgba(239,68,68,0.1)"  sub={`${s.holdRooms || 0} Hold`} urgent={s.oooRooms > 0}            onClick={() => navigate('/maintenance')} />
+        <StatCard icon={TrendingUp} label="תפוסה"        value={`${s.occupancy || 0}%`} color="#0891b2" bgColor="rgba(6,182,212,0.1)" sub={`${s.inHouse || 0} / ${s.totalRooms || 0} חדרים`}     onClick={() => {}} />
       </div>
+
+      {/* ─── revenue KPIs ─── */}
+      {!l6 && (
+        <RevenueKpis
+          todayDaily={todayDaily}
+          totalRooms={s.totalRooms}
+          occupancy={s.occupancy}
+        />
+      )}
 
       {/* ─── quick actions ─── */}
       <QuickActions onNavigate={navigate} />
@@ -442,6 +687,9 @@ export default function DashboardPage() {
         occupied={s.inHouse}
         total={s.totalRooms}
       />
+
+      {/* ─── VIP callout ─── */}
+      <VipCallout arrivals={arrivals} onNavigate={navigate} />
 
       {/* ─── main 3-col grid ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
@@ -529,7 +777,7 @@ export default function DashboardPage() {
         {/* right column: chart + HK + maintenance */}
         <div className="flex flex-col gap-3">
 
-          {/* 7-day occupancy chart */}
+          {/* 7-day occupancy chart (historical) */}
           {!l6 && daily.length > 0 && (
             <OccupancyChart daily={daily} totalRooms={s.totalRooms} />
           )}
@@ -578,6 +826,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ─── 7-day forecast ─── */}
+      {!l7 && forecast.length > 0 && (
+        <ForecastStrip daily={forecast} totalRooms={s.totalRooms} />
+      )}
+
       {/* ─── in-house table ─── */}
       {inhouse.length > 0 && (
         <div className="card">
@@ -598,6 +851,7 @@ export default function DashboardPage() {
                 <th>חדר</th>
                 <th>סוג</th>
                 <th>יציאה</th>
+                <th>לילות נותרו</th>
                 <th>תשלום</th>
               </tr>
             </thead>
@@ -607,6 +861,9 @@ export default function DashboardPage() {
                 const dep = res.departureDate;
                 const leavesToday    = dep === today;
                 const leavesTomorrow = dep === addDaysStr(today, 1);
+                const nightsLeft = dep
+                  ? Math.max(0, Math.ceil((new Date(dep + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000))
+                  : null;
                 return (
                   <tr
                     key={res._id}
@@ -631,6 +888,15 @@ export default function DashboardPage() {
                       {fmtDate(dep)}
                       {leavesToday    && <span className="mr-1 text-amber-600">← היום</span>}
                       {leavesTomorrow && <span className="mr-1 text-blue-600">← מחר</span>}
+                    </td>
+                    <td>
+                      {nightsLeft !== null && (
+                        <span className={`text-xs font-semibold text-num
+                          ${nightsLeft === 0 ? 'text-amber-600' : nightsLeft === 1 ? 'text-blue-600' : 'text-ink-muted'}
+                        `}>
+                          {nightsLeft === 0 ? 'יוצא היום' : `${nightsLeft} לילות`}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span className={`badge ${res.paymentStatus === 'paid' ? 'badge-clean' : res.paymentStatus === 'balance_due' ? 'badge-dirty' : 'badge-pending'}`}>

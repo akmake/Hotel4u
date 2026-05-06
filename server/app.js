@@ -66,7 +66,10 @@ import pmsNotificationsRouter from './routes/notifications.js';
 import pmsUsersRouter        from './routes/users.js';
 import pmsAutomationRouter   from './routes/automation.js';
 import pmsPaymentsRouter     from './routes/payments.js';
-import pmsGroupsRouter       from './routes/groups.js';import pmsInvoiceRouter       from './routes/invoice.js';
+import pmsGroupsRouter          from './routes/groups.js';
+import pmsInvoiceRouter          from './routes/invoice.js';
+import pmsGuestRequestsRouter    from './routes/guest-requests.js';
+import pmsFolioRoutingRouter      from './routes/folio-routing.js';
 // --- חיבור למסד הנתונים ---
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -206,8 +209,10 @@ pmsRouter.use('/notifications', pmsNotificationsRouter);
 pmsRouter.use('/users',         pmsUsersRouter);
 pmsRouter.use('/automation',    pmsAutomationRouter);
 pmsRouter.use('/payments',      pmsPaymentsRouter);
-pmsRouter.use('/groups',        pmsGroupsRouter);
-pmsRouter.use('/invoices',      pmsInvoiceRouter);
+pmsRouter.use('/groups',         pmsGroupsRouter);
+pmsRouter.use('/invoices',       pmsInvoiceRouter);
+pmsRouter.use('/guest-requests', pmsGuestRequestsRouter);
+pmsRouter.use('/folio-routing',  pmsFolioRoutingRouter);
 
 // =========================================================================
 // ✨ הפתרון הכפול: חיבור ה-Router לשני הנתיבים

@@ -52,8 +52,10 @@ const SalesPerformancePage     = lazy(() => import('./pages/admin/SalesPerforman
 
 // ── hotel4u PMS (future) ──────────────────────────────────────────────────────
 const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
+const TapeChartPage        = lazy(() => import('./pages/TapeChartPage'));
 const RoomRackPage         = lazy(() => import('./pages/RoomRackPage'));
 const ReservationsPage     = lazy(() => import('./pages/ReservationsPage'));
+const NewReservationPage   = lazy(() => import('./pages/NewReservationPage'));
 const CheckInPage          = lazy(() => import('./pages/CheckInPage'));
 const CheckOutPage         = lazy(() => import('./pages/CheckOutPage'));
 const RoomsPage            = lazy(() => import('./pages/RoomsPage'));
@@ -174,8 +176,10 @@ export default function App() {
             {/* ── hotel4u PMS (future) ── */}
             <Route path="pms" element={<PmsRoleGuard />}>
               <Route index                    element={<DashboardPage />} />
+              <Route path="tape-chart"        element={<TapeChartPage />} />
               <Route path="room-rack"         element={<RoomRackPage />} />
               <Route path="reservations"      element={<ReservationsPage />} />
+              <Route path="reservations/new"  element={<NewReservationPage />} />
               <Route path="check-in"          element={<CheckInPage />} />
               <Route path="check-out"         element={<CheckOutPage />} />
               <Route path="rooms"             element={<RoomsPage />} />
