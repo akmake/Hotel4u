@@ -182,27 +182,18 @@ router.patch('/:id', asyncHandler(async (req, res) => {
   requireRoles(req, GUEST_WRITE_ROLES);
 
   const allowed = [
-    'firstName',
-    'lastName',
-    'email',
-    'phone',
-    'country',
-    'citizenship',
-    'language',
-    'gender',
-    'vipLevel',
-    'preferences',
-    'allergies',
-    'internalNotes',
-    'marketingConsent',
-    'privacyConsent',
-    'dateOfBirth',
-    'passportNumber',
-    'passportExpiry',
-    'loyaltyId',
-    'isBlacklisted',
-    'blacklistReason',
+    'firstName', 'lastName', 'email', 'phone',
+    'country', 'citizenship', 'language', 'gender',
+    'title', 'company', 'jobTitle',
+    'phones', 'emails', 'addresses',
+    'vipLevel', 'preferences', 'allergies', 'internalNotes',
+    'marketingConsent', 'privacyConsent',
+    'dateOfBirth', 'passportNumber', 'passportExpiry', 'idDocType',
+    'loyaltyId', 'membershipTier', 'membershipPoints',
+    'isBlacklisted', 'blacklistReason',
     'address',
+    'roomTypePreference', 'bedTypePreference', 'floorPreference',
+    'smokingPreference', 'pillow', 'newspaper', 'specialRequests',
   ];
 
   const guest = await GuestProfile.findById(req.params.id);
