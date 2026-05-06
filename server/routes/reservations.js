@@ -1,6 +1,5 @@
 ﻿import { Router } from 'express';
 import { z } from 'zod';
-import { asyncHandler } from '../middleware/errorHandler.js';
 import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import StaySegment from '../models/StaySegment.js';
@@ -27,6 +26,20 @@ const OVERRIDE_ROLES = ['super_admin', 'property_admin', 'general_manager', 'fro
 const HIGH_PRIV_CHECKIN_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const HIGH_PRIV_CHECKOUT_ROLES = ['super_admin', 'property_admin', 'general_manager', 'finance_manager', 'cashier'];
 const COMMERCIAL_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'revenue_manager', 'sales_manager'];
+
+const asyncHandler = (fn) => async (req, res, next) => {
+  try {
+    await fn(req, res, next);
+  } catch (err) {
+    if (res.headersSent) return next(err);
+    const status = Number(err?.status || err?.statusCode || 500);
+    const safeStatus = status >= 400 && status < 600 ? status : 500;
+    return res.status(safeStatus).json({
+      success: false,
+      error: err?.message || 'Internal server error',
+    });
+  }
+};
 
 function actorFromReq(req) {
   return actorOrSystem(req);

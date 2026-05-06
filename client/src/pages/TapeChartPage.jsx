@@ -383,6 +383,7 @@ export default function TapeChartPage() {
         <ReservationDrawer
           reservationId={selectedRes._id}
           propertyId={propertyId}
+          onChanged={refetch}
           onClose={() => { setSelectedRes(null); refetch(); }}
         />
       )}

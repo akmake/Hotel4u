@@ -128,8 +128,14 @@ export const reservations = {
   update:           (id, data)       => api.patch(`/reservations/${id}`, data),
   sendConfirmation: (id)             => api.post(`/reservations/${id}/send-confirmation`, {}),
   duplicate:        (id, data)       => api.post(`/reservations/${id}/duplicate`, data),
-  merge:            (id, sourceId)   => api.post('/reservations/merge', { targetId: id, sourceId }),
-  split:            (id, roomIds)    => api.post(`/reservations/${id}/split`, { reservationRoomIds: roomIds }),
+  merge:            (targetReservationId, sourceReservationId, transferCharges = true) =>
+    api.post('/reservations/merge', { targetReservationId, sourceReservationId, transferCharges }),
+  split:            (id, roomIdsOrPayload, extras = {}) => {
+    const payload = Array.isArray(roomIdsOrPayload)
+      ? { reservationRoomIds: roomIdsOrPayload, ...extras }
+      : (roomIdsOrPayload || {});
+    return api.post(`/reservations/${id}/split`, payload);
+  },
 
   // Operations
   checkIn:          (id, overrideClean, overrideEarlyArrival) => api.post(`/reservations/${id}/check-in`, { overrideClean, overrideEarlyArrival }),
@@ -148,7 +154,12 @@ export const reservations = {
   addService:       (id, data)      => api.post(`/reservations/${id}/add-service`, data),
   transferCharges:  (fromId, toId, lineIds) =>
     api.post('/reservations/transfer-charges', { fromReservationId: fromId, toReservationId: toId, lineIds }),
-  linkGroup:        (id, groupId)   => api.post(`/reservations/${id}/link-group`, { groupId }),
+  linkGroup:        (id, groupOrPayload) => {
+    const payload = typeof groupOrPayload === 'string'
+      ? { groupId: groupOrPayload }
+      : (groupOrPayload || {});
+    return api.post(`/reservations/${id}/link-group`, payload);
+  },
   assignRoom:       (id, roomId)    => api.patch(`/reservations/${id}/assign-room`, { roomId }),
 
   // Communication

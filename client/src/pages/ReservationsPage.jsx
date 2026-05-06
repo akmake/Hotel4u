@@ -575,7 +575,7 @@ export default function ReservationsPage() {
         <ReservationDrawer
           res={drawerRes}
           onClose={() => setDrawerRes(null)}
-          onUpdated={() => { refetch(); setDrawerRes(null); }}
+          onChanged={() => { refetch(); setDrawerRes(null); }}
         />
       )}
     </div>

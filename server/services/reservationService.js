@@ -17,6 +17,12 @@ import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 
 let _counter = 1000;
 
+function httpError(message, status = 500) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
 async function nextConfirmationNumber() {
   const last = await Reservation.findOne().sort({ createdAt: -1 }).select('confirmationNumber');
   if (last?.confirmationNumber) {
@@ -70,7 +76,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
   }
 
   const nights = Math.round((new Date(departureDate) - new Date(arrivalDate)) / 86400000);
-  if (nights <= 0) throw new Error('Invalid stay dates');
+  if (nights <= 0) throw httpError('Invalid stay dates', 400);
   const normalizedRoomsCount = Math.max(1, Number(roomsCount) || 1);
 
   const allowedStatus = new Set(['draft', 'quote', 'hold', 'pending_payment', 'confirmed']);
@@ -92,7 +98,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
         ignoreIdempotencyKey: idempotencyKey || null,
       })
     : { available: true, availableRooms: [], reason: null };
-  if (!avail.available && !allowOverbooking) throw new Error(`No availability: ${avail.reason}`);
+  if (!avail.available && !allowOverbooking) throw httpError(`No availability: ${avail.reason}`, 409);
 
   if (idempotencyKey && shouldCommitInventory) {
     await consumeAvailabilityLock({ propertyId, idempotencyKey }).catch(() => null);
@@ -250,27 +256,27 @@ export async function checkIn({ reservationId, actorId, actorName, ip, overrideC
   const res = await Reservation.findById(reservationId)
     .populate('assignedRoom')
     .populate('primaryGuest', 'isBlacklisted blacklistReason firstName lastName');
-  if (!res) throw new Error('Reservation not found');
-  if (!['confirmed', 'modified', 'pending_payment'].includes(res.status)) throw new Error(`Cannot check in from status ${res.status}`);
+  if (!res) throw httpError('Reservation not found', 404);
+  if (!['confirmed', 'modified', 'pending_payment'].includes(res.status)) throw httpError(`Cannot check in from status ${res.status}`, 409);
 
   // 14.1 — Blacklist check
   if (res.primaryGuest?.isBlacklisted) {
-    throw new Error(`Guest ${res.primaryGuest.firstName} ${res.primaryGuest.lastName} is blacklisted: ${res.primaryGuest.blacklistReason || 'no reason given'}`);
+    throw httpError(`Guest ${res.primaryGuest.firstName} ${res.primaryGuest.lastName} is blacklisted: ${res.primaryGuest.blacklistReason || 'no reason given'}`, 409);
   }
 
   // 14.1 — Arrival date validation
   const today = await todayByPropertyTimezone(res.property);
   if (res.arrivalDate > today && !overrideEarlyArrival) {
-    throw new Error(`Arrival date is ${res.arrivalDate}; early check-in requires manager override`);
+    throw httpError(`Arrival date is ${res.arrivalDate}; early check-in requires manager override`, 409);
   }
 
   const room = res.assignedRoom;
-  if (!room) throw new Error('No assigned room — assign a room before check-in');
+  if (!room) throw httpError('No assigned room - assign a room before check-in', 409);
   if (!overrideClean && !['clean', 'inspected'].includes(room.cleanStatus)) {
-    throw new Error(`Room ${room.number} is not clean (${room.cleanStatus})`);
+    throw httpError(`Room ${room.number} is not clean (${room.cleanStatus})`, 409);
   }
   if (room.opsStatus === 'out_of_order') {
-    throw new Error(`Room ${room.number} is out of order`);
+    throw httpError(`Room ${room.number} is out of order`, 409);
   }
 
   const before = res.toObject();
@@ -328,8 +334,8 @@ export async function checkIn({ reservationId, actorId, actorName, ip, overrideC
 
 export async function checkOut({ reservationId, actorId, actorName, ip, forceCheckout = false }) {
   const res = await Reservation.findById(reservationId).populate('assignedRoom');
-  if (!res) throw new Error('Reservation not found');
-  if (!['in_house', 'checked_in'].includes(res.status)) throw new Error(`Cannot check out from status ${res.status}`);
+  if (!res) throw httpError('Reservation not found', 404);
+  if (!['in_house', 'checked_in'].includes(res.status)) throw httpError(`Cannot check out from status ${res.status}`, 409);
 
   const folio = await Folio.findOne({ reservation: reservationId, status: 'open' });
   if (folio) {
@@ -337,7 +343,7 @@ export async function checkOut({ reservationId, actorId, actorName, ip, forceChe
       .filter(l => l.status === 'posted')
       .reduce((s, l) => s + l.amount + l.taxAmount, 0);
     if (balance > 0 && !forceCheckout) {
-      throw new Error(`Open balance: ${balance.toFixed(2)}`);
+      throw httpError(`Open balance: ${balance.toFixed(2)}`, 409);
     }
     folio.status = 'closed';
     folio.closedAt = new Date();
@@ -387,8 +393,8 @@ export async function checkOut({ reservationId, actorId, actorName, ip, forceChe
 
 export async function cancelReservation({ reservationId, reason, actorId, actorName, ip }) {
   const res = await Reservation.findById(reservationId);
-  if (!res) throw new Error('Reservation not found');
-  if (['cancelled', 'checked_out'].includes(res.status)) throw new Error('Reservation already closed/cancelled');
+  if (!res) throw httpError('Reservation not found', 404);
+  if (['cancelled', 'checked_out'].includes(res.status)) throw httpError('Reservation already closed/cancelled', 409);
 
   const before = res.toObject();
   res.status = 'cancelled';
@@ -436,9 +442,9 @@ export async function cancelReservation({ reservationId, reason, actorId, actorN
 
 export async function modifyReservation({ reservationId, data, actorId, actorName, ip }) {
   const res = await Reservation.findById(reservationId);
-  if (!res) throw new Error('Reservation not found');
+  if (!res) throw httpError('Reservation not found', 404);
   if (!['confirmed', 'modified'].includes(res.status)) {
-    throw new Error(`Cannot modify reservation from status ${res.status}`);
+    throw httpError(`Cannot modify reservation from status ${res.status}`, 409);
   }
 
   const before = res.toObject();
@@ -475,7 +481,7 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     const newRoomTypeId = roomTypeId || String(res.roomType);
 
     const nights = Math.round((new Date(newDeparture) - new Date(newArrival)) / 86400000);
-    if (nights <= 0) throw new Error('Invalid dates');
+    if (nights <= 0) throw httpError('Invalid dates', 400);
 
     await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -(res.roomsCount || 1), {
       propertyId: res.property,
@@ -504,7 +510,7 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
         action: 'inventory.reservation_modify_rollback_old',
         reason: `Reservation ${res.confirmationNumber}`,
       });
-      throw new Error(`No availability for new dates: ${avail.reason}`);
+      throw httpError(`No availability for new dates: ${avail.reason}`, 409);
     }
 
     await incrementInventory(res.property, newRoomTypeId, newArrival, newDeparture, (res.roomsCount || 1), {
@@ -590,12 +596,10 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
 
 export async function markNoShow({ reservationId, actorId, actorName, ip }) {
   const res = await Reservation.findById(reservationId);
-  if (!res) throw new Error('Reservation not found');
+  if (!res) throw httpError('Reservation not found', 404);
   const allowedStatuses = new Set(['confirmed', 'modified', 'pending_payment', 'hold']);
   if (!allowedStatuses.has(res.status)) {
-    const err = new Error(`Cannot mark no-show from status ${res.status}`);
-    err.status = 409;
-    throw err;
+    throw httpError(`Cannot mark no-show from status ${res.status}`, 409);
   }
   const before = res.toObject();
 
@@ -636,3 +640,4 @@ export async function markNoShow({ reservationId, actorId, actorName, ip }) {
 
   return res;
 }
+

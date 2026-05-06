@@ -4,7 +4,7 @@ import {
   CheckCircle2, BedDouble, Calendar, Users, Phone, Mail, Globe,
   Pencil, Save, Send, Link2, MessageSquare, RefreshCw, Plus,
   Clock, Copy, AlertTriangle, Home, ClipboardList, ChevronDown,
-  UserCheck, Hash, Info,
+  UserCheck, Hash, Info, Sparkles,
 } from 'lucide-react';
 import {
   reservations as resApi,
@@ -16,6 +16,7 @@ import { useToast } from '../../hooks/useToast';
 import { Spinner } from '../ui/Spinner';
 import { ToastContainer } from '../ui/Toast';
 import { TODAY } from '../../utils/date';
+import ReservationAdvancedTab from './ReservationAdvancedTab';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -861,25 +862,53 @@ function TabComms({ res }) {
 const TABS = [
   { key: 'details', label: 'פרטים',   icon: ClipboardList },
   { key: 'room',    label: 'חדר',     icon: BedDouble },
+  { key: 'advanced', label: 'פעולות', icon: Sparkles },
   { key: 'comms',   label: 'תקשורת', icon: Send },
 ];
 
-export default function ReservationDrawer({ res: initialRes, onClose, onChanged, onFolio }) {
-  const resId = String(initialRes?._id);
+export default function ReservationDrawer({
+  res: initialRes,
+  reservationId,
+  propertyId: propertyIdProp,
+  onClose,
+  onChanged,
+  onUpdated,
+  onFolio,
+}) {
+  const resId = String(initialRes?._id || reservationId || '');
   const [tab,     setTab]     = useState('details');
 
   const { data: freshRes, loading, error, refetch } = useApi(
     () => resApi.get(resId),
-    [resId]
+    [resId],
+    !resId
   );
 
   const res = freshRes || initialRes;
-  const propertyId = String(res.property?._id || res.property || '');
+  const propertyId = String(res?.property?._id || res?.property || propertyIdProp || '');
 
   const handleRefresh = useCallback(() => {
     refetch();
     onChanged?.();
-  }, [refetch, onChanged]);
+    onUpdated?.();
+  }, [refetch, onChanged, onUpdated]);
+
+  if (!res) {
+    return (
+      <div className="fixed inset-0 z-50 flex" style={{ direction: 'rtl' }}>
+        <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="w-full max-w-xl bg-white flex flex-col shadow-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+            <div className="text-sm font-semibold text-ink">טוען הזמנה...</div>
+            <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={18} /></button>
+          </div>
+          <div className="p-6 flex items-center justify-center">
+            <Spinner size={18} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const s = STATUS_CONFIG[res.status] || STATUS_CONFIG.confirmed;
   const n = nightsCount(res.arrivalDate, res.departureDate);
@@ -949,6 +978,7 @@ export default function ReservationDrawer({ res: initialRes, onClose, onChanged,
         <div className="flex-1 overflow-y-auto">
           {tab === 'details' && <TabDetails res={res} propertyId={propertyId} onRefresh={handleRefresh} />}
           {tab === 'room'    && <TabRoom    res={res} propertyId={propertyId} onRefresh={handleRefresh} />}
+          {tab === 'advanced' && <ReservationAdvancedTab res={res} propertyId={propertyId} onRefresh={handleRefresh} />}
           {tab === 'comms'   && <TabComms   res={res} />}
         </div>
       </div>

@@ -26,6 +26,12 @@ function datePlus(days) {
   return d.toISOString().slice(0, 10);
 }
 
+function addDaysYmd(ymd, days) {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + Number(days || 0));
+  return d.toISOString().slice(0, 10);
+}
+
 function ensureObjectIdLike(value) {
   return typeof value === 'string' && /^[a-fA-F0-9]{24}$/.test(value);
 }
@@ -192,6 +198,35 @@ async function run() {
     createdReservationD: null,
     createdReservationCFirstRoomId: null,
     splitChildReservationId: null,
+    createdReservationE: null,
+    createdReservationF: null,
+    duplicatedReservationFromB: null,
+    mergedTargetRoomIds: [],
+    mergeSourceConfirmation: null,
+    stage43DuplicateArrivalDate: datePlus(40),
+    stage43DuplicateDepartureDate: datePlus(42),
+    mergeSourceServiceDescription: `Stage4.3 merge source service ${Date.now()}`,
+    mergeTargetServiceDescription: `Stage4.3 merge target seed ${Date.now()}`,
+    createdReservationK: null,
+    createdReservationKFirstRoomId: null,
+    createdReservationKAssignedRoomId: null,
+    stage44AlternateRoomId: null,
+    stage44ExtendedDepartureDate: addDaysYmd(env.departureDate, 1),
+    stage44UpdatedRatePerNight: Number(env.ratePerNight) + 55,
+    createdReservationL: null,
+    createdReservationLFirstRoomId: null,
+    createdReservationLSegmentId: null,
+    stage45ArrivalDate: datePlus(25),
+    stage45DepartureDate: datePlus(28),
+    stage45EarlyDepartureDate: datePlus(27),
+    stage45UpgradeNightlyRate: Number(env.ratePerNight) + 77,
+    stage45RoomPatchNightlyRate: Number(env.ratePerNight) + 88,
+    stage45SegmentFromDate: datePlus(26),
+    stage45SegmentToDate: datePlus(27),
+    transferSourceLineId: null,
+    transferSourceDescription: `Stage4.2 transfer source ${Date.now()}`,
+    createdRoutingRuleId: null,
+    routingApplyDescription: `Stage4.2 routing apply ${Date.now()}`,
   };
 
   const baseReservations = `${env.baseUrl}/reservations`;
@@ -592,6 +627,1285 @@ async function run() {
       expect: [400],
       assert: (r) => assertFailureEnvelope(r),
     },
+    {
+      id: 'S4.2-WRITE-CREATE-E',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'POST',
+        url: baseReservations,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          roomTypeId: ctx.roomTypeId,
+          arrivalDate: env.arrivalDate,
+          departureDate: env.departureDate,
+          primaryGuestId: ctx.primaryGuestId,
+          adults: 2,
+          children: 0,
+          roomsCount: 1,
+          ratePerNight: env.ratePerNight,
+          source: 'direct',
+          marketSegment: 'stage4_2',
+          specialRequests: 'stage4.2 transfer source reservation',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'missing created reservation E id';
+        return null;
+      },
+      capture: (r) => { state.createdReservationE = r.json?.data?._id || null; },
+    },
+    {
+      id: 'S4.2-WRITE-CREATE-F',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'POST',
+        url: baseReservations,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          roomTypeId: ctx.roomTypeId,
+          arrivalDate: env.arrivalDate,
+          departureDate: env.departureDate,
+          primaryGuestId: ctx.primaryGuestId,
+          adults: 2,
+          children: 0,
+          roomsCount: 1,
+          ratePerNight: env.ratePerNight,
+          source: 'direct',
+          marketSegment: 'stage4_2',
+          specialRequests: 'stage4.2 transfer target reservation',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'missing created reservation F id';
+        return null;
+      },
+      capture: (r) => { state.createdReservationF = r.json?.data?._id || null; },
+    },
+    {
+      id: 'S4.2-WRITE-ADD-SERVICE-E',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationE)) return 'created reservation E unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationE}/add-service`,
+        token: ctx.receptionistToken,
+        body: {
+          description: state.transferSourceDescription,
+          amount: 80,
+          department: 'service',
+          quantity: 1,
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const lines = r.json?.data?.lines || [];
+        const sourceLine = lines.find((line) => line.description === state.transferSourceDescription);
+        if (!sourceLine?._id) return 'source transfer line not found in folio';
+        return null;
+      },
+      capture: (r) => {
+        const lines = r.json?.data?.lines || [];
+        const sourceLine = lines.find((line) => line.description === state.transferSourceDescription);
+        state.transferSourceLineId = sourceLine?._id || null;
+      },
+    },
+    {
+      id: 'S4.2-RBAC-RECEPTION-TRANSFER-CHARGES-FORBIDDEN',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationE)) return 'created reservation E unavailable';
+        if (!ensureObjectIdLike(state.createdReservationF)) return 'created reservation F unavailable';
+        if (!ensureObjectIdLike(state.transferSourceLineId)) return 'transfer source line id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/transfer-charges`,
+        token: ctx.receptionistToken,
+        body: {
+          fromReservationId: state.createdReservationE,
+          toReservationId: state.createdReservationF,
+          lineIds: [state.transferSourceLineId],
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S4.2-WRITE-TRANSFER-CHARGES-ADMIN',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationE)) return 'created reservation E unavailable';
+        if (!ensureObjectIdLike(state.createdReservationF)) return 'created reservation F unavailable';
+        if (!ensureObjectIdLike(state.transferSourceLineId)) return 'transfer source line id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/transfer-charges`,
+        token: ctx.adminToken,
+        body: {
+          fromReservationId: state.createdReservationE,
+          toReservationId: state.createdReservationF,
+          lineIds: [state.transferSourceLineId],
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const moved = r.json?.data?.movedLineIds || [];
+        if (!moved.includes(state.transferSourceLineId)) return 'expected moved line id missing';
+        return null;
+      },
+    },
+    {
+      id: 'S4.2-VERIFY-TRANSFER-FOLIOS',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationE)) return 'created reservation E unavailable';
+        if (!ensureObjectIdLike(state.createdReservationF)) return 'created reservation F unavailable';
+        if (!ensureObjectIdLike(state.transferSourceLineId)) return 'transfer source line id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${env.baseUrl}/folio/reservation/${state.createdReservationE}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: async (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const sourceLines = r.json?.data?.lines || [];
+        const sourceLine = sourceLines.find((line) => String(line._id) === String(state.transferSourceLineId));
+        if (!sourceLine) return 'source transfer line missing after transfer';
+        if (sourceLine.status !== 'voided') return `expected source line status voided, got ${String(sourceLine.status)}`;
+
+        const targetRes = await requestJson({
+          method: 'GET',
+          url: `${env.baseUrl}/folio/reservation/${state.createdReservationF}`,
+          token: ctx.adminToken,
+        });
+        if (targetRes.status !== 200) return `target folio fetch failed with status ${targetRes.status}`;
+        const targetEnvErr = assertSuccessEnvelope(targetRes);
+        if (targetEnvErr) return `target folio envelope invalid: ${targetEnvErr}`;
+
+        const targetLines = targetRes.json?.data?.lines || [];
+        const hasTransferredLine = targetLines.some((line) => String(line.description || '').includes('[Transfer from'));
+        if (!hasTransferredLine) return 'target folio missing transferred line marker';
+        return null;
+      },
+    },
+    {
+      id: 'S4.2-RBAC-RECEPTION-ROUTING-CREATE-FORBIDDEN',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationE)) return 'created reservation E unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${env.baseUrl}/folio-routing`,
+        token: ctx.receptionistToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationId: state.createdReservationE,
+          name: 'stage4.2 unauthorized routing create',
+          departments: ['service'],
+          chargeTypes: ['charge'],
+          percentage: 60,
+          targetOwnerType: 'company',
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S4.2-WRITE-ROUTING-CREATE-ADMIN',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationE)) return 'created reservation E unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${env.baseUrl}/folio-routing`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationId: state.createdReservationE,
+          name: 'stage4.2 routing split 60/40',
+          departments: ['service'],
+          chargeTypes: ['charge'],
+          percentage: 60,
+          targetOwnerType: 'company',
+          notes: 'stage4.2 routing rule',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'missing routing rule id';
+        return null;
+      },
+      capture: (r) => { state.createdRoutingRuleId = r.json?.data?._id || null; },
+    },
+    {
+      id: 'S4.2-WRITE-ROUTING-APPLY-ADMIN',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationE)) return 'created reservation E unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${env.baseUrl}/folio-routing/apply`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationId: state.createdReservationE,
+          department: 'service',
+          chargeType: 'charge',
+          serviceDate: env.arrivalDate,
+          amount: 100,
+          taxAmount: 17,
+          description: state.routingApplyDescription,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const applied = r.json?.data?.applied || [];
+        if (!Array.isArray(applied) || applied.length === 0) return 'routing apply returned no postings';
+        const hasGuest = applied.some((item) => item.ownerType === 'guest');
+        const hasNonGuest = applied.some((item) => item.ownerType && item.ownerType !== 'guest');
+        if (!hasGuest || !hasNonGuest) return 'expected split postings for guest and non-guest folios';
+        return null;
+      },
+    },
+    {
+      id: 'S4.2-WRITE-ROUTING-PATCH-DEACTIVATE',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdRoutingRuleId)) return 'routing rule id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'PATCH',
+        url: `${env.baseUrl}/folio-routing/${state.createdRoutingRuleId}`,
+        token: ctx.adminToken,
+        body: { active: false },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.active !== false) return `expected active=false, got ${String(r.json?.data?.active)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.2-WRITE-ROUTING-DELETE',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdRoutingRuleId)) return 'routing rule id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'DELETE',
+        url: `${env.baseUrl}/folio-routing/${state.createdRoutingRuleId}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.deleted !== true) return 'expected deleted=true';
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-WRITE-DUPLICATE-B',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationB}/duplicate`,
+        token: ctx.receptionistToken,
+        body: {
+          arrivalDate: state.stage43DuplicateArrivalDate,
+          departureDate: state.stage43DuplicateDepartureDate,
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const newId = r.json?.data?._id;
+        if (!ensureObjectIdLike(newId)) return 'missing duplicated reservation id';
+        if (String(newId) === String(state.createdReservationB)) return 'duplicate returned same reservation id';
+        return null;
+      },
+      capture: (r) => {
+        state.duplicatedReservationFromB = r.json?.data?._id || null;
+        state.mergeSourceConfirmation = r.json?.data?.confirmationNumber || null;
+      },
+    },
+    {
+      id: 'S4.3-VERIFY-DUPLICATE-B',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.duplicatedReservationFromB)) return 'duplicated reservation id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.duplicatedReservationFromB}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const data = r.json?.data || {};
+        if (String(data.marketSegment || '') !== 'stage4') return `expected marketSegment stage4, got ${String(data.marketSegment)}`;
+        if (Number(data.roomsCount || 0) < 1) return `expected roomsCount >= 1, got ${String(data.roomsCount)}`;
+        if (String(data.arrivalDate || '').slice(0, 10) !== state.stage43DuplicateArrivalDate) return 'duplicate arrivalDate mismatch';
+        if (String(data.departureDate || '').slice(0, 10) !== state.stage43DuplicateDepartureDate) return 'duplicate departureDate mismatch';
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-WRITE-ADD-SERVICE-DUPLICATE-SOURCE',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.duplicatedReservationFromB)) return 'duplicated reservation id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.duplicatedReservationFromB}/add-service`,
+        token: ctx.receptionistToken,
+        body: {
+          description: state.mergeSourceServiceDescription,
+          amount: 95,
+          department: 'service',
+          quantity: 1,
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const lines = r.json?.data?.lines || [];
+        const added = lines.find((line) => line.description === state.mergeSourceServiceDescription);
+        if (!added?._id) return 'source merge service line missing';
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-WRITE-ADD-SERVICE-B-TARGET-SEED',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationB}/add-service`,
+        token: ctx.receptionistToken,
+        body: {
+          description: state.mergeTargetServiceDescription,
+          amount: 35,
+          department: 'service',
+          quantity: 1,
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const lines = r.json?.data?.lines || [];
+        const added = lines.find((line) => line.description === state.mergeTargetServiceDescription);
+        if (!added?._id) return 'target merge seed service line missing';
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-WRITE-MERGE-DUPLICATE-INTO-B',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.duplicatedReservationFromB)) return 'duplicated reservation id unavailable';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/merge`,
+        token: ctx.receptionistToken,
+        body: {
+          sourceReservationId: state.duplicatedReservationFromB,
+          targetReservationId: state.createdReservationB,
+          transferCharges: true,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (String(r.json?.data?.mergedInto || '') !== String(state.createdReservationB)) return 'merge target id mismatch';
+        if (String(r.json?.data?.mergedFrom || '') !== String(state.duplicatedReservationFromB)) return 'merge source id mismatch';
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-VERIFY-MERGE-SOURCE-CANCELLED',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.duplicatedReservationFromB)) return 'duplicated reservation id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.duplicatedReservationFromB}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'cancelled') return `expected cancelled, got ${String(r.json?.data?.status)}`;
+        const rooms = r.json?.data?.reservationRooms || [];
+        if (rooms.length !== 0) return `expected 0 rooms on merged source, got ${rooms.length}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-VERIFY-MERGE-TARGET-ROOMS',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationB}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'modified') return `expected modified, got ${String(r.json?.data?.status)}`;
+        const rooms = r.json?.data?.reservationRooms || [];
+        if (rooms.length < 2) return `expected target to have >=2 rooms after merge, got ${rooms.length}`;
+        return null;
+      },
+      capture: (r) => {
+        const rooms = r.json?.data?.reservationRooms || [];
+        state.mergedTargetRoomIds = rooms.map((room) => room?._id).filter(ensureObjectIdLike).slice(0, 2);
+      },
+    },
+    {
+      id: 'S4.3-VERIFY-MERGE-TARGET-FOLIO',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${env.baseUrl}/folio/reservation/${state.createdReservationB}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const lines = r.json?.data?.lines || [];
+        const mergedServiceLine = lines.find((line) => String(line.description || '').includes(state.mergeSourceServiceDescription));
+        if (!mergedServiceLine) return 'merged source service line missing in target folio';
+        if (!String(mergedServiceLine.description || '').includes('[Merged ')) return 'merged source service line missing [Merged marker';
+        if (state.mergeSourceConfirmation && !String(mergedServiceLine.description || '').includes(state.mergeSourceConfirmation)) {
+          return 'merged source service line missing source confirmation number';
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-RBAC-RESTRICTED-PARTIAL-CHECKIN-FORBIDDEN',
+      skip: () => {
+        if (!ctx.restrictedToken) return 'restricted-role user not found';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        if (state.mergedTargetRoomIds.length < 1) return 'merged target room ids unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationB}/partial-check-in`,
+        token: ctx.restrictedToken,
+        body: { reservationRoomIds: [state.mergedTargetRoomIds[0]] },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S4.3-WRITE-PARTIAL-CHECKIN-FIRST',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        if (state.mergedTargetRoomIds.length < 2) return 'merged target room ids unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationB}/partial-check-in`,
+        token: ctx.adminToken,
+        body: {
+          reservationRoomIds: [state.mergedTargetRoomIds[0]],
+          overrideClean: true,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'partially_checked_in') return `expected partially_checked_in, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-WRITE-PARTIAL-CHECKIN-SECOND',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        if (state.mergedTargetRoomIds.length < 2) return 'merged target room ids unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationB}/partial-check-in`,
+        token: ctx.adminToken,
+        body: {
+          reservationRoomIds: [state.mergedTargetRoomIds[1]],
+          overrideClean: true,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'in_house') return `expected in_house, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-WRITE-PARTIAL-CHECKOUT-FIRST',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        if (state.mergedTargetRoomIds.length < 2) return 'merged target room ids unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationB}/partial-check-out`,
+        token: ctx.receptionistToken,
+        body: { reservationRoomIds: [state.mergedTargetRoomIds[0]] },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'partially_checked_out') return `expected partially_checked_out, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-WRITE-PARTIAL-CHECKOUT-SECOND',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        if (state.mergedTargetRoomIds.length < 2) return 'merged target room ids unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationB}/partial-check-out`,
+        token: ctx.receptionistToken,
+        body: { reservationRoomIds: [state.mergedTargetRoomIds[1]] },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'checked_out') return `expected checked_out, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.3-VERIFY-PARTIAL-FINAL-ROOM-STATUSES',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationB)) return 'created reservation B unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationB}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'checked_out') return `expected checked_out, got ${String(r.json?.data?.status)}`;
+        const rooms = r.json?.data?.reservationRooms || [];
+        const allCheckedOut = rooms.length >= 2 && rooms.every((room) => room?.status === 'checked_out');
+        if (!allCheckedOut) return 'expected all reservation rooms to be checked_out after partial flow';
+        return null;
+      },
+    },
+    {
+      id: 'S4.4-WRITE-CREATE-K',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'POST',
+        url: baseReservations,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          roomTypeId: ctx.roomTypeId,
+          arrivalDate: env.arrivalDate,
+          departureDate: env.departureDate,
+          primaryGuestId: ctx.primaryGuestId,
+          adults: 2,
+          children: 0,
+          roomsCount: 1,
+          ratePerNight: env.ratePerNight,
+          source: 'direct',
+          marketSegment: 'stage4_4',
+          specialRequests: 'stage4.4 checkin-checkout-extend-assign',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'missing created reservation K id';
+        return null;
+      },
+      capture: (r) => { state.createdReservationK = r.json?.data?._id || null; },
+    },
+    {
+      id: 'S4.4-WRITE-DETAILS-K',
+      skip: () => (!ensureObjectIdLike(state.createdReservationK) ? 'created reservation K unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationK}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const rooms = r.json?.data?.reservationRooms;
+        if (!Array.isArray(rooms) || rooms.length < 1) return 'reservation K must include at least one reservation room';
+        if (!ensureObjectIdLike(r.json?.data?.assignedRoom?._id)) return 'reservation K assigned room missing';
+        return null;
+      },
+      capture: (r) => {
+        const rooms = r.json?.data?.reservationRooms || [];
+        state.createdReservationKFirstRoomId = rooms[0]?._id || null;
+        state.createdReservationKAssignedRoomId = r.json?.data?.assignedRoom?._id || null;
+      },
+    },
+    {
+      id: 'S4.4-WRITE-LIST-ROOMS-FOR-ASSIGN',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${env.baseUrl}/rooms?propertyId=${encodeURIComponent(ctx.propertyId)}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!Array.isArray(r.json?.data) || r.json.data.length === 0) return 'rooms list is empty';
+        return null;
+      },
+      capture: (r) => {
+        const rooms = Array.isArray(r.json?.data) ? r.json.data : [];
+        const candidate = rooms.find((room) => (
+          ensureObjectIdLike(room?._id)
+          && String(room._id) !== String(state.createdReservationKAssignedRoomId)
+          && room.opsStatus !== 'out_of_order'
+          && ['clean', 'inspected'].includes(String(room.cleanStatus || '').toLowerCase())
+          && String(room.occStatus || '').toLowerCase() !== 'occupied'
+        ));
+        state.stage44AlternateRoomId = candidate?._id || state.createdReservationKAssignedRoomId || null;
+      },
+    },
+    {
+      id: 'S4.4-RBAC-RESTRICTED-ASSIGN-ROOM-FORBIDDEN',
+      skip: () => {
+        if (!ctx.restrictedToken) return 'restricted-role user not found';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        if (!ensureObjectIdLike(state.createdReservationKFirstRoomId)) return 'reservation K room id unavailable';
+        if (!ensureObjectIdLike(state.stage44AlternateRoomId)) return 'target assign-room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'PATCH',
+        url: `${baseReservations}/${state.createdReservationK}/assign-room`,
+        token: ctx.restrictedToken,
+        body: {
+          roomId: state.stage44AlternateRoomId,
+          reservationRoomId: state.createdReservationKFirstRoomId,
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S4.4-WRITE-ASSIGN-ROOM-RECEPTION',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        if (!ensureObjectIdLike(state.createdReservationKFirstRoomId)) return 'reservation K room id unavailable';
+        if (!ensureObjectIdLike(state.stage44AlternateRoomId)) return 'target assign-room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'PATCH',
+        url: `${baseReservations}/${state.createdReservationK}/assign-room`,
+        token: ctx.receptionistToken,
+        body: {
+          roomId: state.stage44AlternateRoomId,
+          reservationRoomId: state.createdReservationKFirstRoomId,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const assignedId = r.json?.data?.assignedRoom?._id || r.json?.data?.assignedRoom;
+        if (String(assignedId || '') !== String(state.stage44AlternateRoomId)) {
+          return `expected assignedRoom ${String(state.stage44AlternateRoomId)}, got ${String(assignedId)}`;
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S4.4-WRITE-EXTEND-INVALID-BLOCKED',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationK}/extend`,
+        token: ctx.receptionistToken,
+        body: {
+          newDepartureDate: env.arrivalDate,
+        },
+      }),
+      expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S4.4-WRITE-EXTEND-SUCCESS',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationK}/extend`,
+        token: ctx.receptionistToken,
+        body: {
+          newDepartureDate: state.stage44ExtendedDepartureDate,
+          nightlyRate: state.stage44UpdatedRatePerNight,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (String(r.json?.data?.departureDate || '').slice(0, 10) !== state.stage44ExtendedDepartureDate) {
+          return 'extend did not update departureDate as expected';
+        }
+        if (Number(r.json?.data?.ratePerNight) !== Number(state.stage44UpdatedRatePerNight)) {
+          return `expected ratePerNight ${state.stage44UpdatedRatePerNight}, got ${String(r.json?.data?.ratePerNight)}`;
+        }
+        if (r.json?.data?.status !== 'modified') return `expected modified, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.4-WRITE-CHECKOUT-BEFORE-CHECKIN-BLOCKED',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationK}/check-out`,
+        token: ctx.receptionistToken,
+        body: {},
+      }),
+      expect: [409],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S4.4-RBAC-RECEPTION-CHECKIN-OVERRIDE-FORBIDDEN',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationK}/check-in`,
+        token: ctx.receptionistToken,
+        body: {
+          overrideEarlyArrival: true,
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S4.4-WRITE-CHECKIN-ADMIN-OVERRIDE',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationK}/check-in`,
+        token: ctx.adminToken,
+        body: {
+          overrideEarlyArrival: true,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'in_house') return `expected in_house, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.4-RBAC-RECEPTION-FORCE-CHECKOUT-FORBIDDEN',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationK}/check-out`,
+        token: ctx.receptionistToken,
+        body: {
+          forceCheckout: true,
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S4.4-WRITE-CHECKOUT-ADMIN-FORCE',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationK}/check-out`,
+        token: ctx.adminToken,
+        body: {
+          forceCheckout: true,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'checked_out') return `expected checked_out, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.4-VERIFY-CHECKOUT-FINAL-ROOM-STATUSES',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationK)) return 'created reservation K unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationK}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.status !== 'checked_out') return `expected checked_out, got ${String(r.json?.data?.status)}`;
+        const rooms = r.json?.data?.reservationRooms || [];
+        const allCheckedOut = rooms.length >= 1 && rooms.every((room) => room?.status === 'checked_out');
+        if (!allCheckedOut) return 'expected all reservation K rooms to be checked_out';
+        return null;
+      },
+    },
+    {
+      id: 'S4.5-WRITE-CREATE-L',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'POST',
+        url: baseReservations,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          roomTypeId: ctx.roomTypeId,
+          arrivalDate: state.stage45ArrivalDate,
+          departureDate: state.stage45DepartureDate,
+          primaryGuestId: ctx.primaryGuestId,
+          adults: 2,
+          children: 0,
+          roomsCount: 1,
+          ratePerNight: env.ratePerNight,
+          source: 'direct',
+          marketSegment: 'stage4_5',
+          specialRequests: 'stage4.5 early-departure-upgrade-segments',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'missing created reservation L id';
+        return null;
+      },
+      capture: (r) => { state.createdReservationL = r.json?.data?._id || null; },
+    },
+    {
+      id: 'S4.5-WRITE-DETAILS-L',
+      skip: () => (!ensureObjectIdLike(state.createdReservationL) ? 'created reservation L unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationL}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const rooms = r.json?.data?.reservationRooms;
+        if (!Array.isArray(rooms) || rooms.length < 1) return 'reservation L must include at least one reservation room';
+        return null;
+      },
+      capture: (r) => {
+        const rooms = r.json?.data?.reservationRooms || [];
+        state.createdReservationLFirstRoomId = rooms[0]?._id || null;
+      },
+    },
+    {
+      id: 'S4.5-RBAC-RECEPTION-UPGRADE-FORBIDDEN',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationL)) return 'created reservation L unavailable';
+        if (!ensureObjectIdLike(state.createdReservationLFirstRoomId)) return 'reservation L room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationL}/upgrade`,
+        token: ctx.receptionistToken,
+        body: {
+          reservationRoomId: state.createdReservationLFirstRoomId,
+          nightlyRate: state.stage45UpgradeNightlyRate,
+          reason: 'stage4.5 unauthorized upgrade check',
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S4.5-WRITE-UPGRADE-ADMIN',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationL)) return 'created reservation L unavailable';
+        if (!ensureObjectIdLike(state.createdReservationLFirstRoomId)) return 'reservation L room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationL}/upgrade`,
+        token: ctx.adminToken,
+        body: {
+          reservationRoomId: state.createdReservationLFirstRoomId,
+          nightlyRate: state.stage45UpgradeNightlyRate,
+          reason: 'stage4.5 upgrade rate adjustment',
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (Number(r.json?.data?.reservationRoom?.nightlyRate) !== Number(state.stage45UpgradeNightlyRate)) {
+          return `expected nightlyRate ${state.stage45UpgradeNightlyRate}, got ${String(r.json?.data?.reservationRoom?.nightlyRate)}`;
+        }
+        if (!ensureObjectIdLike(r.json?.data?.segment?._id)) return 'upgrade segment id missing';
+        return null;
+      },
+    },
+    {
+      id: 'S4.5-VERIFY-UPGRADE-DETAILS-L',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationL)) return 'created reservation L unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationL}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (Number(r.json?.data?.ratePerNight) !== Number(state.stage45UpgradeNightlyRate)) {
+          return `expected reservation ratePerNight ${state.stage45UpgradeNightlyRate}, got ${String(r.json?.data?.ratePerNight)}`;
+        }
+        if (r.json?.data?.status !== 'modified') return `expected modified, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.5-WRITE-ROOM-PATCH-RECEPTION',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationLFirstRoomId)) return 'reservation L room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'PATCH',
+        url: `${baseReservations}/rooms/${state.createdReservationLFirstRoomId}`,
+        token: ctx.receptionistToken,
+        body: {
+          nightlyRate: state.stage45RoomPatchNightlyRate,
+          notes: 'stage4.5 room patch notes',
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (Number(r.json?.data?.nightlyRate) !== Number(state.stage45RoomPatchNightlyRate)) {
+          return `expected room nightlyRate ${state.stage45RoomPatchNightlyRate}, got ${String(r.json?.data?.nightlyRate)}`;
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S4.5-WRITE-ROOM-SEGMENTS-LIST-BASE',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationLFirstRoomId)) return 'reservation L room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/rooms/${state.createdReservationLFirstRoomId}/segments`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!Array.isArray(r.json?.data) || r.json.data.length < 1) return 'expected at least one baseline stay segment';
+        return null;
+      },
+    },
+    {
+      id: 'S4.5-RBAC-RESTRICTED-ADD-SEGMENT-FORBIDDEN',
+      skip: () => {
+        if (!ctx.restrictedToken) return 'restricted-role user not found';
+        if (!ensureObjectIdLike(state.createdReservationLFirstRoomId)) return 'reservation L room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/rooms/${state.createdReservationLFirstRoomId}/segments`,
+        token: ctx.restrictedToken,
+        body: {
+          fromDate: state.stage45SegmentFromDate,
+          toDate: state.stage45SegmentToDate,
+          ratePerNight: state.stage45RoomPatchNightlyRate,
+          changeReason: 'stage4.5 restricted segment add',
+        },
+      }),
+      expect: [403],
+    },
+    {
+      id: 'S4.5-WRITE-ADD-SEGMENT-INVALID-BLOCKED',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationLFirstRoomId)) return 'reservation L room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/rooms/${state.createdReservationLFirstRoomId}/segments`,
+        token: ctx.receptionistToken,
+        body: {
+          fromDate: state.stage45DepartureDate,
+          toDate: addDaysYmd(state.stage45DepartureDate, 1),
+          ratePerNight: state.stage45RoomPatchNightlyRate,
+          changeReason: 'stage4.5 invalid segment bounds',
+        },
+      }),
+      expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S4.5-WRITE-ADD-SEGMENT-SUCCESS',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationLFirstRoomId)) return 'reservation L room id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/rooms/${state.createdReservationLFirstRoomId}/segments`,
+        token: ctx.receptionistToken,
+        body: {
+          fromDate: state.stage45SegmentFromDate,
+          toDate: state.stage45SegmentToDate,
+          ratePerNight: state.stage45RoomPatchNightlyRate,
+          changeReason: 'stage4.5 valid segment add',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'created segment id missing';
+        return null;
+      },
+      capture: (r) => { state.createdReservationLSegmentId = r.json?.data?._id || null; },
+    },
+    {
+      id: 'S4.5-WRITE-ROOM-SEGMENTS-LIST-AFTER',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationLFirstRoomId)) return 'reservation L room id unavailable';
+        if (!ensureObjectIdLike(state.createdReservationLSegmentId)) return 'created segment id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/rooms/${state.createdReservationLFirstRoomId}/segments`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const segments = Array.isArray(r.json?.data) ? r.json.data : [];
+        const found = segments.some((segment) => String(segment?._id) === String(state.createdReservationLSegmentId));
+        if (!found) return 'newly added segment not found in segments list';
+        return null;
+      },
+    },
+    {
+      id: 'S4.5-WRITE-EARLY-DEPARTURE-INVALID-BLOCKED',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationL)) return 'created reservation L unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationL}/early-departure`,
+        token: ctx.receptionistToken,
+        body: {
+          newDepartureDate: state.stage45ArrivalDate,
+        },
+      }),
+      expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S4.5-WRITE-EARLY-DEPARTURE-SUCCESS',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist user not found';
+        if (!ensureObjectIdLike(state.createdReservationL)) return 'created reservation L unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationL}/early-departure`,
+        token: ctx.receptionistToken,
+        body: {
+          newDepartureDate: state.stage45EarlyDepartureDate,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (String(r.json?.data?.departureDate || '').slice(0, 10) !== state.stage45EarlyDepartureDate) {
+          return 'early-departure did not update departureDate as expected';
+        }
+        if (r.json?.data?.status !== 'modified') return `expected modified, got ${String(r.json?.data?.status)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S4.5-VERIFY-EARLY-DEPARTURE-ROOM-DATES',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationL)) return 'created reservation L unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationL}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        const rooms = r.json?.data?.reservationRooms || [];
+        const allUpdated = rooms.length >= 1 && rooms.every((room) => String(room?.departureDate || '').slice(0, 10) === state.stage45EarlyDepartureDate);
+        if (!allUpdated) return 'not all reservation-room departure dates updated after early-departure';
+        return null;
+      },
+    },
   ];
 
   const results = [];
@@ -621,7 +1935,7 @@ async function run() {
       errs.push(`status ${result.status} not in expected [${tc.expect.join(', ')}]`);
     }
     if (tc.assert) {
-      const customErr = tc.assert(result);
+      const customErr = await tc.assert(result);
       if (customErr) errs.push(customErr);
     }
 
@@ -648,6 +1962,11 @@ async function run() {
     state.createdReservationB,
     state.createdReservationC,
     state.createdReservationD,
+    state.createdReservationE,
+    state.createdReservationF,
+    state.duplicatedReservationFromB,
+    state.createdReservationK,
+    state.createdReservationL,
     state.splitChildReservationId,
   ].filter(ensureObjectIdLike);
   for (const reservationId of cleanupTargets) {

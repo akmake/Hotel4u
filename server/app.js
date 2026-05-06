@@ -13,6 +13,7 @@ import http from 'http';
 import { initSocket } from './socket.js';
 import { initWhatsAppListener } from './services/whatsappService.js';
 import requireAuth from './middlewares/requireAuth.js';
+import { errorHandler } from './middleware/errorHandler.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -223,6 +224,9 @@ app.use('/api/pms', pmsRouter);
 
 // 2. עבור Localhost (כשהלקוח שולח /api/...)
 app.use('/api', apiRouter);
+app.use('/api', (_req, res) => {
+  res.status(404).json({ success: false, error: 'API route not found.' });
+});
 
 // 3. עבור Production/Nginx (כשה-Nginx חותך את ה-/api)
 app.use('/', apiRouter);
@@ -235,8 +239,8 @@ app.use(express.static(clientBuildPath));
 
 app.use('*', (req, res) => {
   // אם זו בקשת API שלא נמצאה באף אחד מה-Routers למעלה
-  if (req.headers.accept && req.headers.accept.includes('application/json')) {
-    return res.status(404).json({ message: 'API route not found.' });
+  if (req.path.startsWith('/api') || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+    return res.status(404).json({ success: false, error: 'API route not found.' });
   }
 
   const indexHtmlPath = path.resolve(clientBuildPath, 'index.html');
@@ -248,8 +252,9 @@ app.use('*', (req, res) => {
 });
 
 // --- הפעלת שירותים נוספים ---
+app.use(errorHandler);
 if (process.env.DISABLE_WHATSAPP === '1') {
-  console.log('ℹ️ WhatsApp listener disabled (DISABLE_WHATSAPP=1)');
+  console.log('WhatsApp listener disabled (DISABLE_WHATSAPP=1)');
 } else {
   initWhatsAppListener();
 }
@@ -259,3 +264,5 @@ const PORT = process.env.PORT || 4000;
 httpServer.listen(PORT, () => console.log(`✔ Server & Socket running on port ${PORT}`));
 
 export default app;
+
+
