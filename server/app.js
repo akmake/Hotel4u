@@ -47,7 +47,7 @@ import { initScheduler } from './services/scheduler.js';
 import { getCalendarData } from './controllers/admin/calendarController.js';
 
 // --- ייבוא נתיבי PMS (hotel4u) ---
-import { attachActor }       from './middleware/authContext.js';
+import { attachActor, requireActor } from './middleware/authContext.js';
 import pmsDashboardRouter    from './routes/dashboard.js';
 import pmsPropertiesRouter   from './routes/properties.js';
 import pmsRoomsRouter        from './routes/rooms.js';
@@ -66,8 +66,7 @@ import pmsNotificationsRouter from './routes/notifications.js';
 import pmsUsersRouter        from './routes/users.js';
 import pmsAutomationRouter   from './routes/automation.js';
 import pmsPaymentsRouter     from './routes/payments.js';
-import pmsGroupsRouter       from './routes/groups.js';
-
+import pmsGroupsRouter       from './routes/groups.js';import pmsInvoiceRouter       from './routes/invoice.js';
 // --- חיבור למסד הנתונים ---
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -188,6 +187,7 @@ apiRouter.use('/admin/auto-replies', adminAutoReplyRoutes);
 // =========================================================================
 const pmsRouter = express.Router();
 pmsRouter.use(attachActor);
+pmsRouter.use(requireActor);
 pmsRouter.use('/dashboard',     pmsDashboardRouter);
 pmsRouter.use('/properties',    pmsPropertiesRouter);
 pmsRouter.use('/rooms',         pmsRoomsRouter);
@@ -207,6 +207,7 @@ pmsRouter.use('/users',         pmsUsersRouter);
 pmsRouter.use('/automation',    pmsAutomationRouter);
 pmsRouter.use('/payments',      pmsPaymentsRouter);
 pmsRouter.use('/groups',        pmsGroupsRouter);
+pmsRouter.use('/invoices',      pmsInvoiceRouter);
 
 // =========================================================================
 // ✨ הפתרון הכפול: חיבור ה-Router לשני הנתיבים
@@ -214,7 +215,6 @@ pmsRouter.use('/groups',        pmsGroupsRouter);
 
 // 1. PMS routes (לפני apiRouter — עוקפים CSRF)
 app.use('/api/pms', pmsRouter);
-app.use('/pms',     pmsRouter);
 
 // 2. עבור Localhost (כשהלקוח שולח /api/...)
 app.use('/api', apiRouter);
@@ -243,7 +243,11 @@ app.use('*', (req, res) => {
 });
 
 // --- הפעלת שירותים נוספים ---
-initWhatsAppListener();
+if (process.env.DISABLE_WHATSAPP === '1') {
+  console.log('ℹ️ WhatsApp listener disabled (DISABLE_WHATSAPP=1)');
+} else {
+  initWhatsAppListener();
+}
 
 // --- הרמת השרת ---
 const PORT = process.env.PORT || 4000;

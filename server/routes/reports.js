@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { assertPropertyScope } from '../middleware/authContext.js';
+import { assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import { audit } from '../services/auditService.js';
 import Reservation from '../models/Reservation.js';
 import Room from '../models/Room.js';
@@ -9,9 +9,28 @@ import GuestProfile from '../models/GuestProfile.js';
 import AuditLog from '../models/AuditLog.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
-import Company from '../models/Company.js';
+import Invoice from '../models/Invoice.js';
+import GuestRegistrationCard from '../models/GuestRegistrationCard.js';
 
 const router = Router();
+const REPORT_VIEW_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'finance_manager', 'cashier', 'revenue_manager', 'auditor', 'owner_readonly'];
+const REPORT_NIGHT_AUDIT_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'finance_manager'];
+
+router.use((req, _res, next) => {
+  requireRoles(req, REPORT_VIEW_ROLES, 'Reports access denied');
+  next();
+});
+
+router.use((req, _res, next) => {
+  const actorPropertyId = req.actor?.propertyId ? String(req.actor.propertyId) : null;
+  if (actorPropertyId && !req.query.propertyId) {
+    req.query.propertyId = actorPropertyId;
+  }
+  if (actorPropertyId && req.body && !req.body.propertyId) {
+    req.body.propertyId = actorPropertyId;
+  }
+  next();
+});
 
 // ── Helper: YYYY-MM-DD arithmetic ─────────────────────────────────────────────
 function addDays(ymd, n) {
@@ -35,7 +54,7 @@ function daysInRange(from, to) {
 router.get('/summary', asyncHandler(async (req, res) => {
   const { propertyId } = req.query;
   assertPropertyScope(req, propertyId);
-  const to   = req.query.to   || '2026-05-05';
+  const to   = req.query.to   || new Date().toISOString().split('T')[0];
   const from = req.query.from || addDays(to, -29);
 
   const [allRooms, reservations, guests] = await Promise.all([
@@ -206,6 +225,7 @@ router.get('/night-audit-preview', asyncHandler(async (req, res) => {
 // POST /api/reports/night-audit
 // Runs the night audit: posts room charges + marks no-shows
 router.post('/night-audit', asyncHandler(async (req, res) => {
+  requireRoles(req, REPORT_NIGHT_AUDIT_ROLES, 'Night audit requires manager permissions');
   const { propertyId, date, markNoShows = false } = req.body;
   assertPropertyScope(req, propertyId);
   const auditDate = date || new Date().toISOString().split('T')[0];
@@ -1137,6 +1157,204 @@ router.get('/payments', asyncHandler(async (req, res) => {
       net:           Math.round((totalPayments + totalDeposits - totalRefunds) * 100) / 100,
       byMethod,
       transactions,
+    },
+  });
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// פרק י"ז — דוחות חוקיים (מע"מ + מרשם תיירים)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/reports/vat-report?propertyId=&from=&to=
+ * דוח מע"מ מפורט לפי סוג מסמך — מתאים לדיווח טופס 1216/125 לרשות המסים
+ *
+ * בסיס חוקי:
+ *  • חוק מע"מ, תשל"ו-1975, סעיף 67 — חובת הגשת דוח תקופתי
+ *  • תקנות מס ערך מוסף, תשל"ו-1976, תקנה 6 — פירוט עסקאות
+ *
+ * מחזיר:
+ *  • סיכום לפי סוג חשבונית (חשבונית מס, קבלה, זיכוי וכו')
+ *  • סה"כ עסקאות (לא כולל ביטולים ומסמכי פרופורמה)
+ *  • רשימת חשבוניות לצורך ביקורת
+ */
+router.get('/vat-report', asyncHandler(async (req, res) => {
+  requireRoles(req, ['super_admin', 'chain_admin', 'property_admin', 'general_manager',
+    'finance_manager', 'owner_readonly', 'auditor'], 'VAT report requires finance access');
+  const { propertyId } = req.query;
+  assertPropertyScope(req, propertyId);
+
+  const to   = req.query.to   || new Date().toISOString().split('T')[0];
+  const from = req.query.from || addDays(to, -29);
+
+  const invoices = await Invoice.find({
+    property: propertyId,
+    status: 'issued',
+    // לא כולל פרופורמה — אינה עסקה חייבת במע"מ
+    type: { $in: ['tax_invoice', 'tax_invoice_receipt', 'receipt', 'credit_note', 'debit_note'] },
+    issuedAt: {
+      $gte: new Date(from + 'T00:00:00Z'),
+      $lte: new Date(to   + 'T23:59:59Z'),
+    },
+  })
+    .populate('issuedBy', 'firstName lastName')
+    .lean();
+
+  // אגרגציה לפי סוג מסמך
+  const byType = {};
+  for (const inv of invoices) {
+    if (!byType[inv.type]) {
+      byType[inv.type] = { count: 0, totalNet: 0, totalVat: 0, totalGross: 0 };
+    }
+    const s = byType[inv.type];
+    s.count++;
+    s.totalNet   += inv.totalNet   || 0;
+    s.totalVat   += inv.totalVat   || 0;
+    s.totalGross += inv.totalGross || 0;
+  }
+
+  // סיכום כולל (לא כולל הזיכויים — סכומם שלילי)
+  const taxInvoiceTypes = ['tax_invoice', 'tax_invoice_receipt', 'debit_note'];
+  const creditNoteTypes = ['credit_note'];
+
+  const taxableInvoices = invoices.filter(i => taxInvoiceTypes.includes(i.type));
+  const creditNotes     = invoices.filter(i => creditNoteTypes.includes(i.type));
+
+  const totalSalesNet    = taxableInvoices.reduce((s, i) => s + (i.totalNet   || 0), 0);
+  const totalSalesVat    = taxableInvoices.reduce((s, i) => s + (i.totalVat   || 0), 0);
+  const totalSalesGross  = taxableInvoices.reduce((s, i) => s + (i.totalGross || 0), 0);
+  const totalCreditsNet  = creditNotes.reduce((s, i) => s + Math.abs(i.totalNet   || 0), 0);
+  const totalCreditsVat  = creditNotes.reduce((s, i) => s + Math.abs(i.totalVat   || 0), 0);
+
+  const summary = {
+    from, to,
+    totalInvoices: invoices.length,
+    // עסקאות (מכירות)
+    totalSalesNet:    Math.round(totalSalesNet   * 100) / 100,
+    totalSalesVat:    Math.round(totalSalesVat   * 100) / 100,
+    totalSalesGross:  Math.round(totalSalesGross * 100) / 100,
+    // זיכויים
+    totalCreditsNet:  Math.round(totalCreditsNet * 100) / 100,
+    totalCreditsVat:  Math.round(totalCreditsVat * 100) / 100,
+    // נטו לתשלום
+    netVatPayable:    Math.round((totalSalesVat - totalCreditsVat) * 100) / 100,
+    netTaxableBase:   Math.round((totalSalesNet - totalCreditsNet) * 100) / 100,
+    // לפי סוג
+    byType: Object.entries(byType).map(([type, s]) => ({
+      type,
+      count:       s.count,
+      totalNet:    Math.round(s.totalNet   * 100) / 100,
+      totalVat:    Math.round(s.totalVat   * 100) / 100,
+      totalGross:  Math.round(s.totalGross * 100) / 100,
+    })),
+  };
+
+  // רשימת חשבוניות לצורך ביקורת
+  const list = invoices.map(i => ({
+    invoiceNumber:   i.invoiceNumber,
+    type:            i.type,
+    issuedAt:        i.issuedAt,
+    buyer:           i.buyer?.name || i.buyer?.legalName,
+    buyerVat:        i.buyer?.vatNumber,
+    totalNet:        Math.round((i.totalNet   || 0) * 100) / 100,
+    totalVat:        Math.round((i.totalVat   || 0) * 100) / 100,
+    totalGross:      Math.round((i.totalGross || 0) * 100) / 100,
+    allocationNumber: i.allocationNumber,
+  }));
+
+  res.json({ success: true, data: { summary, list } });
+}));
+
+/**
+ * GET /api/reports/tourist-registry?propertyId=&date=
+ * פנקס אורחים יומי — חובה לפי חוק בתי מלון, תשי"ד-1954
+ *
+ * בסיס חוקי:
+ *  • חוק בתי מלון, תשי"ד-1954, סעיף 4
+ *  • תקנות בתי מלון (רישום אורחים), תשט"ז-1956
+ *  • מי שנרשם כבעל מלון חייב לנהל פנקס ולמסור פרטים לרשות
+ *
+ * מחזיר רשימת כרטיסי רישום אורחים לתאריך נתון
+ * (כל הגיעות + אורחים ששוהים עדיין)
+ */
+router.get('/tourist-registry', asyncHandler(async (req, res) => {
+  requireRoles(req, ['super_admin', 'chain_admin', 'property_admin', 'general_manager',
+    'front_desk_manager', 'receptionist', 'finance_manager', 'owner_readonly', 'auditor'],
+    'Tourist registry access denied');
+  const { propertyId } = req.query;
+  assertPropertyScope(req, propertyId);
+  const date = req.query.date || new Date().toISOString().split('T')[0];
+
+  // אורחים שהגיעו ביום הנבחר OR שוהים עדיין (arrivalDate <= date < departureDate)
+  const cards = await GuestRegistrationCard.find({
+    property: propertyId,
+    $or: [
+      { arrivalDate: date },                            // הגיעו היום
+      { arrivalDate: { $lte: date }, departureDate: { $gt: date } }, // שוהים עדיין
+    ],
+  })
+    .populate('guest',       'firstName lastName email phone nationality vipLevel')
+    .populate('reservation', 'confirmationNumber arrivalDate departureDate assignedRoom')
+    .populate('signedBy',    'firstName lastName')
+    .lean();
+
+  // אם מערכת כרטיסי הרישום לא מאוכלסת עדיין, נחזיר מידע מהזמנות
+  const resQuery = await Reservation.find({
+    property: propertyId,
+    arrivalDate:   { $lte: date },
+    departureDate: { $gt: date },
+    status: { $in: ['confirmed', 'in_house', 'checked_in'] },
+  })
+    .populate('primaryGuest', 'firstName lastName email phone nationality passportNumber passportExpiry dateOfBirth idType idNumber')
+    .populate('assignedRoom', 'number floor')
+    .lean();
+
+  const registryFromReservations = resQuery.map(r => ({
+    _source:           'reservation',
+    reservationId:     String(r._id),
+    confirmationNumber: r.confirmationNumber,
+    firstName:         r.primaryGuest?.firstName,
+    lastName:          r.primaryGuest?.lastName,
+    nationality:       r.primaryGuest?.nationality,
+    idDocType:         r.primaryGuest?.idType || 'id_card',
+    idDocNumber:       r.primaryGuest?.passportNumber || r.primaryGuest?.idNumber,
+    idDocExpiry:       r.primaryGuest?.passportExpiry,
+    dateOfBirth:       r.primaryGuest?.dateOfBirth,
+    arrivalDate:       r.arrivalDate,
+    departureDate:     r.departureDate,
+    assignedRoom:      r.assignedRoom?.number,
+    floor:             r.assignedRoom?.floor,
+    hasFormalCard:     false,
+  }));
+
+  res.json({
+    success: true,
+    data: {
+      date,
+      propertyId,
+      formalCards: cards.map(c => ({
+        _source:           'registration_card',
+        cardId:            String(c._id),
+        reservationId:     String(c.reservation?._id),
+        confirmationNumber: c.reservation?.confirmationNumber,
+        firstName:         c.firstName,
+        lastName:          c.lastName,
+        nationality:       c.nationality,
+        idDocType:         c.idDocType,
+        idDocNumber:       c.idDocNumber,
+        idDocExpiry:       c.idDocExpiry,
+        dateOfBirth:       c.dateOfBirth,
+        arrivalDate:       c.arrivalDate,
+        departureDate:     c.departureDate,
+        signedAt:          c.signedAt,
+        status:            c.status,
+        assignedRoom:      c.assignedRoom,
+        hasFormalCard:     true,
+      })),
+      // אורחים ללא כרטיס רישום רשמי (לצורך בקרה)
+      fromReservations:  registryFromReservations,
+      totalInHouse:      resQuery.length,
+      unsignedCards:     cards.filter(c => c.status === 'pending').length,
     },
   });
 }));

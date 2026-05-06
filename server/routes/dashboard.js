@@ -1,5 +1,6 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import Reservation from '../models/Reservation.js';
 import Room from '../models/Room.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
@@ -10,9 +11,35 @@ import ChannelUpdateQueue from '../models/ChannelUpdateQueue.js';
 
 const router = Router();
 
-// ── /stats ────────────────────────────────────────────────────────────────────
+const DASHBOARD_ROLES = [
+  'super_admin',
+  'chain_admin',
+  'property_admin',
+  'general_manager',
+  'front_desk_manager',
+  'receptionist',
+  'housekeeping_manager',
+  'housekeeper',
+  'maintenance_manager',
+  'technician',
+  'finance_manager',
+  'cashier',
+  'revenue_manager',
+  'auditor',
+  'owner_readonly',
+];
+
+function requirePropertyScope(req, explicitPropertyId) {
+  const propertyId = explicitPropertyId || req.query.propertyId || req.body.propertyId || req.actor?.propertyId;
+  assertPropertyScope(req, propertyId);
+  return String(propertyId);
+}
+
+// GET /api/dashboard/stats
 router.get('/stats', asyncHandler(async (req, res) => {
-  const { propertyId } = req.query;
+  requireRoles(req, DASHBOARD_ROLES);
+
+  const propertyId = requirePropertyScope(req);
   const today = new Date().toISOString().split('T')[0];
 
   const [rooms, reservations, hkTasks, maintenanceTickets, failedPayments, unsyncedCount] = await Promise.all([
@@ -28,68 +55,71 @@ router.get('/stats', asyncHandler(async (req, res) => {
     ChannelUpdateQueue.countDocuments({ property: propertyId, status: { $in: ['pending', 'failed', 'retrying'] } }),
   ]);
 
-  const arrivals   = reservations.filter(r => r.arrivalDate === today && ['confirmed', 'modified', 'pending_payment'].includes(r.status));
-  const departures = reservations.filter(r => r.departureDate === today && ['in_house', 'checked_in'].includes(r.status));
-  const inHouse    = reservations.filter(r => ['in_house', 'checked_in'].includes(r.status));
-  const unassigned = arrivals.filter(r => !r.assignedRoom);
+  const arrivals = reservations.filter((r) => r.arrivalDate === today && ['confirmed', 'modified', 'pending_payment'].includes(r.status));
+  const departures = reservations.filter((r) => r.departureDate === today && ['in_house', 'checked_in'].includes(r.status));
+  const inHouse = reservations.filter((r) => ['in_house', 'checked_in'].includes(r.status));
+  const unassigned = arrivals.filter((r) => !r.assignedRoom);
 
-  const earlyCheckInRequests = arrivals.filter(r =>
+  const earlyCheckInRequests = arrivals.filter((r) =>
     r.specialRequests && /early.?check.?in|early arrival/i.test(r.specialRequests)
   );
-  const lateCheckoutRequests = departures.filter(r =>
+  const lateCheckoutRequests = departures.filter((r) =>
     r.specialRequests && /late.?check.?out|late departure/i.test(r.specialRequests)
   );
 
-  const cleanRooms = rooms.filter(r =>
+  const cleanRooms = rooms.filter((r) =>
     ['clean', 'inspected'].includes(r.cleanStatus) &&
     r.opsStatus === 'available' &&
     r.occStatus === 'vacant'
   );
-  const dirtyRooms = rooms.filter(r => r.cleanStatus === 'dirty');
-  const oooRooms   = rooms.filter(r => r.opsStatus === 'out_of_order');
-  const holdRooms  = rooms.filter(r => r.opsStatus === 'maintenance_hold');
+  const dirtyRooms = rooms.filter((r) => r.cleanStatus === 'dirty');
+  const oooRooms = rooms.filter((r) => r.opsStatus === 'out_of_order');
+  const holdRooms = rooms.filter((r) => r.opsStatus === 'maintenance_hold');
 
   const openFolios = await Folio.find({ property: propertyId, status: 'open' }).lean();
-  const foliosWithBalance = openFolios.filter(f => {
-    const bal = f.lines
-      .filter(l => l.status === 'posted')
-      .reduce((s, l) => s + l.amount + l.taxAmount, 0);
-    return bal > 0;
+  const foliosWithBalance = openFolios.filter((folio) => {
+    const balance = (folio.lines || [])
+      .filter((line) => line.status === 'posted')
+      .reduce((sum, line) => sum + (line.amount || 0) + (line.taxAmount || 0), 0);
+    return balance > 0.01;
   });
 
   res.json({
     success: true,
     data: {
-      arrivals:             arrivals.length,
-      departures:           departures.length,
-      inHouse:              inHouse.length,
-      vipArrivals:          arrivals.filter(r => r.isVip).length,
-      unassigned:           unassigned.length,
+      arrivals: arrivals.length,
+      departures: departures.length,
+      inHouse: inHouse.length,
+      vipArrivals: arrivals.filter((r) => r.isVip).length,
+      unassigned: unassigned.length,
       earlyCheckInRequests: earlyCheckInRequests.length,
       lateCheckoutRequests: lateCheckoutRequests.length,
-      cleanRooms:           cleanRooms.length,
-      dirtyRooms:           dirtyRooms.length,
-      oooRooms:             oooRooms.length,
-      holdRooms:            holdRooms.length,
-      openBalances:         foliosWithBalance.length,
+      cleanRooms: cleanRooms.length,
+      dirtyRooms: dirtyRooms.length,
+      oooRooms: oooRooms.length,
+      holdRooms: holdRooms.length,
+      openBalances: foliosWithBalance.length,
       failedPayments,
       unsyncedReservations: unsyncedCount,
-      totalRooms:           rooms.length,
-      occupancy:            rooms.length ? Math.round((inHouse.length + arrivals.length) / rooms.length * 100) : 0,
-      hkPending:            hkTasks.filter(t => t.status === 'new').length,
-      hkInProgress:         hkTasks.filter(t => t.status === 'in_progress').length,
-      hkCompleted:          hkTasks.filter(t => t.status === 'completed').length,
-      hkUrgent:             hkTasks.filter(t => t.priority === 'urgent').length,
-      maintenanceOpen:      maintenanceTickets.length,
-      maintenanceCritical:  maintenanceTickets.filter(t => t.priority === 'critical').length,
+      totalRooms: rooms.length,
+      occupancy: rooms.length ? Math.round((inHouse.length / rooms.length) * 100) : 0,
+      hkPending: hkTasks.filter((t) => t.status === 'new').length,
+      hkInProgress: hkTasks.filter((t) => t.status === 'in_progress').length,
+      hkCompleted: hkTasks.filter((t) => t.status === 'completed').length,
+      hkUrgent: hkTasks.filter((t) => t.priority === 'urgent').length,
+      maintenanceOpen: maintenanceTickets.length,
+      maintenanceCritical: maintenanceTickets.filter((t) => t.priority === 'critical').length,
     },
   });
 }));
 
-// ── /arrivals ─────────────────────────────────────────────────────────────────
+// GET /api/dashboard/arrivals
 router.get('/arrivals', asyncHandler(async (req, res) => {
-  const { propertyId } = req.query;
+  requireRoles(req, DASHBOARD_ROLES);
+
+  const propertyId = requirePropertyScope(req);
   const today = new Date().toISOString().split('T')[0];
+
   const arrivals = await Reservation.find({
     property: propertyId,
     arrivalDate: today,
@@ -99,13 +129,17 @@ router.get('/arrivals', asyncHandler(async (req, res) => {
     .populate('roomType', 'name code')
     .populate('assignedRoom', 'number floor cleanStatus opsStatus')
     .lean();
+
   res.json({ success: true, data: arrivals });
 }));
 
-// ── /departures ───────────────────────────────────────────────────────────────
+// GET /api/dashboard/departures
 router.get('/departures', asyncHandler(async (req, res) => {
-  const { propertyId } = req.query;
+  requireRoles(req, DASHBOARD_ROLES);
+
+  const propertyId = requirePropertyScope(req);
   const today = new Date().toISOString().split('T')[0];
+
   const departures = await Reservation.find({
     property: propertyId,
     departureDate: today,
@@ -115,12 +149,16 @@ router.get('/departures', asyncHandler(async (req, res) => {
     .populate('roomType', 'name code')
     .populate('assignedRoom', 'number floor')
     .lean();
+
   res.json({ success: true, data: departures });
 }));
 
-// ── /inhouse ──────────────────────────────────────────────────────────────────
+// GET /api/dashboard/inhouse
 router.get('/inhouse', asyncHandler(async (req, res) => {
-  const { propertyId } = req.query;
+  requireRoles(req, DASHBOARD_ROLES);
+
+  const propertyId = requirePropertyScope(req);
+
   const inhouse = await Reservation.find({
     property: propertyId,
     status: { $in: ['in_house', 'checked_in'] },
@@ -129,12 +167,15 @@ router.get('/inhouse', asyncHandler(async (req, res) => {
     .populate('roomType', 'name code')
     .populate('assignedRoom', 'number floor')
     .lean();
+
   res.json({ success: true, data: inhouse });
 }));
 
-// ── /alerts ───────────────────────────────────────────────────────────────────
+// GET /api/dashboard/alerts
 router.get('/alerts', asyncHandler(async (req, res) => {
-  const { propertyId } = req.query;
+  requireRoles(req, DASHBOARD_ROLES);
+
+  const propertyId = requirePropertyScope(req);
   const today = new Date().toISOString().split('T')[0];
   const alerts = [];
 
@@ -157,120 +198,124 @@ router.get('/alerts', asyncHandler(async (req, res) => {
       .lean(),
   ]);
 
-  // 1. VIP arrivals with room not clean
-  for (const r of todayArrivals.filter(r => r.isVip)) {
-    if (r.assignedRoom && !['clean', 'inspected'].includes(r.assignedRoom.cleanStatus)) {
+  for (const reservation of todayArrivals.filter((r) => r.isVip)) {
+    if (reservation.assignedRoom && !['clean', 'inspected'].includes(reservation.assignedRoom.cleanStatus)) {
       alerts.push({
-        id: `vip-${r._id}`,
+        id: `vip-${reservation._id}`,
         type: 'danger',
         category: 'housekeeping',
-        text: `VIP ${r.primaryGuest.firstName} ${r.primaryGuest.lastName} — חדר ${r.assignedRoom.number} לא נקי`,
-        action: 'שלח לחדרנות',
-        reservationId: r._id,
+        text: `VIP ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName} - room ${reservation.assignedRoom.number} is not clean`,
+        action: 'Dispatch housekeeping',
+        reservationId: reservation._id,
       });
     }
   }
 
-  // 2. All arrivals with dirty/unclean assigned room
-  for (const r of todayArrivals.filter(r => !r.isVip)) {
-    if (r.assignedRoom && !['clean', 'inspected'].includes(r.assignedRoom.cleanStatus)) {
+  for (const reservation of todayArrivals.filter((r) => !r.isVip)) {
+    if (reservation.assignedRoom && !['clean', 'inspected'].includes(reservation.assignedRoom.cleanStatus)) {
       alerts.push({
-        id: `dirty-${r._id}`,
+        id: `dirty-${reservation._id}`,
         type: 'warning',
         category: 'housekeeping',
-        text: `${r.confirmationNumber} — חדר ${r.assignedRoom.number} מלוכלך לפני הגעת ${r.primaryGuest.firstName} ${r.primaryGuest.lastName}`,
-        action: 'שלח לחדרנות',
-        reservationId: r._id,
+        text: `${reservation.confirmationNumber} - room ${reservation.assignedRoom.number} is not ready for ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName}`,
+        action: 'Dispatch housekeeping',
+        reservationId: reservation._id,
       });
     }
   }
 
-  // 3. Arrivals with no room assigned
-  for (const r of todayArrivals.filter(r => !r.assignedRoom)) {
+  for (const reservation of todayArrivals.filter((r) => !r.assignedRoom)) {
     alerts.push({
-      id: `noroom-${r._id}`,
+      id: `noroom-${reservation._id}`,
       type: 'danger',
       category: 'rooms',
-      text: `${r.confirmationNumber} — אין חדר מוקצה ל-${r.primaryGuest.firstName} ${r.primaryGuest.lastName}`,
-      action: 'הקצה חדר',
-      reservationId: r._id,
+      text: `${reservation.confirmationNumber} - no room assigned for ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName}`,
+      action: 'Assign room',
+      reservationId: reservation._id,
     });
   }
 
-  // 4. Arrivals with pending payment
-  for (const r of todayArrivals.filter(r => r.status === 'pending_payment')) {
+  for (const reservation of todayArrivals.filter((r) => r.status === 'pending_payment')) {
     alerts.push({
-      id: `pendpay-${r._id}`,
+      id: `pendpay-${reservation._id}`,
       type: 'warning',
       category: 'payments',
-      text: `${r.confirmationNumber} — ${r.primaryGuest.firstName} ${r.primaryGuest.lastName} מגיע היום ותשלום עדיין לא התקבל`,
-      action: 'גבה תשלום',
-      reservationId: r._id,
+      text: `${reservation.confirmationNumber} - payment pending for arrival today`,
+      action: 'Collect payment',
+      reservationId: reservation._id,
     });
   }
 
-  // 5. Departures with open balance
-  for (const r of todayDepartures) {
-    const folio = await Folio.findOne({ reservation: r._id, status: 'open' }).lean();
-    if (folio) {
-      const bal = folio.lines
-        .filter(l => l.status === 'posted')
-        .reduce((s, l) => s + l.amount + l.taxAmount, 0);
-      if (bal > 0) {
-        alerts.push({
-          id: `balance-${r._id}`,
-          type: 'warning',
-          category: 'payments',
-          text: `${r.confirmationNumber} — יתרה פתוחה ₪${bal.toFixed(0)} לפני יציאת ${r.primaryGuest.firstName} ${r.primaryGuest.lastName}`,
-          action: 'פתח Folio',
-          reservationId: r._id,
-        });
-      }
+  const departureIds = todayDepartures.map((r) => r._id);
+  const departureFolios = departureIds.length
+    ? await Folio.find({ reservation: { $in: departureIds }, status: 'open' }).lean()
+    : [];
+
+  const balanceByReservation = new Map();
+  for (const folio of departureFolios) {
+    const balance = (folio.lines || [])
+      .filter((line) => line.status === 'posted')
+      .reduce((sum, line) => sum + (line.amount || 0) + (line.taxAmount || 0), 0);
+
+    balanceByReservation.set(String(folio.reservation), balance);
+  }
+
+  for (const reservation of todayDepartures) {
+    const balance = balanceByReservation.get(String(reservation._id)) || 0;
+    if (balance > 0.01) {
+      alerts.push({
+        id: `balance-${reservation._id}`,
+        type: 'warning',
+        category: 'payments',
+        text: `${reservation.confirmationNumber} - open balance ₪${balance.toFixed(2)}`,
+        action: 'Open folio',
+        reservationId: reservation._id,
+      });
     }
   }
 
-  // 6. Critical maintenance blocking rooms assigned to today's arrivals
   const arrivalRoomIds = todayArrivals
-    .filter(r => r.assignedRoom)
-    .map(r => String(r.assignedRoom._id));
+    .filter((reservation) => reservation.assignedRoom)
+    .map((reservation) => String(reservation.assignedRoom._id));
+
   for (const ticket of criticalMaintenance) {
     if (ticket.room && arrivalRoomIds.includes(String(ticket.room._id))) {
       alerts.push({
         id: `maint-${ticket._id}`,
         type: 'danger',
         category: 'maintenance',
-        text: `חדר ${ticket.room.number} — תקלה קריטית פתוחה: ${ticket.description}`,
-        action: 'פתח תקלה',
+        text: `Room ${ticket.room.number} has critical maintenance: ${ticket.description}`,
+        action: 'Open ticket',
         ticketId: ticket._id,
       });
     }
   }
 
-  // 7. Failed payments in last 24h
-  for (const p of failedPayments) {
+  for (const payment of failedPayments) {
     alerts.push({
-      id: `failpay-${p._id}`,
+      id: `failpay-${payment._id}`,
       type: 'danger',
       category: 'payments',
-      text: `תשלום נכשל — ${p.reservation?.confirmationNumber || ''} — ₪${p.amount}`,
-      action: 'נסה שוב',
-      reservationId: p.reservation?._id,
+      text: `Failed payment - ${payment.reservation?.confirmationNumber || ''} - ₪${payment.amount}`,
+      action: 'Retry payment',
+      reservationId: payment.reservation?._id,
     });
   }
 
-  // 8. Unsynced channel updates
   if (unsyncedItems.length > 0) {
     alerts.push({
       id: 'channel-sync',
       type: 'warning',
       category: 'channels',
-      text: `${unsyncedItems.length} עדכוני ערוץ ממתינים לסנכרון`,
-      action: 'בדוק ערוצים',
+      text: `${unsyncedItems.length} channel updates are pending sync`,
+      action: 'Review channel updates',
     });
   }
 
-  // Sort: danger first, then warning
-  alerts.sort((a, b) => (a.type === 'danger' ? -1 : 1));
+  alerts.sort((left, right) => {
+    if (left.type === right.type) return 0;
+    return left.type === 'danger' ? -1 : 1;
+  });
 
   res.json({ success: true, data: alerts });
 }));

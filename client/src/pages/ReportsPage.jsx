@@ -2,7 +2,7 @@
 import {
   BarChart3, TrendingUp, TrendingDown, Users, BedDouble, DollarSign,
   Calendar, RefreshCw, Download, Printer, ChevronLeft, ChevronRight,
-  ArrowUpRight, ArrowDownRight, Minus,
+  ArrowUpRight, ArrowDownRight, Minus, ReceiptText, Globe,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
-import { reports as reportsApi } from '../utils/api';
+import { reports as reportsApi, legalReports } from '../utils/api';
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import { TODAY, addDays } from '../utils/date';
 
@@ -98,6 +98,228 @@ function SourceBar({ item, total }) {
   );
 }
 
+/* ── VAT Report Panel ──────────────────────────────────────────────────────── */
+function VatReportPanel({ propertyId }) {
+  const today = TODAY;
+  const [from, setFrom] = useState(today.slice(0,7) + '-01');
+  const [to,   setTo]   = useState(today);
+
+  const { data, loading, error, refetch } = useApi(
+    () => legalReports.vatReport(propertyId, from, to),
+    [propertyId, from, to], !propertyId,
+  );
+
+  const s = data?.summary || {};
+
+  function downloadCsv() {
+    if (!data?.list?.length) return;
+    const header = ['מספר חשבונית','תאריך','סוג','שם רוכש','ח.פ./ע.מ.','נטו','מע"מ','ברוטו','מס\' הקצאה'].join(',');
+    const rows = data.list.map(i => [
+      i.invoiceNumber, i.issuedAt?.slice(0,10), i.type, i.buyer || '', i.buyerVat || '',
+      i.totalNet, i.totalVat, i.totalGross, i.allocationNumber || '',
+    ].join(','));
+    const csv = '\uFEFF' + [header, ...rows].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = `vat_${from}_${to}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="font-bold text-ink flex items-center gap-2"><ReceiptText size={16}/> דוח מע"מ</h2>
+          <p className="text-xs text-ink-muted">לפי חוק מע"מ תשל"ו-1975 | בסיס לדיווח תקופתי (טופס 1216)</p>
+        </div>
+        <div className="flex gap-2 items-end">
+          <div>
+            <label className="text-xs font-semibold text-ink-secondary block mb-1">מ</label>
+            <input type="date" className="input text-sm" value={from} onChange={e => setFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-ink-secondary block mb-1">עד</label>
+            <input type="date" className="input text-sm" value={to} onChange={e => setTo(e.target.value)} />
+          </div>
+          <button className="btn btn-ghost btn-sm gap-1" onClick={refetch}><RefreshCw size={13}/></button>
+          <button className="btn btn-secondary btn-sm gap-1" onClick={downloadCsv}><Download size={13}/> CSV</button>
+        </div>
+      </div>
+
+      {loading && <div className="flex justify-center py-8"><Spinner size={24}/></div>}
+      {error   && <div className="text-xs text-red-500 text-center py-4">{error}</div>}
+
+      {!loading && !error && s.totalInvoices !== undefined && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            {[
+              { label:'מחזור עסקאות (נטו)',    val: `₪${(s.totalSalesNet||0).toLocaleString('he-IL',{minimumFractionDigits:2})}`, color:'#059669', bg:'rgba(16,185,129,0.1)' },
+              { label:'מע"מ עסקאות',          val: `₪${(s.totalSalesVat||0).toLocaleString('he-IL',{minimumFractionDigits:2})}`, color:'#d97706', bg:'rgba(245,158,11,0.1)' },
+              { label:'סה"כ זיכויים (מע"מ)',  val: `₪${(s.totalCreditsVat||0).toLocaleString('he-IL',{minimumFractionDigits:2})}`, color:'#dc2626', bg:'rgba(239,68,68,0.1)' },
+              { label:'מע"מ לתשלום לרשות',   val: `₪${(s.netVatPayable||0).toLocaleString('he-IL',{minimumFractionDigits:2})}`, color:'#7c3aed', bg:'rgba(124,58,237,0.1)' },
+            ].map(c => (
+              <div key={c.label} className="card p-3">
+                <div className="text-xs text-ink-muted mb-1">{c.label}</div>
+                <div className="text-xl font-black text-num" style={{ color:c.color }}>{c.val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* By type */}
+          <div className="card overflow-hidden mb-4">
+            <div className="px-4 py-3 border-b border-surface-border text-xs font-bold text-ink-secondary">פירוט לפי סוג מסמך</div>
+            <table className="data-table">
+              <thead><tr><th>סוג</th><th>מסמכים</th><th>נטו</th><th>מע"מ</th><th>ברוטו</th></tr></thead>
+              <tbody>
+                {(s.byType||[]).map(r => (
+                  <tr key={r.type}>
+                    <td className="text-sm font-medium text-ink">{
+                      {tax_invoice:'חשבונית מס', tax_invoice_receipt:'חשבונית מס/קבלה', receipt:'קבלה', credit_note:'זיכוי', debit_note:'חיוב'}[r.type] || r.type
+                    }</td>
+                    <td className="text-num text-sm">{r.count}</td>
+                    <td className="text-num text-sm">₪{r.totalNet?.toLocaleString()}</td>
+                    <td className="text-num text-sm text-amber-700">₪{r.totalVat?.toLocaleString()}</td>
+                    <td className="text-num text-sm font-bold">₪{r.totalGross?.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Invoice list */}
+          <div className="card overflow-hidden">
+            <div className="px-4 py-3 border-b border-surface-border text-xs font-bold text-ink-secondary">
+              רשימת חשבוניות לביקורת ({data.list?.length || 0})
+            </div>
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <thead><tr><th>מספר</th><th>תאריך</th><th>סוג</th><th>רוכש</th><th>נטו</th><th>מע"מ</th><th>ברוטו</th><th>הקצאה</th></tr></thead>
+                <tbody>
+                  {(data.list||[]).slice(0,50).map((i,idx) => (
+                    <tr key={idx}>
+                      <td className="text-num font-bold text-xs">{i.invoiceNumber}</td>
+                      <td className="text-xs text-ink-muted">{i.issuedAt?.slice(0,10)}</td>
+                      <td className="text-xs">{i.type}</td>
+                      <td className="text-xs">{i.buyer||'—'}</td>
+                      <td className="text-num text-xs">₪{i.totalNet?.toLocaleString()}</td>
+                      <td className="text-num text-xs text-amber-700">₪{i.totalVat?.toLocaleString()}</td>
+                      <td className="text-num text-xs font-bold">₪{i.totalGross?.toLocaleString()}</td>
+                      <td className="text-xs">{i.allocationNumber || <span className="text-ink-faint">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Tourist Registry Panel ────────────────────────────────────────────────── */
+function TouristRegistryPanel({ propertyId }) {
+  const [date, setDate] = useState(TODAY);
+
+  const { data, loading, error, refetch } = useApi(
+    () => legalReports.touristRegistry(propertyId, date),
+    [propertyId, date], !propertyId,
+  );
+
+  function downloadCsv() {
+    const list = data?.fromReservations || [];
+    if (!list.length) return;
+    const header = ['שם פרטי','שם משפחה','לאום','סוג מסמך','מספר מסמך','תאריך לידה','תאריך הגעה','תאריך עזיבה','חדר'].join(',');
+    const rows = list.map(g => [
+      g.firstName, g.lastName, g.nationality, g.idDocType, g.idDocNumber,
+      g.dateOfBirth ? new Date(g.dateOfBirth).toLocaleDateString('he-IL') : '',
+      g.arrivalDate, g.departureDate, g.assignedRoom || '',
+    ].join(','));
+    const csv = '\uFEFF' + [header, ...rows].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = `registry_${date}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const allGuests = [...(data?.fromReservations || [])];
+  const unsigned = data?.unsignedCards || 0;
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="font-bold text-ink flex items-center gap-2"><Globe size={16}/> פנקס אורחים</h2>
+          <p className="text-xs text-ink-muted">חובה לפי חוק בתי מלון תשי"ד-1954 | אורחים מאוכלסים ביום שנבחר</p>
+        </div>
+        <div className="flex gap-2 items-end">
+          <div>
+            <label className="text-xs font-semibold text-ink-secondary block mb-1">תאריך</label>
+            <input type="date" className="input text-sm" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <button className="btn btn-ghost btn-sm gap-1" onClick={refetch}><RefreshCw size={13}/></button>
+          <button className="btn btn-secondary btn-sm gap-1" onClick={downloadCsv}><Download size={13}/> CSV</button>
+        </div>
+      </div>
+
+      {loading && <div className="flex justify-center py-8"><Spinner size={24}/></div>}
+      {error   && <div className="text-xs text-red-500 text-center py-4">{error}</div>}
+
+      {!loading && !error && data && (
+        <>
+          {/* stats */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="card p-3 text-center">
+              <div className="text-2xl font-black text-num text-indigo-600">{data.totalInHouse}</div>
+              <div className="text-xs text-ink-muted">אורחים מאוכלסים</div>
+            </div>
+            <div className="card p-3 text-center">
+              <div className="text-2xl font-black text-num text-emerald-600">{data.formalCards?.length || 0}</div>
+              <div className="text-xs text-ink-muted">כרטיסי רישום רשמיים</div>
+            </div>
+            <div className="card p-3 text-center" style={{ background: unsigned > 0 ? 'rgba(239,68,68,0.05)' : undefined }}>
+              <div className={`text-2xl font-black text-num ${unsigned > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{unsigned}</div>
+              <div className="text-xs text-ink-muted">כרטיסים לא חתומים</div>
+            </div>
+          </div>
+
+          {/* table */}
+          <div className="card overflow-hidden">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>שם מלא</th>
+                  <th>לאום</th>
+                  <th>סוג מסמך</th>
+                  <th>מספר מסמך</th>
+                  <th>תאריך הגעה</th>
+                  <th>תאריך יציאה</th>
+                  <th>חדר</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allGuests.length === 0 && (
+                  <tr><td colSpan={7} className="text-center text-ink-muted py-6">אין אורחים מאוכלסים בתאריך זה</td></tr>
+                )}
+                {allGuests.map((g, i) => (
+                  <tr key={i}>
+                    <td className="font-semibold text-sm text-ink">{g.firstName} {g.lastName}</td>
+                    <td className="text-xs text-ink-muted">{g.nationality || '—'}</td>
+                    <td className="text-xs">{g.idDocType || '—'}</td>
+                    <td className="text-num text-xs">{g.idDocNumber || <span className="text-red-400 font-semibold">חסר!</span>}</td>
+                    <td className="text-num text-xs">{g.arrivalDate}</td>
+                    <td className="text-num text-xs">{g.departureDate}</td>
+                    <td className="text-num font-bold text-xs">{g.assignedRoom || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── export CSV ───────────────────────────────────────────────────────────── */
 function exportCsv(daily, from, to) {
   const header = ['תאריך', 'הגעות', 'יציאות', 'מאוכלס', 'תפוסה%', 'הכנסה', 'ADR'].join(',');
@@ -117,6 +339,7 @@ export default function ReportsPage() {
   const { propertyId } = useProperty();
   const skip = !propertyId;
 
+  const [mainTab,   setMainTab]   = useState('kpi'); // kpi | vat | registry
   const [rangeIdx,  setRangeIdx]  = useState(1);
   const [customFrom,setCustomFrom]= useState('');
   const [customTo,  setCustomTo]  = useState('');
@@ -184,27 +407,48 @@ export default function ReportsPage() {
           <p className="page-subtitle">ניתוח ביצועים — {from} עד {to}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {RANGES.map((r, i) => (
-            <button key={r.label} onClick={() => { setRangeIdx(i); setCustomFrom(''); setCustomTo(''); }}
-              className={`btn btn-sm ${!isCustom && rangeIdx === i ? 'btn-primary' : 'btn-secondary'}`}>
-              {r.label}
+          {/* Main tab selector */}
+          {[
+            { key:'kpi',      label:'📊 ביצועים' },
+            { key:'vat',      label:'🧾 מע"מ' },
+            { key:'registry', label:'🌍 פנקס אורחים' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setMainTab(t.key)}
+              className={`btn btn-sm ${mainTab === t.key ? 'btn-primary' : 'btn-secondary'}`}>
+              {t.label}
             </button>
           ))}
-          <input type="date" className="input text-xs py-1 px-2 w-36" value={customFrom}
-            onChange={e => setCustomFrom(e.target.value)} title="מ-"/>
-          <input type="date" className="input text-xs py-1 px-2 w-36" value={customTo}
-            onChange={e => setCustomTo(e.target.value)} title="עד"/>
-          <button className="btn btn-ghost btn-icon" onClick={refetch}><RefreshCw size={15}/></button>
-          <button className="btn btn-secondary flex items-center gap-1.5"
-            onClick={() => exportCsv(daily, from, to)}>
-            <Download size={14}/> CSV
-          </button>
-          <button className="btn btn-secondary flex items-center gap-1.5"
-            onClick={() => window.print()}>
-            <Printer size={14}/> הדפס
-          </button>
+          {mainTab === 'kpi' && (
+            <>
+              {RANGES.map((r, i) => (
+                <button key={r.label} onClick={() => { setRangeIdx(i); setCustomFrom(''); setCustomTo(''); }}
+                  className={`btn btn-sm ${!isCustom && rangeIdx === i ? 'btn-primary' : 'btn-secondary'}`}>
+                  {r.label}
+                </button>
+              ))}
+              <input type="date" className="input text-xs py-1 px-2 w-36" value={customFrom}
+                onChange={e => setCustomFrom(e.target.value)} title="מ-"/>
+              <input type="date" className="input text-xs py-1 px-2 w-36" value={customTo}
+                onChange={e => setCustomTo(e.target.value)} title="עד"/>
+              <button className="btn btn-ghost btn-icon" onClick={refetch}><RefreshCw size={15}/></button>
+              <button className="btn btn-secondary flex items-center gap-1.5"
+                onClick={() => exportCsv(daily, from, to)}>
+                <Download size={14}/> CSV
+              </button>
+              <button className="btn btn-secondary flex items-center gap-1.5"
+                onClick={() => window.print()}>
+                <Printer size={14}/> הדפס
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Legal reports tabs */}
+      {mainTab === 'vat'      && <VatReportPanel      propertyId={propertyId} />}
+      {mainTab === 'registry' && <TouristRegistryPanel propertyId={propertyId} />}
+
+      {mainTab === 'kpi' && (<>
 
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
@@ -482,6 +726,7 @@ export default function ReportsPage() {
           </div>
         </div>
       )}
+      </>)} {/* end mainTab === 'kpi' */}
     </div>
   );
 }

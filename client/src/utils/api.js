@@ -319,7 +319,53 @@ export const properties = {
   deleteRoomType: (id)              => api.delete(`/properties/room-types/${id}`),
 };
 
-// ── Rates ─────────────────────────────────────────────────────────────────────
+// ── Invoices ──────────────────────────────────────────────────────────────────
+export const invoices = {
+  list:           (propertyId, params = {}) =>
+    api.get(`/invoices?propertyId=${propertyId}${qs(params)}`),
+  get:            (id)            => api.get(`/invoices/${id}`),
+
+  /** פתח את החשבונית כ-HTML בטאב חדש עם Bearer token (ולא window.open ישיר) */
+  openHtml: async (id, { autoPrint = false } = {}) => {
+    const token = getToken();
+    const res = await fetch(`${PMS_BASE}/invoices/${id}/html`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('שגיאה בטעינת החשבונית');
+    let html = await res.text();
+    // הפעל הדפסה אוטומטית כש-autoPrint=true
+    if (autoPrint) {
+      html = html.replace(
+        "if (window.location.search.includes('print=1'))",
+        'if (true)',
+      );
+    }
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const win  = window.open(url, '_blank');
+    if (win) win.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+    else URL.revokeObjectURL(url);
+  },
+
+  issueFromFolio: (folioId, data) => api.post(`/invoices/folio/${folioId}`, data),
+  issueManual:    (data)          => api.post('/invoices/manual', data),
+  creditNote:     (id, data)      => api.post(`/invoices/${id}/credit-note`, data),
+  setAllocation:  (id, allocationNumber) =>
+    api.patch(`/invoices/${id}/allocation`, { allocationNumber }),
+};
+
+// ── Guest Data Export ─────────────────────────────────────────────────────────
+export const guestDataExport = {
+  request: (id, reason) => api.get(`/guests/${id}/data-export${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
+};
+
+// ── Legal Reports (new) ───────────────────────────────────────────────────────
+export const legalReports = {
+  vatReport:       (propertyId, from, to) =>
+    api.get(`/reports/vat-report?propertyId=${propertyId}&from=${from}&to=${to}`),
+  touristRegistry: (propertyId, date) =>
+    api.get(`/reports/tourist-registry?propertyId=${propertyId}&date=${date}`),
+};
 export const rates = {
   // Plans
   plans:         (propertyId, all)                      => api.get(`/rates/plans?propertyId=${propertyId}${all ? '&all=1' : ''}`),

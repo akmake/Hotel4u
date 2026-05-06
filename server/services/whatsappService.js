@@ -22,6 +22,9 @@ const __dirname = path.dirname(__filename);
 
 let sock; 
 let ioInstance;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let isStarting = false;
 
 // ==========================================
 // === 1. פונקציות עזר (Helper Functions) ===
@@ -181,37 +184,83 @@ async function executeFlow(chatObj, flow, logId) {
 // === 2. לוגיקה ראשית (Baileys) ===
 // ==========================================
 
+function clearReconnectTimer() {
+    if (!reconnectTimer) return;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+}
+
+function scheduleReconnect(reason = 'unknown') {
+    if (reconnectTimer) return;
+    const delayMs = Math.min(60_000, 5_000 * (2 ** Math.min(reconnectAttempts, 4)));
+    reconnectAttempts += 1;
+    console.log(`♻️ WhatsApp reconnect scheduled in ${Math.round(delayMs / 1000)}s (reason: ${reason})`);
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        startWhatsApp().catch((err) => {
+            console.error('Reconnect start failed:', err?.message || err);
+            scheduleReconnect('start_failed');
+        });
+    }, delayMs);
+}
+
+async function cleanupSocket() {
+    const current = sock;
+    if (!current) return;
+    sock = null;
+    try { current.ev?.removeAllListeners?.(); } catch {}
+    try { current.ws?.close?.(); } catch {}
+    try { current.end?.(new Error('restarting_whatsapp_socket')); } catch {}
+}
+
 const startWhatsApp = async () => {
-    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
+    if (isStarting) return;
+    isStarting = true;
+    try {
+        await cleanupSocket();
+        const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
 
-    sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: false,
-        logger: pino({ level: 'silent' }),
-        browser: ['Zipori Server', 'Chrome', '1.0.0']
-    });
+        const currentSock = makeWASocket({
+            auth: state,
+            printQRInTerminal: false,
+            logger: pino({ level: 'silent' }),
+            browser: ['Zipori Server', 'Chrome', '1.0.0']
+        });
+        sock = currentSock;
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        if (qr) {
-            console.log('QR RECEIVED');
-            qrcode.generate(qr, { small: true });
-            if (ioInstance) ioInstance.emit('whatsapp_qr', qr);
-        }
-        if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) startWhatsApp();
-            else if (ioInstance) ioInstance.emit('whatsapp_disconnected');
-        } else if (connection === 'open') {
-            console.log('✅ WhatsApp Connected (Baileys)!');
-            if (ioInstance) ioInstance.emit('whatsapp_ready');
-        }
-    });
+        currentSock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
+            if (currentSock !== sock) return;
 
-    sock.ev.on('creds.update', saveCreds);
+            if (qr) {
+                console.log('QR RECEIVED');
+                qrcode.generate(qr, { small: true });
+                if (ioInstance) ioInstance.emit('whatsapp_qr', qr);
+            }
+            if (connection === 'close') {
+                const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                if (shouldReconnect) {
+                    await cleanupSocket();
+                    scheduleReconnect(`close_${statusCode || 'unknown'}`);
+                } else {
+                    await cleanupSocket();
+                    clearReconnectTimer();
+                    if (ioInstance) ioInstance.emit('whatsapp_disconnected');
+                }
+            } else if (connection === 'open') {
+                reconnectAttempts = 0;
+                clearReconnectTimer();
+                console.log('✅ WhatsApp Connected (Baileys)!');
+                if (ioInstance) ioInstance.emit('whatsapp_ready');
+            }
+        });
 
-    sock.ev.on('messages.upsert', async (m) => {
+        currentSock.ev.on('creds.update', saveCreds);
+
+    currentSock.ev.on('messages.upsert', async (m) => {
         try {
+            if (currentSock !== sock) return;
             const msg = m.messages[0];
             if (!msg.message || msg.key.fromMe) return;
 
@@ -360,6 +409,12 @@ const startWhatsApp = async () => {
             console.error('Error processing message:', e);
         }
     });
+    } catch (err) {
+        console.error('WhatsApp start failed:', err?.message || err);
+        scheduleReconnect('start_exception');
+    } finally {
+        isStarting = false;
+    }
 };
 
 // ==========================================
@@ -369,7 +424,10 @@ const startWhatsApp = async () => {
 export const initWhatsAppListener = (socketIo) => {
     ioInstance = socketIo;
     console.log('🔄 Starting WhatsApp Service (Baileys Engine)...');
-    startWhatsApp();
+    startWhatsApp().catch((err) => {
+        console.error('initWhatsAppListener failed:', err?.message || err);
+        scheduleReconnect('init_failure');
+    });
 };
 
 export const getWhatsappLogs = async () => {

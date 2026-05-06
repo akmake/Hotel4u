@@ -1,11 +1,87 @@
 import { useState, useCallback } from 'react';
-import { Search, CreditCard, Plus, Slash, Receipt, AlertCircle, CheckCircle2, Lock, Unlock, FileText, Tag, MinusCircle, ArrowLeftRight } from 'lucide-react';
+import { Search, CreditCard, Plus, Slash, Receipt, AlertCircle, CheckCircle2, Lock, Unlock, FileText, Tag, MinusCircle, ArrowLeftRight, ReceiptText, X, Printer, Download } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import { reservations as resApi, folio as folioApi } from '../utils/api';
+import { reservations as resApi, folio as folioApi, invoices as invApi } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+
+const INVOICE_TYPES = [
+  { key:'tax_invoice_receipt', label:'חשבונית מס/קבלה' },
+  { key:'tax_invoice',         label:'חשבונית מס' },
+  { key:'receipt',             label:'קבלה בלבד' },
+];
+
+function IssueInvoicePanel({ folioId, balance, propertyId, onClose, onIssued }) {
+  const [type,      setType]      = useState('tax_invoice_receipt');
+  const [buyerName, setBuyerName] = useState('');
+  const [buyerVat,  setBuyerVat]  = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState('');
+
+  async function submit(e) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const inv = await invApi.issueFromFolio(folioId, {
+        type,
+        buyer: buyerName ? { name: buyerName, vatNumber: buyerVat || undefined } : undefined,
+        propertyId,
+      });
+      onIssued(inv);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+      style={{ background:'rgba(0,0,0,0.55)', direction:'rtl' }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+          <div className="font-bold text-ink flex items-center gap-2"><ReceiptText size={15}/> הפקת חשבונית</div>
+          <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={15}/></button>
+        </div>
+        <form onSubmit={submit} className="px-5 py-4 flex flex-col gap-3">
+          <div>
+            <label className="text-xs font-semibold text-ink-secondary block mb-1.5">סוג מסמך</label>
+            <div className="flex flex-col gap-1.5">
+              {INVOICE_TYPES.map(({key, label}) => (
+                <label key={key} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all
+                  ${type === key ? 'border-brand bg-brand/5' : 'border-surface-border hover:border-brand/30'}`}>
+                  <input type="radio" name="invType" checked={type === key} onChange={() => setType(key)} className="hidden"/>
+                  <div className={`w-3 h-3 rounded-full border-2 ${type === key ? 'border-brand bg-brand' : 'border-ink-faint'}`}/>
+                  <span className="text-sm text-ink">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-ink-secondary block mb-1">שם רוכש (B2B — אופציונלי)</label>
+            <input className="input w-full text-sm" placeholder="חברה / אורח" value={buyerName} onChange={e => setBuyerName(e.target.value)}/>
+          </div>
+          {buyerName && (
+            <div>
+              <label className="text-xs font-semibold text-ink-secondary block mb-1">מס' ע.מ./ח.פ. של הרוכש</label>
+              <input className="input w-full text-num" placeholder="xxxxxxxxx" value={buyerVat} onChange={e => setBuyerVat(e.target.value)}/>
+            </div>
+          )}
+          <div className="text-xs text-ink-muted bg-surface-hover rounded-lg px-3 py-2">
+            סה"כ לחשבונית: <span className="font-bold text-ink">₪{(balance||0).toFixed(2)}</span>
+          </div>
+          {error && <div className="text-xs text-red-600">{error}</div>}
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary btn-sm flex-1" onClick={onClose}>ביטול</button>
+            <button type="submit" disabled={loading} className="btn btn-primary btn-sm flex-1 justify-center gap-1.5">
+              {loading && <Spinner size={12}/>} הפק
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 // ── Folio line type colors ────────────────────────────────────────────────────
 const LINE_CONFIG = {
@@ -215,6 +291,8 @@ function FolioDrawer({ res, propertyId, onClose }) {
   const [reopenReason,  setReopenR]    = useState('');
   const [showReopen,    setShowReopen] = useState(false);
   const [invoiceModal,  setInvoiceMod] = useState(null);
+  const [showIssueInv,  setShowIssueInv] = useState(false);
+  const [lastInvoice,   setLastInvoice]  = useState(null);
   const { toasts, success, error: toastErr } = useToast();
 
   const { data, loading, error, refetch } = useApi(
@@ -263,6 +341,13 @@ function FolioDrawer({ res, propertyId, onClose }) {
     } catch (e) { toastErr(e.message); }
   }
 
+  function handleInvoiceIssued(inv) {
+    setLastInvoice(inv);
+    setShowIssueInv(false);
+    success('חשבונית הופקה! מספר: ' + (inv.invoiceNumber || '—'));
+    refetch();
+  }
+
   const lines   = data?.lines || [];
   const active  = lines.filter(l => l.status === 'posted');
   const balance = data?.balance ?? 0;
@@ -275,7 +360,36 @@ function FolioDrawer({ res, propertyId, onClose }) {
       <div className="w-full max-w-xl bg-white flex flex-col shadow-2xl overflow-hidden">
         <ToastContainer toasts={toasts} />
 
-        {/* Invoice modal */}
+        {/* Issue real invoice panel */}
+        {showIssueInv && folioId && (
+          <IssueInvoicePanel
+            folioId={folioId}
+            balance={balance}
+            propertyId={propertyId}
+            onClose={() => setShowIssueInv(false)}
+            onIssued={handleInvoiceIssued}
+          />
+        )}
+
+        {/* Print last issued invoice */}
+        {lastInvoice && (
+          <div className="fixed bottom-4 left-4 z-[80] bg-white border border-surface-border rounded-xl shadow-xl p-3 flex items-center gap-3" style={{direction:'rtl'}}>
+            <CheckCircle2 size={16} className="text-emerald-600"/>
+            <div className="text-xs">
+              <div className="font-bold text-ink">חשבונית #{lastInvoice.invoiceNumber}</div>
+              <div className="text-ink-muted">₪{lastInvoice.totalGross?.toFixed(2)}</div>
+            </div>
+            <button className="btn btn-primary btn-sm gap-1" onClick={() => invApi.openHtml(String(lastInvoice._id))}>
+              <Printer size={12}/> צפה / הדפס
+            </button>
+            <button className="btn btn-secondary btn-sm gap-1" onClick={() => invApi.openHtml(String(lastInvoice._id), { autoPrint: true })}>
+              <Download size={12}/> PDF
+            </button>
+            <button className="btn btn-ghost btn-icon" onClick={() => setLastInvoice(null)}><X size={13}/></button>
+          </div>
+        )}
+
+        {/* Legacy invoice modal */}
         {invoiceModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" style={{direction:'rtl'}}>
@@ -335,8 +449,8 @@ function FolioDrawer({ res, propertyId, onClose }) {
             <div className="text-xs text-ink-muted">{res.arrivalDate} → {res.departureDate}</div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn btn-secondary btn-sm gap-1" onClick={openInvoice}>
-              <FileText size={12} /> חשבונית
+            <button className="btn btn-primary btn-sm gap-1" onClick={() => setShowIssueInv(true)} disabled={!folioId}>
+              <ReceiptText size={12} /> חשבונית מס
             </button>
             <button className="btn btn-ghost btn-icon" onClick={onClose}><Slash size={16} /></button>
           </div>

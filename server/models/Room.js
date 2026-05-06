@@ -23,7 +23,25 @@ const RoomSchema = new Schema({
   occStatus:             { type: String, enum: OCC_STATUS, default: 'vacant' },
   isVip:                 { type: Boolean, default: false },
   isSmoking:             { type: Boolean, default: false },
-  isAccessible:          { type: Boolean, default: false },
+  isAccessible:          { type: Boolean, default: false },   // סינון מהיר
+  // נגישות מפורטת — חוק שוויון זכויות לאנשים עם מוגבלות, תשנ"ח-1998
+  accessibilityFeatures: [{
+    type: String,
+    enum: [
+      'wheelchair_accessible',   // נגיש לכיסא גלגלים
+      'roll_in_shower',           // מקלחת נגישה ללא מדרגה
+      'grab_bars',                // מוטות אחיזה
+      'lowered_bed',              // מיטה נמוכה
+      'lowered_switches',         // מתגים בגובה נגיש
+      'visual_fire_alarm',        // אזעקת אש חזותית (לחירשים)
+      'hearing_loop',             // לולאת השראה (מגברי שמע)
+      'wide_doorway',             // פתח רחב (לפחות 90 ס"מ)
+      'elevator_access',          // גישה במעלית
+      'accessible_bathroom',      // שירותים נגישים
+      'braille_signage',          // שלטים בברייל
+      'pool_lift',                // מעלית לבריכה
+    ],
+  }],
   connectingRoom:        { type: Schema.Types.ObjectId, ref: 'Room' },
   preferredAlternateRoom:{ type: Schema.Types.ObjectId, ref: 'Room' },
   internalNotes:         String,

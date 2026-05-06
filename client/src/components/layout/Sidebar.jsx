@@ -5,7 +5,7 @@ import {
   BedDouble, UserCheck, Megaphone, GitBranch, Bot, FileText,
   BadgeDollarSign, Search, TrendingUp, Building2, Star, PackagePlus,
   LogOut, Calendar, Sparkles, Tag, BookOpen, Funnel, CreditCard,
-  LogIn, Moon,
+  LogIn, Moon, ReceiptText,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -75,6 +75,7 @@ const PMS_NAV = [
       { path: '/pms/check-out',    icon: LogOut,          label: "צ'ק-אאוט" },
       { path: '/pms/guests',       icon: Users,           label: 'אורחים' },
       { path: '/pms/folio',        icon: CreditCard,      label: 'Folio' },
+      { path: '/pms/invoices',     icon: ReceiptText,     label: 'חשבוניות' },
     ],
   },
   {

@@ -1,6 +1,26 @@
 import mongoose from 'mongoose';
 const { Schema, model } = mongoose;
 
+// מדיניות ביטול מובנית — חוק הגנת הצרכן + תקנות שירותי תיירות
+// כל מדיניות מכילה: תיאור ברור (בעברית + אנגלית), סוג עמלה, וחלון ביטול חינם
+const CancellationPolicySchema = new Schema({
+  code:                { type: String, required: true },
+  name:                { type: String, required: true },        // למשל: "ביטול חופשי עד 48 שעות"
+  nameEn:              { type: String },
+  freeUntilHours:      { type: Number, default: 24 },           // שעות לפני הגעה שבהן ביטול חינם
+  feeType:             {
+    type: String,
+    enum: ['none', 'first_night', 'percent', 'fixed'],
+    default: 'first_night',
+  },
+  feePercent:          { type: Number, default: 0, min: 0, max: 100 },
+  feeFixedAmount:      { type: Number, default: 0, min: 0 },
+  nonRefundable:       { type: Boolean, default: false },        // לא ניתן להחזר כלל
+  descriptionHe:       { type: String },                         // טקסט המוצג לאורח — עברית
+  descriptionEn:       { type: String },                         // טקסט המוצג לאורח — אנגלית
+  active:              { type: Boolean, default: true },
+}, { _id: true });
+
 const BuildingSchema = new Schema({
   code: String,
   name: { type: String, required: true },
@@ -114,10 +134,16 @@ const PropertySchema = new Schema({
   // Policies
   defaultCancellationHours: { type: Number, default: 24 },
   defaultCancellationFee:   { type: String, default: 'first_night' },
+  cancellationPolicies:     { type: [CancellationPolicySchema], default: [] }, // מדיניות ביטול מובנית
   defaultDepositPolicy:     String,
   petPolicy:        { type: String, enum: ['not_allowed', 'on_request', 'allowed'], default: 'not_allowed' },
   smokingPolicy:    { type: String, enum: ['non_smoking', 'designated_areas', 'allowed'], default: 'non_smoking' },
   childrenPolicy:   String,
+
+  // מדיניות פרטיות — לפי חוק הגנת הפרטיות תשמ"א-1981
+  privacyPolicyVersion:   { type: String },          // גרסה (למשל "2.1")
+  privacyPolicyUrl:       { type: String },          // קישור לנוסח המלא
+  privacyPolicyUpdatedAt: { type: Date },            // תאריך עדכון אחרון
 
   // Section 6.2
   buildings:        { type: [BuildingSchema], default: [] },

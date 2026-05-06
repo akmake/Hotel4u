@@ -65,6 +65,7 @@ const CompaniesPage        = lazy(() => import('./pages/CompaniesPage'));
 const LeadInboxPage        = lazy(() => import('./pages/LeadInboxPage'));
 const OpportunityBoardPage = lazy(() => import('./pages/OpportunityBoardPage'));
 const ReportsPage          = lazy(() => import('./pages/ReportsPage'));
+const InvoicesPage         = lazy(() => import('./pages/InvoicesPage'));
 const NightAuditPage       = lazy(() => import('./pages/NightAuditPage'));
 const RatesPage            = lazy(() => import('./pages/RatesPage'));
 const SettingsPage         = lazy(() => import('./pages/SettingsPage'));
@@ -78,7 +79,8 @@ function PageLoader() {
 }
 
 function AuthGate({ children }) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isLoading } = useAuthStore();
+  if (isLoading) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return children;
 }
@@ -100,8 +102,12 @@ function PmsRoleGuard() {
 }
 
 export default function App() {
-  const { user } = useAuthStore();
+  const { user, checkAuth } = useAuthStore();
   const { initializeSocket, disconnectSocket, fetchContacts } = useChatStore();
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   useEffect(() => {
     if (user?._id) {
@@ -177,6 +183,7 @@ export default function App() {
               <Route path="maintenance"       element={<MaintenancePage />} />
               <Route path="guests"            element={<GuestsPage />} />
               <Route path="folio"             element={<FolioPage />} />
+              <Route path="invoices"          element={<InvoicesPage />} />
               <Route path="companies"         element={<CompaniesPage />} />
               <Route path="leads"             element={<LeadInboxPage />} />
               <Route path="opportunities"     element={<OpportunityBoardPage />} />

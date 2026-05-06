@@ -34,6 +34,13 @@ export function attachActor(req, _res, next) {
   next();
 }
 
+export function requireActor(req, res, next) {
+  if (!req.actor) {
+    return res.status(401).json({ success: false, error: 'Authentication required' });
+  }
+  next();
+}
+
 export function actorOrSystem(req, fallbackName = 'system') {
   if (req.actor) {
     return {
@@ -60,9 +67,29 @@ export function requireRoles(req, roles, message = 'Insufficient permissions') {
 }
 
 export function assertPropertyScope(req, propertyId) {
-  if (!req.actor || !propertyId) return;
-  if (req.actor.role === 'super_admin') return;
-  if (req.actor.propertyId && String(req.actor.propertyId) !== String(propertyId)) {
+  if (!req.actor) {
+    const err = new Error('Authentication required');
+    err.status = 401;
+    throw err;
+  }
+  if (['super_admin', 'chain_admin'].includes(req.actor.role)) {
+    if (!propertyId) return;
+  }
+
+  if (!propertyId && req.actor.propertyId) return;
+  if (!propertyId) {
+    const err = new Error('propertyId is required');
+    err.status = 400;
+    throw err;
+  }
+
+  if (!req.actor.propertyId) {
+    const err = new Error('Actor has no property scope');
+    err.status = 403;
+    throw err;
+  }
+
+  if (String(req.actor.propertyId) !== String(propertyId)) {
     const err = new Error('Property scope violation');
     err.status = 403;
     throw err;

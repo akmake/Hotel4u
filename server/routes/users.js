@@ -1,19 +1,20 @@
 ﻿import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { assertPropertyScope } from '../middleware/authContext.js';
+import { assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import { audit, auditCtxFromReq } from '../services/auditService.js';
 import User, { ROLES } from '../models/User.js';
 import { actorPermissions } from '../middleware/permissions.js';
 
 const router = Router();
-const ADMIN_ROLES = ['super_admin', 'property_admin', 'general_manager'];
+const ADMIN_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager'];
 
 // GET /api/users?propertyId=&role=&active=
 router.get('/', asyncHandler(async (req, res) => {
   const { propertyId, role, active } = req.query;
-  assertPropertyScope(req, propertyId);
-  const filter = { property: propertyId };
+  const scopedPropertyId = propertyId || req.actor?.propertyId;
+  assertPropertyScope(req, scopedPropertyId);
+  const filter = { property: scopedPropertyId };
   if (role)               filter.role   = role;
   if (active !== undefined) filter.active = active === 'true';
   const users = await User.find(filter).select('-passwordHash').sort({ firstName: 1 }).lean();
@@ -25,6 +26,15 @@ router.get('/roles', (req, res) => {
   res.json({ success: true, data: ROLES });
 });
 
+// GET /api/users/me/permissions
+// Returns the authenticated actor's full permission list (פרק י"ח section 35)
+router.get('/me/permissions', asyncHandler(async (req, res) => {
+  const actor = req.actor;
+  if (!actor) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  const permissions = actorPermissions(actor);
+  res.json({ success: true, data: { role: actor.role, permissions } });
+}));
+
 // GET /api/users/:id
 router.get('/:id', asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id).select('-passwordHash').lean();
@@ -35,8 +45,10 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 // POST /api/users
 router.post('/', asyncHandler(async (req, res) => {
+  requireRoles(req, ['super_admin', 'chain_admin', 'property_admin'], 'Only admins can create users');
   const { propertyId, firstName, lastName, email, password, role } = req.body;
-  assertPropertyScope(req, propertyId);
+  const scopedPropertyId = propertyId || req.actor?.propertyId;
+  assertPropertyScope(req, scopedPropertyId);
 
   if (!firstName || !lastName || !email || !password || !role)
     return res.status(400).json({ success: false, error: 'כל שדות החובה נדרשים' });
@@ -49,11 +61,11 @@ router.post('/', asyncHandler(async (req, res) => {
   if (exists) return res.status(400).json({ success: false, error: 'כתובת האימייל כבר בשימוש' });
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await User.create({ property: propertyId, firstName, lastName, email, passwordHash, role });
+  const user = await User.create({ property: scopedPropertyId, firstName, lastName, email, passwordHash, role });
   const safe = user.toObject();
   delete safe.passwordHash;
 
-  await audit({ property: propertyId, ...auditCtxFromReq(req), action: 'user.create', entityType: 'User', entityId: user._id, after: safe });
+  await audit({ property: scopedPropertyId, ...auditCtxFromReq(req), action: 'user.create', entityType: 'User', entityId: user._id, after: safe });
   res.status(201).json({ success: true, data: safe });
 }));
 
@@ -101,15 +113,6 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(req.params.id, { active: false });
   await audit({ property: String(user.property), ...auditCtxFromReq(req), action: 'user.deactivate', entityType: 'User', entityId: user._id });
   res.json({ success: true, data: { deactivated: true } });
-}));
-
-// GET /api/users/me/permissions
-// Returns the authenticated actor's full permission list (פרק י"ח section 35)
-router.get('/me/permissions', asyncHandler(async (req, res) => {
-  const actor = req.actor;
-  if (!actor) return res.status(401).json({ success: false, error: 'Unauthorized' });
-  const permissions = actorPermissions(actor);
-  res.json({ success: true, data: { role: actor.role, permissions } });
 }));
 
 export default router;

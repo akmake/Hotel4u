@@ -3,6 +3,7 @@ import Room from '../models/Room.js';
 import Booking from '../models/Booking.js';
 import Hotel from '../models/Hotel.js';
 import { syncRoomWithCalendar } from './roomSyncService.js'; // הייבוא מהקובץ שיצרנו למעלה
+import { runAnonymizationPass } from './retentionService.js';
 
 export const initScheduler = () => {
     // הרצה כל יום ב-04:00 לפנות בוקר
@@ -60,4 +61,16 @@ export const initScheduler = () => {
     });
 
     console.log('✔ Scheduler initialized (Runs at 04:00 AM daily)');
+
+    // ── שמירת נתונים — 7 שנים — מופעל ב-03:00 בראשון לכל חודש ────────────
+    // בסיס חוקי: פקודת מס הכנסה + חוק מע"מ
+    cron.schedule('0 3 1 * *', async () => {
+        console.log('🗂 Starting monthly data-retention anonymization pass…');
+        try {
+            const result = await runAnonymizationPass();
+            console.log('✅ Retention pass complete:', result);
+        } catch (err) {
+            console.error('❌ Error in retention pass:', err);
+        }
+    });
 };

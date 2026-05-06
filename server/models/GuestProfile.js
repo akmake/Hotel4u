@@ -36,8 +36,20 @@ const GuestProfileSchema = new Schema({
   internalNotes:  String,
   notes:          [GuestNoteSchema],
   tags:           [{ type: String }],
-  marketingConsent: { type: Boolean, default: false },
-  privacyConsent:   { type: Boolean, default: false },
+  // הסכמות — עם audit trail לפי חוק הספאם (תיקון 40) וחוק הגנת הפרטיות
+  marketingConsent:        { type: Boolean, default: false },
+  marketingConsentAt:      { type: Date },               // מועד מתן ההסכמה
+  marketingConsentIp:      { type: String },             // IP של הדפדפן
+  marketingConsentFormVer: { type: String },             // גרסת הטופס שהוצג
+
+  privacyConsent:          { type: Boolean, default: false },
+  privacyConsentAt:        { type: Date },
+  privacyConsentIp:        { type: String },
+  privacyPolicyVersion:    { type: String },             // גרסת מדיניות הפרטיות שהוצגה
+
+  // שמירת נתונים — 7 שנים מהשהות האחרונה (פקודת מס הכנסה + חוק מע"מ)
+  retentionDeleteAfter:    { type: Date },               // מחושב אוטומטית מ-lastStay
+
   totalStays:     { type: Number, default: 0 },
   totalRevenue:   { type: Number, default: 0 },
   noShowCount:    { type: Number, default: 0 },
@@ -49,6 +61,17 @@ const GuestProfileSchema = new Schema({
 
 GuestProfileSchema.virtual('fullName').get(function () {
   return `${this.firstName} ${this.lastName}`;
+});
+
+// עדכון אוטומטי של retentionDeleteAfter כאשר lastStay משתנה
+// 7 שנים לפי פקודת מס הכנסה + חוק מע"מ
+GuestProfileSchema.pre('save', function (next) {
+  if (this.isModified('lastStay') && this.lastStay) {
+    const d = new Date(this.lastStay);
+    d.setFullYear(d.getFullYear() + 7);
+    this.retentionDeleteAfter = d;
+  }
+  next();
 });
 
 export default model('GuestProfile', GuestProfileSchema);

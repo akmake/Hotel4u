@@ -2,12 +2,12 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   Search, Plus, Crown, Globe, Phone, Mail, X, Edit3,
   BookOpen, Tag, FileText, ShieldOff, AlertTriangle,
-  CheckCircle2, User, Save, Trash2, History, Loader2, Merge,
+  CheckCircle2, User, Save, Trash2, History, Loader2, Merge, Download,
 } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import { guests as guestApi } from '../utils/api';
+import { guests as guestApi, guestDataExport } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
 
@@ -102,6 +102,7 @@ function GuestDrawer({ guestId, propertyId, onClose, onUpdated }) {
   const [addingNote,setAddNote]  = useState(false);
   const [showMerge, setShowMerge]= useState(false);
   const [anonConf,  setAnonConf] = useState(false);
+  const [exporting, setExporting]= useState(false);
   const { toasts, success, error: toastErr } = useToast();
 
   const { data: raw, loading, error, refetch } = useApi(
@@ -151,6 +152,23 @@ function GuestDrawer({ guestId, propertyId, onClose, onUpdated }) {
       if (hasTg) await guestApi.removeTag(guestId, tag); else await guestApi.addTag(guestId, tag);
       refetch();
     } catch (e) { toastErr(e.message); }
+  }
+
+  async function exportData() {
+    setExporting(true);
+    try {
+      const data = await guestDataExport.request(guestId, 'בקשת האורח');
+      // ידא קובץ JSON להורדה
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `guest-data-${guestId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      success('נתונים אישיים יוצאו בהצלחה');
+    } catch (e) { toastErr(e.message); }
+    finally { setExporting(false); }
   }
 
   async function anonymize() {
@@ -329,6 +347,10 @@ function GuestDrawer({ guestId, propertyId, onClose, onUpdated }) {
                 <div className="text-xs font-bold text-red-700 mb-3">פעולות רגישות</div>
                 <div className="flex gap-2 flex-wrap">
                   <button className="btn btn-secondary btn-sm gap-1" onClick={() => setShowMerge(true)}><Merge size={12} />מזג פרופיל</button>
+                  <button className="btn btn-secondary btn-sm gap-1" onClick={exportData} disabled={exporting}>
+                    {exporting ? <Spinner size={12}/> : <Download size={12}/>}
+                    ייצוא נתונים אישיים
+                  </button>
                   {!anonConf
                     ? <button className="btn btn-danger btn-sm gap-1" onClick={() => setAnonConf(true)}><ShieldOff size={12} />אנונמיזציה (GDPR)</button>
                     : <div className="flex items-center gap-2 flex-wrap">

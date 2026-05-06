@@ -59,7 +59,8 @@ function RoomModal({ propertyId, room, roomTypes, onClose, onSaved }) {
     housekeepingZone:room?.housekeepingZone || '',
     isVip:           room?.isVip || false,
     isSmoking:       room?.isSmoking || false,
-    isAccessible:    room?.isAccessible || false,
+    isAccessible:           room?.isAccessible || false,
+    accessibilityFeatures:  room?.accessibilityFeatures || [],
     internalNotes:   room?.internalNotes || '',
     lastRenovatedAt: room?.lastRenovatedAt ? room.lastRenovatedAt.slice(0, 10) : '',
   });
@@ -178,6 +179,44 @@ function RoomModal({ propertyId, room, roomTypes, onClose, onSaved }) {
                 ))}
               </div>
             </div>
+
+            {/* accessibility detail — shown only when isAccessible is checked */}
+            {form.isAccessible && (
+              <div>
+                <label className="text-xs font-semibold text-ink-secondary block mb-2">תכונות נגישות מפורטות</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { key:'wheelchair_accessible', label:'נגיש לכיסא גלגלים' },
+                    { key:'roll_in_shower',         label:'מקלחת נגישה' },
+                    { key:'grab_bars',              label:'מוטות אחיזה' },
+                    { key:'lowered_bed',            label:'מיטה נמוכה' },
+                    { key:'lowered_switches',       label:'מתגים בגובה נגיש' },
+                    { key:'visual_fire_alarm',      label:'אזעקת אש חזותית' },
+                    { key:'hearing_loop',           label:'לולאת השראה' },
+                    { key:'wide_doorway',           label:'פתח רחב' },
+                    { key:'elevator_access',        label:'גישה במעלית' },
+                    { key:'accessible_bathroom',    label:'שירותים נגישים' },
+                    { key:'braille_signage',        label:'שלטים בברייל' },
+                    { key:'pool_lift',              label:'מעלית לבריכה' },
+                  ].map(({ key, label }) => {
+                    const checked = form.accessibilityFeatures.includes(key);
+                    return (
+                      <label key={key} className={`flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-lg border text-xs transition-all
+                        ${checked ? 'border-blue-400 bg-blue-50' : 'border-surface-border hover:border-blue-300'}`}>
+                        <input type="checkbox" checked={checked}
+                          onChange={e => {
+                            const arr = form.accessibilityFeatures;
+                            set('accessibilityFeatures', e.target.checked ? [...arr, key] : arr.filter(k => k !== key));
+                          }}
+                          className="hidden" />
+                        <span className={`font-medium ${checked ? 'text-blue-700' : 'text-ink-secondary'}`}>{label}</span>
+                        {checked && <CheckCircle2 size={11} className="text-blue-500 mr-auto" />}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* renovation + notes */}
             <div className="grid grid-cols-2 gap-3">
