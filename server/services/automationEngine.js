@@ -13,10 +13,16 @@ import Notification    from '../models/Notification.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import Room            from '../models/Room.js';
+import RoomType        from '../models/RoomType.js';
+import Property        from '../models/Property.js';
 import Reservation     from '../models/Reservation.js';
+import GuestProfile    from '../models/GuestProfile.js';
 import Folio           from '../models/Folio.js';
 import { push as pushNotification } from './notificationService.js';
 import { emit as emitWebhook }     from './webhookService.js';
+import { dispatchDirectEmail, dispatchDirectSms } from './notificationDispatcher.js';
+import { buildGenericEmail, buildPaymentLinkEmail, buildReservationConfirmationEmail } from './emailService.js';
+import { buildPaymentLinkSms } from './smsService.js';
 
 // ── Field resolver ────────────────────────────────────────────────────────────
 
@@ -163,18 +169,52 @@ async function handlePostCharge(params, ctx) {
   await folio.save();
 }
 
+async function resolveGuestContact(ctx) {
+  // Returns { email, phone } from context (reservation.primaryGuest or explicit params)
+  const guestId = get(ctx, 'reservation.primaryGuest');
+  if (!guestId) return {};
+  const guest = await GuestProfile.findById(guestId).select('email phone emails phones firstName lastName').lean();
+  if (!guest) return {};
+  return {
+    email: guest.email || guest.emails?.[0]?.address || null,
+    phone: guest.phone || guest.phones?.[0]?.number  || null,
+    name:  `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || null,
+  };
+}
+
 async function handleSendMessage(params, ctx) {
-  // Email/SMS providers not yet wired — fall back to an in-app + email notification record.
-  const propertyId = ctx.property;
-  const title = interpolate(params.subject || 'Message', ctx);
-  const body  = interpolate(params.body    || '', ctx);
+  const subject = interpolate(params.subject || params.title || 'הודעה מהמלון', ctx);
+  const body    = interpolate(params.body    || '', ctx);
+  const channel = params.channel || 'email';
+
+  if (channel === 'email' || channel === 'both') {
+    const toEmail = params.to || (await resolveGuestContact(ctx)).email;
+    if (toEmail) {
+      const { subject: s, html, text } = buildGenericEmail({
+        subject,
+        message:      body,
+        guestName:    interpolate(params.guestName || '{{reservation.primaryGuest.firstName}}', ctx) || undefined,
+        propertyName: params.propertyName || undefined,
+      });
+      await dispatchDirectEmail({ to: toEmail, subject: s, html, text });
+    }
+  }
+
+  if (channel === 'sms' || channel === 'both') {
+    const toPhone = params.to || (await resolveGuestContact(ctx)).phone;
+    if (toPhone) {
+      await dispatchDirectSms({ to: toPhone, body: `${subject}${body ? '\n' + body : ''}` });
+    }
+  }
+
+  // Always create an in-app notification too
   await pushNotification({
-    property: propertyId,
-    type:     'reservation_created',
-    title,
+    property: ctx.property,
+    type:     'reservation.new',
+    title:    subject,
     body,
-    priority: 'normal',
-    channel:  params.channel || 'in_app',
+    priority: params.priority || 'normal',
+    channel:  'in_app',
     recipientUserId: params.recipientUserId || undefined,
     entityType: ctx._entityType || undefined,
     entityId:   ctx._entityId   || undefined,
@@ -182,11 +222,43 @@ async function handleSendMessage(params, ctx) {
 }
 
 async function handleSendPaymentLink(params, ctx) {
-  // Payment-link generation not yet wired — record notification as a reminder.
-  await handleSendMessage(
-    { subject: 'שליחת קישור תשלום', body: params.message || '', channel: 'in_app' },
-    ctx,
-  );
+  const paymentLink = params.paymentLink || params.link;
+  const contact     = await resolveGuestContact(ctx);
+  const toEmail     = params.toEmail || contact.email;
+  const toPhone     = params.toPhone || contact.phone;
+  const confirmationNumber = get(ctx, 'reservation.confirmationNumber') || '';
+  const amount      = params.amount;
+  const currency    = params.currency || 'ILS';
+
+  if (toEmail && paymentLink) {
+    const { subject, html, text } = buildPaymentLinkEmail({
+      guestName:          contact.name,
+      confirmationNumber,
+      amount,
+      currency,
+      paymentLink,
+      expiresAt:          params.expiresAt || null,
+      propertyName:       params.propertyName || null,
+    });
+    await dispatchDirectEmail({ to: toEmail, subject, html, text });
+  }
+
+  if (toPhone && paymentLink) {
+    const body = buildPaymentLinkSms({ confirmationNumber, amount, currency, paymentLink });
+    await dispatchDirectSms({ to: toPhone, body });
+  }
+
+  // In-app fallback even without a real link
+  await pushNotification({
+    property: ctx.property,
+    type:     'folio.payment_due',
+    title:    'שליחת קישור תשלום',
+    body:     paymentLink ? `קישור: ${paymentLink}` : 'קישור תשלום לא הוגדר',
+    priority: 'normal',
+    channel:  'in_app',
+    entityType: ctx._entityType || undefined,
+    entityId:   ctx._entityId   || undefined,
+  });
 }
 
 async function handleWebhook(params, ctx) {
@@ -198,6 +270,37 @@ async function handleWebhook(params, ctx) {
     context:     ctx,
     params,
   });
+}
+
+async function handleSendConfirmation(params, ctx) {
+  const reservation = ctx.reservation;
+  if (!reservation?._id) return;
+
+  const [guest, property, roomTypeDoc] = await Promise.all([
+    GuestProfile.findById(reservation.primaryGuest).select('firstName lastName email emails').lean(),
+    Property.findById(ctx.property).select('name phone email').lean(),
+    RoomType.findById(reservation.roomType).select('name').lean(),
+  ]);
+
+  const toEmail = guest?.email || guest?.emails?.[0]?.address;
+  if (toEmail) {
+    const { subject, html, text } = buildReservationConfirmationEmail({
+      guestName:          `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
+      confirmationNumber: reservation.confirmationNumber,
+      arrivalDate:        reservation.arrivalDate,
+      departureDate:      reservation.departureDate,
+      roomType:           roomTypeDoc?.name || '',
+      nights:             reservation.nights,
+      totalAmount:        reservation.totalAmount,
+      currency:           reservation.currency || 'ILS',
+      propertyName:       property?.name,
+      propertyPhone:      property?.phone,
+      propertyEmail:      property?.email,
+    });
+    await dispatchDirectEmail({ to: toEmail, subject, html, text });
+  }
+
+  await Reservation.findByIdAndUpdate(reservation._id, { $set: { confirmationSent: true } });
 }
 
 // ── Action dispatcher ─────────────────────────────────────────────────────────
@@ -212,6 +315,7 @@ const ACTION_HANDLERS = {
   post_charge:               handlePostCharge,
   send_message:              handleSendMessage,
   send_payment_link:         handleSendPaymentLink,
+  send_confirmation:         handleSendConfirmation,
   webhook:                   handleWebhook,
 };
 

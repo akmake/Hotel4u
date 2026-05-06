@@ -10,6 +10,7 @@
  */
 
 import Notification from '../models/Notification.js';
+import { dispatch } from './notificationDispatcher.js';
 
 /**
  * @param {object} params
@@ -43,7 +44,7 @@ export async function push({
   expiresInHours,
   createdBy,
 }) {
-  return Notification.create({
+  const notification = await Notification.create({
     property,
     type,
     title,
@@ -58,6 +59,13 @@ export async function push({
     expiresAt:      expiresInHours ? new Date(Date.now() + Number(expiresInHours) * 3600000) : undefined,
     createdBy:      createdBy       || undefined,
   });
+
+  // Dispatch to external channel (email/sms) — fire-and-forget
+  if (channel !== 'in_app') {
+    dispatch(notification).catch(() => null);
+  }
+
+  return notification;
 }
 
 /**

@@ -19,6 +19,7 @@ const PAGE_TITLES = {
   '/folio':         'Folio ותשלומים',
   '/reports':       'דוחות',
   '/bulk-jobs':     'עבודות Bulk',
+  '/automation':    'כללי אוטומציה',
   '/settings':      'הגדרות',
 };
 

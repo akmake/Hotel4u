@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Settings, Users, BedDouble, Building2, Plus, Trash2,
   CheckCircle2, XCircle, Pencil, Save, X, Eye, EyeOff, Home, SlidersHorizontal,
+  Webhook, RefreshCw, ToggleLeft, ToggleRight, Copy, AlertCircle,
 } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import { users as usersApi, properties as propertiesApi, rooms as roomsApi, roomTypes as rtApi } from '../utils/api';
+import { users as usersApi, properties as propertiesApi, rooms as roomsApi, roomTypes as rtApi, integrations as integrationsApi } from '../utils/api';
 import { normalizeCrmSla } from '../utils/crmSla';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
@@ -64,6 +65,7 @@ const TABS = [
   { id:'rooms',     label:'חדרים',       icon: Home },
   { id:'crm-sla',   label:'CRM SLA',      icon: SlidersHorizontal },
   { id:'users',     label:'משתמשים',     icon: Users },
+  { id:'webhooks',  label:'Webhooks',     icon: Webhook },
 ];
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -1058,6 +1060,234 @@ function CrmSlaTab({ propertyId, success, toastError }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Webhooks Tab
+// ══════════════════════════════════════════════════════════════════════════════
+function WebhooksTab({ propertyId, success: showSuccess, toastError }) {
+  const [webhooks, setWebhooks] = useState([]);
+  const [events,   setEvents]   = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [modal,    setModal]    = useState(null); // null | 'create' | { webhook }
+  const [secret,   setSecret]   = useState(null); // revealed secret after create/rotate
+  const [form, setForm] = useState({ url: '', description: '', events: [] });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!propertyId) return;
+    try {
+      const [whRes, evRes] = await Promise.all([
+        integrationsApi.webhooks.list(propertyId),
+        integrationsApi.webhooks.events(),
+      ]);
+      setWebhooks(whRes.data?.data || []);
+      setEvents(evRes.data?.data || []);
+    } catch (e) {
+      toastError(e.response?.data?.error || 'שגיאה בטעינת webhooks');
+    } finally {
+      setLoading(false);
+    }
+  }, [propertyId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openCreate() {
+    setForm({ url: '', description: '', events: [] });
+    setSecret(null);
+    setModal('create');
+  }
+
+  function toggleEvent(ev) {
+    setForm(f => ({
+      ...f,
+      events: f.events.includes(ev) ? f.events.filter(e => e !== ev) : [...f.events, ev],
+    }));
+  }
+
+  async function handleCreate() {
+    if (!form.url || !form.events.length) return toastError('URL ואירוע אחד לפחות חובה');
+    setSaving(true);
+    try {
+      const res = await integrationsApi.webhooks.create({ propertyId, ...form });
+      setSecret(res.data?.data?.secret || null);
+      showSuccess('Webhook נוצר');
+      load();
+      setModal('reveal-secret');
+    } catch (e) {
+      toastError(e.response?.data?.error || 'שגיאה ביצירת webhook');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggle(wh) {
+    try {
+      await integrationsApi.webhooks.update(wh._id, { active: !wh.active });
+      setWebhooks(ws => ws.map(w => w._id === wh._id ? { ...w, active: !wh.active } : w));
+    } catch (e) {
+      toastError(e.response?.data?.error || 'שגיאה');
+    }
+  }
+
+  async function handleRotate(wh) {
+    try {
+      const res = await integrationsApi.webhooks.rotateSecret(wh._id);
+      setSecret(res.data?.data?.secret || null);
+      setModal('reveal-secret');
+      showSuccess('Secret הוחלף');
+    } catch (e) {
+      toastError(e.response?.data?.error || 'שגיאה');
+    }
+  }
+
+  async function handleDelete(wh) {
+    if (!window.confirm(`למחוק את ה-Webhook ל-${wh.url}?`)) return;
+    try {
+      await integrationsApi.webhooks.remove(wh._id);
+      setWebhooks(ws => ws.filter(w => w._id !== wh._id));
+      showSuccess('Webhook נמחק');
+    } catch (e) {
+      toastError(e.response?.data?.error || 'שגיאה במחיקה');
+    }
+  }
+
+  function copySecret() {
+    navigator.clipboard.writeText(secret || '').catch(() => null);
+    showSuccess('הועתק ללוח');
+  }
+
+  if (loading) return <div className="p-6 text-center text-ink-muted text-sm">טוען...</div>;
+
+  return (
+    <div className="max-w-3xl space-y-5" dir="rtl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-ink">Webhooks</h2>
+          <p className="text-xs text-ink-muted mt-0.5">קבל התראות HTTP ל-URL חיצוני כשמתרחשים אירועים במלון</p>
+        </div>
+        <button onClick={openCreate} className="btn btn-primary flex items-center gap-1.5">
+          <Plus size={15} /> Webhook חדש
+        </button>
+      </div>
+
+      {webhooks.length === 0 ? (
+        <div className="bg-surface-alt border border-surface-border rounded-xl p-10 text-center">
+          <Webhook size={28} className="mx-auto mb-3 text-ink-faint" />
+          <p className="text-sm text-ink-muted">אין webhooks רשומים עדיין</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {webhooks.map(wh => (
+            <div key={wh._id} className={`bg-white border rounded-xl p-4 ${wh.active ? 'border-surface-border' : 'border-surface-border opacity-60'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <code className="text-sm font-medium text-ink truncate">{wh.url}</code>
+                    {!wh.active && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">כבוי</span>}
+                    {wh.failureCount > 0 && (
+                      <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded flex items-center gap-1">
+                        <AlertCircle size={10} />{wh.failureCount} כשלים
+                      </span>
+                    )}
+                  </div>
+                  {wh.description && <p className="text-xs text-ink-muted mt-0.5">{wh.description}</p>}
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {(wh.events || []).map(ev => (
+                      <span key={ev} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded">{ev}</span>
+                    ))}
+                  </div>
+                  {wh.lastCalledAt && (
+                    <p className="text-xs text-ink-faint mt-1">שיחה אחרונה: {new Date(wh.lastCalledAt).toLocaleString('he-IL')}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => handleToggle(wh)} title={wh.active ? 'כבה' : 'הפעל'}
+                    className={`transition-colors ${wh.active ? 'text-indigo-500 hover:text-indigo-700' : 'text-slate-300 hover:text-slate-500'}`}>
+                    {wh.active ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                  </button>
+                  <button onClick={() => handleRotate(wh)} title="החלף secret"
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded">
+                    <RefreshCw size={14} />
+                  </button>
+                  <button onClick={() => handleDelete(wh)} title="מחק"
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {modal === 'create' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" dir="rtl">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="font-semibold text-slate-800">Webhook חדש</h3>
+              <button onClick={() => setModal(null)}><X size={18} className="text-slate-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="form-label">URL (https) *</label>
+                <input className="input w-full" placeholder="https://myapp.com/webhooks/hotel"
+                  value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} />
+              </div>
+              <div>
+                <label className="form-label">תיאור (אופציונלי)</label>
+                <input className="input w-full" placeholder="שם מערכת..."
+                  value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+              <div>
+                <label className="form-label">אירועים *</label>
+                <div className="grid grid-cols-2 gap-1 max-h-44 overflow-y-auto border border-surface-border rounded-lg p-2">
+                  {events.map(ev => (
+                    <label key={ev} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-slate-50 rounded px-1 py-0.5">
+                      <input type="checkbox" checked={form.events.includes(ev)} onChange={() => toggleEvent(ev)} />
+                      <span className="truncate">{ev}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t flex justify-between">
+              <button onClick={() => setModal(null)} className="btn btn-secondary">ביטול</button>
+              <button onClick={handleCreate} disabled={saving} className="btn btn-primary">
+                {saving ? 'יוצר...' : 'צור Webhook'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Secret reveal Modal */}
+      {modal === 'reveal-secret' && secret && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" dir="rtl">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-slate-800">Signing Secret</h3>
+              <button onClick={() => { setModal(null); setSecret(null); }}><X size={18} className="text-slate-400" /></button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-slate-600 mb-3">שמור את ה-secret הזה — הוא יוצג פעם אחת בלבד.</p>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <code className="flex-1 text-xs break-all text-slate-700">{secret}</code>
+                <button onClick={copySecret} className="text-slate-400 hover:text-slate-700 shrink-0">
+                  <Copy size={14} />
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">השתמש ב-secret לאימות חתימת HMAC-SHA256 על ה-payload.</p>
+            </div>
+            <div className="px-5 py-3 border-t">
+              <button onClick={() => { setModal(null); setSecret(null); }} className="btn btn-primary w-full">הבנתי, סגור</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { propertyId } = useProperty();
   const [tab, setTab] = useState('property');
@@ -1096,11 +1326,12 @@ export default function SettingsPage() {
         })}
       </div>
 
-      {tab === 'property'  && <PropertyTab  propertyId={propertyId} success={success} toastError={toastError} />}
-      {tab === 'roomtypes' && <RoomTypesTab propertyId={propertyId} success={success} toastError={toastError} />}
-      {tab === 'rooms'     && <RoomsTab     propertyId={propertyId} success={success} toastError={toastError} />}
-      {tab === 'crm-sla'   && <CrmSlaTab    propertyId={propertyId} success={success} toastError={toastError} />}
-      {tab === 'users'     && <UsersTab     propertyId={propertyId} success={success} toastError={toastError} />}
+      {tab === 'property'  && <PropertyTab   propertyId={propertyId} success={success} toastError={toastError} />}
+      {tab === 'roomtypes' && <RoomTypesTab  propertyId={propertyId} success={success} toastError={toastError} />}
+      {tab === 'rooms'     && <RoomsTab      propertyId={propertyId} success={success} toastError={toastError} />}
+      {tab === 'crm-sla'   && <CrmSlaTab     propertyId={propertyId} success={success} toastError={toastError} />}
+      {tab === 'users'     && <UsersTab      propertyId={propertyId} success={success} toastError={toastError} />}
+      {tab === 'webhooks'  && <WebhooksTab   propertyId={propertyId} success={success} toastError={toastError} />}
     </div>
   );
 }

@@ -1,9 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LogIn, LogOut, Users, BedDouble, Sparkles, Wrench, AlertTriangle,
-  AlertCircle, Info, Crown, TrendingUp, RefreshCw, Plus, Calendar, X,
+  AlertCircle, Info, Crown, TrendingUp, RefreshCw, Plus, Calendar,
   ChevronRight, Clock, DollarSign, Target, BarChart2, Star,
+  Activity, ArrowUpRight,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -15,6 +16,8 @@ import { dashboard, reports } from '../utils/api';
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
+const PMS = p => `/pms${p}`;
+
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 function addDaysStr(d, n) {
   const dt = new Date(d); dt.setDate(dt.getDate() + n);
@@ -42,403 +45,107 @@ function fmtMoney(n) {
   if (!n) return '₪0';
   return '₪' + Number(n).toLocaleString('he-IL');
 }
-function fmtCountdown(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2,'0')}`;
-}
 
 /* ── live clock ──────────────────────────────────────────────────────────── */
 function LiveClock() {
-  const fmt = () => new Date().toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
+  const fmt = () => new Date().toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
   const [time, setTime] = useState(fmt);
   useEffect(() => {
-    const id = setInterval(() => setTime(fmt()), 30000);
+    const id = setInterval(() => setTime(fmt()), 1000);
     return () => clearInterval(id);
   }, []);
-  return <span className="font-mono text-sm text-ink-muted tabular-nums">{time}</span>;
+  return <span className="font-mono text-2xl font-light tracking-widest text-white/90 tabular-nums">{time}</span>;
 }
 
-/* ── stat card ───────────────────────────────────────────────────────────── */
-function StatCard({ icon: Icon, label, value, sub, color, bgColor, urgent, onClick }) {
+/* ── KPI card ────────────────────────────────────────────────────────────── */
+function KpiCard({ icon: Icon, label, value, sub, accentColor, urgent, onClick }) {
   return (
-    <div
-      className={`stat-card transition-all
-        ${urgent ? 'ring-2 ring-red-300 bg-red-50/40' : ''}
-        ${onClick ? 'cursor-pointer hover:shadow-card-hover' : ''}
-      `}
+    <button
       onClick={onClick}
+      className={`w-full text-right bg-white rounded-xl border transition-all duration-150 group
+        ${urgent
+          ? 'border-red-300 shadow-sm hover:shadow-md hover:border-red-400'
+          : 'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'}
+        ${onClick ? 'cursor-pointer' : 'cursor-default'}
+      `}
+      style={{ borderTopWidth: 3, borderTopColor: accentColor }}
     >
-      <div className="stat-icon" style={{ background: bgColor }}>
-        <Icon size={18} style={{ color }} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-ink-muted font-medium truncate">{label}</div>
-        <div className="text-2xl font-bold text-ink leading-tight text-num">{value ?? '—'}</div>
-        {sub && <div className="text-xs text-ink-faint mt-0.5">{sub}</div>}
-      </div>
-      {urgent && <AlertCircle size={14} className="text-red-500 flex-shrink-0 self-start mt-1" />}
-    </div>
-  );
-}
-
-/* ── revenue kpis strip ──────────────────────────────────────────────────── */
-function RevenueKpis({ todayDaily, totalRooms, occupancy }) {
-  const rev     = todayDaily?.revenue    || 0;
-  const arr     = todayDaily?.arrivals   || 0;
-  const adr     = arr > 0 ? Math.round(rev / arr) : 0;
-  const revpar  = totalRooms > 0 ? Math.round(rev / totalRooms) : 0;
-
-  const kpis = [
-    {
-      icon: DollarSign,
-      label: 'הכנסות היום',
-      value: fmtMoney(rev),
-      color: '#059669',
-      bg: 'rgba(16,185,129,0.08)',
-      border: 'border-emerald-200',
-    },
-    {
-      icon: Target,
-      label: 'ADR',
-      value: fmtMoney(adr),
-      sub: 'ממוצע לחדר',
-      color: '#6366f1',
-      bg: 'rgba(99,102,241,0.08)',
-      border: 'border-indigo-200',
-    },
-    {
-      icon: BarChart2,
-      label: 'RevPAR',
-      value: fmtMoney(revpar),
-      sub: 'הכנסה לחדר זמין',
-      color: '#0891b2',
-      bg: 'rgba(6,182,212,0.08)',
-      border: 'border-cyan-200',
-    },
-    {
-      icon: BedDouble,
-      label: 'תפוסה',
-      value: `${occupancy || 0}%`,
-      sub: `${todayDaily?.occupied || 0} / ${totalRooms || 0} חדרים`,
-      color: '#d97706',
-      bg: 'rgba(245,158,11,0.08)',
-      border: 'border-amber-200',
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      {kpis.map(({ icon: Icon, label, value, sub, color, bg, border }) => (
+      <div className="px-4 pt-3 pb-3 flex items-start gap-3">
         <div
-          key={label}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${border}`}
-          style={{ background: bg }}
+          className="mt-0.5 rounded-lg p-2 flex-shrink-0"
+          style={{ background: accentColor + '18' }}
         >
-          <div className="rounded-lg p-2 flex-shrink-0" style={{ background: `${bg}`, border: `1px solid ${border}` }}>
-            <Icon size={16} style={{ color }} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs text-ink-muted font-medium">{label}</div>
-            <div className="text-lg font-bold text-num leading-tight" style={{ color }}>{value}</div>
-            {sub && <div className="text-xs text-ink-faint">{sub}</div>}
-          </div>
+          <Icon size={16} style={{ color: accentColor }} />
         </div>
-      ))}
-    </div>
-  );
-}
-
-/* ── vip callout ─────────────────────────────────────────────────────────── */
-function VipCallout({ arrivals, onNavigate }) {
-  const vips = arrivals.filter(r => r.isVip || (r.primaryGuest?.vipLevel && r.primaryGuest.vipLevel > 0));
-  if (!vips.length) return null;
-
-  const VIP_LEVEL_LABEL = { 1:'VIP', 2:'VIP++', 3:'SVIP', 4:'Diamond', 5:'Celebrity' };
-
-  return (
-    <div className="mb-4 rounded-xl border border-amber-300 overflow-hidden"
-      style={{ background: 'linear-gradient(135deg,rgba(254,243,199,0.6) 0%,rgba(255,255,255,0.8) 100%)' }}>
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200"
-        style={{ background: 'rgba(245,158,11,0.08)' }}>
-        <Crown size={14} className="text-amber-500" />
-        <span className="font-semibold text-amber-800 text-sm">
-          {vips.length} אורח{vips.length > 1 ? 'ים' : ''} VIP מגיע{vips.length > 1 ? 'ים' : ''} היום
-        </span>
-        <span className="mr-auto text-xs text-amber-600">טיפול מיוחד נדרש</span>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-slate-500 font-medium mb-0.5">{label}</div>
+          <div className="text-2xl font-bold text-slate-800 leading-none tabular-nums" style={{ color: urgent ? '#dc2626' : undefined }}>{value ?? '—'}</div>
+          {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+        </div>
+        {onClick && (
+          <ArrowUpRight size={13} className="text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0 mt-1" />
+        )}
       </div>
-      <div className="divide-y divide-amber-100">
-        {vips.map(res => {
-          const g = res.primaryGuest;
-          const room = res.assignedRoom;
-          const roomReady = room && ['clean','inspected'].includes(room.cleanStatus);
-          const level = g?.vipLevel || 1;
-          return (
-            <div
-              key={res._id}
-              onClick={() => onNavigate('/check-in')}
-              className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-amber-50/60 transition-colors"
-            >
-              <div className="avatar flex-shrink-0"
-                style={{ width:34, height:34, fontSize:12, background:'rgba(245,158,11,0.15)', color:'#b45309' }}>
-                {initials(g)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sm text-ink">
-                    {g ? `${g.firstName} ${g.lastName}` : '—'}
-                  </span>
-                  <span className="text-xs font-bold px-1.5 py-0.5 rounded"
-                    style={{ background:'rgba(245,158,11,0.15)', color:'#b45309' }}>
-                    {VIP_LEVEL_LABEL[level] || 'VIP'}
-                  </span>
-                </div>
-                <div className="text-xs text-ink-muted">{res.roomType?.name}</div>
-              </div>
-              <div className="flex-shrink-0 flex flex-col items-end gap-1">
-                {room ? (
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full
-                    ${roomReady ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                    {roomReady ? `חדר ${room.number} מוכן ✓` : `חדר ${room.number} לא נקי!`}
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
-                    ⚠ ללא חדר
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ── 7-day forecast strip ────────────────────────────────────────────────── */
-function ForecastStrip({ daily, totalRooms }) {
-  if (!daily?.length) return null;
-  const todayS = todayStr();
-
-  return (
-    <div className="card p-4 mb-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Calendar size={14} className="text-brand" />
-        <span className="font-semibold text-ink text-sm">תחזית 7 ימים</span>
-        <span className="text-xs text-ink-muted mr-auto">הגעות / יציאות / תפוסה</span>
-      </div>
-      <div className="grid grid-cols-7 gap-2">
-        {daily.slice(0, 7).map((d, i) => {
-          const { weekday, day, month } = fmtDayMini(d.date);
-          const isToday = d.date === todayS;
-          const occ = d.occupancy || 0;
-          const occColor = occ >= 80 ? '#059669' : occ >= 50 ? '#d97706' : '#6366f1';
-          const occBg    = occ >= 80 ? 'rgba(16,185,129,0.08)' : occ >= 50 ? 'rgba(245,158,11,0.08)' : 'rgba(99,102,241,0.06)';
-
-          return (
-            <div
-              key={d.date}
-              className={`rounded-lg p-2 text-center border transition-all
-                ${isToday
-                  ? 'border-indigo-300 ring-2 ring-indigo-200'
-                  : 'border-surface-border hover:border-brand/30'}
-              `}
-              style={{ background: isToday ? 'rgba(99,102,241,0.06)' : occBg }}
-            >
-              <div className={`text-xs font-medium mb-0.5 ${isToday ? 'text-indigo-600' : 'text-ink-muted'}`}>
-                {isToday ? 'היום' : weekday}
-              </div>
-              <div className={`text-base font-bold text-num ${isToday ? 'text-indigo-700' : 'text-ink'}`}>
-                {day}
-              </div>
-              <div className="text-xs text-ink-faint mb-1.5">{month}</div>
-              <div className="text-base font-bold text-num" style={{ color: occColor }}>
-                {occ}%
-              </div>
-              <div className="flex justify-center gap-1.5 mt-1">
-                <span className="flex items-center gap-0.5 text-xs text-violet-600" title="הגעות">
-                  <LogIn size={9} />
-                  {d.arrivals || 0}
-                </span>
-                <span className="flex items-center gap-0.5 text-xs text-orange-500" title="יציאות">
-                  <LogOut size={9} />
-                  {d.departures || 0}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    </button>
   );
 }
 
 /* ── alert banner ────────────────────────────────────────────────────────── */
 const ALERT_ROUTE = a => {
-  if (a.id?.startsWith('noroom-'))  return '/room-rack';
-  if (a.id?.startsWith('balance-')) return '/check-out';
-  if (a.id?.startsWith('hk-'))      return '/housekeeping';
-  if (a.id?.startsWith('vip-'))     return '/housekeeping';
-  return '/reservations';
+  if (a.id?.startsWith('checkin-'))  return PMS('/check-in');
+  if (a.id?.startsWith('checkout-')) return PMS('/check-out');
+  if (a.id?.startsWith('hk-'))       return PMS('/housekeeping');
+  if (a.id?.startsWith('vip-'))      return PMS('/housekeeping');
+  return PMS('/reservations');
 };
+
 function AlertBanner({ alert, onAction, onDismiss }) {
-  const map = {
-    warning: { cls:'alert-warning', Icon:AlertTriangle, color:'#d97706' },
-    danger:  { cls:'alert-danger',  Icon:AlertCircle,   color:'#dc2626' },
-    info:    { cls:'alert-info',    Icon:Info,           color:'#6366f1' },
-  };
-  const { cls, Icon, color } = map[alert.type] || map.info;
+  const cfg = {
+    warning: { bg:'#fffbeb', border:'#fcd34d', icon: AlertTriangle, color:'#b45309', textColor:'#78350f' },
+    danger:  { bg:'#fef2f2', border:'#fca5a5', icon: AlertCircle,   color:'#dc2626', textColor:'#7f1d1d' },
+    info:    { bg:'#eff6ff', border:'#93c5fd', icon: Info,           color:'#2563eb', textColor:'#1e3a8a' },
+  }[alert.type] || { bg:'#f8fafc', border:'#cbd5e1', icon: Info, color:'#475569', textColor:'#1e293b' };
+  const Icon = cfg.icon;
   return (
-    <div className={`alert-banner ${cls} group`}>
-      <Icon size={15} style={{ color, flexShrink:0 }} />
-      <span className="flex-1 text-sm">{alert.text}</span>
-      <button className="btn btn-ghost btn-sm text-xs font-semibold" style={{ color }}
-        onClick={() => onAction(ALERT_ROUTE(alert))}>
-        פעולה ←
+    <div
+      className="flex items-center gap-3 px-4 py-3 rounded-xl border text-sm"
+      style={{ background: cfg.bg, borderColor: cfg.border }}
+    >
+      <Icon size={15} style={{ color: cfg.color, flexShrink:0 }} />
+      <span className="flex-1 font-medium" style={{ color: cfg.textColor }}>{alert.text}</span>
+      <button
+        className="text-xs font-semibold px-3 py-1 rounded-lg border transition-colors hover:opacity-80"
+        style={{ color: cfg.color, borderColor: cfg.border, background: 'white' }}
+        onClick={() => onAction(ALERT_ROUTE(alert))}
+      >
+        לטיפול ←
       </button>
-      <button className="opacity-0 group-hover:opacity-100 transition-opacity ml-1"
-        onClick={() => onDismiss?.(alert.id)}>
-        <X size={13} className="text-ink-faint hover:text-ink" />
+      <button onClick={() => onDismiss?.(alert.id)} className="text-slate-300 hover:text-slate-500 transition-colors">
+        ✕
       </button>
     </div>
   );
 }
 
-/* ── priority strip ──────────────────────────────────────────────────────── */
-function PriorityStrip({ unassigned, openBalances, onNavigate }) {
-  if (!unassigned && !openBalances) return null;
+/* ── section header ──────────────────────────────────────────────────────── */
+function SectionHeader({ icon: Icon, title, badge, action, onAction, iconColor = '#475569' }) {
   return (
-    <div className="flex flex-wrap gap-2 mb-4">
-      {unassigned > 0 && (
+    <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+      <div className="flex items-center gap-2.5">
+        <Icon size={15} style={{ color: iconColor }} />
+        <span className="font-semibold text-slate-700 text-sm">{title}</span>
+        {badge != null && (
+          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 tabular-nums">{badge}</span>
+        )}
+      </div>
+      {action && (
         <button
-          onClick={() => onNavigate('/room-rack')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium hover:bg-red-100 transition-colors"
+          onClick={onAction}
+          className="text-xs text-indigo-600 font-medium hover:text-indigo-700 flex items-center gap-1 transition-colors"
         >
-          <AlertCircle size={15} />
-          <span>{unassigned} הגעות ללא חדר מוקצה</span>
-          <ChevronRight size={13} />
+          {action} <ChevronRight size={12} />
         </button>
       )}
-      {openBalances > 0 && (
-        <button
-          onClick={() => onNavigate('/check-out')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors"
-        >
-          <AlertTriangle size={15} />
-          <span>{openBalances} יציאות עם יתרה לתשלום</span>
-          <ChevronRight size={13} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ── quick actions ───────────────────────────────────────────────────────── */
-const QUICK_ACTIONS = [
-  { icon: LogIn,     label: "צ'ק-אין",     route: '/check-in',     color: '#7c3aed', bg: 'rgba(139,92,246,0.1)' },
-  { icon: LogOut,    label: "צ'ק-אאוט",    route: '/check-out',    color: '#ea580c', bg: 'rgba(249,115,22,0.1)' },
-  { icon: Plus,      label: 'הזמנה חדשה',  route: '/reservations', color: '#059669', bg: 'rgba(16,185,129,0.1)' },
-  { icon: BedDouble, label: 'שיבוץ חדרים', route: '/room-rack',    color: '#2563eb', bg: 'rgba(59,130,246,0.1)' },
-  { icon: Calendar,  label: 'הזמנות',      route: '/reservations', color: '#0891b2', bg: 'rgba(6,182,212,0.1)'  },
-  { icon: Sparkles,  label: 'חדרנות',      route: '/housekeeping', color: '#b45309', bg: 'rgba(180,83,9,0.1)'   },
-];
-function QuickActions({ onNavigate }) {
-  return (
-    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
-      {QUICK_ACTIONS.map(({ icon: Icon, label, route, color, bg }) => (
-        <button
-          key={label}
-          onClick={() => onNavigate(route)}
-          className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-surface-border hover:border-brand/40 hover:shadow-card transition-all"
-          style={{ background: bg + '40' }}
-        >
-          <div className="rounded-lg p-1.5" style={{ background: bg }}>
-            <Icon size={16} style={{ color }} />
-          </div>
-          <span className="text-xs font-medium text-ink-secondary">{label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ── room health bar ─────────────────────────────────────────────────────── */
-function RoomHealthBar({ clean, dirty, ooo, hold, occupied, total }) {
-  if (!total) return null;
-  const pct = n => `${Math.round(((n || 0) / total) * 100)}%`;
-  const segs = [
-    { label: 'נקי/פנוי', value: clean,    color: '#059669' },
-    { label: 'מלוכלך',   value: dirty,    color: '#f59e0b' },
-    { label: 'תפוס',     value: occupied, color: '#6366f1' },
-    { label: 'OOO',      value: ooo,      color: '#dc2626' },
-    { label: 'Hold',     value: hold,     color: '#94a3b8' },
-  ].filter(s => s.value > 0);
-  return (
-    <div className="card px-4 py-3 mb-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-ink-secondary">מצב חדרים — {total} סה"כ</span>
-        <div className="flex gap-3 flex-wrap">
-          {segs.map(s => (
-            <span key={s.label} className="flex items-center gap-1 text-xs text-ink-muted">
-              <span className="w-2 h-2 rounded-full inline-block" style={{ background: s.color }} />
-              {s.label} ({s.value || 0})
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="flex rounded-full overflow-hidden h-3 gap-px bg-surface-hover">
-        {segs.map(s => (
-          <div key={s.label} style={{ width: pct(s.value), background: s.color, minWidth: s.value > 0 ? 4 : 0 }}
-            title={`${s.label}: ${s.value}`} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── occupancy chart ─────────────────────────────────────────────────────── */
-function OccTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-white border border-surface-border rounded-lg shadow-card px-3 py-2 text-xs" style={{ direction:'rtl' }}>
-      <div className="font-semibold text-ink mb-1">{label}</div>
-      {payload.map(p => (
-        <div key={p.dataKey} className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-ink-muted">{p.dataKey === 'occupancy' ? 'תפוסה' : 'הכנסות'}:</span>
-          <span className="font-medium text-num">{p.dataKey === 'occupancy' ? `${p.value}%` : `₪${Number(p.value).toLocaleString('he-IL')}`}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-function OccupancyChart({ daily, totalRooms }) {
-  if (!daily?.length) return null;
-  const today = todayStr();
-  const chartData = daily.map(d => ({
-    day: fmtDayShort(d.date),
-    occupancy: totalRooms ? Math.round((d.occupied / totalRooms) * 100) : d.occupancy || 0,
-    date: d.date,
-  }));
-  return (
-    <div className="card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <TrendingUp size={14} className="text-brand" />
-        <span className="font-semibold text-ink text-sm">תפוסה 7 ימים אחרונים</span>
-      </div>
-      <ResponsiveContainer width="100%" height={120}>
-        <BarChart data={chartData} barSize={14} margin={{ top:4, right:4, bottom:0, left:-24 }}>
-          <CartesianGrid vertical={false} stroke="#f1f5f9" />
-          <XAxis dataKey="day" tick={{ fontSize:10, fill:'#94a3b8' }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize:10, fill:'#94a3b8' }} axisLine={false} tickLine={false} domain={[0,100]} unit="%" />
-          <Tooltip content={<OccTooltip />} cursor={{ fill:'rgba(99,102,241,0.05)' }} />
-          <Bar dataKey="occupancy" radius={[3,3,0,0]}>
-            {chartData.map((d, i) => (
-              <Cell key={i} fill={d.date === today ? '#6366f1' : '#a5b4fc'} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
     </div>
   );
 }
@@ -452,33 +159,40 @@ function ArrivalRow({ res, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="flex items-center gap-3 px-4 py-3 border-b border-surface-hover hover:bg-surface-hover cursor-pointer last:border-0 transition-colors"
+      className="flex items-center gap-3 px-5 py-3 border-b border-slate-50 hover:bg-slate-50/70 cursor-pointer last:border-0 transition-colors"
     >
       <div
-        className="avatar text-xs font-bold flex-shrink-0"
-        style={{ background: isVip ? 'rgba(245,158,11,0.15)' : 'rgba(99,102,241,0.1)', color: isVip ? '#d97706' : '#6366f1', width:30, height:30, fontSize:11 }}
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+        style={{
+          background: isVip ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.08)',
+          color: isVip ? '#b45309' : '#6366f1',
+        }}
       >
         {initials(g)}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1">
-          <span className="text-sm font-semibold text-ink truncate">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-sm text-slate-800 truncate">
             {g ? `${g.firstName} ${g.lastName}` : '—'}
           </span>
           {isVip && <Crown size={11} className="text-amber-500 flex-shrink-0" />}
         </div>
-        <div className="text-xs text-ink-muted">{res.roomType?.name} · {res.adults || 1} אורחים</div>
+        <div className="text-xs text-slate-400">{res.roomType?.name}</div>
       </div>
-      <div className="flex-shrink-0 flex flex-col items-end gap-0.5">
+      <div className="flex-shrink-0 flex flex-col items-end gap-1">
         {room ? (
-          <span className={`text-xs font-bold px-2 py-0.5 rounded ${roomClean ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-            חדר {room.number}
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-md
+            ${roomClean ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            {roomClean ? `✓ ${room.number}` : `⚠ ${room.number}`}
           </span>
         ) : (
-          <span className="badge badge-dirty text-xs">ללא חדר!</span>
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-200">
+            ללא חדר
+          </span>
         )}
-        <span className={`badge text-xs ${res.paymentStatus === 'paid' ? 'badge-clean' : res.paymentStatus === 'balance_due' ? 'badge-dirty' : 'badge-pending'}`}>
-          {res.paymentStatus === 'paid' ? 'שולם' : res.paymentStatus === 'balance_due' ? 'יתרה' : 'Pending'}
+        <span className={`text-xs px-1.5 py-0.5 rounded
+          ${res.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
+          {res.paymentStatus === 'paid' ? 'שולם' : 'Pending'}
         </span>
       </div>
     </div>
@@ -492,63 +206,196 @@ function DepartureRow({ res, onClick }) {
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-3 border-b border-surface-hover cursor-pointer last:border-0 transition-colors
-        ${balanceDue ? 'bg-red-50/30 hover:bg-red-50/50' : 'hover:bg-surface-hover'}
-      `}
+      className={`flex items-center gap-3 px-5 py-3 border-b border-slate-50 cursor-pointer last:border-0 transition-colors
+        ${balanceDue ? 'hover:bg-red-50/40' : 'hover:bg-slate-50/70'}`}
     >
       <div
-        className="avatar text-xs font-bold flex-shrink-0"
-        style={{ background: balanceDue ? 'rgba(239,68,68,0.1)' : 'rgba(249,115,22,0.1)', color: balanceDue ? '#dc2626' : '#ea580c', width:30, height:30, fontSize:11 }}
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+        style={{
+          background: balanceDue ? 'rgba(239,68,68,0.08)' : 'rgba(249,115,22,0.08)',
+          color: balanceDue ? '#dc2626' : '#ea580c',
+        }}
       >
         {initials(g)}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1">
-          <span className="text-sm font-semibold text-ink truncate">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-sm text-slate-800 truncate">
             {g ? `${g.firstName} ${g.lastName}` : '—'}
           </span>
           {balanceDue && <AlertCircle size={11} className="text-red-500 flex-shrink-0" />}
         </div>
-        <div className="text-xs text-ink-muted">{res.roomType?.name} · חדר {res.assignedRoom?.number || '—'}</div>
+        <div className="text-xs text-slate-400">{res.roomType?.name} · חדר {res.assignedRoom?.number || '—'}</div>
       </div>
-      <span className={`badge flex-shrink-0 ${res.paymentStatus === 'paid' ? 'badge-clean' : 'badge-dirty'}`}>
+      <span className={`text-xs font-semibold px-2 py-0.5 rounded-md border flex-shrink-0
+        ${res.paymentStatus === 'paid'
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          : 'bg-red-50 text-red-600 border-red-200'}`}>
         {res.paymentStatus === 'paid' ? 'שולם' : 'יתרה'}
       </span>
     </div>
   );
 }
 
-/* ── HK progress bar ─────────────────────────────────────────────────────── */
-function HkProgress({ pending, inProgress, completed, urgent }) {
+/* ── forecast strip ──────────────────────────────────────────────────────── */
+function ForecastStrip({ daily, totalRooms }) {
+  if (!daily?.length) return null;
+  const todayS = todayStr();
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-5">
+      <SectionHeader icon={Calendar} title="תחזית 7 ימים" iconColor="#6366f1" />
+      <div className="p-4 grid grid-cols-7 gap-2">
+        {daily.slice(0, 7).map((d) => {
+          const { weekday, day } = fmtDayMini(d.date);
+          const isToday = d.date === todayS;
+          const occ = d.occupancy || 0;
+          const occColor = occ >= 80 ? '#059669' : occ >= 50 ? '#d97706' : '#6366f1';
+          return (
+            <div
+              key={d.date}
+              className={`rounded-lg p-2 text-center border transition-all
+                ${isToday ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-100 hover:border-slate-200 bg-slate-50/40'}
+              `}
+            >
+              <div className={`text-xs font-semibold mb-0.5 ${isToday ? 'text-indigo-600' : 'text-slate-400'}`}>
+                {isToday ? 'היום' : weekday}
+              </div>
+              <div className={`text-base font-bold tabular-nums ${isToday ? 'text-indigo-700' : 'text-slate-700'}`}>{day}</div>
+              <div className="text-sm font-bold tabular-nums mt-1" style={{ color: occColor }}>{occ}%</div>
+              <div className="text-xs text-slate-400">תפוסה</div>
+              {(d.arrivals > 0 || d.departures > 0) && (
+                <div className="flex justify-center gap-1 mt-1.5">
+                  {d.arrivals  > 0 && <span className="text-xs text-indigo-600 font-medium">+{d.arrivals}</span>}
+                  {d.departures > 0 && <span className="text-xs text-orange-500 font-medium">-{d.departures}</span>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── HK mini ─────────────────────────────────────────────────────────────── */
+function HkMini({ pending, inProgress, completed, urgent }) {
   const total = (pending || 0) + (inProgress || 0) + (completed || 0);
   const pct = total ? Math.round(((completed || 0) / total) * 100) : 0;
   return (
-    <>
-      <div className="px-4 pb-3 grid grid-cols-4 gap-2">
+    <div className="p-4">
+      <div className="grid grid-cols-4 gap-2 mb-3">
         {[
-          { label: 'פתוח',   value: pending,    color: '#ea580c' },
-          { label: 'בביצוע', value: inProgress, color: '#2563eb' },
-          { label: 'הושלם',  value: completed,  color: '#059669' },
-          { label: 'דחוף',   value: urgent,     color: '#dc2626', ring: urgent > 0 },
-        ].map(({ label, value, color, ring }) => (
-          <div key={label} className={`text-center p-2 rounded-lg ${ring ? 'ring-1 ring-red-300 bg-red-50' : 'bg-surface-hover'}`}>
-            <div className="text-xl font-bold text-num" style={{ color }}>{value ?? 0}</div>
-            <div className="text-xs text-ink-muted">{label}</div>
+          { label: 'פתוח',   value: pending,    color: '#ea580c', bg: '#fff7ed' },
+          { label: 'בביצוע', value: inProgress, color: '#2563eb', bg: '#eff6ff' },
+          { label: 'הושלם',  value: completed,  color: '#059669', bg: '#f0fdf4' },
+          { label: 'דחוף',   value: urgent,     color: '#dc2626', bg: '#fef2f2' },
+        ].map(({ label, value, color, bg }) => (
+          <div key={label} className="text-center rounded-lg py-2" style={{ background: bg }}>
+            <div className="text-xl font-bold tabular-nums" style={{ color }}>{value ?? 0}</div>
+            <div className="text-xs text-slate-500">{label}</div>
           </div>
         ))}
       </div>
       {total > 0 && (
-        <div className="px-4 pb-3">
-          <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+        <>
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span>התקדמות יומית</span>
-            <span className="font-semibold text-num">{pct}%</span>
+            <span className="font-semibold tabular-nums">{pct}%</span>
           </div>
-          <div className="h-1.5 bg-surface-hover rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
           </div>
-        </div>
+        </>
       )}
-    </>
+    </div>
+  );
+}
+
+/* ── room health bar ─────────────────────────────────────────────────────── */
+function RoomHealthBar({ clean, dirty, ooo, hold, occupied, total }) {
+  if (!total) return null;
+  const pct = n => `${Math.round(((n || 0) / total) * 100)}%`;
+  const segs = [
+    { label: 'נקי/פנוי', value: clean,    color: '#10b981' },
+    { label: 'תפוס',     value: occupied, color: '#6366f1' },
+    { label: 'מלוכלך',   value: dirty,    color: '#f59e0b' },
+    { label: 'OOO',      value: ooo,      color: '#ef4444' },
+    { label: 'Hold',     value: hold,     color: '#94a3b8' },
+  ].filter(s => s.value > 0);
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 mb-5">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <BedDouble size={14} className="text-slate-500" />
+          <span className="font-semibold text-slate-700 text-sm">מצב חדרים — {total} סה"כ</span>
+        </div>
+        <div className="flex gap-4 flex-wrap">
+          {segs.map(s => (
+            <span key={s.label} className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: s.color }} />
+              {s.label} <span className="font-semibold tabular-nums text-slate-700">{s.value}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="flex rounded-lg overflow-hidden h-2.5 bg-slate-100">
+        {segs.map(s => (
+          <div
+            key={s.label}
+            style={{ width: pct(s.value), background: s.color, minWidth: s.value > 0 ? 4 : 0 }}
+            title={`${s.label}: ${s.value}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── occupancy chart ─────────────────────────────────────────────────────── */
+function OccTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2 text-xs" dir="rtl">
+      <div className="font-semibold text-slate-700 mb-1">{label}</div>
+      {payload.map(p => (
+        <div key={p.dataKey} className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-sm" style={{ background: p.color }} />
+          <span className="text-slate-500">{p.dataKey === 'occupancy' ? 'תפוסה' : 'הכנסות'}:</span>
+          <span className="font-semibold tabular-nums">{p.dataKey === 'occupancy' ? `${p.value}%` : `₪${Number(p.value).toLocaleString('he-IL')}`}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OccupancyChart({ daily, totalRooms }) {
+  if (!daily?.length) return null;
+  const today = todayStr();
+  const chartData = daily.map(d => ({
+    day: fmtDayShort(d.date),
+    occupancy: totalRooms ? Math.round((d.occupied / totalRooms) * 100) : d.occupancy || 0,
+    date: d.date,
+  }));
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <TrendingUp size={14} className="text-indigo-500" />
+        <span className="font-semibold text-slate-700 text-sm">תפוסה — 7 ימים אחרונים</span>
+      </div>
+      <ResponsiveContainer width="100%" height={110}>
+        <BarChart data={chartData} barSize={14} margin={{ top:4, right:4, bottom:0, left:-24 }}>
+          <CartesianGrid vertical={false} stroke="#f1f5f9" />
+          <XAxis dataKey="day" tick={{ fontSize:10, fill:'#94a3b8' }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize:10, fill:'#94a3b8' }} axisLine={false} tickLine={false} domain={[0,100]} unit="%" />
+          <Tooltip content={<OccTooltip />} cursor={{ fill:'rgba(99,102,241,0.04)' }} />
+          <Bar dataKey="occupancy" radius={[3,3,0,0]}>
+            {chartData.map((d, i) => (
+              <Cell key={i} fill={d.date === today ? '#6366f1' : '#c7d2fe'} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -561,21 +408,15 @@ export default function DashboardPage() {
   const from7 = addDaysStr(today, -6);
 
   const [dismissed, setDismissed] = useState(new Set());
-
-  // ── auto-refresh every 2 minutes ──────────────────────────────────────────
   const [refreshKey, setRefreshKey] = useState(0);
-  const [countdown, setCountdown] = useState(120);
+  const [isManualRefresh, setIsManualRefresh] = useState(false);
+
+  // auto-refresh every 3 minutes
   useEffect(() => {
-    const tick = setInterval(() => {
-      setCountdown(c => {
-        if (c <= 1) { setRefreshKey(k => k + 1); return 120; }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(tick);
+    const id = setInterval(() => setRefreshKey(k => k + 1), 180000);
+    return () => clearInterval(id);
   }, []);
 
-  // ── data fetching ─────────────────────────────────────────────────────────
   const { data: statsRaw,    loading: l1, error: e1, refetch } = useApi(() => dashboard.stats(propertyId),      [propertyId, refreshKey], skip);
   const { data: alertsRaw,   loading: l2 }                     = useApi(() => dashboard.alerts(propertyId),     [propertyId, refreshKey], skip);
   const { data: arrData,     loading: l3 }                     = useApi(() => dashboard.arrivals(propertyId),   [propertyId, refreshKey], skip);
@@ -591,94 +432,171 @@ export default function DashboardPage() {
   const arrivals   = arrData    || [];
   const departures = depData    || [];
   const inhouse    = inHouseData || [];
-  const daily      = reportRaw?.daily || [];
+  const daily      = reportRaw?.daily  || [];
   const forecast   = forecastRaw?.daily || [];
+  const todayDaily = forecast[0];
 
-  const activeAlerts = (alertsRaw || []).filter(a => !dismissed.has(a.id));
-  const todayDaily   = forecast[0]; // today's data from the forward-looking report
+  const activeAlerts  = (alertsRaw || []).filter(a => !dismissed.has(a.id));
+  const isRefreshing  = l1 || l2 || l3 || l4 || l5 || l6 || l7;
 
-  // VIP arrivals first, then unassigned last
   const sortedArrivals = [...arrivals].sort((a, b) => {
     const score = r => (r.isVip ? 10 : 0) + (r.assignedRoom ? 5 : 0);
     return score(b) - score(a);
   });
 
-  const todayLabel = new Date().toLocaleDateString('he-IL', {
+  const todayLong = new Date().toLocaleDateString('he-IL', {
     weekday:'long', day:'numeric', month:'long', year:'numeric',
   });
-  const isRefreshing = l1 || l2 || l3 || l4 || l5 || l6 || l7;
+
+  function handleRefresh() {
+    setIsManualRefresh(true);
+    setRefreshKey(k => k + 1);
+    setTimeout(() => setIsManualRefresh(false), 1500);
+  }
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in" dir="rtl">
 
-      {/* ─── header ─── */}
-      <div className="flex items-center justify-between mb-4">
+      {/* ══════════════════════════════════════════════════════════════════════
+          HEADER STRIP — dark slate, professional
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div
+        className="rounded-2xl mb-6 px-6 py-5 flex items-center justify-between"
+        style={{
+          background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+          boxShadow: '0 4px 24px rgba(15,23,42,0.18)',
+        }}
+      >
+        {/* Left: date + property */}
         <div>
-          <h1 className="page-title">לוח בקרה</h1>
-          <p className="page-subtitle">{todayLabel}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <LiveClock />
-          {/* auto-refresh countdown */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-hover">
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isRefreshing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
-            <Clock size={11} className="text-ink-faint" />
-            <span className="font-mono text-xs text-ink-muted tabular-nums">{fmtCountdown(countdown)}</span>
+          <div className="text-white/50 text-xs font-medium uppercase tracking-widest mb-1">לוח בקרה תפעולי</div>
+          <div className="text-white text-lg font-semibold">{todayLong}</div>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="flex items-center gap-1.5 text-white/60 text-xs">
+              <span className={`w-2 h-2 rounded-full ${isRefreshing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+              {isRefreshing ? 'מרענן…' : 'עדכני'}
+            </span>
           </div>
+        </div>
+
+        {/* Center: key live numbers */}
+        <div className="hidden md:flex items-center gap-8">
+          {[
+            { label: 'הגעות', value: s.arrivals   || 0, color: '#a78bfa' },
+            { label: 'In House', value: s.inHouse  || 0, color: '#60a5fa' },
+            { label: 'יציאות', value: s.departures || 0, color: '#fb923c' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="text-center">
+              <div className="text-3xl font-bold tabular-nums" style={{ color }}>{value}</div>
+              <div className="text-white/50 text-xs mt-0.5">{label}</div>
+            </div>
+          ))}
+          <div className="h-10 w-px bg-white/10" />
+          <div className="text-center">
+            <div className="text-3xl font-bold tabular-nums text-emerald-400">{s.occupancy || 0}%</div>
+            <div className="text-white/50 text-xs mt-0.5">תפוסה</div>
+          </div>
+        </div>
+
+        {/* Right: clock + refresh */}
+        <div className="flex flex-col items-end gap-3">
+          <LiveClock />
           <button
-            onClick={() => { setRefreshKey(k => k + 1); setCountdown(120); }}
-            className="btn btn-ghost btn-icon"
-            title="רענן עכשיו"
+            onClick={handleRefresh}
+            className="flex items-center gap-1.5 text-white/40 hover:text-white/70 transition-colors text-xs"
           >
-            <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={12} className={isManualRefresh ? 'animate-spin' : ''} />
+            רענן
           </button>
         </div>
       </div>
 
-      {/* ─── priority strip ─── */}
-      <PriorityStrip
-        unassigned={s.unassigned}
-        openBalances={s.openBalances}
-        onNavigate={navigate}
-      />
-
-      {/* ─── alert banners ─── */}
+      {/* ── alerts ── */}
       {activeAlerts.length > 0 && (
-        <div className="flex flex-col gap-2 mb-4">
+        <div className="flex flex-col gap-2 mb-5">
           {activeAlerts.map(a => (
-            <AlertBanner
-              key={a.id}
-              alert={a}
-              onAction={navigate}
-              onDismiss={id => setDismissed(prev => new Set([...prev, id]))}
-            />
+            <AlertBanner key={a.id} alert={a} onAction={navigate} onDismiss={id => setDismissed(prev => new Set([...prev, id]))} />
           ))}
         </div>
       )}
 
-      {/* ─── stat cards ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-        <StatCard icon={LogIn}      label="הגעות היום"   value={s.arrivals}    color="#7c3aed" bgColor="rgba(139,92,246,0.1)" sub={s.vipArrivals > 0 ? `${s.vipArrivals} VIP` : undefined}         onClick={() => navigate('/check-in')} />
-        <StatCard icon={LogOut}     label="יציאות היום"  value={s.departures}  color="#ea580c" bgColor="rgba(249,115,22,0.1)" sub={s.openBalances > 0 ? `${s.openBalances} יתרות` : undefined}     onClick={() => navigate('/check-out')} urgent={s.openBalances > 0} />
-        <StatCard icon={Users}      label="In House"     value={s.inHouse}     color="#2563eb" bgColor="rgba(59,130,246,0.1)" sub={`תפוסה ${s.occupancy || 0}%`}                                   onClick={() => navigate('/reservations')} />
-        <StatCard icon={BedDouble}  label="חדרים נקיים" value={s.cleanRooms}  color="#059669" bgColor="rgba(16,185,129,0.1)" sub={`${s.dirtyRooms || 0} מלוכלכים`}                               onClick={() => navigate('/rooms')} />
-        <StatCard icon={Wrench}     label="Out of Order" value={s.oooRooms}    color="#dc2626" bgColor="rgba(239,68,68,0.1)"  sub={`${s.holdRooms || 0} Hold`} urgent={s.oooRooms > 0}            onClick={() => navigate('/maintenance')} />
-        <StatCard icon={TrendingUp} label="תפוסה"        value={`${s.occupancy || 0}%`} color="#0891b2" bgColor="rgba(6,182,212,0.1)" sub={`${s.inHouse || 0} / ${s.totalRooms || 0} חדרים`}     onClick={() => {}} />
+      {/* ══════════════════════════════════════════════════════════════════════
+          KPI GRID
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+        <KpiCard icon={LogIn}     label="הגעות היום"    value={s.arrivals}   accentColor="#7c3aed"
+          sub={s.vipArrivals > 0 ? `${s.vipArrivals} VIP` : 'ציפויים היום'}
+          onClick={() => navigate(PMS('/check-in'))} />
+        <KpiCard icon={LogOut}    label="יציאות היום"   value={s.departures} accentColor="#ea580c"
+          sub={s.openBalances > 0 ? `${s.openBalances} יתרות פתוחות` : 'לתשלום'}
+          urgent={s.openBalances > 0}
+          onClick={() => navigate(PMS('/check-out'))} />
+        <KpiCard icon={Users}     label="In House"      value={s.inHouse}    accentColor="#2563eb"
+          sub={`תפוסה ${s.occupancy || 0}%`}
+          onClick={() => navigate(PMS('/reservations'))} />
+        <KpiCard icon={BedDouble} label="חדרים נקיים"  value={s.cleanRooms} accentColor="#059669"
+          sub={`${s.dirtyRooms || 0} ממתינים לניקיון`}
+          onClick={() => navigate(PMS('/rooms'))} />
+        <KpiCard icon={Sparkles}  label="משימות HK"     value={s.hkPending}  accentColor="#b45309"
+          sub={s.hkUrgent > 0 ? `${s.hkUrgent} דחופות` : 'משימות פתוחות'}
+          urgent={s.hkUrgent > 0}
+          onClick={() => navigate(PMS('/housekeeping'))} />
+        <KpiCard icon={Wrench}    label="Out of Order"  value={s.oooRooms}   accentColor="#dc2626"
+          sub={`${s.maintenanceOpen || 0} תקלות פתוחות`}
+          urgent={s.oooRooms > 0}
+          onClick={() => navigate(PMS('/maintenance'))} />
       </div>
 
-      {/* ─── revenue KPIs ─── */}
-      {!l6 && (
-        <RevenueKpis
-          todayDaily={todayDaily}
-          totalRooms={s.totalRooms}
-          occupancy={s.occupancy}
-        />
+      {/* ── Revenue KPIs ── */}
+      {!l6 && todayDaily && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          {[
+            { icon: DollarSign, label: 'הכנסות היום',      value: fmtMoney(todayDaily.revenue || 0),                                            color: '#059669' },
+            { icon: Target,     label: 'ADR',               value: fmtMoney(s.arrivals > 0 ? Math.round((todayDaily.revenue||0)/s.arrivals) : 0), color: '#6366f1' },
+            { icon: BarChart2,  label: 'RevPAR',            value: fmtMoney(s.totalRooms > 0 ? Math.round((todayDaily.revenue||0)/s.totalRooms) : 0), color: '#0891b2' },
+            { icon: Activity,   label: 'הזמנות החודש',      value: s.monthReservations ?? '—',                                                   color: '#d97706' },
+          ].map(({ icon: Icon, label, value, color }) => (
+            <div key={label} className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 flex items-center gap-3">
+              <div className="rounded-lg p-2 flex-shrink-0" style={{ background: color + '12' }}>
+                <Icon size={15} style={{ color }} />
+              </div>
+              <div>
+                <div className="text-xs text-slate-400 font-medium">{label}</div>
+                <div className="text-lg font-bold tabular-nums text-slate-800">{value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      {/* ─── quick actions ─── */}
-      <QuickActions onNavigate={navigate} />
+      {/* ── Quick Actions ── */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-5">
+        <SectionHeader icon={Star} title="פעולות מהירות" iconColor="#6366f1" />
+        <div className="p-4 grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {[
+            { icon: LogIn,     label: "צ'ק-אין",     route: PMS('/check-in'),     color: '#7c3aed', bg: 'rgba(139,92,246,0.08)' },
+            { icon: LogOut,    label: "צ'ק-אאוט",    route: PMS('/check-out'),    color: '#ea580c', bg: 'rgba(249,115,22,0.08)' },
+            { icon: Plus,      label: 'הזמנה חדשה',  route: PMS('/reservations/new'), color: '#059669', bg: 'rgba(16,185,129,0.08)' },
+            { icon: BedDouble, label: 'Tape Chart',   route: PMS('/tape-chart'),   color: '#2563eb', bg: 'rgba(59,130,246,0.08)' },
+            { icon: Calendar,  label: 'הזמנות',      route: PMS('/reservations'), color: '#0891b2', bg: 'rgba(6,182,212,0.08)'  },
+            { icon: Sparkles,  label: 'חדרנות',      route: PMS('/housekeeping'), color: '#b45309', bg: 'rgba(180,83,9,0.08)'   },
+          ].map(({ icon: Icon, label, route, color, bg }) => (
+            <button
+              key={label}
+              onClick={() => navigate(route)}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl border border-slate-100 hover:border-slate-300 hover:shadow-sm transition-all"
+              style={{ background: bg }}
+            >
+              <div className="rounded-lg p-2" style={{ background: bg, border: `1px solid ${color}22` }}>
+                <Icon size={16} style={{ color }} />
+              </div>
+              <span className="text-xs font-medium text-slate-600">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* ─── room health bar ─── */}
+      {/* ── Room Health ── */}
       <RoomHealthBar
         clean={s.cleanRooms}
         dirty={s.dirtyRooms}
@@ -688,113 +606,102 @@ export default function DashboardPage() {
         total={s.totalRooms}
       />
 
-      {/* ─── VIP callout ─── */}
-      <VipCallout arrivals={arrivals} onNavigate={navigate} />
+      {/* ══════════════════════════════════════════════════════════════════════
+          ARRIVALS | DEPARTURES | RIGHT COLUMN
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
 
-      {/* ─── main 3-col grid ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-
-        {/* arrivals panel */}
-        <div className="card">
-          <div className="card-header">
-            <div className="flex items-center gap-2">
-              <LogIn size={15} className="text-violet-600" />
-              <span className="font-semibold text-ink text-sm">הגעות היום</span>
-              {arrivals.length > 0 && <span className="badge badge-inhouse">{arrivals.length}</span>}
-              {s.unassigned > 0 && (
-                <span className="badge badge-dirty flex items-center gap-0.5">
-                  <AlertCircle size={10} /> {s.unassigned}
-                </span>
-              )}
-            </div>
-          </div>
+        {/* Arrivals */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <SectionHeader
+            icon={LogIn} title="הגעות היום" iconColor="#7c3aed"
+            badge={arrivals.length}
+            action={arrivals.length > 0 ? "לדף צ'ק-אין" : undefined}
+            onAction={() => navigate(PMS('/check-in'))}
+          />
           {!arrivals.length ? (
-            <div className="empty-state py-8">
-              <LogIn size={28} className="empty-state-icon" />
-              <span>אין הגעות היום</span>
+            <div className="flex flex-col items-center justify-center py-10 text-slate-300">
+              <LogIn size={30} className="mb-2 opacity-40" />
+              <span className="text-sm">אין הגעות היום</span>
             </div>
           ) : (
             <>
-              {sortedArrivals.slice(0, 8).map(res => (
-                <ArrivalRow key={res._id} res={res} onClick={() => navigate('/check-in')} />
+              {sortedArrivals.slice(0, 7).map(res => (
+                <ArrivalRow key={res._id} res={res} onClick={() => navigate(PMS('/check-in'))} />
               ))}
-              {arrivals.length > 8 && (
-                <div className="px-4 py-2 text-xs text-ink-muted text-center">
-                  ועוד {arrivals.length - 8} נוספים
+              {arrivals.length > 7 && (
+                <div className="px-5 py-2 text-xs text-slate-400 text-center border-t border-slate-50">
+                  ועוד {arrivals.length - 7} הגעות נוספות
                 </div>
               )}
-              <div className="px-4 py-2.5 border-t border-surface-hover">
+              <div className="px-5 py-3 border-t border-slate-100">
                 <button
-                  className="btn btn-primary btn-sm w-full justify-center gap-1.5"
-                  onClick={() => navigate('/check-in')}
+                  className="w-full py-2 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1.5 transition-opacity hover:opacity-90"
+                  style={{ background: '#7c3aed' }}
+                  onClick={() => navigate(PMS('/check-in'))}
                 >
-                  <LogIn size={13} /> לדף צ'ק-אין
+                  <LogIn size={14} /> לדף צ'ק-אין
                 </button>
               </div>
             </>
           )}
         </div>
 
-        {/* departures panel */}
-        <div className="card">
-          <div className="card-header">
-            <div className="flex items-center gap-2">
-              <LogOut size={15} className="text-orange-600" />
-              <span className="font-semibold text-ink text-sm">יציאות היום</span>
-              {departures.length > 0 && <span className="badge badge-departure">{departures.length}</span>}
-              {s.openBalances > 0 && (
-                <span className="badge badge-dirty">{s.openBalances} יתרה</span>
-              )}
-            </div>
-          </div>
+        {/* Departures */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <SectionHeader
+            icon={LogOut} title="יציאות היום" iconColor="#ea580c"
+            badge={departures.length}
+            action={departures.length > 0 ? "לדף צ'ק-אאוט" : undefined}
+            onAction={() => navigate(PMS('/check-out'))}
+          />
           {!departures.length ? (
-            <div className="empty-state py-8">
-              <LogOut size={28} className="empty-state-icon" />
-              <span>אין יציאות היום</span>
+            <div className="flex flex-col items-center justify-center py-10 text-slate-300">
+              <LogOut size={30} className="mb-2 opacity-40" />
+              <span className="text-sm">אין יציאות היום</span>
             </div>
           ) : (
             <>
-              {departures.slice(0, 8).map(res => (
-                <DepartureRow key={res._id} res={res} onClick={() => navigate('/check-out')} />
+              {departures.slice(0, 7).map(res => (
+                <DepartureRow key={res._id} res={res} onClick={() => navigate(PMS('/check-out'))} />
               ))}
-              {departures.length > 8 && (
-                <div className="px-4 py-2 text-xs text-ink-muted text-center">
-                  ועוד {departures.length - 8} נוספים
+              {departures.length > 7 && (
+                <div className="px-5 py-2 text-xs text-slate-400 text-center border-t border-slate-50">
+                  ועוד {departures.length - 7} יציאות נוספות
                 </div>
               )}
-              <div className="px-4 py-2.5 border-t border-surface-hover">
+              <div className="px-5 py-3 border-t border-slate-100">
                 <button
-                  className="btn btn-secondary btn-sm w-full justify-center gap-1.5"
-                  onClick={() => navigate('/check-out')}
+                  className="w-full py-2 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1.5 transition-opacity hover:opacity-90"
+                  style={{ background: '#ea580c' }}
+                  onClick={() => navigate(PMS('/check-out'))}
                 >
-                  <LogOut size={13} /> לדף צ'ק-אאוט
+                  <LogOut size={14} /> לדף צ'ק-אאוט
                 </button>
               </div>
             </>
           )}
         </div>
 
-        {/* right column: chart + HK + maintenance */}
-        <div className="flex flex-col gap-3">
+        {/* Right column */}
+        <div className="flex flex-col gap-4">
 
-          {/* 7-day occupancy chart (historical) */}
+          {/* Chart */}
           {!l6 && daily.length > 0 && (
             <OccupancyChart daily={daily} totalRooms={s.totalRooms} />
           )}
 
           {/* HK widget */}
           <div
-            className="card cursor-pointer hover:shadow-card-hover transition-shadow"
-            onClick={() => navigate('/housekeeping')}
+            className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate(PMS('/housekeeping'))}
           >
-            <div className="card-header pb-2">
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-brand" />
-                <span className="font-semibold text-ink text-sm">חדרנות</span>
-              </div>
-              <ChevronRight size={14} className="text-ink-faint" />
-            </div>
-            <HkProgress
+            <SectionHeader
+              icon={Sparkles} title="חדרנות" iconColor="#b45309"
+              action="לניהול"
+              onAction={() => navigate(PMS('/housekeeping'))}
+            />
+            <HkMini
               pending={s.hkPending}
               inProgress={s.hkInProgress}
               completed={s.hkCompleted}
@@ -802,116 +709,108 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* maintenance mini */}
+          {/* Maintenance mini */}
           <div
-            className="card cursor-pointer hover:shadow-card-hover transition-shadow"
-            onClick={() => navigate('/maintenance')}
+            className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate(PMS('/maintenance'))}
           >
-            <div className="card-header pb-2">
-              <div className="flex items-center gap-2">
-                <Wrench size={14} className="text-red-500" />
-                <span className="font-semibold text-ink text-sm">תחזוקה פתוחה</span>
-              </div>
-              <ChevronRight size={14} className="text-ink-faint" />
-            </div>
-            <div className="px-4 pb-3 flex items-center gap-3">
-              <div className={`text-4xl font-bold text-num ${(s.maintenanceOpen || 0) > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+            <SectionHeader icon={Wrench} title="תחזוקה פתוחה" iconColor="#dc2626" action="לניהול" onAction={() => navigate(PMS('/maintenance'))} />
+            <div className="px-5 py-4 flex items-center gap-4">
+              <div className={`text-4xl font-bold tabular-nums ${(s.maintenanceOpen || 0) > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                 {s.maintenanceOpen ?? 0}
               </div>
-              <div className="text-sm text-ink-muted">
-                {(s.maintenanceOpen || 0) > 0 ? 'תקלות דורשות טיפול' : 'הכל תקין ✓'}
+              <div className="text-sm text-slate-500">
+                {(s.maintenanceOpen || 0) > 0 ? 'תקלות פתוחות הדורשות טיפול' : 'כל התקלות טופלו ✓'}
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ─── 7-day forecast ─── */}
+      {/* ── 7-day forecast ── */}
       {!l7 && forecast.length > 0 && (
         <ForecastStrip daily={forecast} totalRooms={s.totalRooms} />
       )}
 
-      {/* ─── in-house table ─── */}
+      {/* ── In-House Table ── */}
       {inhouse.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <div className="flex items-center gap-2">
-              <Users size={15} className="text-blue-600" />
-              <span className="font-semibold text-ink text-sm">אורחים בבית</span>
-              <span className="badge badge-inhouse">{inhouse.length}</span>
-            </div>
-            <button className="btn btn-ghost btn-sm text-xs" onClick={() => navigate('/reservations')}>
-              כל ההזמנות ←
-            </button>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <SectionHeader
+            icon={Users} title="אורחים בבית" iconColor="#2563eb"
+            badge={inhouse.length}
+            action="כל ההזמנות"
+            onAction={() => navigate(PMS('/reservations'))}
+          />
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-100">
+                  {['אורח', 'חדר', 'סוג חדר', 'יציאה', 'נותרו', 'תשלום'].map(h => (
+                    <th key={h} className="px-5 py-2.5 text-xs font-semibold text-slate-500 text-right">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {inhouse.slice(0, 10).map(res => {
+                  const g = res.primaryGuest;
+                  const dep = res.departureDate;
+                  const leavesToday    = dep === today;
+                  const leavesTomorrow = dep === addDaysStr(today, 1);
+                  const nightsLeft = dep
+                    ? Math.max(0, Math.ceil((new Date(dep + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000))
+                    : null;
+                  return (
+                    <tr
+                      key={res._id}
+                      className={`border-b border-slate-50 cursor-pointer transition-colors
+                        ${leavesToday ? 'bg-amber-50/30 hover:bg-amber-50/50' : leavesTomorrow ? 'hover:bg-blue-50/20' : 'hover:bg-slate-50/60'}
+                      `}
+                      onClick={() => navigate(PMS('/folio'))}
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          {res.isVip && <Crown size={11} className="text-amber-500" />}
+                          <span className="font-medium text-sm text-slate-800">
+                            {g ? `${g.firstName} ${g.lastName}` : '—'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 font-bold text-sm tabular-nums text-slate-700">{res.assignedRoom?.number || '—'}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{res.roomType?.name}</td>
+                      <td className={`px-5 py-3 text-sm tabular-nums
+                        ${leavesToday ? 'text-amber-600 font-semibold' : leavesTomorrow ? 'text-blue-600 font-medium' : 'text-slate-600'}`}>
+                        {fmtDate(dep)}
+                        {leavesToday    && <span className="mr-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">היום</span>}
+                        {leavesTomorrow && <span className="mr-2 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">מחר</span>}
+                      </td>
+                      <td className="px-5 py-3">
+                        {nightsLeft !== null && (
+                          <span className={`text-sm font-semibold tabular-nums
+                            ${nightsLeft === 0 ? 'text-amber-600' : nightsLeft === 1 ? 'text-blue-600' : 'text-slate-400'}`}>
+                            {nightsLeft === 0 ? 'יוצא היום' : `${nightsLeft}`}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-md border
+                          ${res.paymentStatus === 'paid'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : res.paymentStatus === 'balance_due'
+                              ? 'bg-red-50 text-red-600 border-red-200'
+                              : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                          {res.paymentStatus === 'paid' ? 'שולם' : res.paymentStatus === 'balance_due' ? 'יתרה' : 'Pending'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>אורח</th>
-                <th>חדר</th>
-                <th>סוג</th>
-                <th>יציאה</th>
-                <th>לילות נותרו</th>
-                <th>תשלום</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inhouse.slice(0, 10).map(res => {
-                const g = res.primaryGuest;
-                const dep = res.departureDate;
-                const leavesToday    = dep === today;
-                const leavesTomorrow = dep === addDaysStr(today, 1);
-                const nightsLeft = dep
-                  ? Math.max(0, Math.ceil((new Date(dep + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000))
-                  : null;
-                return (
-                  <tr
-                    key={res._id}
-                    className={`cursor-pointer hover:bg-surface-hover transition-colors
-                      ${leavesToday ? 'bg-amber-50/30' : leavesTomorrow ? 'bg-blue-50/20' : ''}
-                    `}
-                    onClick={() => navigate('/folio')}
-                  >
-                    <td>
-                      <div className="flex items-center gap-1.5">
-                        {res.isVip && <Crown size={11} className="text-amber-500" />}
-                        <span className="font-medium text-sm">
-                          {g ? `${g.firstName} ${g.lastName}` : '—'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="text-num font-bold">{res.assignedRoom?.number || '—'}</td>
-                    <td className="text-xs text-ink-muted">{res.roomType?.name}</td>
-                    <td className={`text-xs text-num
-                      ${leavesToday ? 'text-amber-600 font-semibold' : leavesTomorrow ? 'text-blue-600 font-medium' : ''}
-                    `}>
-                      {fmtDate(dep)}
-                      {leavesToday    && <span className="mr-1 text-amber-600">← היום</span>}
-                      {leavesTomorrow && <span className="mr-1 text-blue-600">← מחר</span>}
-                    </td>
-                    <td>
-                      {nightsLeft !== null && (
-                        <span className={`text-xs font-semibold text-num
-                          ${nightsLeft === 0 ? 'text-amber-600' : nightsLeft === 1 ? 'text-blue-600' : 'text-ink-muted'}
-                        `}>
-                          {nightsLeft === 0 ? 'יוצא היום' : `${nightsLeft} לילות`}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`badge ${res.paymentStatus === 'paid' ? 'badge-clean' : res.paymentStatus === 'balance_due' ? 'badge-dirty' : 'badge-pending'}`}>
-                        {res.paymentStatus === 'paid' ? 'שולם' : res.paymentStatus === 'balance_due' ? 'יתרה' : 'Pending'}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
           {inhouse.length > 10 && (
-            <div className="px-4 py-3 text-xs text-ink-muted text-center border-t border-surface-hover">
+            <div className="px-5 py-3 text-xs text-slate-400 text-center border-t border-slate-100">
               ועוד {inhouse.length - 10} אורחים —{' '}
-              <button className="text-brand hover:underline" onClick={() => navigate('/reservations')}>
+              <button className="text-indigo-500 hover:text-indigo-600 font-medium transition-colors" onClick={() => navigate(PMS('/reservations'))}>
                 לכל ההזמנות
               </button>
             </div>

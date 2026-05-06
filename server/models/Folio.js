@@ -13,7 +13,7 @@ const FolioLineSchema = new Schema({
   department:  String,                                     // rooms, f&b, spa, parking, minibar
   serviceDate: { type: String, required: true },           // 'YYYY-MM-DD'
   postedAt:    { type: Date, default: Date.now },
-  source:      { type: String, enum: ['pms','pos','manual','channel','routing'], default: 'pms' },
+  source:      { type: String, enum: ['pms','pos','manual','channel','routing','night_audit'], default: 'pms' },
   status:      { type: String, enum: LINE_STATUS, default: 'posted' },
   reference:   String,
   createdBy:   { type: Schema.Types.ObjectId, ref: 'User' },

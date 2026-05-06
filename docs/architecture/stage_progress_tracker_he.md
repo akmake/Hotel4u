@@ -313,3 +313,103 @@
   2. `npm --prefix client run build` passed.
 - Recommended next step:
   1. Stage 5.10: Email/SMS integration (SendGrid + Twilio) to complete the `send_message` action in automationEngine, and wire the Notification channel dispatch to actual delivery.
+
+## Update 2026-05-06 - Stage 5.10 Email/SMS Integration Completed
+- New services:
+  1. `server/services/emailService.js` — nodemailer transport (Gmail SMTP via `EMAIL_USER`/`EMAIL_PASS`, override with `EMAIL_HOST`/`EMAIL_PORT` for SendGrid or any SMTP relay). Pre-built hotel HTML email templates: `buildReservationConfirmationEmail`, `buildCheckInReminderEmail`, `buildPaymentLinkEmail`, `buildGenericEmail`.
+  2. `server/services/smsService.js` — Twilio REST API (no SDK, plain fetch). Reads `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. Graceful no-op if not configured. Pre-built SMS builders: confirmation, check-in reminder, payment link.
+  3. `server/services/notificationDispatcher.js` — routes Notification documents to their channel: email→emailService, sms→smsService, in_app→no-op. Resolves recipient email/phone from User or Reservation→GuestProfile. Also exposes `dispatchDirectEmail` / `dispatchDirectSms` for one-off delivery.
+- Updated:
+  1. `notificationService.js` — after `Notification.create()`, calls `dispatch(notification)` fire-and-forget for email/sms channels.
+  2. `automationEngine.js` — `send_message` action now resolves guest email/phone from context, sends real email+SMS, plus in-app notification fallback. `send_payment_link` action sends branded payment link email + SMS + in-app.
+- Env vars needed (`.env`):
+  - Email: `EMAIL_USER`, `EMAIL_PASS` (Gmail already set), optionally `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_FROM`, `EMAIL_FROM_NAME`
+  - SMS: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`
+- Validation:
+  1. All 5 modified/new service files pass `node --check`.
+  2. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.11: Wire `buildReservationConfirmationEmail` to `POST /reservations/:id/send-confirmation` route for on-demand guest confirmation emails, and add a `reservation.created` automation trigger that auto-sends confirmation on new direct bookings.
+
+## Update 2026-05-07 - Stage 5.11 Confirmation Email Wiring Completed
+- Bug fix: added `night_audit` to `Folio.lines[].source` enum (was causing nightly audit failures).
+- Confirmation email now sent in 3 places:
+  1. `POST /api/pms/reservations/:id/send-confirmation` — on-demand single send (route now calls `dispatchConfirmationEmail` fire-and-forget after marking `confirmationSent: true`).
+  2. Bulk action `send_confirmation` in `processBulkItem` — also calls `dispatchConfirmationEmail` per reservation alongside the DB flag update.
+  3. Automation engine action `send_confirmation` — new `handleSendConfirmation` handler added; resolves guest/property/roomType, builds branded email via `buildReservationConfirmationEmail`, dispatches via `dispatchDirectEmail`, marks `confirmationSent: true`.
+- Shared helper `dispatchConfirmationEmail(reservation)` added to `server/routes/reservations.js`:
+  - Loads `GuestProfile` (name + email), `Property` (name/phone/email), `RoomType` (name) in parallel.
+  - Builds branded Hebrew HTML email via `buildReservationConfirmationEmail`.
+  - Sends fire-and-forget; logs error on failure but never blocks the API response.
+- `server/services/automationEngine.js` updated:
+  - Added imports: `RoomType`, `Property`, `buildReservationConfirmationEmail`.
+  - New `send_confirmation` action type registered in `ACTION_HANDLERS`.
+- Validation:
+  1. `node --check server/routes/reservations.js` passed.
+  2. `node --check server/services/automationEngine.js` passed.
+  3. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.12: Wire `buildCheckInReminderEmail` to the PMS scheduler — send T-1 day check-in reminder emails automatically to all arriving guests via the nightly `schedule.daily` cron job.
+
+## Update 2026-05-07 - Stage 5.12 Check-in Reminder Scheduler Completed
+- `server/services/pmsScheduler.js` updated:
+  1. Added `sendCheckInReminders()` function — queries all reservations with `arrivalDate = tomorrow` and `status in [confirmed, modified, pending_payment]`.
+  2. Loads distinct properties in one query for efficiency.
+  3. Per reservation: loads guest email, builds `buildCheckInReminderEmail`, sends via `sendEmail` fire-and-forget per item.
+  4. New cron job at `0 9 * * *` (09:00 daily) invokes `sendCheckInReminders`.
+  5. Console summary: `sent=N skipped=N date=YYYY-MM-DD`.
+- Imports added: `Reservation`, `GuestProfile`, `sendEmail`, `buildCheckInReminderEmail`.
+- Validation: `node --check server/services/pmsScheduler.js` passed.
+
+## Update 2026-05-07 - Stage 5.13 Automation Engine Completeness Pass
+- `server/models/AutomationRule.js`: added `send_confirmation` to `ACTION_TYPES` enum (was missing — would cause validation error when creating a rule with this action).
+- `server/routes/rooms.js`:
+  1. Added `import { fireEvent }` from automationEngine.
+  2. Both `PATCH /:id/clean-status` and `PATCH /:id/ops-status` now fire `room.status_changed` event fire-and-forget with `{ room, changedField, newValue }` context.
+- `server/routes/payments.js`:
+  1. Added `import { fireEvent }` from automationEngine.
+  2. `POST /api/payments` now fires `payment.succeeded` automation event (in addition to existing webhook emit).
+  3. New `POST /api/payments/:id/fail` endpoint: marks payment as `failed`, logs audit, fires `payment.failed` automation event.
+- Validation:
+  1. `node --check` passed on all 4 modified files.
+- Recommended next step:
+  1. Stage 5.14: Rate management UI — build `RatePlansPage` connected to `GET/POST/PATCH/DELETE /api/rates` with season dates, base rates, restrictions, and linked room types.
+
+## Update 2026-05-07 - Stage 5.14 Automation Rules Management UI Completed
+- Note: `RatesPage.jsx` (873 lines) was already fully implemented from prior sessions — Stage 5.14 pivoted to the missing Automation Rules UI.
+- New page `client/src/pages/AutomationRulesPage.jsx` at `/pms/automation`:
+  1. Stats bar: total rules / active / with errors.
+  2. Filter bar: by trigger, by active status.
+  3. Expandable rule rows: name + trigger badge + action badge + condition count + runCount + lastRunAt + error indicator + inline toggle.
+  4. Expanded detail: conditions, exceptions, actionParams JSON preview, lastError text.
+  5. Create/Edit modal with 4 tabs: Basic (name/description/trigger/action/active), Conditions, Action Params (dynamic form per action type — all 11 action types handled), Exceptions.
+  6. Delete confirmation dialog.
+  7. Inline active toggle (fire-and-forget, no modal).
+- Wiring:
+  1. `client/src/App.jsx` — lazy import + route `/pms/automation`.
+  2. `client/src/components/layout/Sidebar.jsx` — nav item "אוטומציה" (Zap icon) under "דוחות וניהול".
+  3. `client/src/components/layout/AppShell.jsx` — breadcrumb title for `/automation`.
+- Backend changes (same stage):
+  1. `server/models/AutomationRule.js` — added `send_confirmation` to `ACTION_TYPES` enum (critical fix).
+  2. `server/routes/rooms.js` — fires `room.status_changed` automation event from both status-update endpoints.
+  3. `server/routes/payments.js` — fires `payment.succeeded` automation event; new `POST /payments/:id/fail` endpoint fires `payment.failed`.
+- Validation:
+  1. `npm --prefix client run build` passed.
+  2. `node --check` passed on all modified server files.
+- Recommended next step:
+  1. Stage 5.15: Night Audit enhancements — add posting of nightly room charges to folios, with per-property rate lookup, automatic room charge line creation, and summary report generation.
+
+## Update 2026-05-07 - Stage 5.15 Webhooks Tab + Night Audit Fix
+- Bug fixed (from user report): `night_audit` was not in `Folio.lines[].source` enum — added it to `server/models/Folio.js`.
+- `client/src/pages/SettingsPage.jsx` — added **Webhooks** tab (6th tab):
+  1. Lists all registered webhook subscriptions: URL, description, events badges, active toggle, failure count, lastCalledAt.
+  2. "Webhook חדש" modal: URL (https enforced), description, multi-select event list loaded from `/api/integrations/webhooks/events`.
+  3. After create: reveals signing secret in a one-time modal with copy-to-clipboard.
+  4. Rotate secret button: replaces signing secret + shows reveal modal.
+  5. Inline active toggle (fire-and-forget).
+  6. Delete with confirm dialog.
+  7. Wired to `integrations.webhooks.*` API helpers already in `api.js`.
+- Imports added to SettingsPage: `Webhook, RefreshCw, ToggleLeft, ToggleRight, Copy, AlertCircle`, `useEffect, useCallback`, `integrations as integrationsApi`.
+- Validation: `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.16: CRM enhancements — add `LeadInboxPage` stage-change actions and `OpportunityBoardPage` Kanban drag-and-drop wired to real CRM API endpoints.

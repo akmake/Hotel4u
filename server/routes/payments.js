@@ -10,6 +10,7 @@ import { audit, auditCtxFromReq } from '../services/auditService.js';
 import Payment, { PAYMENT_METHODS } from '../models/Payment.js';
 import Folio from '../models/Folio.js';
 import { emit } from '../services/webhookService.js';
+import { fireEvent } from '../services/automationEngine.js';
 
 const router = Router();
 
@@ -216,6 +217,18 @@ router.post('/', asyncHandler(async (req, res) => {
     paymentMethod,
   });
 
+  fireEvent('payment.succeeded', {
+    property: String(scopedPropertyId),
+    payment: {
+      _id:           String(payment._id),
+      amount:        numericAmount,
+      currency,
+      paymentMethod,
+      operation,
+      reservation:   String(payment.reservation || ''),
+    },
+  }).catch(() => null);
+
   res.status(201).json({ success: true, data: sanitizePayment(payment) });
 }));
 
@@ -373,6 +386,55 @@ router.post('/:id/capture', asyncHandler(async (req, res) => {
   });
 
   res.json({ success: true, data: { captured: true, amount: captureAmount } });
+}));
+
+// POST /api/payments/:id/fail  (gateway callback: mark payment as failed)
+router.post('/:id/fail', asyncHandler(async (req, res) => {
+  requireRoles(req, PAYMENT_WRITE_ROLES);
+
+  const { reason, providerReference } = req.body;
+  const payment = await Payment.findById(req.params.id);
+  if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
+
+  assertPropertyScope(req, String(payment.property));
+
+  if (!['pending', 'authorized'].includes(payment.status)) {
+    return res.status(409).json({
+      success: false,
+      error: `Cannot mark a ${payment.status} payment as failed`,
+    });
+  }
+
+  const before = { status: payment.status };
+  payment.status = 'failed';
+  payment.failedAt = new Date();
+  if (providerReference) payment.providerReference = providerReference;
+  await payment.save();
+
+  await audit({
+    property: String(payment.property),
+    ...auditCtxFromReq(req),
+    action: 'payment.failed',
+    entityType: 'Payment',
+    entityId: payment._id,
+    before,
+    after: { status: 'failed' },
+    reason,
+  });
+
+  fireEvent('payment.failed', {
+    property: String(payment.property),
+    payment: {
+      _id:           String(payment._id),
+      amount:        payment.amount,
+      currency:      payment.currency,
+      paymentMethod: payment.paymentMethod,
+      reservation:   String(payment.reservation || ''),
+      reason,
+    },
+  }).catch(() => null);
+
+  res.json({ success: true, data: sanitizePayment(payment) });
 }));
 
 // POST /api/payments/link

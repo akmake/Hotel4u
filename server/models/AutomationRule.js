@@ -25,6 +25,7 @@ export const TRIGGER_TYPES = [
 
 export const ACTION_TYPES = [
   'send_message',
+  'send_confirmation',
   'create_housekeeping_task',
   'create_maintenance_ticket',
   'post_charge',

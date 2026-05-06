@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import Room from '../models/Room.js';
 import { updateCleanStatus, updateOpsStatus } from '../services/roomService.js';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
+import { fireEvent } from '../services/automationEngine.js';
 
 const router = Router();
 const ROOM_MANAGER_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'housekeeping_manager', 'maintenance_manager'];
@@ -167,6 +168,12 @@ router.patch('/:id/clean-status', asyncHandler(async (req, res) => {
     actorName: actor.name,
     ip: req.ip,
   });
+  fireEvent('room.status_changed', {
+    property: String(propertyId),
+    room:     { _id: String(room._id), number: room.number, cleanStatus: room.cleanStatus, opsStatus: room.opsStatus },
+    changedField: 'cleanStatus',
+    newValue: cleanStatus,
+  }).catch(() => null);
   res.json({ success: true, data: room });
 }));
 
@@ -186,6 +193,12 @@ router.patch('/:id/ops-status', asyncHandler(async (req, res) => {
     actorName: actor.name,
     ip: req.ip,
   });
+  fireEvent('room.status_changed', {
+    property: String(propertyId),
+    room:     { _id: String(room._id), number: room.number, cleanStatus: room.cleanStatus, opsStatus: room.opsStatus },
+    changedField: 'opsStatus',
+    newValue:     opsStatus,
+  }).catch(() => null);
   res.json({ success: true, data: room });
 }));
 

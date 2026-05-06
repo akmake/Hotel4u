@@ -4,6 +4,7 @@ import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import StaySegment from '../models/StaySegment.js';
 import Room from '../models/Room.js';
+import RoomType from '../models/RoomType.js';
 import Folio from '../models/Folio.js';
 import BulkActionJob from '../models/BulkActionJob.js';
 import GuestProfile from '../models/GuestProfile.js';
@@ -21,6 +22,7 @@ import { audit } from '../services/auditService.js';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import { emit } from '../services/webhookService.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { sendEmail, buildReservationConfirmationEmail } from '../services/emailService.js';
 
 const router = Router();
 const OVERRIDE_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
@@ -59,6 +61,34 @@ const asyncHandler = (fn) => async (req, res, next) => {
 
 function actorFromReq(req) {
   return actorOrSystem(req);
+}
+
+async function dispatchConfirmationEmail(reservation) {
+  try {
+    const [guest, property, roomTypeDoc] = await Promise.all([
+      GuestProfile.findById(reservation.primaryGuest).select('firstName lastName email emails').lean(),
+      Property.findById(reservation.property).select('name phone email').lean(),
+      RoomType.findById(reservation.roomType).select('name').lean(),
+    ]);
+    const toEmail = guest?.email || guest?.emails?.[0]?.address;
+    if (!toEmail) return;
+    const { subject, html, text } = buildReservationConfirmationEmail({
+      guestName:          `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
+      confirmationNumber: reservation.confirmationNumber,
+      arrivalDate:        reservation.arrivalDate,
+      departureDate:      reservation.departureDate,
+      roomType:           roomTypeDoc?.name || '',
+      nights:             reservation.nights,
+      totalAmount:        reservation.totalAmount,
+      currency:           reservation.currency || 'ILS',
+      propertyName:       property?.name,
+      propertyPhone:      property?.phone,
+      propertyEmail:      property?.email,
+    });
+    await sendEmail({ to: toEmail, subject, html, text });
+  } catch (err) {
+    console.error('[send-confirmation] email dispatch failed:', err.message);
+  }
 }
 
 async function getReservationOr404(resId, res) {
@@ -172,6 +202,8 @@ async function executeBulkReservationAction({
       after: { confirmationSent: true, mode: 'bulk' },
       ip,
     }).catch(() => null);
+
+    dispatchConfirmationEmail(existing).catch(() => null);
 
     return { reservationId, success: true, status: updated?.status || existing.status };
   }
@@ -1250,6 +1282,8 @@ router.post('/:id/send-confirmation', asyncHandler(async (req, res) => {
     after: { confirmationSent: true },
     ip: req.ip,
   }).catch(() => null);
+
+  dispatchConfirmationEmail(reservation).catch(() => null);
 
   res.json({ success: true, data: updated });
 }));
