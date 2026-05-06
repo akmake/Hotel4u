@@ -137,3 +137,14 @@ cd server
 $env:PMS_BASE_URL="http://localhost:4010/api/pms"
 cmd /c npm run qa:reservations:integration
 ```
+
+## Update 2026-05-06 - Stage 5.6 / 5.7
+1. Added background bulk-actions integration coverage in `server/scripts/stage4ReservationsIntegration.mjs`:
+- enqueue background bulk job (`202` + `jobId`)
+- polling job status endpoint until terminal completion with result assertions
+- terminal cancel rejection validation (`409`)
+2. Backend architecture shift validated:
+- background jobs now persisted in Mongo via `BulkActionJob` model (instead of in-memory map)
+- progress/cancel/status contract validated end-to-end by the suite
+3. Latest full-suite result:
+- `PASS=81 FAIL=0 SKIP=0`.

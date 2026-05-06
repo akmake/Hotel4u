@@ -5,6 +5,7 @@ import ReservationRoom from '../models/ReservationRoom.js';
 import StaySegment from '../models/StaySegment.js';
 import Room from '../models/Room.js';
 import Folio from '../models/Folio.js';
+import BulkActionJob from '../models/BulkActionJob.js';
 import GuestProfile from '../models/GuestProfile.js';
 import Property from '../models/Property.js';
 import { checkAvailability, incrementInventory } from '../services/availabilityService.js';
@@ -38,9 +39,9 @@ const BULK_ACTIONS_SUPPORTED = new Set([
 const BULK_ACTION_ALLOWED_NO_SHOW_STATUSES = new Set(['confirmed', 'modified', 'pending_payment', 'hold']);
 const BULK_ACTION_AUTO_BACKGROUND_THRESHOLD = Math.max(50, Number(process.env.BULK_ACTION_BACKGROUND_THRESHOLD || 120) || 120);
 const BULK_ACTION_JOB_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.BULK_ACTION_JOB_TTL_MS || (30 * 60 * 1000)) || (30 * 60 * 1000));
+const BULK_ACTION_RUNNING_STALE_MS = Math.max(60 * 1000, Number(process.env.BULK_ACTION_RUNNING_STALE_MS || (4 * 60 * 1000)) || (4 * 60 * 1000));
 const BULK_ACTION_MAX_ITEMS = 300;
 const BULK_ACTION_TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
-const bulkActionJobs = new Map();
 
 const asyncHandler = (fn) => async (req, res, next) => {
   try {
@@ -78,8 +79,8 @@ function normalizeBulkReservationIds(reservationIds = []) {
     .slice(0, BULK_ACTION_MAX_ITEMS);
 }
 
-function makeBulkJobId() {
-  return new mongoose.Types.ObjectId().toHexString();
+function isObjectIdLike(value) {
+  return typeof value === 'string' && /^[a-fA-F0-9]{24}$/.test(value);
 }
 
 function compactBulkResultRow(row) {
@@ -93,34 +94,45 @@ function compactBulkResultRow(row) {
 }
 
 function buildBulkJobSnapshot(job, includeResults = false) {
+  const data = job?.toObject ? job.toObject() : (job || {});
   return {
-    jobId: job.jobId,
-    propertyId: job.propertyId,
-    actorId: job.actorId,
-    action: job.action,
-    status: job.status,
-    cancelRequested: !!job.cancelRequested,
-    total: Number(job.total || 0),
-    processed: Number(job.processed || 0),
-    succeeded: Number(job.succeeded || 0),
-    failed: Number(job.failed || 0),
-    queuedAt: job.queuedAt,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt,
+    jobId: String(data._id || data.jobId || ''),
+    propertyId: data.property ? String(data.property) : undefined,
+    actorId: data.actor ? String(data.actor) : null,
+    action: data.action,
+    status: data.status,
+    cancelRequested: !!data.cancelRequested,
+    total: Number(data.total || 0),
+    processed: Number(data.processed || 0),
+    succeeded: Number(data.succeeded || 0),
+    failed: Number(data.failed || 0),
+    queuedAt: data.queuedAt,
+    startedAt: data.startedAt,
+    completedAt: data.completedAt,
+    heartbeatAt: data.heartbeatAt || null,
     mode: 'background',
-    error: job.error || null,
-    results: includeResults ? (job.results || []).map(compactBulkResultRow).filter(Boolean) : undefined,
+    error: data.error || null,
+    results: includeResults ? (data.results || []).map(compactBulkResultRow).filter(Boolean) : undefined,
   };
 }
 
-function scheduleBulkJobCleanup(jobId) {
-  const timer = setTimeout(() => {
-    const existing = bulkActionJobs.get(jobId);
-    if (!existing) return;
-    if (!BULK_ACTION_TERMINAL_STATUSES.has(existing.status)) return;
-    bulkActionJobs.delete(jobId);
-  }, BULK_ACTION_JOB_TTL_MS);
-  if (typeof timer?.unref === 'function') timer.unref();
+function computeBulkJobExpiryDate() {
+  return new Date(Date.now() + BULK_ACTION_JOB_TTL_MS);
+}
+
+function isTruthyFlag(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
+}
+
+async function setBulkJobTerminalState(jobId, status, error = null) {
+  const patch = {
+    status,
+    completedAt: new Date(),
+    heartbeatAt: new Date(),
+    expiresAt: computeBulkJobExpiryDate(),
+  };
+  if (error) patch.error = String(error);
+  return BulkActionJob.findByIdAndUpdate(jobId, { $set: patch }, { new: true });
 }
 
 async function executeBulkReservationAction({
@@ -295,7 +307,8 @@ async function executeBulkReservationBatch({
   let failed = 0;
 
   for (const reservationId of reservationIds) {
-    if (shouldStop?.()) break;
+    // Allow caller to stop/cancel long-running batches between items.
+    if (shouldStop && (await shouldStop())) break;
 
     let row;
     try {
@@ -324,7 +337,7 @@ async function executeBulkReservationBatch({
     else failed += 1;
 
     if (onProgress) {
-      onProgress({
+      await onProgress({
         processed: results.length,
         succeeded,
         failed,
@@ -699,7 +712,7 @@ router.post('/bulk-actions', asyncHandler(async (req, res) => {
   const uniqueReservationIds = normalizeBulkReservationIds(reservationIds);
   const actor = actorFromReq(req);
 
-  const shouldRunInBackground = Boolean(background) || uniqueReservationIds.length >= BULK_ACTION_AUTO_BACKGROUND_THRESHOLD;
+  const shouldRunInBackground = isTruthyFlag(background) || uniqueReservationIds.length >= BULK_ACTION_AUTO_BACKGROUND_THRESHOLD;
   if (!shouldRunInBackground) {
     const batch = await executeBulkReservationBatch({
       reservationIds: uniqueReservationIds,
@@ -724,36 +737,56 @@ router.post('/bulk-actions', asyncHandler(async (req, res) => {
     });
   }
 
-  const jobId = makeBulkJobId();
-  const queuedAt = new Date().toISOString();
-  const job = {
-    jobId,
-    propertyId: String(propertyId),
-    actorId: actor.id || null,
+  const jobDoc = await BulkActionJob.create({
+    property: propertyId,
+    actor: actor.id || null,
+    actorName: actor.name || 'system',
+    actorRole: actor.role || null,
     action,
+    reservationIds: uniqueReservationIds,
+    requestPayload: {
+      reason: reason || null,
+      overrideClean: !!overrideClean,
+      overrideEarlyArrival: !!overrideEarlyArrival,
+      forceCheckout: !!forceCheckout,
+      groupId: groupId || null,
+      groupCode: groupCode || null,
+      groupName: groupName || null,
+    },
     status: 'queued',
     cancelRequested: false,
     total: uniqueReservationIds.length,
     processed: 0,
     succeeded: 0,
     failed: 0,
-    queuedAt,
+    queuedAt: new Date(),
     startedAt: null,
     completedAt: null,
+    heartbeatAt: null,
+    expiresAt: null,
     error: null,
     results: [],
-  };
-  bulkActionJobs.set(jobId, job);
+  });
+  const jobId = String(jobDoc._id);
 
   setImmediate(async () => {
-    if (job.cancelRequested || job.status === 'cancelled') {
-      if (!job.completedAt) job.completedAt = new Date().toISOString();
-      scheduleBulkJobCleanup(jobId);
-      return;
-    }
-    job.status = 'running';
-    job.startedAt = new Date().toISOString();
     try {
+      const current = await BulkActionJob.findById(jobId);
+      if (!current) return;
+      if (current.cancelRequested || current.status === 'cancelled') {
+        await setBulkJobTerminalState(jobId, 'cancelled');
+        return;
+      }
+
+      await BulkActionJob.findByIdAndUpdate(jobId, {
+        $set: {
+          status: 'running',
+          startedAt: new Date(),
+          heartbeatAt: new Date(),
+          error: null,
+        },
+      });
+
       const batch = await executeBulkReservationBatch({
         reservationIds: uniqueReservationIds,
         propertyId,
@@ -767,28 +800,45 @@ router.post('/bulk-actions', asyncHandler(async (req, res) => {
         groupId,
         groupCode,
         groupName,
-        shouldStop: () => job.cancelRequested,
-        onProgress: ({ processed, succeeded, failed, row }) => {
-          job.processed = processed;
-          job.succeeded = succeeded;
-          job.failed = failed;
-          if (row) job.results.push(compactBulkResultRow(row));
+        shouldStop: async () => {
+          const control = await BulkActionJob.findById(jobId).select('cancelRequested status').lean();
+          if (!control) return true;
+          return !!control.cancelRequested || control.status === 'cancelled';
+        },
+        onProgress: async ({ processed, succeeded, failed, row }) => {
+          const update = {
+            $set: {
+              processed,
+              succeeded,
+              failed,
+              heartbeatAt: new Date(),
+            },
+          };
+          const compactRow = compactBulkResultRow(row);
+          if (compactRow) update.$push = { results: compactRow };
+          await BulkActionJob.findByIdAndUpdate(jobId, update);
         },
       });
-      job.processed = batch.processed;
-      job.succeeded = batch.succeeded;
-      job.failed = batch.failed;
-      if (job.cancelRequested) {
-        job.status = 'cancelled';
+
+      const control = await BulkActionJob.findById(jobId).select('cancelRequested status').lean();
+      if (!control) return;
+      if (control.cancelRequested || control.status === 'cancelled') {
+        await setBulkJobTerminalState(jobId, 'cancelled');
       } else {
-        job.status = 'completed';
+        await BulkActionJob.findByIdAndUpdate(jobId, {
+          $set: {
+            status: 'completed',
+            processed: batch.processed,
+            succeeded: batch.succeeded,
+            failed: batch.failed,
+            completedAt: new Date(),
+            heartbeatAt: new Date(),
+            expiresAt: computeBulkJobExpiryDate(),
+          },
+        });
       }
     } catch (err) {
-      job.status = 'failed';
-      job.error = err?.message || 'Bulk background job failed';
-    } finally {
-      job.completedAt = new Date().toISOString();
-      scheduleBulkJobCleanup(jobId);
+      await setBulkJobTerminalState(jobId, 'failed', err?.message || 'Bulk background job failed');
     }
   });
 
@@ -796,7 +846,7 @@ router.post('/bulk-actions', asyncHandler(async (req, res) => {
     success: true,
     data: {
       mode: 'background',
-      job: buildBulkJobSnapshot(job, false),
+      job: buildBulkJobSnapshot(jobDoc, false),
     },
   });
 }));
@@ -810,17 +860,28 @@ router.get('/bulk-actions/jobs/:jobId', asyncHandler(async (req, res) => {
   if (!propertyId) {
     return res.status(400).json({ success: false, error: 'propertyId is required' });
   }
+  if (!isObjectIdLike(String(jobId))) {
+    return res.status(404).json({ success: false, error: 'Bulk action job not found' });
+  }
   assertPropertyScope(req, propertyId);
 
-  const job = bulkActionJobs.get(String(jobId));
+  let job = await BulkActionJob.findById(String(jobId));
   if (!job) {
     return res.status(404).json({ success: false, error: 'Bulk action job not found' });
   }
-  if (String(job.propertyId) !== String(propertyId)) {
+  if (String(job.property) !== String(propertyId)) {
     return res.status(404).json({ success: false, error: 'Bulk action job not found' });
   }
 
-  const includeRows = ['1', 'true', 'yes'].includes(String(includeResults).toLowerCase());
+  const lastHeartbeat = job.heartbeatAt || job.updatedAt || job.startedAt || job.queuedAt;
+  const isRunningStale = job.status === 'running'
+    && lastHeartbeat
+    && (Date.now() - new Date(lastHeartbeat).getTime()) > BULK_ACTION_RUNNING_STALE_MS;
+  if (isRunningStale) {
+    job = await setBulkJobTerminalState(job._id, 'failed', 'Background worker interrupted (stale heartbeat)');
+  }
+
+  const includeRows = isTruthyFlag(includeResults);
   res.json({
     success: true,
     data: {
@@ -838,13 +899,16 @@ router.post('/bulk-actions/jobs/:jobId/cancel', asyncHandler(async (req, res) =>
   if (!propertyId) {
     return res.status(400).json({ success: false, error: 'propertyId is required' });
   }
+  if (!isObjectIdLike(String(jobId))) {
+    return res.status(404).json({ success: false, error: 'Bulk action job not found' });
+  }
   assertPropertyScope(req, propertyId);
 
-  const job = bulkActionJobs.get(String(jobId));
+  const job = await BulkActionJob.findById(String(jobId));
   if (!job) {
     return res.status(404).json({ success: false, error: 'Bulk action job not found' });
   }
-  if (String(job.propertyId) !== String(propertyId)) {
+  if (String(job.property) !== String(propertyId)) {
     return res.status(404).json({ success: false, error: 'Bulk action job not found' });
   }
 
@@ -853,11 +917,13 @@ router.post('/bulk-actions/jobs/:jobId/cancel', asyncHandler(async (req, res) =>
   }
 
   job.cancelRequested = true;
+  job.heartbeatAt = new Date();
   if (job.status === 'queued') {
     job.status = 'cancelled';
-    job.completedAt = new Date().toISOString();
-    scheduleBulkJobCleanup(job.jobId);
+    job.completedAt = new Date();
+    job.expiresAt = computeBulkJobExpiryDate();
   }
+  await job.save();
 
   res.json({
     success: true,

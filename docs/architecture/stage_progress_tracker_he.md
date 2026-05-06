@@ -221,3 +221,27 @@
 2. `cmd /c npm --prefix client run build` passed.
 - Recommended next step:
 1. Stage 5.7: persist bulk jobs in Mongo (instead of in-memory) for crash-safe resume and cross-instance scalability.
+
+## Update 2026-05-06 - Stage 5.7 Bulk Jobs Persisted In Mongo
+- Backend persistence migration completed for background bulk jobs:
+1. Added Mongo model `server/models/BulkActionJob.js` with:
+   - lifecycle status fields (`queued/running/completed/failed/cancelled`)
+   - progress counters (`total/processed/succeeded/failed`)
+   - per-item result rows
+   - cancellation flag + heartbeat + TTL expiry (`expiresAt`) for terminal-job cleanup
+2. Replaced in-memory `Map` job store in reservations route with Mongo-backed flow:
+   - create job document on enqueue
+   - update progress in DB while worker runs
+   - status polling endpoint now reads from DB
+   - cancel endpoint now updates DB flag/state
+3. Crash-safety hardening:
+   - stale `running` jobs are auto-marked `failed` on status read if heartbeat exceeded threshold.
+- QA coverage expanded:
+1. Stage integration suite now includes background bulk flow tests:
+   - enqueue (`202`)
+   - poll to terminal completion + result assertions
+   - terminal cancel rejection (`409`)
+2. Latest full-suite result:
+   - `PASS=81 FAIL=0 SKIP=0`.
+- Recommended next step:
+1. Stage 5.8: add operator UI page for background jobs history (filters, retry, and failure drill-down beyond the reservations page context).

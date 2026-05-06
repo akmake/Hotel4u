@@ -40,6 +40,10 @@ function randomObjectIdLike() {
   return new mongoose.Types.ObjectId().toHexString();
 }
 
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function signActorToken(actor, secret) {
   const payload = {
     id: String(actor._id),
@@ -227,6 +231,8 @@ async function run() {
     stage54ArrivalDate: datePlus(33),
     stage54DepartureDate: datePlus(35),
     stage54MissingReservationId: randomObjectIdLike(),
+    stage56JobId: null,
+    stage56MissingReservationId: randomObjectIdLike(),
     transferSourceLineId: null,
     transferSourceDescription: `Stage4.2 transfer source ${Date.now()}`,
     createdRoutingRuleId: null,
@@ -2080,6 +2086,99 @@ async function run() {
         },
       }),
       expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.6-WRITE-BULK-BACKGROUND-ENQUEUE',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationM)) return 'created reservation M unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationIds: [state.createdReservationM, state.stage56MissingReservationId],
+          action: 'send_confirmation',
+          background: true,
+        },
+      }),
+      expect: [202],
+      assert: (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+        if (r.json?.data?.mode !== 'background') return `expected mode background, got ${String(r.json?.data?.mode)}`;
+        if (!ensureObjectIdLike(r.json?.data?.job?.jobId)) return 'background job id missing';
+        const status = String(r.json?.data?.job?.status || '');
+        if (!['queued', 'running'].includes(status)) return `unexpected initial job status ${status}`;
+        return null;
+      },
+      capture: (r) => { state.stage56JobId = r.json?.data?.job?.jobId || null; },
+    },
+    {
+      id: 'S5.6-VERIFY-BULK-BACKGROUND-COMPLETED',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.stage56JobId)) return 'stage5.6 background job id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs/${state.stage56JobId}?propertyId=${encodeURIComponent(ctx.propertyId)}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: async (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+
+        const terminalStatuses = new Set(['completed', 'failed', 'cancelled']);
+        const jobUrl = `${baseReservations}/bulk-actions/jobs/${state.stage56JobId}?propertyId=${encodeURIComponent(ctx.propertyId)}&includeResults=1`;
+        let job = r.json?.data?.job || null;
+
+        for (let i = 0; i < 40; i++) {
+          if (job && terminalStatuses.has(String(job.status || ''))) break;
+          await waitMs(250);
+          const poll = await requestJson({
+            method: 'GET',
+            url: jobUrl,
+            token: ctx.adminToken,
+          });
+          if (poll.status !== 200) return `background job poll returned status ${poll.status}`;
+          const pollErr = assertSuccessEnvelope(poll);
+          if (pollErr) return `background job poll envelope invalid: ${pollErr}`;
+          job = poll.json?.data?.job || null;
+        }
+
+        if (!job) return 'background job payload missing';
+        if (job.status !== 'completed') return `expected completed status, got ${String(job.status)}`;
+        if (Number(job.total) !== 2) return `expected job total=2, got ${String(job.total)}`;
+        if (Number(job.processed) !== 2) return `expected job processed=2, got ${String(job.processed)}`;
+        if (Number(job.succeeded) !== 1) return `expected job succeeded=1, got ${String(job.succeeded)}`;
+        if (Number(job.failed) !== 1) return `expected job failed=1, got ${String(job.failed)}`;
+        if (!Array.isArray(job.results) || job.results.length !== 2) return 'expected exactly 2 result rows from background job';
+        return null;
+      },
+    },
+    {
+      id: 'S5.6-WRITE-BULK-BACKGROUND-CANCEL-TERMINAL-BLOCKED',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.stage56JobId)) return 'stage5.6 background job id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions/jobs/${state.stage56JobId}/cancel`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+        },
+      }),
+      expect: [409],
       assert: (r) => assertFailureEnvelope(r),
     },
   ];
