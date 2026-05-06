@@ -1,6 +1,7 @@
 import Reservation from '../models/Reservation.js';
 import Room from '../models/Room.js';
 import Folio from '../models/Folio.js';
+import Property from '../models/Property.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import GuestProfile from '../models/GuestProfile.js';
 import ReservationRoom from '../models/ReservationRoom.js';
@@ -12,6 +13,7 @@ import {
 } from './availabilityService.js';
 import { enqueueChannelUpdate } from './channelQueueService.js';
 import { audit } from './auditService.js';
+import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 
 let _counter = 1000;
 
@@ -22,6 +24,11 @@ async function nextConfirmationNumber() {
     if (!Number.isNaN(n)) _counter = n;
   }
   return `RES-${++_counter}`;
+}
+
+async function todayByPropertyTimezone(propertyId) {
+  const prop = await Property.findById(propertyId).select('timezone').lean();
+  return todayYmdInTimezone(prop?.timezone || 'Asia/Jerusalem');
 }
 
 export async function createReservation({ propertyId, data, actorId, actorName, ip }) {
@@ -252,7 +259,7 @@ export async function checkIn({ reservationId, actorId, actorName, ip, overrideC
   }
 
   // 14.1 — Arrival date validation
-  const today = new Date().toISOString().split('T')[0];
+  const today = await todayByPropertyTimezone(res.property);
   if (res.arrivalDate > today && !overrideEarlyArrival) {
     throw new Error(`Arrival date is ${res.arrivalDate}; early check-in requires manager override`);
   }
@@ -348,7 +355,7 @@ export async function checkOut({ reservationId, actorId, actorName, ip, forceChe
   if (room) {
     await Room.findByIdAndUpdate(room._id, { occStatus: 'checked_out', cleanStatus: 'dirty' });
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = await todayByPropertyTimezone(res.property);
     await HousekeepingTask.create({
       property: res.property,
       room: room._id,
@@ -484,6 +491,7 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
       roomTypeId: newRoomTypeId,
       arrivalDate: newArrival,
       departureDate: newDeparture,
+      requiredRooms: Math.max(1, Number(res.roomsCount) || 1),
       excludeReservationId: String(res._id),
     });
 
@@ -514,8 +522,9 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     if (typeChanged) res.roomType = newRoomTypeId;
 
     const rate = (ratePerNight != null ? Number(ratePerNight) : res.ratePerNight);
+    const roomsCount = Math.max(1, Number(res.roomsCount) || 1);
     res.ratePerNight = rate;
-    res.totalAmount = rate * nights;
+    res.totalAmount = rate * nights * roomsCount;
     res.taxAmount = Math.round(res.totalAmount * 0.17);
 
     if (typeChanged) {
@@ -526,7 +535,7 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     }
   } else if (ratePerNight != null && Number(ratePerNight) !== res.ratePerNight) {
     res.ratePerNight = Number(ratePerNight);
-    res.totalAmount = Number(ratePerNight) * res.nights;
+    res.totalAmount = Number(ratePerNight) * res.nights * Math.max(1, Number(res.roomsCount) || 1);
     res.taxAmount = Math.round(res.totalAmount * 0.17);
   }
 
@@ -582,6 +591,12 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
 export async function markNoShow({ reservationId, actorId, actorName, ip }) {
   const res = await Reservation.findById(reservationId);
   if (!res) throw new Error('Reservation not found');
+  const allowedStatuses = new Set(['confirmed', 'modified', 'pending_payment', 'hold']);
+  if (!allowedStatuses.has(res.status)) {
+    const err = new Error(`Cannot mark no-show from status ${res.status}`);
+    err.status = 409;
+    throw err;
+  }
   const before = res.toObject();
 
   res.status = 'no_show';

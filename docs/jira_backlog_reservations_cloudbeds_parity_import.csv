@@ -1,0 +1,62 @@
+﻿Issue Type,Issue ID,Parent,Summary,Description,Priority,Story Points,Epic Name,Labels,Components,Sprint
+Epic,EP01,,Platform Foundations for Reservations,"DB schema, state machine, API contract, timezone policy, feature flags",Highest,,Platform Foundations for Reservations,"reservations-core,mvp",Platform,S0-S1
+Epic,EP02,,Reservations List and Search,"Reservations page with filters, search, configurable columns, export and print",Highest,,Reservations List and Search,"reservations-core,mvp",Reservations-Frontend,S1-S2
+Epic,EP03,,New Reservation Flow,"Simple and split reservation creation with confirm and pay",Highest,,New Reservation Flow,"reservations-core,mvp",Reservations-Frontend,S2-S3
+Epic,EP04,,Reservation Details Workspace,"Header, actions menu and tabbed reservation workspace",High,,Reservation Details Workspace,"reservations-core,prod-core",Reservations-Frontend,S3-S4
+Epic,EP05,,Calendar and Assignment Engine,"Operational calendar with assignment, unassigned detection and availability actions",High,,Calendar and Assignment Engine,"calendar-assignment,prod-core",Calendar,S3-S5
+Epic,EP06,,Guest Lifecycle Operations,"Check-in/check-out/cancel/no-show operational flows",Highest,,Guest Lifecycle Operations,"checkin-checkout,prod-core",Reservations-Backend,S4-S5
+Epic,EP07,,Folio and Payments Core,"Folio ledger, payment gateway, transaction actions and financial documents",Highest,,Folio and Payments Core,"folio,prod-core",Folio-Payments,S4-S6
+Epic,EP08,,OTA Rules and Reconciliation,"OTA capability matrix, webhook sync and reconciliation dashboard",High,,OTA Rules and Reconciliation,"ota-sync,prod-core",Channels-OTA,S5-S7
+Epic,EP09,,Messaging and Guest Communication,"Compose messages, templates, delivery tracking and throttling",Medium,,Messaging and Guest Communication,"messaging,prod-core",Messaging,S5-S6
+Epic,EP10,,Bulk Actions and Operational Speed,"Bulk operational actions with partial success/error reporting",Medium,,Bulk Actions and Operational Speed,"bulk-actions,prod-core",Reservations-Frontend,S6-S7
+Epic,EP11,,RBAC Audit and Compliance,"Permissions matrix, activity log and email audit",Highest,,RBAC Audit and Compliance,"rbac,audit,prod-core",RBAC-Audit,S1-S8
+Epic,EP12,,QA Automation Observability and Release,"E2E suite, API contracts, monitoring and go-live readiness",High,,QA Automation Observability and Release,"qa-automation,prod-core",QA-Automation,S2-S8
+Story,RES001,EP01,Design and implement reservations database schema,"Create all core reservations tables, constraints, indexes and soft-delete model",Highest,8,,"reservations-core,mvp",Reservations-Backend,S0
+Story,RES002,EP01,Implement reservation state machine,"Transition engine for Confirmed/In-House/Checked Out/Canceled/No Show with guards",Highest,8,,"reservations-core,mvp",Reservations-Backend,S0
+Story,RES003,EP01,Define OpenAPI contract and error model,"Publish API spec and unified error shape with code message details trace_id",High,5,,"reservations-core,mvp",Platform,S0
+Story,RES004,EP01,Implement timezone-aware date policy,"All operational guards must use property timezone including DST scenarios",Highest,5,,"reservations-core,mvp",Platform,S0
+Story,RES005,EP01,Create deterministic QA seed dataset,"Seed script with direct OTA split canceled no-show fixtures",Medium,3,,"reservations-core,mvp",Platform,S1
+Story,RES006,EP01,Add feature flags for reservations rollout,"Enable gradual rollout between classic and new reservation experiences",Medium,3,,"reservations-core,mvp",Reservations-Frontend,S1
+Story,RES007,EP02,Build reservations list API with pagination and sorting,"GET /reservations returns paginated sortable list and total counts",Highest,8,,"reservations-core,mvp",Reservations-Backend,S1
+Story,RES008,EP02,Implement advanced filters with persistence,"Status source date and room filters with saved user presets",High,8,,"reservations-core,mvp",Reservations-Frontend,S1
+Story,RES009,EP02,Add configurable table columns,"Users can select reorder and persist reservations table columns",High,5,,"reservations-core,mvp",Reservations-Frontend,S1
+Story,RES010,EP02,Implement export and print on filtered data,"Generate XLSX and print view based on active filters and visible columns",Medium,5,,"reporting,mvp",Reservations-Frontend,S2
+Story,RES011,EP02,Implement global reservation quick search,"Search by name email phone reservation id with fast autocomplete",High,3,,"reservations-core,mvp",Reservations-Backend,S2
+Story,RES012,EP02,Add classic/new reservations view toggle,"User-level toggle and safe rollback between list implementations",Medium,3,,"reservations-core,mvp",Reservations-Frontend,S2
+Story,RES013,EP03,Implement availability search engine,"Return inventory and constraint-aware availability for date range and guests",Highest,8,,"reservations-core,mvp",Reservations-Backend,S2
+Story,RES014,EP03,Build simple reservation wizard,"Step-based flow for availability guest details and booking confirmation",Highest,8,,"reservations-core,mvp",Reservations-Frontend,S2
+Story,RES015,EP03,Support split reservation creation,"Create contiguous multi-segment reservations across room types",High,8,,"reservations-core,prod-core",Reservations-Backend,S3
+Story,RES016,EP03,Implement guest details validation policy,"Mandatory field enforcement and country-aware validation rules",High,5,,"reservations-core,mvp",Reservations-Frontend,S3
+Story,RES017,EP03,Implement confirm and pay step,"Charge preauth or skip payment at reservation confirmation",High,5,,"folio,prod-core",Folio-Payments,S3
+Story,RES018,EP03,Add post-booking confirmation email modal,"Send confirmation email or continue without sending",Medium,3,,"messaging,mvp",Messaging,S3
+Story,RES019,EP04,Build reservation details header aggregate,"Display guest id status dates source nights guests and balance breakdown",Highest,8,,"reservations-core,mvp",Reservations-Frontend,S3
+Story,RES020,EP04,Implement reservation actions menu,"Invoice email print export and delete actions with permission checks",High,8,,"reservations-core,prod-core",Reservations-Frontend,S3
+Story,RES021,EP04,Implement reservation details tabs shell,"Accommodations folio guest details cards notes documents activity emails",High,8,,"reservations-core,prod-core",Reservations-Frontend,S4
+Story,RES022,EP04,Implement accommodations quick edit and lock,"Edit dates lock assignments and manage room move behavior",High,5,,"calendar-assignment,prod-core",Reservations-Frontend,S4
+Story,RES023,EP05,Build operational reservations calendar grid,"Render rooms reservations blocks and unassigned counters",Highest,8,,"calendar-assignment,prod-core",Calendar,S3
+Story,RES024,EP05,Implement room assignment engine,"Suggest valid assignments and handle unassigned reservations",High,8,,"calendar-assignment,prod-core",Calendar,S4
+Story,RES025,EP05,Add availability actions from calendar,"Create reservation block courtesy hold and out-of-service actions",Medium,5,,"calendar-assignment,prod-core",Calendar,S4
+Story,RES026,EP06,Implement unified check-in service across entry points,"Calendar dashboard list and accommodations entry points call one service",Highest,8,,"checkin-checkout,prod-core",Reservations-Backend,S4
+Story,RES027,EP06,Implement guarded check-out with balance policies,"Apply role and policy rules for outstanding balances on checkout",High,5,,"checkin-checkout,prod-core",Reservations-Backend,S4
+Story,RES028,EP06,Implement direct reservation cancellation workflow,"Cancellation with optional email and transaction handling",High,5,,"checkin-checkout,prod-core",Reservations-Frontend,S5
+Story,RES029,EP06,Implement no-show workflow and fee support,"Mark no-show and apply optional no-show fee with folio snapshots",Medium,5,,"checkin-checkout,folio,prod-core",Folio-Payments,S5
+Story,RES030,EP07,Build folio add transaction menu,"Add payments products taxes room revenue adjustments refunds and fees",Highest,8,,"folio,prod-core",Folio-Payments,S4
+Story,RES031,EP07,Integrate payment gateway operations,"Charge preauth record-only with idempotency and error handling",Highest,8,,"folio,prod-core",Folio-Payments,S4
+Story,RES032,EP07,Implement row-level folio actions,"Void allocate and receipt generation from transaction menu",High,5,,"folio,prod-core",Folio-Payments,S5
+Story,RES033,EP07,Implement financial documents from folio,"Invoice pro-forma receipt email print and export actions",Medium,5,,"folio,prod-core",Folio-Payments,S5
+Story,RES034,EP08,Implement OTA capability and action rules,"Gate direct vs OTA operations and route unsupported changes to extranet",Highest,8,,"ota-sync,prod-core",Channels-OTA,S5
+Story,RES035,EP08,Implement OTA webhook ingestion and idempotency,"Handle create update cancel no-show events with signature validation",High,8,,"ota-sync,prod-core",Channels-OTA,S6
+Story,RES036,EP08,Build OTA reconciliation dashboard,"List sync failures with retry and resolution workflow",High,5,,"ota-sync,prod-core",Channels-OTA,S6
+Story,RES037,EP09,Implement compose message in reservation context,"Send template-based or custom guest messages from reservation",High,5,,"messaging,prod-core",Messaging,S5
+Story,RES038,EP09,Implement per-reservation email rate limiting,"Block sends beyond configured threshold and show actionable message",Medium,3,,"messaging,prod-core",Messaging,S5
+Story,RES039,EP09,Build reservation email messages tab,"Show sent delivered failed scheduled statuses per reservation",Medium,5,,"messaging,prod-core",Messaging,S6
+Story,RES040,EP10,Implement bulk check-in and check-out,"Batch status operations with partial success and per-item errors",High,8,,"bulk-actions,prod-core",Reservations-Backend,S6
+Story,RES041,EP10,Implement bulk add payment,"Apply payment entries to selected reservations with full audit",Medium,5,,"bulk-actions,folio,prod-core",Folio-Payments,S6
+Story,RES042,EP10,Implement bulk delete and restore with safeguards,"Role-guarded irreversible operations with confirmations",Medium,3,,"bulk-actions,prod-core",Reservations-Frontend,S7
+Story,RES043,EP11,Implement permissions matrix across reservation actions,"Enforce action-level RBAC in API and UI",Highest,8,,"rbac,audit,prod-core",RBAC-Audit,S1
+Story,RES044,EP11,Implement reservation activity logging,"Write before/after audit events for critical reservation operations",Highest,8,,"rbac,audit,prod-core",RBAC-Audit,S2
+Story,RES045,EP11,Implement reservation-level email delivery log,"Track provider delivery outcomes and expose to reservation UI",High,5,,"rbac,audit,messaging,prod-core",Messaging,S6
+Story,RES046,EP12,Create end-to-end critical flow automation suite,"Automate create split checkin checkout cancel no-show bulk flows",High,8,,"qa-automation,prod-core",QA-Automation,S2
+Story,RES047,EP12,Add API contract testing in CI,"Validate API schema compatibility and fail on breaking changes",High,5,,"qa-automation,prod-core",QA-Automation,S6
+Story,RES048,EP12,Implement observability and alerting,"Tracing metrics dashboards and actionable alerts for reservation failures",High,5,,"qa-automation,prod-core",Platform,S7
+Story,RES049,EP12,Run UAT and go-live readiness checklist,"Sign-off runbook defect triage rollback and launch gates",High,8,,"qa-automation,prod-core",QA-Automation,S8

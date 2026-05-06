@@ -1,0 +1,827 @@
+openapi: 3.1.0
+info:
+  title: Hotel4u PMS Reservations API (Stage 3)
+  version: 0.3.0
+  description: Contract snapshot of the current Reservations module implementation.
+servers:
+  - url: /api/pms
+security:
+  - bearerAuth: []
+tags:
+  - name: Reservations
+paths:
+  /reservations/availability/check:
+    get:
+      tags: [Reservations]
+      summary: Check room-type availability
+      parameters:
+        - $ref: '#/components/parameters/propertyIdQuery'
+        - $ref: '#/components/parameters/roomTypeIdQuery'
+        - $ref: '#/components/parameters/arrivalDateQuery'
+        - $ref: '#/components/parameters/departureDateQuery'
+        - name: requiredRooms
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations:
+    get:
+      tags: [Reservations]
+      summary: List reservations
+      parameters:
+        - $ref: '#/components/parameters/propertyIdQuery'
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: arrivalDate
+          in: query
+          schema: { $ref: '#/components/schemas/DateOnly' }
+        - name: departureDate
+          in: query
+          schema: { $ref: '#/components/schemas/DateOnly' }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: source
+          in: query
+          schema: { type: string }
+        - name: paymentStatus
+          in: query
+          schema: { $ref: '#/components/schemas/PaymentStatus' }
+        - name: company
+          in: query
+          schema: { $ref: '#/components/schemas/ObjectId' }
+        - name: groupCode
+          in: query
+          schema: { type: string }
+        - name: dateFrom
+          in: query
+          schema: { $ref: '#/components/schemas/DateOnly' }
+        - name: dateTo
+          in: query
+          schema: { $ref: '#/components/schemas/DateOnly' }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Reservations]
+      summary: Create reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReservationCreateRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/quote:
+    post:
+      tags: [Reservations]
+      summary: Build quote (without persistence)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuoteRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/quote/save:
+    post:
+      tags: [Reservations]
+      summary: Save quote/hold as reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuoteSaveRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/merge:
+    post:
+      tags: [Reservations]
+      summary: Merge source reservation into target
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MergeReservationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/transfer-charges:
+    post:
+      tags: [Reservations]
+      summary: Transfer posted folio lines between reservations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferChargesRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}:
+    get:
+      tags: [Reservations]
+      summary: Get reservation details
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [Reservations]
+      summary: Modify reservation
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReservationUpdateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/split:
+    post:
+      tags: [Reservations]
+      summary: Split selected reservation rooms to new reservation
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SplitReservationRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/confirm:
+    post:
+      tags: [Reservations]
+      summary: Confirm reservation
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/send-confirmation:
+    post:
+      tags: [Reservations]
+      summary: Mark/send confirmation
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/check-in:
+    post:
+      tags: [Reservations]
+      summary: Check in
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckInRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/check-out:
+    post:
+      tags: [Reservations]
+      summary: Check out
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckOutRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/cancel:
+    post:
+      tags: [Reservations]
+      summary: Cancel reservation
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancelRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/no-show:
+    post:
+      tags: [Reservations]
+      summary: Mark no-show
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/cancellation-fee:
+    post:
+      tags: [Reservations]
+      summary: Add cancellation fee line
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FeeRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/no-show-fee:
+    post:
+      tags: [Reservations]
+      summary: Add no-show fee line
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FeeRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/assign-room:
+    patch:
+      tags: [Reservations]
+      summary: Assign room
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssignRoomRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/partial-check-in:
+    post:
+      tags: [Reservations]
+      summary: Partial check-in
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PartialCheckInRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/partial-check-out:
+    post:
+      tags: [Reservations]
+      summary: Partial check-out
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PartialCheckOutRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/extend:
+    post:
+      tags: [Reservations]
+      summary: Extend stay
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExtendReservationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/early-departure:
+    post:
+      tags: [Reservations]
+      summary: Early departure
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EarlyDepartureRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/upgrade:
+    post:
+      tags: [Reservations]
+      summary: Upgrade room type/room/rate
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpgradeReservationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/rooms:
+    get:
+      tags: [Reservations]
+      summary: List reservation rooms
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Reservations]
+      summary: Add reservation room
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddReservationRoomRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/rooms/{reservationRoomId}:
+    patch:
+      tags: [Reservations]
+      summary: Update reservation room
+      parameters:
+        - $ref: '#/components/parameters/reservationRoomIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateReservationRoomRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Reservations]
+      summary: Remove reservation room
+      parameters:
+        - $ref: '#/components/parameters/reservationRoomIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/rooms/{reservationRoomId}/segments:
+    get:
+      tags: [Reservations]
+      summary: List stay segments
+      parameters:
+        - $ref: '#/components/parameters/reservationRoomIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Reservations]
+      summary: Add stay segment
+      parameters:
+        - $ref: '#/components/parameters/reservationRoomIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddStaySegmentRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/duplicate:
+    post:
+      tags: [Reservations]
+      summary: Duplicate reservation
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DuplicateReservationRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/send-welcome:
+    post:
+      tags: [Reservations]
+      summary: Trigger welcome flow marker
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/add-service:
+    post:
+      tags: [Reservations]
+      summary: Add service charge to folio
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddServiceRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/link-group:
+    post:
+      tags: [Reservations]
+      summary: Link reservation to group metadata
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LinkGroupRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /reservations/{id}/express-checkout-link:
+    post:
+      tags: [Reservations]
+      summary: Generate express checkout link
+      parameters:
+        - $ref: '#/components/parameters/reservationIdPath'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        default: { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Success:
+      description: Success envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiSuccessAny'
+    Error:
+      description: Error envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  parameters:
+    reservationIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/ObjectId' }
+    reservationRoomIdPath:
+      name: reservationRoomId
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/ObjectId' }
+    propertyIdQuery:
+      name: propertyId
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/ObjectId' }
+    roomTypeIdQuery:
+      name: roomTypeId
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/ObjectId' }
+    arrivalDateQuery:
+      name: arrivalDate
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/DateOnly' }
+    departureDateQuery:
+      name: departureDate
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/DateOnly' }
+
+  schemas:
+    ObjectId:
+      type: string
+      pattern: '^[a-fA-F0-9]{24}$'
+    DateOnly:
+      type: string
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+    PaymentStatus:
+      type: string
+      enum: [unpaid, partial, paid, refunded, balance_due]
+
+    ApiSuccessAny:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, const: true }
+        data:
+          type: object
+          additionalProperties: true
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+    ApiError:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean, const: false }
+        error: { type: string }
+
+    ReservationCreateRequest:
+      type: object
+      required: [propertyId, roomTypeId, arrivalDate, departureDate, primaryGuestId, ratePerNight]
+      properties:
+        propertyId: { $ref: '#/components/schemas/ObjectId' }
+        roomTypeId: { $ref: '#/components/schemas/ObjectId' }
+        arrivalDate: { $ref: '#/components/schemas/DateOnly' }
+        departureDate: { $ref: '#/components/schemas/DateOnly' }
+        primaryGuestId: { $ref: '#/components/schemas/ObjectId' }
+        adults: { type: integer, minimum: 1, default: 2 }
+        children: { type: integer, minimum: 0, default: 0 }
+        roomsCount: { type: integer, minimum: 1, default: 1 }
+        ratePlanId: { $ref: '#/components/schemas/ObjectId' }
+        ratePerNight: { type: number, minimum: 0 }
+        source: { type: string }
+        marketSegment: { type: string }
+        companyId: { $ref: '#/components/schemas/ObjectId' }
+        travelAgentId: { $ref: '#/components/schemas/ObjectId' }
+        specialRequests: { type: string }
+        guestNotes: { type: string }
+        internalNotes: { type: string }
+        guaranteeType: { type: string }
+        language: { type: string }
+        currency: { type: string }
+        isVip: { type: boolean }
+        externalId: { type: string }
+        channelReservationId: { type: string }
+        idempotencyKey: { type: string, minLength: 8 }
+        bookingStatus:
+          type: string
+          enum: [draft, quote, hold, pending_payment, confirmed]
+        cancellationPolicy: { type: string }
+        depositPolicy: { type: string }
+        quoteExpiresAt: { type: string, format: date-time }
+        holdExpiresAt: { type: string, format: date-time }
+        allowOverbooking: { type: boolean }
+
+    QuoteRequest:
+      type: object
+      required: [propertyId, roomTypeId, arrivalDate, departureDate]
+      properties:
+        propertyId: { $ref: '#/components/schemas/ObjectId' }
+        roomTypeId: { $ref: '#/components/schemas/ObjectId' }
+        arrivalDate: { $ref: '#/components/schemas/DateOnly' }
+        departureDate: { $ref: '#/components/schemas/DateOnly' }
+        roomsCount: { type: integer, minimum: 1, default: 1 }
+        ratePerNight: { type: number, minimum: 0 }
+        currency: { type: string }
+
+    QuoteSaveRequest:
+      allOf:
+        - $ref: '#/components/schemas/ReservationCreateRequest'
+        - type: object
+          properties:
+            bookingStatus:
+              type: string
+              enum: [quote, hold]
+
+    MergeReservationRequest:
+      type: object
+      required: [sourceReservationId, targetReservationId]
+      properties:
+        sourceReservationId: { $ref: '#/components/schemas/ObjectId' }
+        targetReservationId: { $ref: '#/components/schemas/ObjectId' }
+        transferCharges: { type: boolean, default: true }
+
+    SplitReservationRequest:
+      type: object
+      required: [reservationRoomIds]
+      properties:
+        reservationRoomIds:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ObjectId' }
+        newPrimaryGuestId: { $ref: '#/components/schemas/ObjectId' }
+        notes: { type: string }
+
+    ReservationUpdateRequest:
+      type: object
+      properties:
+        arrivalDate: { $ref: '#/components/schemas/DateOnly' }
+        departureDate: { $ref: '#/components/schemas/DateOnly' }
+        roomTypeId: { $ref: '#/components/schemas/ObjectId' }
+        ratePerNight: { type: number, minimum: 0 }
+        ratePlanId: { $ref: '#/components/schemas/ObjectId' }
+        adults: { type: integer, minimum: 1 }
+        children: { type: integer, minimum: 0 }
+        specialRequests: { type: string }
+        guestNotes: { type: string }
+        internalNotes: { type: string }
+        marketSegment: { type: string }
+        companyId: { $ref: '#/components/schemas/ObjectId' }
+        travelAgentId: { $ref: '#/components/schemas/ObjectId' }
+        guaranteeType: { type: string }
+        channelReservationId: { type: string }
+        externalId: { type: string }
+        priceOverrideReason: { type: string }
+        group: { type: string }
+        cancellationPolicy: { type: string }
+        depositPolicy: { type: string }
+
+    CheckInRequest:
+      type: object
+      properties:
+        overrideClean: { type: boolean, default: false }
+        overrideEarlyArrival: { type: boolean, default: false }
+    CheckOutRequest:
+      type: object
+      properties:
+        forceCheckout: { type: boolean, default: false }
+    CancelRequest:
+      type: object
+      properties:
+        reason: { type: string }
+    FeeRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: number, exclusiveMinimum: 0 }
+        description: { type: string }
+    AssignRoomRequest:
+      type: object
+      properties:
+        roomId: { $ref: '#/components/schemas/ObjectId' }
+        reservationRoomId: { $ref: '#/components/schemas/ObjectId' }
+    PartialCheckInRequest:
+      type: object
+      required: [reservationRoomIds]
+      properties:
+        reservationRoomIds:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ObjectId' }
+        overrideClean: { type: boolean, default: false }
+    PartialCheckOutRequest:
+      type: object
+      required: [reservationRoomIds]
+      properties:
+        reservationRoomIds:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ObjectId' }
+    ExtendReservationRequest:
+      type: object
+      required: [newDepartureDate]
+      properties:
+        newDepartureDate: { $ref: '#/components/schemas/DateOnly' }
+        nightlyRate: { type: number, minimum: 0 }
+    EarlyDepartureRequest:
+      type: object
+      required: [newDepartureDate]
+      properties:
+        newDepartureDate: { $ref: '#/components/schemas/DateOnly' }
+    UpgradeReservationRequest:
+      type: object
+      properties:
+        reservationRoomId: { $ref: '#/components/schemas/ObjectId' }
+        newRoomTypeId: { $ref: '#/components/schemas/ObjectId' }
+        newRoomId: { $ref: '#/components/schemas/ObjectId' }
+        nightlyRate: { type: number, minimum: 0 }
+        reason: { type: string }
+    TransferChargesRequest:
+      type: object
+      required: [fromReservationId, toReservationId, lineIds]
+      properties:
+        fromReservationId: { $ref: '#/components/schemas/ObjectId' }
+        toReservationId: { $ref: '#/components/schemas/ObjectId' }
+        lineIds:
+          type: array
+          minItems: 1
+          items: { type: string }
+    AddReservationRoomRequest:
+      type: object
+      required: [roomTypeId, arrivalDate, departureDate]
+      properties:
+        roomTypeId: { $ref: '#/components/schemas/ObjectId' }
+        assignedRoom: { $ref: '#/components/schemas/ObjectId' }
+        arrivalDate: { $ref: '#/components/schemas/DateOnly' }
+        departureDate: { $ref: '#/components/schemas/DateOnly' }
+        ratePlanId: { $ref: '#/components/schemas/ObjectId' }
+        nightlyRate: { type: number }
+        guests:
+          type: array
+          items: { $ref: '#/components/schemas/ObjectId' }
+        notes: { type: string }
+    UpdateReservationRoomRequest:
+      type: object
+      properties:
+        assignedRoom: { $ref: '#/components/schemas/ObjectId' }
+        roomTypeBooked: { $ref: '#/components/schemas/ObjectId' }
+        arrivalDate: { $ref: '#/components/schemas/DateOnly' }
+        departureDate: { $ref: '#/components/schemas/DateOnly' }
+        ratePlan: { $ref: '#/components/schemas/ObjectId' }
+        nightlyRate: { type: number }
+        status: { type: string }
+        notes: { type: string }
+        guests:
+          type: array
+          items: { $ref: '#/components/schemas/ObjectId' }
+    AddStaySegmentRequest:
+      type: object
+      required: [fromDate, toDate]
+      properties:
+        fromDate: { $ref: '#/components/schemas/DateOnly' }
+        toDate: { $ref: '#/components/schemas/DateOnly' }
+        roomTypeId: { $ref: '#/components/schemas/ObjectId' }
+        roomId: { $ref: '#/components/schemas/ObjectId' }
+        ratePerNight: { type: number }
+        ratePlanId: { $ref: '#/components/schemas/ObjectId' }
+        changeReason: { type: string }
+    DuplicateReservationRequest:
+      type: object
+      properties:
+        arrivalDate: { $ref: '#/components/schemas/DateOnly' }
+        departureDate: { $ref: '#/components/schemas/DateOnly' }
+    AddServiceRequest:
+      type: object
+      required: [description, amount]
+      properties:
+        description: { type: string }
+        amount: { type: number, exclusiveMinimum: 0 }
+        department: { type: string, default: service }
+        quantity: { type: integer, minimum: 1, default: 1 }
+        serviceDate: { $ref: '#/components/schemas/DateOnly' }
+        taxRate: { type: number, default: 0.17 }
+    LinkGroupRequest:
+      type: object
+      properties:
+        groupId: { type: string }
+        groupCode: { type: string }
+        groupName: { type: string }
+
+x-notes:
+  - Error format in current code is { success:false, error:string }.
+  - This is a practical contract for implementation and QA; detailed behavioral notes live in architecture/stage3_reservations_api_db_contract_he.md.

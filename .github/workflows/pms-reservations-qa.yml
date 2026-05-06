@@ -1,0 +1,96 @@
+name: PMS Reservations QA
+
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.github/workflows/pms-reservations-qa.yml'
+      - 'docs/qa/**'
+      - 'docs/architecture/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/**'
+      - '.github/workflows/pms-reservations-qa.yml'
+      - 'docs/qa/**'
+      - 'docs/architecture/**'
+  workflow_dispatch:
+
+jobs:
+  reservations-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: server
+
+    env:
+      MONGO_URI: mongodb://127.0.0.1:27017/hotel4u_ci
+      JWT_SECRET: stage4_ci_secret_for_tests_only
+      NODE_ENV: test
+      DISABLE_WHATSAPP: "1"
+      PORT: "4010"
+      PMS_BASE_URL: http://127.0.0.1:4010/api/pms
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Seed Database
+        run: npm run seed
+
+      - name: Start API Server
+        run: |
+          npm run start > /tmp/pms-server.log 2>&1 &
+          echo $! > /tmp/pms-server.pid
+
+      - name: Wait For Health
+        run: |
+          for i in {1..40}; do
+            if curl -fsS "http://127.0.0.1:4010/api/health" > /dev/null; then
+              echo "Server is healthy"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed health check"
+          cat /tmp/pms-server.log || true
+          exit 1
+
+      - name: Run Stage 4 Integration Suite
+        run: npm run qa:reservations:integration
+
+      - name: Print Server Log On Failure
+        if: failure()
+        run: cat /tmp/pms-server.log || true
+
+      - name: Stop API Server
+        if: always()
+        run: |
+          if [ -f /tmp/pms-server.pid ]; then
+            kill "$(cat /tmp/pms-server.pid)" || true
+          fi
+

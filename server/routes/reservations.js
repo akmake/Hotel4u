@@ -6,6 +6,8 @@ import ReservationRoom from '../models/ReservationRoom.js';
 import StaySegment from '../models/StaySegment.js';
 import Room from '../models/Room.js';
 import Folio from '../models/Folio.js';
+import GuestProfile from '../models/GuestProfile.js';
+import Property from '../models/Property.js';
 import { checkAvailability, incrementInventory } from '../services/availabilityService.js';
 import {
   createReservation,
@@ -18,6 +20,7 @@ import {
 import { audit } from '../services/auditService.js';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import { emit } from '../services/webhookService.js';
+import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 
 const router = Router();
 const OVERRIDE_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
@@ -40,6 +43,15 @@ async function getReservationOr404(resId, res) {
 
 function calcNights(fromDate, toDate) {
   return Math.round((new Date(toDate) - new Date(fromDate)) / 86400000);
+}
+
+function escapeRegex(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function todayByPropertyTimezone(propertyId) {
+  const prop = await Property.findById(propertyId).select('timezone').lean();
+  return todayYmdInTimezone(prop?.timezone || 'Asia/Jerusalem');
 }
 
 async function nextDerivedConfirmation(base = 'RES-DRV') {
@@ -76,6 +88,8 @@ router.get('/', asyncHandler(async (req, res) => {
   } = req.query;
   assertPropertyScope(req, propertyId);
 
+  const pageNumber = Math.max(1, Number(page) || 1);
+  const limitNumber = Math.min(200, Math.max(1, Number(limit) || 50));
   const filter = { property: propertyId };
   if (status)        filter.status = { $in: String(status).split(',') };
   if (arrivalDate)   filter.arrivalDate  = { $gte: arrivalDate };
@@ -87,11 +101,26 @@ router.get('/', asyncHandler(async (req, res) => {
   if (source)        filter.source = source;
   if (paymentStatus) filter.paymentStatus = paymentStatus;
 
-  const searchTerm = q || search;
+  const searchTerm = String(q || search || '').trim();
   if (searchTerm) {
+    const searchRegex = new RegExp(escapeRegex(searchTerm), 'i');
+    const guestMatches = await GuestProfile.find({
+      property: propertyId,
+      $or: [
+        { firstName: { $regex: searchRegex } },
+        { lastName: { $regex: searchRegex } },
+        { email: { $regex: searchRegex } },
+        { phone: { $regex: searchRegex } },
+      ],
+    }).select('_id').lean();
+    const guestIds = guestMatches.map((g) => g._id);
+
     filter.$or = [
-      { confirmationNumber: { $regex: searchTerm, $options: 'i' } },
+      { confirmationNumber: { $regex: searchRegex } },
+      { channelReservationId: { $regex: searchRegex } },
+      { externalId: { $regex: searchRegex } },
     ];
+    if (guestIds.length > 0) filter.$or.push({ primaryGuest: { $in: guestIds } });
   }
 
   const total = await Reservation.countDocuments(filter);
@@ -103,22 +132,11 @@ router.get('/', asyncHandler(async (req, res) => {
     .populate('company', 'name code')
     .populate('travelAgent', 'name code')
     .sort({ arrivalDate: 1, createdAt: -1 })
-    .skip((Number(page) - 1) * Number(limit))
-    .limit(Number(limit))
+    .skip((pageNumber - 1) * limitNumber)
+    .limit(limitNumber)
     .lean();
 
-  const filtered = q
-    ? reservations.filter((r) => {
-        const name = `${r.primaryGuest?.firstName || ''} ${r.primaryGuest?.lastName || ''}`.toLowerCase();
-        const text = String(q).toLowerCase();
-        return name.includes(text)
-          || String(r.confirmationNumber || '').toLowerCase().includes(text)
-          || String(r.channelReservationId || '').toLowerCase().includes(text)
-          || String(r.externalId || '').toLowerCase().includes(text);
-      })
-    : reservations;
-
-  res.json({ success: true, data: filtered, total, page: Number(page), limit: Number(limit) });
+  res.json({ success: true, data: reservations, total, page: pageNumber, limit: limitNumber });
 }));
 
 const createSchema = z.object({
@@ -715,6 +733,13 @@ router.post('/:id/no-show', asyncHandler(async (req, res) => {
   const existing = await getReservationOr404(req.params.id, res);
   if (!existing) return;
   assertPropertyScope(req, existing.property);
+  const allowedNoShowStatuses = new Set(['confirmed', 'modified', 'pending_payment', 'hold']);
+  if (!allowedNoShowStatuses.has(existing.status)) {
+    return res.status(409).json({
+      success: false,
+      error: `Cannot mark no-show from status ${existing.status}`,
+    });
+  }
   const actor = actorFromReq(req);
   const reservation = await markNoShow({
     reservationId: req.params.id,
@@ -753,7 +778,7 @@ router.post('/:id/cancellation-fee', asyncHandler(async (req, res) => {
     description,
     amount: Number(amount),
     taxAmount: 0,
-    serviceDate: new Date().toISOString().split('T')[0],
+    serviceDate: await todayByPropertyTimezone(reservation.property),
     source: 'manual',
     status: 'posted',
   });
@@ -797,7 +822,7 @@ router.post('/:id/no-show-fee', asyncHandler(async (req, res) => {
     description,
     amount: Number(amount),
     taxAmount: 0,
-    serviceDate: new Date().toISOString().split('T')[0],
+    serviceDate: await todayByPropertyTimezone(reservation.property),
     source: 'manual',
     status: 'posted',
   });
@@ -1114,7 +1139,7 @@ router.post('/:id/upgrade', asyncHandler(async (req, res) => {
     reservationRoom: rr._id,
     reservation: reservation._id,
     property: reservation.property,
-    fromDate: new Date().toISOString().split('T')[0],
+    fromDate: await todayByPropertyTimezone(reservation.property),
     toDate: rr.departureDate,
     roomType: newRoomTypeId || rr.roomTypeBooked,
     room: newRoomId || rr.assignedRoom || null,
@@ -1535,14 +1560,14 @@ router.post('/:id/add-service', asyncHandler(async (req, res) => {
   const lineTax = Math.round(lineAmount * Number(taxRate));
 
   folio.lines.push({
-    type: 'service',
+    type: 'charge',
     description,
     amount: lineAmount,
     taxAmount: lineTax,
     quantity: qty,
     unitPrice: unitAmount,
     department,
-    serviceDate: serviceDate || new Date().toISOString().split('T')[0],
+    serviceDate: serviceDate || await todayByPropertyTimezone(reservation.property),
     source: 'manual',
     status: 'posted',
   });
