@@ -6,6 +6,7 @@ import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import Reservation from '../models/Reservation.js';
 import User from '../models/User.js';
 import { completeHkTask, inspectRoom } from '../services/roomService.js';
+import { fireEvent } from '../services/automationEngine.js';
 
 const router = Router();
 
@@ -317,6 +318,13 @@ router.post('/:id/complete', asyncHandler(async (req, res) => {
     actorName: req.actor?.name || 'system',
     ip: req.ip,
   });
+
+  fireEvent('housekeeping.completed', {
+    property: String(task.property),
+    task:     completed?.toObject ? completed.toObject() : completed,
+    room:     task.room ? { _id: String(task.room) } : null,
+    actor:    { id: req.actor?.id, name: req.actor?.name },
+  }).catch(() => null);
 
   res.json({ success: true, data: completed });
 }));
