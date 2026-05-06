@@ -5,7 +5,7 @@ import {
   BedDouble, UserCheck, Megaphone, GitBranch, Bot, FileText,
   BadgeDollarSign, Search, TrendingUp, Building2, Star, PackagePlus,
   LogOut, Calendar, Sparkles, Tag, BookOpen, Funnel, CreditCard,
-  LogIn, Moon, ReceiptText,
+  LogIn, Moon, ReceiptText, ListChecks,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -93,6 +93,7 @@ const PMS_NAV = [
       { path: '/pms/rates',        icon: Tag,           label: 'מחירים' },
       { path: '/pms/reports',      icon: BarChart3,     label: 'דוחות' },
       { path: '/pms/night-audit',  icon: Moon,          label: 'Night Audit' },
+      { path: '/pms/bulk-jobs',    icon: ListChecks,    label: 'עבודות Bulk' },
       { path: '/pms/companies',    icon: Building2,     label: 'חברות' },
       { path: '/pms/settings',     icon: Settings,      label: 'הגדרות' },
     ],

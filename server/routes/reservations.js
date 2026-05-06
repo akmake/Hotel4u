@@ -851,6 +851,78 @@ router.post('/bulk-actions', asyncHandler(async (req, res) => {
   });
 }));
 
+// GET /api/reservations/bulk-actions/jobs?propertyId=&status=&action=&from=&to=&page=1&limit=20
+router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');
+
+  const {
+    propertyId,
+    status,
+    action,
+    from,
+    to,
+    page = '1',
+    limit = '20',
+  } = req.query;
+
+  if (!propertyId) {
+    return res.status(400).json({ success: false, error: 'propertyId is required' });
+  }
+  assertPropertyScope(req, propertyId);
+
+  const filter = { property: propertyId };
+
+  if (status) {
+    const statuses = String(status).split(',').map(s => s.trim()).filter(Boolean);
+    const validStatuses = new Set(['queued', 'running', 'completed', 'failed', 'cancelled']);
+    const filtered = statuses.filter(s => validStatuses.has(s));
+    if (filtered.length) filter.status = { $in: filtered };
+  }
+
+  if (action) {
+    const actions = String(action).split(',').map(a => a.trim()).filter(Boolean);
+    const filtered = actions.filter(a => BULK_ACTIONS_SUPPORTED.has(a));
+    if (filtered.length) filter.action = { $in: filtered };
+  }
+
+  if (from || to) {
+    filter.queuedAt = {};
+    if (from) filter.queuedAt.$gte = new Date(from);
+    if (to) {
+      const toDate = new Date(to);
+      toDate.setHours(23, 59, 59, 999);
+      filter.queuedAt.$lte = toDate;
+    }
+  }
+
+  const pageNum  = Math.max(1, parseInt(page, 10)  || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+  const skip     = (pageNum - 1) * limitNum;
+
+  const [jobs, total] = await Promise.all([
+    BulkActionJob.find(filter)
+      .sort({ queuedAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .select('-results')
+      .lean(),
+    BulkActionJob.countDocuments(filter),
+  ]);
+
+  res.json({
+    success: true,
+    data: {
+      jobs: jobs.map(j => buildBulkJobSnapshot(j, false)),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
+    },
+  });
+}));
+
 // GET /api/reservations/bulk-actions/jobs/:jobId?propertyId=&includeResults=1
 router.get('/bulk-actions/jobs/:jobId', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');

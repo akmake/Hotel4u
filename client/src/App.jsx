@@ -69,6 +69,7 @@ const OpportunityBoardPage = lazy(() => import('./pages/OpportunityBoardPage'));
 const ReportsPage          = lazy(() => import('./pages/ReportsPage'));
 const InvoicesPage         = lazy(() => import('./pages/InvoicesPage'));
 const NightAuditPage       = lazy(() => import('./pages/NightAuditPage'));
+const BulkJobsPage         = lazy(() => import('./pages/BulkJobsPage'));
 const RatesPage            = lazy(() => import('./pages/RatesPage'));
 const SettingsPage         = lazy(() => import('./pages/SettingsPage'));
 
@@ -193,6 +194,7 @@ export default function App() {
               <Route path="opportunities"     element={<OpportunityBoardPage />} />
               <Route path="reports"           element={<ReportsPage />} />
               <Route path="night-audit"       element={<NightAuditPage />} />
+              <Route path="bulk-jobs"         element={<BulkJobsPage />} />
               <Route path="rates"             element={<RatesPage />} />
               <Route path="settings"          element={<SettingsPage />} />
             </Route>

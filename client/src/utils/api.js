@@ -131,6 +131,15 @@ export const reservations = {
   merge:            (targetReservationId, sourceReservationId, transferCharges = true) =>
     api.post('/reservations/merge', { targetReservationId, sourceReservationId, transferCharges }),
   bulkActions:      (data)           => api.post('/reservations/bulk-actions', data),
+  bulkJobsList:     (propertyId, filters = {}) => {
+    const { status, action, from, to, page = 1, limit = 20 } = filters;
+    const q = new URLSearchParams({ propertyId, page, limit });
+    if (status) q.set('status', status);
+    if (action) q.set('action', action);
+    if (from)   q.set('from', from);
+    if (to)     q.set('to', to);
+    return api.get(`/reservations/bulk-actions/jobs?${q.toString()}`);
+  },
   bulkJobStatus:    (jobId, propertyId, includeResults = false) =>
     api.get(`/reservations/bulk-actions/jobs/${jobId}?propertyId=${propertyId}${includeResults ? '&includeResults=1' : ''}`),
   cancelBulkJob:    (jobId, propertyId) =>

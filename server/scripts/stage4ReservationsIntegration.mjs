@@ -2181,6 +2181,135 @@ async function run() {
       expect: [409],
       assert: (r) => assertFailureEnvelope(r),
     },
+
+    // ── Stage 5.8 — Bulk Jobs List endpoint ──────────────────────────────────
+    {
+      id: 'S5.8-LIST-NO-PROPERTYID',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs`,
+        token: ctx.adminToken,
+      }),
+      expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.8-LIST-RBAC-RESTRICTED',
+      skip: () => {
+        if (!ctx.restrictedToken) return 'restricted token unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}`,
+        token: ctx.restrictedToken,
+      }),
+      expect: [403],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.8-LIST-OK-RETURNS-ARRAY',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&limit=10`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs, pagination } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected data.jobs to be an array';
+        if (!pagination || typeof pagination.total !== 'number') return 'expected data.pagination with total';
+        if (typeof pagination.page !== 'number')  return 'expected pagination.page';
+        if (typeof pagination.pages !== 'number') return 'expected pagination.pages';
+        if (typeof pagination.limit !== 'number') return 'expected pagination.limit';
+        state.stage58TotalJobs = pagination.total;
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-STATUS-FILTER-COMPLETED',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&status=completed&limit=20`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        for (const j of jobs) {
+          if (j.status !== 'completed') return `expected all jobs to be completed, got ${j.status}`;
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-ACTION-FILTER',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&action=send_confirmation&limit=20`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        for (const j of jobs) {
+          if (j.action !== 'send_confirmation') return `expected action=send_confirmation, got ${j.action}`;
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-PAGINATION-LIMIT1',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (typeof state.stage58TotalJobs !== 'number' || state.stage58TotalJobs < 2) return 'need ≥2 jobs to test pagination';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&limit=1&page=1`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs, pagination } = r.json?.data || {};
+        if (!Array.isArray(jobs) || jobs.length !== 1) return `expected exactly 1 job with limit=1, got ${jobs?.length}`;
+        if (pagination.pages < 2) return `expected pages≥2 when total=${state.stage58TotalJobs} with limit=1`;
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-DATE-FILTER-FUTURE-EMPTY',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&from=${datePlus(1)}&to=${datePlus(2)}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        if (jobs.length !== 0) return `expected 0 jobs for a future date range, got ${jobs.length}`;
+        return null;
+      },
+    },
   ];
 
   const results = [];

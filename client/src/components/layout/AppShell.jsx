@@ -18,6 +18,7 @@ const PAGE_TITLES = {
   '/crm/opportunities': 'Opportunity Board',
   '/folio':         'Folio ותשלומים',
   '/reports':       'דוחות',
+  '/bulk-jobs':     'עבודות Bulk',
   '/settings':      'הגדרות',
 };
 

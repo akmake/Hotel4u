@@ -14,6 +14,7 @@ import {
 import { enqueueChannelUpdate } from './channelQueueService.js';
 import { audit } from './auditService.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { fireEvent } from './automationEngine.js';
 
 let _counter = 1000;
 
@@ -249,6 +250,12 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     idempotencyKey: idempotencyKey ? `${idempotencyKey}:reservation:created` : undefined,
   }).catch(() => null);
 
+  fireEvent('reservation.created', {
+    property:    String(propertyId),
+    reservation: res.toObject(),
+    actor:       { id: actorId, name: actorName },
+  }).catch(() => null);
+
   return res;
 }
 
@@ -329,6 +336,13 @@ export async function checkIn({ reservationId, actorId, actorName, ip, overrideC
     ip,
   });
 
+  fireEvent('checkin.completed', {
+    property:    String(res.property),
+    reservation: res.toObject(),
+    room:        res.assignedRoom ? res.assignedRoom.toObject?.() ?? res.assignedRoom : null,
+    actor:       { id: actorId, name: actorName },
+  }).catch(() => null);
+
   return res;
 }
 
@@ -388,6 +402,13 @@ export async function checkOut({ reservationId, actorId, actorName, ip, forceChe
     ip,
   });
 
+  fireEvent('checkout.completed', {
+    property:    String(res.property),
+    reservation: res.toObject(),
+    room:        room ? { _id: String(room._id), number: room.number, floor: room.floor } : null,
+    actor:       { id: actorId, name: actorName },
+  }).catch(() => null);
+
   return res;
 }
 
@@ -435,6 +456,12 @@ export async function cancelReservation({ reservationId, reason, actorId, actorN
     eventType: 'reservation',
     payload: { action: 'cancelled', reservationId: String(res._id), confirmationNumber: res.confirmationNumber },
     idempotencyKey: res.idempotencyKey ? `${res.idempotencyKey}:reservation:cancelled` : undefined,
+  }).catch(() => null);
+
+  fireEvent('reservation.cancelled', {
+    property:    String(res.property),
+    reservation: res.toObject(),
+    actor:       { id: actorId, name: actorName },
   }).catch(() => null);
 
   return res;
@@ -586,6 +613,12 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     idempotencyKey: res.idempotencyKey ? `${res.idempotencyKey}:reservation:modified` : undefined,
   }).catch(() => null);
 
+  fireEvent('reservation.modified', {
+    property:    String(res.property),
+    reservation: res.toObject(),
+    actor:       { id: actorId, name: actorName },
+  }).catch(() => null);
+
   return Reservation.findById(res._id)
     .populate('primaryGuest', 'firstName lastName email phone vipLevel country')
     .populate('roomType', 'name code')
@@ -636,6 +669,12 @@ export async function markNoShow({ reservationId, actorId, actorName, ip }) {
     eventType: 'reservation',
     payload: { action: 'no_show', reservationId: String(res._id), confirmationNumber: res.confirmationNumber },
     idempotencyKey: res.idempotencyKey ? `${res.idempotencyKey}:reservation:no_show` : undefined,
+  }).catch(() => null);
+
+  fireEvent('reservation.noshow', {
+    property:    String(res.property),
+    reservation: res.toObject(),
+    actor:       { id: actorId, name: actorName },
   }).catch(() => null);
 
   return res;

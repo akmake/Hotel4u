@@ -245,3 +245,38 @@
    - `PASS=81 FAIL=0 SKIP=0`.
 - Recommended next step:
 1. Stage 5.8: add operator UI page for background jobs history (filters, retry, and failure drill-down beyond the reservations page context).
+
+## Update 2026-05-06 - Stage 5.8 Bulk Jobs History Page Completed
+- Backend:
+1. New `GET /api/pms/reservations/bulk-actions/jobs` endpoint added to `server/routes/reservations.js`.
+2. Filters: `status` (multi, comma-separated), `action` (multi), `from`/`to` date range.
+3. Pagination: `page` + `limit` (max 100), returns `{ jobs, pagination: { page, limit, total, pages } }`.
+4. RBAC enforced (COMMERCIAL_ROLES). PropertyId scope enforced.
+- Frontend:
+1. New page `client/src/pages/BulkJobsPage.jsx` at `/pms/bulk-jobs`.
+2. Filter bar: status dropdown, action dropdown, date-from/to, clear button.
+3. Table: jobId, action label, status badge (animated for running), progress bar (succeeded/failed/total), actor, queued time, duration.
+4. Drill-down: expand row → loads per-item results (successes + failures with error messages).
+5. Cancel button for queued/running jobs.
+6. Retry button for failed jobs (re-enqueues with same payload in background mode).
+7. Auto-polling every 4s when active jobs exist; stops when all terminal.
+8. Pagination controls.
+- Wiring:
+1. `client/src/utils/api.js` — added `reservations.bulkJobsList(propertyId, filters)`.
+2. `client/src/App.jsx` — lazy import + route `/pms/bulk-jobs`.
+3. `client/src/components/layout/Sidebar.jsx` — nav item "עבודות Bulk" (ListChecks icon) under "דוחות וניהול".
+4. `client/src/components/layout/AppShell.jsx` — breadcrumb title for `/bulk-jobs`.
+- Integration coverage (Stage 5.8 tests added to `stage4ReservationsIntegration.mjs`):
+1. `S5.8-LIST-NO-PROPERTYID` — missing propertyId → 400.
+2. `S5.8-LIST-RBAC-RESTRICTED` — restricted actor → 403.
+3. `S5.8-LIST-OK-RETURNS-ARRAY` — valid list → 200 + jobs array + pagination object.
+4. `S5.8-LIST-STATUS-FILTER-COMPLETED` — status=completed filter → all returned jobs are completed.
+5. `S5.8-LIST-ACTION-FILTER` — action=send_confirmation filter → all returned jobs match.
+6. `S5.8-LIST-PAGINATION-LIMIT1` — limit=1 → exactly 1 job + pages≥2 when total≥2.
+7. `S5.8-LIST-DATE-FILTER-FUTURE-EMPTY` — future date range → 0 jobs.
+- Validation:
+1. `node --check server/routes/reservations.js` passed.
+2. `node --check server/scripts/stage4ReservationsIntegration.mjs` passed.
+3. `npm --prefix client run build` passed.
+- Recommended next step:
+1. Stage 5.9: start frontend wiring sprint — replace mockData in DashboardPage, RoomRackPage, CheckInPage, CheckOutPage, HousekeepingPage, GuestsPage with real API calls.
