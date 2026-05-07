@@ -556,3 +556,45 @@
   4. Added warning banner when focused job is not present under current filters/page + quick filter reset.
 - Validation:
   1. `npm --prefix client run build` passed.
+
+## Update 2026-05-07 - Stage 5.22.1 Bulk Retry Failed + Action Guard
+- `client/src/pages/BulkJobsPage.jsx`:
+  1. Added `Retry Failed` job action for failed bulk jobs (only shown when job has failed items).
+  2. `Retry Failed` now fetches detailed job results and re-enqueues only failed reservation IDs.
+  3. Shared retry payload creation via `buildRetryPayload(...)` to keep retry/retry-failed behavior consistent.
+  4. Added per-job busy guard in row actions:
+     - disables `Cancel` / `Retry` / `Retry Failed` while request is in-flight
+     - shows spinner on `Retry` during processing
+  5. Wired row busy state from page-level `actionBusy` set to prevent duplicate clicks/race actions.
+- Validation:
+  1. `npm --prefix client run build` passed.
+
+## Update 2026-05-07 - Stage 5.22.2 Focused Job Live View (Cross-Page/Filter)
+- `client/src/pages/BulkJobsPage.jsx`:
+  1. Added dedicated focused-job loading flow by `jobId` (`fetchFocusedJob`) via `GET /bulk-actions/jobs/:jobId` even when the job is not in current page/filter set.
+  2. Added red error banner when focused job fetch fails.
+  3. Added focused-job detached card view: if focused job is outside current table page/filters, it is still rendered in a standalone highlighted table section.
+  4. Upgraded refresh flow with `refreshAll(...)` so manual refresh and retry refresh both list + focused job together.
+  5. Extended polling logic to keep polling when either:
+     - any visible table job is active
+     - focused detached job is active
+  6. Updated active counter to include detached focused job without double-counting.
+  7. Focus highlight/auto-expand in the main table now keys off `focusInTable` (only when focused job is actually inside current page rows).
+- Validation:
+  1. `npm --prefix client run build` passed.
+
+## Update 2026-05-07 - Stage 5.22.3 Focused Job Auto-Jump to Correct Page
+- Backend (`server/routes/reservations.js`):
+  1. Extended `GET /api/reservations/bulk-actions/jobs` with optional `focusJobId`.
+  2. Added `focus` metadata in response:
+     - `jobId`, `notFound`, `matchesFilters`, `inPage`, `page`
+  3. When focused job matches active filters but is outside current pagination page, server computes target page and returns it for UI jump.
+- Frontend API (`client/src/utils/api.js`):
+  1. `reservations.bulkJobsList(...)` now forwards optional `focusJobId` query param.
+- Bulk Jobs UI (`client/src/pages/BulkJobsPage.jsx`):
+  1. `fetchJobs(...)` now requests list with `focusJobId`.
+  2. Added automatic page sync: if server returns `focus.matchesFilters=true` and `inPage=false`, UI updates `filters.page` to `focus.page` automatically.
+  3. Existing detached focused-job fallback remains for cases where focused job does not match current filters or cannot be resolved.
+- Validation:
+  1. `node --check server/routes/reservations.js` passed.
+  2. `npm --prefix client run build` passed.

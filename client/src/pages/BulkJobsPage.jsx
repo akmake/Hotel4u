@@ -165,7 +165,7 @@ function JobResultsPanel({ jobId, propertyId }) {
 
 // ── Job Row ───────────────────────────────────────────────────────────────────
 
-function JobRow({ job, propertyId, onCancel, onRetry, onRetryFailed, autoExpand = false, highlighted = false }) {
+function JobRow({ job, propertyId, onCancel, onRetry, onRetryFailed, busy = false, autoExpand = false, highlighted = false }) {
   const [expanded, setExpanded] = useState(false);
   const isActive   = ACTIVE_STATUSES.has(job.status);
   const canCancel  = ACTIVE_STATUSES.has(job.status) && !job.cancelRequested;
@@ -213,7 +213,8 @@ function JobRow({ job, propertyId, onCancel, onRetry, onRetryFailed, autoExpand 
             {canCancel && (
               <button
                 onClick={() => onCancel(job.jobId)}
-                className="btn-ghost text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg flex items-center gap-1"
+                disabled={busy}
+                className="btn-ghost text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="בטל עבודה"
               >
                 <XCircle size={13}/> בטל
@@ -222,16 +223,18 @@ function JobRow({ job, propertyId, onCancel, onRetry, onRetryFailed, autoExpand 
             {canRetry && (
               <button
                 onClick={() => onRetry(job)}
-                className="btn-ghost text-xs text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg flex items-center gap-1"
+                disabled={busy}
+                className="btn-ghost text-xs text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="הרץ מחדש"
               >
-                <RotateCcw size={13}/> Retry
+                {busy ? <Loader2 size={13} className="animate-spin"/> : <RotateCcw size={13}/>} Retry
               </button>
             )}
             {canRetryFailed && (
               <button
                 onClick={() => onRetryFailed(job)}
-                className="btn-ghost text-xs text-violet-700 hover:bg-violet-50 px-2 py-1 rounded-lg flex items-center gap-1"
+                disabled={busy}
+                className="btn-ghost text-xs text-violet-700 hover:bg-violet-50 px-2 py-1 rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Retry failed reservations only"
               >
                 <RotateCcw size={13}/> Retry Failed
@@ -368,6 +371,9 @@ export default function BulkJobsPage() {
   const [loading,    setLoading]    = useState(true);
   const [loadError,  setLoadError]  = useState(null);
   const [actionBusy, setActionBusy] = useState(new Set());
+  const [focusedJob, setFocusedJob] = useState(null);
+  const [focusedJobLoading, setFocusedJobLoading] = useState(false);
+  const [focusedJobError, setFocusedJobError] = useState(null);
 
   const pollingRef  = useRef(null);
   const filtersRef  = useRef(filters);
@@ -380,18 +386,59 @@ export default function BulkJobsPage() {
   const fetchJobs = useCallback(async (opts = {}) => {
     if (!propertyId) return;
     const f = opts.filters ?? filtersRef.current;
+    const requestedPage = Number(f.page || 1);
     if (!opts.silent) setLoading(true);
     setLoadError(null);
     try {
-      const res = await reservationsApi.bulkJobsList(propertyId, f);
+      const res = await reservationsApi.bulkJobsList(propertyId, {
+        ...f,
+        focusJobId: focusJobId || undefined,
+      });
       setJobs(res?.jobs || []);
       setPagination(res?.pagination || null);
+      const focusMeta = res?.focus || null;
+      const shouldAutoJump = (
+        !opts.preventAutoJump
+        && focusJobId
+        && focusMeta
+        && focusMeta.matchesFilters
+        && !focusMeta.inPage
+        && Number(focusMeta.page || 0) > 0
+        && Number(focusMeta.page) !== requestedPage
+      );
+      if (shouldAutoJump) {
+        setFilters((prev) => {
+          const targetPage = Number(focusMeta.page);
+          if (Number(prev.page || 1) === targetPage) return prev;
+          return { ...prev, page: targetPage };
+        });
+      }
     } catch (e) {
       setLoadError(e.message || 'שגיאה בטעינה');
     } finally {
       setLoading(false);
     }
-  }, [propertyId]);
+  }, [propertyId, focusJobId]);
+
+  const fetchFocusedJob = useCallback(async (opts = {}) => {
+    if (!propertyId || !focusJobId) {
+      setFocusedJob(null);
+      setFocusedJobError(null);
+      setFocusedJobLoading(false);
+      return;
+    }
+    if (!opts.silent) setFocusedJobLoading(true);
+    setFocusedJobError(null);
+    try {
+      const res = await reservationsApi.bulkJobStatus(focusJobId, propertyId, false);
+      setFocusedJob(res?.job || null);
+    } catch (e) {
+      setFocusedJob(null);
+      setFocusedJobError(e.message || 'שגיאה בטעינת משימה ממוקדת');
+    } finally {
+      setFocusedJobLoading(false);
+    }
+  }, [focusJobId, propertyId]);
 
   // Initial fetch + re-fetch on filter change
   useEffect(() => {
@@ -399,19 +446,28 @@ export default function BulkJobsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchJobs, filters.page, filters.limit, filters.status, filters.action, filters.from, filters.to]);
 
+  useEffect(() => {
+    fetchFocusedJob({});
+  }, [fetchFocusedJob]);
+
   // Auto-poll while any job is active
   useEffect(() => {
-    const hasActive = jobs.some(j => ACTIVE_STATUSES.has(j.status));
-    if (hasActive && !pollingRef.current) {
-      pollingRef.current = setInterval(() => fetchJobs({ silent: true }), POLL_INTERVAL_MS);
-    } else if (!hasActive && pollingRef.current) {
+    const hasActiveList = jobs.some(j => ACTIVE_STATUSES.has(j.status));
+    const hasActiveFocused = focusedJob && ACTIVE_STATUSES.has(focusedJob.status);
+    const shouldPoll = hasActiveList || hasActiveFocused;
+    if (shouldPoll && !pollingRef.current) {
+      pollingRef.current = setInterval(() => {
+        fetchJobs({ silent: true });
+        if (focusJobId) fetchFocusedJob({ silent: true });
+      }, POLL_INTERVAL_MS);
+    } else if (!shouldPoll && pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
     }
     return () => {
       if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     };
-  }, [jobs, fetchJobs]);
+  }, [jobs, focusedJob, focusJobId, fetchJobs, fetchFocusedJob]);
 
   function setBusy(jobId, busy) {
     setActionBusy(s => {
@@ -437,7 +493,10 @@ export default function BulkJobsPage() {
     try {
       await reservationsApi.cancelBulkJob(jobId, propertyId);
       success('העבודה בוטלה');
-      await fetchJobs({ silent: true });
+      await Promise.all([
+        fetchJobs({ silent: true }),
+        focusJobId ? fetchFocusedJob({ silent: true }) : Promise.resolve(),
+      ]);
     } catch (e) {
       toastError(e.message || 'שגיאה בביטול');
     } finally {
@@ -452,7 +511,10 @@ export default function BulkJobsPage() {
       const payload = buildRetryPayload(job, job.reservationIds || []);
       await reservationsApi.bulkActions(payload);
       success('עבודה חדשה נוצרה');
-      await fetchJobs({ silent: true });
+      await Promise.all([
+        fetchJobs({ silent: true }),
+        focusJobId ? fetchFocusedJob({ silent: true }) : Promise.resolve(),
+      ]);
     } catch (e) {
       toastError(e.message || 'שגיאה ב-Retry');
     } finally {
@@ -475,7 +537,10 @@ export default function BulkJobsPage() {
       const payload = buildRetryPayload(job, failedReservationIds);
       await reservationsApi.bulkActions(payload);
       success(`נוצרה עבודת Retry עבור ${failedReservationIds.length} הזמנות שנכשלו`);
-      await fetchJobs({ silent: true });
+      await Promise.all([
+        fetchJobs({ silent: true }),
+        focusJobId ? fetchFocusedJob({ silent: true }) : Promise.resolve(),
+      ]);
     } catch (e) {
       toastError(e.message || 'שגיאה ב-Retry Failed');
     } finally {
@@ -483,10 +548,26 @@ export default function BulkJobsPage() {
     }
   }
 
-  const activeCount = jobs.filter(j => ACTIVE_STATUSES.has(j.status)).length;
-  const focusVisible = useMemo(() => (
-    !focusJobId || jobs.some((job) => String(job.jobId) === String(focusJobId))
+  const activeCount = useMemo(() => {
+    const activeIds = new Set(
+      jobs.filter(j => ACTIVE_STATUSES.has(j.status)).map(j => String(j.jobId))
+    );
+    if (focusedJob && ACTIVE_STATUSES.has(focusedJob.status)) {
+      activeIds.add(String(focusedJob.jobId));
+    }
+    return activeIds.size;
+  }, [jobs, focusedJob]);
+  const focusInTable = useMemo(() => (
+    !!focusJobId && jobs.some((job) => String(job.jobId) === String(focusJobId))
   ), [focusJobId, jobs]);
+  const showDetachedFocusedJob = Boolean(focusJobId && focusedJob && !focusInTable);
+
+  async function refreshAll(opts = {}) {
+    await Promise.all([
+      fetchJobs(opts),
+      focusJobId ? fetchFocusedJob(opts) : Promise.resolve(),
+    ]);
+  }
 
   if (!propertyId) return <PageSpinner />;
 
@@ -521,12 +602,15 @@ export default function BulkJobsPage() {
             </span>
           )}
           <button
-            onClick={() => fetchJobs({})}
-            disabled={loading}
+            onClick={() => refreshAll({})}
+            disabled={loading || focusedJobLoading}
             className="btn-ghost p-2 rounded-lg"
             title="רענן"
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin text-ink-faint' : 'text-ink-secondary'}/>
+            <RefreshCw
+              size={15}
+              className={(loading || focusedJobLoading) ? 'animate-spin text-ink-faint' : 'text-ink-secondary'}
+            />
           </button>
         </div>
       </div>
@@ -534,7 +618,13 @@ export default function BulkJobsPage() {
       {/* Filter bar */}
       <FilterBar filters={filters} onChange={setFilters} />
 
-      {focusJobId && !loading && !focusVisible && (
+      {focusJobId && !loading && !focusedJobLoading && !focusedJob && focusedJobError && (
+        <div className="card mt-4 px-4 py-3 text-sm border border-red-200 bg-red-50/60 text-red-700">
+          לא הצלחנו לטעון את המשימה הממוקדת {shortId(focusJobId)}: {focusedJobError}
+        </div>
+      )}
+
+      {focusJobId && !loading && !focusedJobLoading && !focusInTable && !focusedJob && !focusedJobError && (
         <div className="card mt-4 px-4 py-3 text-sm border border-amber-200 bg-amber-50/60 text-amber-800">
           המשימה {shortId(focusJobId)} לא נמצאה בעמוד הנוכחי או תחת המסננים הפעילים.
           <button
@@ -546,10 +636,47 @@ export default function BulkJobsPage() {
         </div>
       )}
 
+      {showDetachedFocusedJob && (
+        <div className="card mt-4 overflow-hidden border border-indigo-200">
+          <div className="px-4 py-2.5 text-xs text-indigo-700 bg-indigo-50/70 border-b border-indigo-100">
+            משימה ממוקדת מוצגת כאן גם אם אינה חלק מהעמוד/פילטרים הפעילים כרגע.
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead>
+                <tr className="border-b border-surface-border bg-surface-muted/60 text-xs text-ink-secondary">
+                  <th className="px-4 py-2.5 font-semibold">ID</th>
+                  <th className="px-4 py-2.5 font-semibold">פעולה</th>
+                  <th className="px-4 py-2.5 font-semibold">סטטוס</th>
+                  <th className="px-4 py-2.5 font-semibold">התקדמות</th>
+                  <th className="px-4 py-2.5 font-semibold">מבצע</th>
+                  <th className="px-4 py-2.5 font-semibold">נוצר</th>
+                  <th className="px-4 py-2.5 font-semibold">משך</th>
+                  <th className="px-4 py-2.5 font-semibold">פעולות</th>
+                </tr>
+              </thead>
+              <tbody>
+                <JobRow
+                  key={focusedJob.jobId}
+                  job={focusedJob}
+                  propertyId={propertyId}
+                  onCancel={handleCancel}
+                  onRetry={handleRetry}
+                  onRetryFailed={handleRetryFailed}
+                  busy={actionBusy.has(focusedJob.jobId)}
+                  autoExpand
+                  highlighted
+                />
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card mt-4 overflow-hidden">
         {loadError ? (
-          <ErrorState message={loadError} onRetry={() => fetchJobs({})} />
+          <ErrorState message={loadError} onRetry={() => refreshAll({})} />
         ) : loading && jobs.length === 0 ? (
           <div className="py-16"><PageSpinner /></div>
         ) : jobs.length === 0 ? (
@@ -582,8 +709,9 @@ export default function BulkJobsPage() {
                       onCancel={handleCancel}
                       onRetry={handleRetry}
                       onRetryFailed={handleRetryFailed}
-                      autoExpand={focusJobId && String(job.jobId) === String(focusJobId)}
-                      highlighted={focusJobId && String(job.jobId) === String(focusJobId)}
+                      busy={actionBusy.has(job.jobId)}
+                      autoExpand={focusInTable && String(job.jobId) === String(focusJobId)}
+                      highlighted={focusInTable && String(job.jobId) === String(focusJobId)}
                     />
                   ))}
                 </tbody>

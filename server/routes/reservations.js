@@ -893,6 +893,7 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
     action,
     from,
     to,
+    focusJobId,
     page = '1',
     limit = '20',
   } = req.query;
@@ -931,6 +932,51 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
   const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
   const skip     = (pageNum - 1) * limitNum;
 
+  let focus = null;
+  const focusId = focusJobId ? String(focusJobId) : '';
+  if (focusId) {
+    if (!isObjectIdLike(focusId)) {
+      focus = { jobId: focusId, notFound: true, matchesFilters: false, inPage: false, page: null };
+    } else {
+      const focusJob = await BulkActionJob.findById(focusId)
+        .select('_id property status action queuedAt')
+        .lean();
+
+      if (!focusJob || String(focusJob.property) !== String(propertyId)) {
+        focus = { jobId: focusId, notFound: true, matchesFilters: false, inPage: false, page: null };
+      } else {
+        const matchesStatus = !filter.status || filter.status.$in.includes(focusJob.status);
+        const matchesAction = !filter.action || filter.action.$in.includes(focusJob.action);
+        const queuedAt = new Date(focusJob.queuedAt);
+        const gte = filter.queuedAt?.$gte ? new Date(filter.queuedAt.$gte) : null;
+        const lte = filter.queuedAt?.$lte ? new Date(filter.queuedAt.$lte) : null;
+        const matchesFrom = !gte || queuedAt >= gte;
+        const matchesTo = !lte || queuedAt <= lte;
+        const matchesFilters = matchesStatus && matchesAction && matchesFrom && matchesTo;
+
+        if (!matchesFilters) {
+          focus = { jobId: String(focusJob._id), notFound: false, matchesFilters: false, inPage: false, page: null };
+        } else {
+          const beforeCount = await BulkActionJob.countDocuments({
+            ...filter,
+            $or: [
+              { queuedAt: { $gt: focusJob.queuedAt } },
+              { queuedAt: focusJob.queuedAt, _id: { $gt: focusJob._id } },
+            ],
+          });
+          const focusPage = Math.max(1, Math.floor(beforeCount / limitNum) + 1);
+          focus = {
+            jobId: String(focusJob._id),
+            notFound: false,
+            matchesFilters: true,
+            inPage: focusPage === pageNum,
+            page: focusPage,
+          };
+        }
+      }
+    }
+  }
+
   const [jobs, total] = await Promise.all([
     BulkActionJob.find(filter)
       .sort({ queuedAt: -1 })
@@ -940,6 +986,12 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
       .lean(),
     BulkActionJob.countDocuments(filter),
   ]);
+
+  if (focus && focus.matchesFilters) {
+    const inPageNow = jobs.some((job) => String(job._id) === String(focus.jobId));
+    focus = { ...focus, inPage: inPageNow };
+    if (inPageNow) focus.page = pageNum;
+  }
 
   res.json({
     success: true,
@@ -951,6 +1003,7 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
         total,
         pages: Math.ceil(total / limitNum),
       },
+      focus,
     },
   });
 }));
