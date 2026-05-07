@@ -501,7 +501,7 @@ export default function ReservationsPage() {
         delegatedToBackground = true;
         setBulkJob(result.job);
         toastSuccess(`הפעולה עברה לרקע. מזהה משימה: ${result.job.jobId.slice(-8)}`);
-        startBulkJobPolling(result.job.jobId);
+        openBulkJobsPage(result.job.jobId);
         return;
       }
 
@@ -550,8 +550,8 @@ export default function ReservationsPage() {
     bulkGroupCode,
     bulkGroupName,
     getBulkValidationError,
+    openBulkJobsPage,
     refetch,
-    startBulkJobPolling,
     toastError,
     toastSuccess,
   ]);

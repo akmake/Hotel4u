@@ -374,9 +374,11 @@ export default function BulkJobsPage() {
   const [focusedJob, setFocusedJob] = useState(null);
   const [focusedJobLoading, setFocusedJobLoading] = useState(false);
   const [focusedJobError, setFocusedJobError] = useState(null);
+  const [focusMeta, setFocusMeta] = useState(null);
 
   const pollingRef  = useRef(null);
   const filtersRef  = useRef(filters);
+  const focusFilterAutoAppliedRef = useRef(new Set());
   filtersRef.current = filters;
   const focusJobId = useMemo(() => {
     const value = new URLSearchParams(search).get('jobId');
@@ -397,6 +399,7 @@ export default function BulkJobsPage() {
       setJobs(res?.jobs || []);
       setPagination(res?.pagination || null);
       const focusMeta = res?.focus || null;
+      setFocusMeta(focusMeta);
       const shouldAutoJump = (
         !opts.preventAutoJump
         && focusJobId
@@ -414,6 +417,7 @@ export default function BulkJobsPage() {
         });
       }
     } catch (e) {
+      setFocusMeta(null);
       setLoadError(e.message || 'שגיאה בטעינה');
     } finally {
       setLoading(false);
@@ -425,6 +429,7 @@ export default function BulkJobsPage() {
       setFocusedJob(null);
       setFocusedJobError(null);
       setFocusedJobLoading(false);
+      setFocusMeta(null);
       return;
     }
     if (!opts.silent) setFocusedJobLoading(true);
@@ -487,6 +492,13 @@ export default function BulkJobsPage() {
     };
   }
 
+  function focusOnJob(jobId) {
+    if (!jobId) return false;
+    const next = String(jobId);
+    navigate(`/pms/bulk-jobs?jobId=${encodeURIComponent(next)}`, { replace: true });
+    return true;
+  }
+
   async function handleCancel(jobId) {
     if (actionBusy.has(jobId)) return;
     setBusy(jobId, true);
@@ -509,12 +521,18 @@ export default function BulkJobsPage() {
     setBusy(job.jobId, true);
     try {
       const payload = buildRetryPayload(job, job.reservationIds || []);
-      await reservationsApi.bulkActions(payload);
-      success('עבודה חדשה נוצרה');
-      await Promise.all([
-        fetchJobs({ silent: true }),
-        focusJobId ? fetchFocusedJob({ silent: true }) : Promise.resolve(),
-      ]);
+      const created = await reservationsApi.bulkActions(payload);
+      const createdJobId = created?.job?.jobId ? String(created.job.jobId) : '';
+      if (createdJobId) {
+        success(`עבודה חדשה נוצרה (${shortId(createdJobId)})`);
+        focusOnJob(createdJobId);
+      } else {
+        success('עבודה חדשה נוצרה');
+        await Promise.all([
+          fetchJobs({ silent: true }),
+          focusJobId ? fetchFocusedJob({ silent: true }) : Promise.resolve(),
+        ]);
+      }
     } catch (e) {
       toastError(e.message || 'שגיאה ב-Retry');
     } finally {
@@ -526,23 +544,21 @@ export default function BulkJobsPage() {
     if (actionBusy.has(job.jobId)) return;
     setBusy(job.jobId, true);
     try {
-      const details = await reservationsApi.bulkJobStatus(job.jobId, propertyId, true);
-      const failedRows = (details?.job?.results || []).filter((row) => !row?.success && row?.reservationId);
-      const failedReservationIds = [...new Set(failedRows.map((row) => String(row.reservationId)).filter(Boolean))];
-      if (!failedReservationIds.length) {
-        toastError('לא נמצאו הזמנות שנכשלו עבור Retry Failed');
-        return;
+      const created = await reservationsApi.retryBulkJobFailed(job.jobId, propertyId);
+      const createdJobId = created?.job?.jobId ? String(created.job.jobId) : '';
+      const failedCount = Number(created?.failedCount || created?.job?.total || job.failed || 0);
+      if (createdJobId) {
+        success(`Retry job created for ${failedCount} failed reservations (${shortId(createdJobId)})`);
+        focusOnJob(createdJobId);
+      } else {
+        success(`Retry job created for ${failedCount} failed reservations`);
+        await Promise.all([
+          fetchJobs({ silent: true }),
+          focusJobId ? fetchFocusedJob({ silent: true }) : Promise.resolve(),
+        ]);
       }
-
-      const payload = buildRetryPayload(job, failedReservationIds);
-      await reservationsApi.bulkActions(payload);
-      success(`נוצרה עבודת Retry עבור ${failedReservationIds.length} הזמנות שנכשלו`);
-      await Promise.all([
-        fetchJobs({ silent: true }),
-        focusJobId ? fetchFocusedJob({ silent: true }) : Promise.resolve(),
-      ]);
     } catch (e) {
-      toastError(e.message || 'שגיאה ב-Retry Failed');
+      toastError(e.message || 'Retry Failed error');
     } finally {
       setBusy(job.jobId, false);
     }
@@ -560,7 +576,46 @@ export default function BulkJobsPage() {
   const focusInTable = useMemo(() => (
     !!focusJobId && jobs.some((job) => String(job.jobId) === String(focusJobId))
   ), [focusJobId, jobs]);
+  const canAlignFocusedFilters = Boolean(
+    focusJobId
+    && focusedJob
+    && focusMeta
+    && focusMeta.matchesFilters === false
+  );
   const showDetachedFocusedJob = Boolean(focusJobId && focusedJob && !focusInTable);
+
+  const alignFiltersToFocusedJob = useCallback(() => {
+    if (!focusedJob) return;
+    const nextStatus = focusedJob.status || '';
+    const nextAction = focusedJob.action || '';
+    setFilters((prev) => {
+      const next = {
+        ...prev,
+        status: nextStatus,
+        action: nextAction,
+        from: '',
+        to: '',
+        page: 1,
+      };
+      const unchanged = (
+        prev.status === next.status
+        && prev.action === next.action
+        && (prev.from || '') === (next.from || '')
+        && (prev.to || '') === (next.to || '')
+        && Number(prev.page || 1) === Number(next.page || 1)
+      );
+      return unchanged ? prev : next;
+    });
+  }, [focusedJob]);
+
+  useEffect(() => {
+    if (!canAlignFocusedFilters || !focusJobId) return;
+    const key = String(focusJobId);
+    if (focusFilterAutoAppliedRef.current.has(key)) return;
+    focusFilterAutoAppliedRef.current.add(key);
+    alignFiltersToFocusedJob();
+    success('בוצעה התאמת פילטרים אוטומטית למשימה הממוקדת');
+  }, [canAlignFocusedFilters, focusJobId, alignFiltersToFocusedJob, success]);
 
   async function refreshAll(opts = {}) {
     await Promise.all([
@@ -638,8 +693,16 @@ export default function BulkJobsPage() {
 
       {showDetachedFocusedJob && (
         <div className="card mt-4 overflow-hidden border border-indigo-200">
-          <div className="px-4 py-2.5 text-xs text-indigo-700 bg-indigo-50/70 border-b border-indigo-100">
-            משימה ממוקדת מוצגת כאן גם אם אינה חלק מהעמוד/פילטרים הפעילים כרגע.
+          <div className="px-4 py-2.5 text-xs text-indigo-700 bg-indigo-50/70 border-b border-indigo-100 flex items-center justify-between gap-2">
+            <span>משימה ממוקדת מוצגת כאן גם אם אינה חלק מהעמוד/פילטרים הפעילים כרגע.</span>
+            {canAlignFocusedFilters && (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={alignFiltersToFocusedJob}
+              >
+                התאם פילטרים למשימה
+              </button>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-right">

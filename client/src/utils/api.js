@@ -145,6 +145,8 @@ export const reservations = {
     api.get(`/reservations/bulk-actions/jobs/${jobId}?propertyId=${propertyId}${includeResults ? '&includeResults=1' : ''}`),
   cancelBulkJob:    (jobId, propertyId) =>
     api.post(`/reservations/bulk-actions/jobs/${jobId}/cancel`, { propertyId }),
+  retryBulkJobFailed: (jobId, propertyId) =>
+    api.post(`/reservations/bulk-actions/jobs/${jobId}/retry-failed`, { propertyId }),
   split:            (id, roomIdsOrPayload, extras = {}) => {
     const payload = Array.isArray(roomIdsOrPayload)
       ? { reservationRoomIds: roomIdsOrPayload, ...extras }

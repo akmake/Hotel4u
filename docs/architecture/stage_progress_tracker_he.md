@@ -598,3 +598,57 @@
 - Validation:
   1. `node --check server/routes/reservations.js` passed.
   2. `npm --prefix client run build` passed.
+
+## Update 2026-05-07 - Stage 5.22.4 Focus Filters Auto-Align (Hands-Free)
+- `client/src/pages/BulkJobsPage.jsx`:
+  1. Added `focusMeta` state from jobs-list response to detect focused-job filter mismatches explicitly.
+  2. Added automatic one-time filter alignment per `jobId` focus when `focus.matchesFilters=false`:
+     - syncs `status` + `action` to focused job values
+     - clears date-range filters
+     - resets page to `1`
+  3. Added manual fallback action button in focused detached card header: `התאם פילטרים למשימה`.
+  4. Preserved existing auto-jump pagination behavior after alignment.
+  5. Added operator toast when automatic focus-filter alignment is applied.
+- `server/routes/reservations.js`:
+  1. Hardened list ordering to deterministic sort `{ queuedAt: -1, _id: -1 }` so page-jump math remains stable under equal timestamps.
+- Validation:
+  1. `node --check server/routes/reservations.js` passed.
+  2. `npm --prefix client run build` passed.
+
+## Update 2026-05-07 - Stage 5.22.5 Retry Fast-Handoff to New Job
+- `client/src/pages/BulkJobsPage.jsx`:
+  1. Added `focusOnJob(jobId)` helper to switch URL focus (`?jobId=...`) immediately after background job creation.
+  2. `Retry` flow now reads `bulkActions` response and, when a new background job is returned, auto-focuses the new job instead of staying on the previous one.
+  3. `Retry Failed` flow now does the same: creates job and hands off focus directly to the newly created job.
+  4. Success toasts now include the short new job id when available for faster operator confirmation.
+  5. Kept existing fallback refresh path when backend response does not include a new job id.
+- Validation:
+  1. `npm --prefix client run build` passed.
+
+## Update 2026-05-07 - Stage 5.22.6 Reservations Auto-Handoff to Bulk Jobs
+- `client/src/pages/ReservationsPage.jsx`:
+  1. When bulk action response is `mode=background` with `jobId`, the flow now navigates immediately to `/pms/bulk-jobs?jobId=...`.
+  2. This removes the extra operator step of clicking "Open in Bulk Jobs" after background delegation.
+  3. Kept existing status toast so operator still gets immediate confirmation before handoff.
+  4. Cleaned unused dependency reference in `runBulkAction` after this flow change.
+- Validation:
+  1. `npm --prefix client run build` passed.
+
+## Update 2026-05-07 - Stage 5.22.7 Retry Failed Single-Call Flow
+- Backend (`server/routes/reservations.js`):
+  1. Added `POST /api/reservations/bulk-actions/jobs/:jobId/retry-failed` to create a new background bulk job directly from failed rows of a completed source job.
+  2. Endpoint validates property scope, terminal source-job state, and supported action before enqueueing retry.
+  3. Added shared helpers for background job creation/scheduling:
+     - `normalizeBulkJobRequestPayload(...)`
+     - `createBulkBackgroundJob(...)`
+     - `scheduleBulkBackgroundJob(...)`
+  4. Existing `POST /api/reservations/bulk-actions` background branch now reuses these helpers for consistent behavior.
+- Frontend API (`client/src/utils/api.js`):
+  1. Added `reservations.retryBulkJobFailed(jobId, propertyId)` helper.
+- Bulk Jobs UI (`client/src/pages/BulkJobsPage.jsx`):
+  1. `Retry Failed` action now calls the new dedicated endpoint directly (single request).
+  2. Removed client-side prefetch of full job results + manual failed-id extraction for this flow.
+  3. Preserved fast handoff behavior: when new job id is returned, UI auto-focuses the newly created retry job.
+- Validation:
+  1. `node --check server/routes/reservations.js` passed.
+  2. `npm --prefix client run build` passed.
