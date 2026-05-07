@@ -413,3 +413,146 @@
 - Validation: `npm --prefix client run build` passed.
 - Recommended next step:
   1. Stage 5.16: CRM enhancements — add `LeadInboxPage` stage-change actions and `OpportunityBoardPage` Kanban drag-and-drop wired to real CRM API endpoints.
+
+## Update 2026-05-07 - Stage 5.16 Maintenance SLA Breach + Scheduler Completeness
+- `server/models/MaintenanceTicket.js`: added `slaBreach: { type: Boolean, default: false }` field.
+- `server/services/pmsScheduler.js` — added `checkMaintenanceSla()`:
+  1. Runs as part of the hourly cron (after `schedule.hourly` automation trigger).
+  2. Queries all open maintenance tickets where `dueDate < now` and `slaBreach != true`.
+  3. Sets `slaBreach = true` on each breached ticket.
+  4. Fires `maintenance.sla_breach` automation event with full ticket context.
+  5. Console logs count: `SLA breach check: N ticket(s) breached`.
+  6. Imported `MaintenanceTicket` model.
+- Validation:
+  1. `node --check server/services/pmsScheduler.js` passed.
+  2. `node --check server/models/MaintenanceTicket.js` passed.
+  3. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.17: Channel Manager status view — add a UI page showing the channel sync queue (pending/failed channel pushes), and ability to manually trigger a re-push for failed items.
+
+## Update 2026-05-07 - Stage 5.17 Channel Manager Page
+- `server/routes/integrations.js` — added 3 new channel queue endpoints:
+  1. `GET /api/integrations/channel-queue/stats?propertyId=` — returns `{pending, processing, sent, failed, dead_letter}` count map.
+  2. `GET /api/integrations/channel-queue?propertyId=&status=&limit=` — list queue items with status filter.
+  3. `POST /api/integrations/channel-queue/requeue-dead` — requeue all dead-letter items for a property.
+  4. Imports added: `ChannelUpdateQueue`, `getQueueStats`, `requeueDeadLetters`.
+- `client/src/utils/api.js` — added `integrations.channelQueue.{stats, list, requeueDead}` helpers.
+- New page `client/src/pages/ChannelManagerPage.jsx` at `/pms/channel-manager`:
+  1. Stats row: 5 status cards (pending/processing/sent/failed/dead_letter) with color coding.
+  2. Alert banner shown when failures or dead-letter items exist.
+  3. Filter bar: "כשלים בלבד" / "בתור" / "נשלחו" / "הכל".
+  4. Expandable queue item rows: channel, event type, timestamp, attempt count, error message.
+  5. Expanded: full error text + next retry time + payload JSON.
+  6. "Retry Dead" button visible when dead-letter count > 0.
+  7. Refresh button.
+- Wiring: lazy import + route `/pms/channel-manager`, sidebar item (Radio icon), AppShell breadcrumb.
+- Validation: `node --check server/routes/integrations.js` passed. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.18: TapeChart drag-and-drop — implement HTML5 drag-and-drop on the tape chart to move reservations between rooms and resize stay duration.
+
+## Update 2026-05-07 - Stage 5.18 TapeChart Drag + Resize Completed
+- `client/src/pages/TapeChartPage.jsx`:
+  1. Completed drag-and-drop room reassignment flow (move reservation between room rows).
+  2. Added right-edge resize handle on reservation blocks to change stay end-date directly from the chart.
+  3. Added live resize preview while dragging the handle (block width updates in-place).
+  4. Added confirmation dialog before applying stay-date change:
+     - Extend flow => calls `POST /api/pms/reservations/:id/extend` with `newDepartureDate` (+ optional `nightlyRate`).
+     - Early-departure flow => calls `POST /api/pms/reservations/:id/early-departure`.
+  5. Added click-suppression guard to prevent accidental drawer open after drag/resize gestures.
+  6. Updated footer instruction text for operators (move vs resize usage).
+- Validation:
+  1. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.19: RoomRack parity + QA pass — add the same stay resize interaction to RoomRack (if required), then run an operator flow checklist covering move/resize edge-cases (clipped reservations, unassigned row, blocked rooms, RBAC failures).
+
+## Update 2026-05-07 - Stage 5.19 RoomRack Resize Parity Completed
+- `client/src/pages/RoomRackPage.jsx`:
+  1. Added stay-duration resize interaction on reservation bars (RTL-aware): drag the left edge handle to change departure date.
+  2. Added live visual resize preview while dragging (bar width updates in-place before submit).
+  3. Added confirmation modal before applying date-change:
+     - extend flow → `POST /api/pms/reservations/:id/extend` (`newDepartureDate` + optional `nightlyRate`)
+     - early departure flow → `POST /api/pms/reservations/:id/early-departure`
+  4. Kept existing room-move drag flow intact (no behavior regression).
+  5. Added operator guidance text in legend/footer for move vs resize gestures.
+- Validation:
+  1. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.20: UX hardening pass — unify shared drag/resize behavior between `TapeChartPage` and `RoomRackPage` into reusable hooks/components and add E2E coverage for move/resize scenarios.
+
+## Update 2026-05-07 - Stage 5.20 Shared Drag/Resize Hook + Flow Coverage Completed
+- Shared interaction engine extracted:
+  1. New reusable hook `client/src/hooks/useReservationDragResize.js`.
+  2. Hook responsibilities:
+     - drag state + drop-room tracking
+     - resize draft state
+     - pending move/resize operation payloads
+     - click-vs-drag threshold handling
+     - optional tap callback for row-based pages
+- UI migration completed:
+  1. `client/src/pages/TapeChartPage.jsx` now uses the shared hook (drag+resize behavior unchanged functionally).
+  2. `client/src/pages/RoomRackPage.jsx` now uses the same hook with `dragActivationPx=5` + tap-to-open drawer callback.
+  3. Result: move/resize behavior is now consistent and maintained in one place.
+- Flow coverage added to integration suite:
+  1. `server/scripts/stage4ReservationsIntegration.mjs` added Stage 5.20 end-to-end flow tests:
+     - create reservation
+     - move room via `assign-room`
+     - resize extend via `extend`
+     - resize shorten via `early-departure`
+     - final verification of reservation + reservation-room departure dates
+  2. Test IDs:
+     - `S5.20-WRITE-CREATE-N`
+     - `S5.20-WRITE-DETAILS-N`
+     - `S5.20-WRITE-LIST-ROOMS-FOR-MOVE-N`
+     - `S5.20-WRITE-MOVE-ROOM-N`
+     - `S5.20-WRITE-RESIZE-EXTEND-N`
+     - `S5.20-WRITE-RESIZE-EARLY-DEPARTURE-N`
+     - `S5.20-VERIFY-FINAL-N`
+- Validation:
+  1. `npm --prefix client run build` passed.
+  2. `node --check client/src/hooks/useReservationDragResize.js` passed.
+  3. `node --check server/scripts/stage4ReservationsIntegration.mjs` passed.
+  4. Full `qa:reservations:integration` run executed in current environment; new Stage 5.20 tests passed end-to-end, while several older Stage 4/5.4/5.8 cases remain failing in this runtime baseline.
+- Recommended next step:
+  1. Stage 5.21: stabilize failing baseline cases in current runtime (JSON error envelope + bulk/jobs route behavior) so full-suite returns green together with Stage 5.20.
+
+## Update 2026-05-07 - Stage 5.21 Baseline Stabilization Completed
+- Root-cause analysis completed for prior runtime-only failures (403/404/500 envelopes in S4.4/S5.4/S5.8):
+  1. JWT secret was read at module-load time in several auth modules, which can race with `.env` loading in ESM startup order.
+  2. Server/integration env loading was not deterministic when running from repo root (`server/.env` was not guaranteed to be loaded by default).
+- Stabilization changes applied:
+  1. `server/middleware/authContext.js` ג€” switched JWT secret resolution to runtime getter (`getJwtSecret`) instead of module-level constant.
+  2. `server/controllers/authController.js` ג€” switched PMS bearer token signing to runtime secret getter (`getPmsJwtSecret`).
+  3. `server/routes/auth.js` ג€” switched bearer verification in `/api/auth/me` to runtime secret getter.
+  4. `server/routes/pms-auth.js` ג€” switched sign/verify flows to runtime secret getter.
+  5. `server/app.js` ג€” explicit dotenv loading from `server/.env` using absolute module path, plus fallback `dotenv.config()`.
+  6. `server/index.js` ג€” explicit dotenv loading from `server/.env` using absolute module path, plus fallback `dotenv.config()`.
+  7. `server/scripts/stage4ReservationsIntegration.mjs` ג€” explicit dotenv loading from `server/.env` for deterministic token signing in QA runs.
+- Validation:
+  1. `node --check` passed for all modified auth/bootstrap/integration files.
+  2. Full integration suite on isolated local server instance (`PORT=4100`, `PMS_BASE_URL=http://localhost:4100/api/pms`) now passes fully:
+     - `PASS=95 FAIL=0 SKIP=0`
+  3. This confirms earlier S4.4/S5.4/S5.8 failures were runtime bootstrap/env drift, not API logic regressions.
+- Recommended next step:
+  1. Stage 5.22: move from baseline stabilization back to UI implementation acceleration (operator-facing PMS flows), with regression smoke run after each milestone.
+
+## Update 2026-05-07 - Stage 5.21.1 Runtime Warnings Cleanup
+- `server/models/BulkActionJob.js`:
+  1. Removed duplicate `expiresAt` index declaration at field level (kept dedicated TTL index via `schema.index(...)`) to prevent Mongoose duplicate-index warning.
+- `server/routes/reservations.js`:
+  1. Replaced legacy `{ new: true }` in `findByIdAndUpdate` calls with `{ returnDocument: 'after' }` to align with Mongoose 9 deprecation guidance.
+- Validation:
+  1. Full suite re-run on port `4000` after cleanup: `PASS=95 FAIL=0 SKIP=0`.
+  2. Server boot/output no longer emitted the previous duplicate-index / `new` deprecation warnings during this run.
+
+## Update 2026-05-07 - Stage 5.22 Bulk-Operations UI Handoff
+- `client/src/pages/ReservationsPage.jsx`:
+  1. Added direct operator entrypoint button to Bulk jobs screen (`/pms/bulk-jobs`) from Reservations header.
+  2. Added contextual CTA during running background bulk jobs: "פתח בעבודות Bulk" with `jobId` handoff.
+  3. Added contextual CTA in bulk result summary (when result came from background job) to jump to the exact job details.
+- `client/src/pages/BulkJobsPage.jsx`:
+  1. Added query-param focus flow (`?jobId=...`) for cross-screen handoff from Reservations.
+  2. Matching job row now auto-expands and is visually highlighted.
+  3. Added focus chip in header with quick clear action.
+  4. Added warning banner when focused job is not present under current filters/page + quick filter reset.
+- Validation:
+  1. `npm --prefix client run build` passed.

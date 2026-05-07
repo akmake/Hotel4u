@@ -1,9 +1,13 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
+
+function getJwtSecret() {
+  return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
+}
 
 function safeVerifyToken(token) {
-  const secret = JWT_SECRET;
+  const secret = getJwtSecret();
   if (!token) return null;
   try {
     return jwt.verify(token, secret);

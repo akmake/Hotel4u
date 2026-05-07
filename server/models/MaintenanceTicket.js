@@ -64,6 +64,7 @@ const MaintenanceTicketSchema = new Schema({
   internalNotes: { type: [NoteSchema], default: [] },
 
   blocksRoom:    { type: Boolean, default: false },
+  slaBreach:     { type: Boolean, default: false },
 
   // Closing requires approval for critical
   closingApprovedBy:   { type: Schema.Types.ObjectId, ref: 'User' },

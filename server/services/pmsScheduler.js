@@ -7,11 +7,12 @@
  *   - Check-in reminders — fires at 09:00 daily; sends T-1 arrival reminder emails
  */
 
-import cron         from 'node-cron';
-import Property     from '../models/Property.js';
-import Reservation  from '../models/Reservation.js';
-import GuestProfile from '../models/GuestProfile.js';
-import { fireEvent } from './automationEngine.js';
+import cron              from 'node-cron';
+import Property          from '../models/Property.js';
+import Reservation       from '../models/Reservation.js';
+import GuestProfile      from '../models/GuestProfile.js';
+import MaintenanceTicket from '../models/MaintenanceTicket.js';
+import { fireEvent }     from './automationEngine.js';
 import { sendEmail, buildCheckInReminderEmail } from './emailService.js';
 
 async function getActivePropertyIds() {
@@ -99,6 +100,47 @@ async function sendCheckInReminders() {
   console.log(`[pmsScheduler] check-in reminders: sent=${sent} skipped=${skipped} date=${tomorrowYmd}`);
 }
 
+// ── Maintenance SLA breach check ──────────────────────────────────────────────
+
+async function checkMaintenanceSla() {
+  const now = new Date();
+  let breached = 0;
+
+  try {
+    const tickets = await MaintenanceTicket.find({
+      dueDate:  { $lt: now },
+      status:   { $nin: ['resolved', 'verified', 'closed'] },
+      slaBreach: { $ne: true },
+    }).lean();
+
+    for (const ticket of tickets) {
+      try {
+        await MaintenanceTicket.findByIdAndUpdate(ticket._id, { $set: { slaBreach: true } });
+        await fireEvent('maintenance.sla_breach', {
+          property: String(ticket.property),
+          ticket: {
+            _id:         String(ticket._id),
+            category:    ticket.category,
+            priority:    ticket.priority,
+            description: ticket.description,
+            room:        ticket.room ? String(ticket.room) : undefined,
+            dueDate:     ticket.dueDate?.toISOString(),
+          },
+        });
+        breached++;
+      } catch (err) {
+        console.error(`[pmsScheduler] SLA breach event failed for ticket ${ticket._id}:`, err.message);
+      }
+    }
+
+    if (breached > 0) {
+      console.log(`[pmsScheduler] SLA breach check: ${breached} ticket(s) breached`);
+    }
+  } catch (err) {
+    console.error('[pmsScheduler] checkMaintenanceSla failed:', err.message);
+  }
+}
+
 // ── Scheduler init ────────────────────────────────────────────────────────────
 
 export function initPmsScheduler() {
@@ -109,6 +151,9 @@ export function initPmsScheduler() {
       hour:      now.getHours(),
       timestamp: now.toISOString(),
     });
+    await checkMaintenanceSla().catch(err =>
+      console.error('[pmsScheduler] checkMaintenanceSla crashed:', err.message)
+    );
   });
 
   // Daily — fires at 00:05 every day (after midnight audit window)

@@ -5,11 +5,16 @@ import { audit, auditCtxFromReq } from '../services/auditService.js';
 import User from '../models/User.js';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
+
+function getJwtSecret() {
+  return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
+}
 
 function signTokens(payload) {
-  const access  = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
-  const refresh = jwt.sign({ id: payload.id }, JWT_SECRET, { expiresIn: '7d' });
+  const secret = getJwtSecret();
+  const access  = jwt.sign(payload, secret, { expiresIn: '8h' });
+  const refresh = jwt.sign({ id: payload.id }, secret, { expiresIn: '7d' });
   return { access, refresh };
 }
 
@@ -66,7 +71,7 @@ router.post('/refresh', asyncHandler(async (req, res) => {
 
   let decoded;
   try {
-    decoded = jwt.verify(refreshToken, JWT_SECRET);
+    decoded = jwt.verify(refreshToken, getJwtSecret());
   } catch {
     return res.status(401).json({ success: false, error: 'Token לא תקין או פג תוקף' });
   }
@@ -103,7 +108,7 @@ router.get('/me', asyncHandler(async (req, res) => {
     return res.status(401).json({ success: false, error: 'לא מחובר' });
 
   try {
-    const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+    const payload = jwt.verify(auth.slice(7), getJwtSecret());
     // Return fresh user data from DB
     const user = await User.findOne({ _id: payload.id, active: true }).select('-passwordHash').lean();
     if (!user) return res.status(401).json({ success: false, error: 'משתמש לא פעיל' });

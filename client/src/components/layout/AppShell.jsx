@@ -19,8 +19,9 @@ const PAGE_TITLES = {
   '/folio':         'Folio ותשלומים',
   '/reports':       'דוחות',
   '/bulk-jobs':     'עבודות Bulk',
-  '/automation':    'כללי אוטומציה',
-  '/settings':      'הגדרות',
+  '/automation':       'כללי אוטומציה',
+  '/channel-manager':  'Channel Manager',
+  '/settings':         'הגדרות',
 };
 
 export default function AppShell() {

@@ -1,4 +1,9 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 dotenv.config();
 import dns from 'dns';
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -14,8 +19,6 @@ import { initSocket } from './socket.js';
 import { initWhatsAppListener } from './services/whatsappService.js';
 import requireAuth from './middlewares/requireAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 // --- ייבוא נתיבים ---
 import adminAutoReplyRoutes from './routes/adminAutoReply.js';
@@ -87,9 +90,6 @@ const app = express();
 app.set('trust proxy', 1);
 const httpServer = http.createServer(app);
 initSocket(httpServer);
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // --- אבטחה ו-Middlewares בסיסיים ---
 app.use(helmet({ crossOriginResourcePolicy: false }));

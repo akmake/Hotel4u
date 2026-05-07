@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
@@ -9,6 +11,11 @@ import Property from '../models/Property.js';
 import RoomType from '../models/RoomType.js';
 import GuestProfile from '../models/GuestProfile.js';
 import Reservation from '../models/Reservation.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Keep integration auth aligned with the PMS server defaults when launched from repo root.
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config();
 
 function parseArgs(argv) {
   const out = {};
@@ -233,6 +240,15 @@ async function run() {
     stage54MissingReservationId: randomObjectIdLike(),
     stage56JobId: null,
     stage56MissingReservationId: randomObjectIdLike(),
+    createdReservationN: null,
+    createdReservationNFirstRoomId: null,
+    createdReservationNAssignedRoomId: null,
+    stage520AlternateRoomId: null,
+    stage520ArrivalDate: datePlus(48),
+    stage520DepartureDate: datePlus(50),
+    stage520ExtendedDepartureDate: datePlus(52),
+    stage520EarlyDepartureDate: datePlus(51),
+    stage520NightlyRate: Number(env.ratePerNight) + 121,
     transferSourceLineId: null,
     transferSourceDescription: `Stage4.2 transfer source ${Date.now()}`,
     createdRoutingRuleId: null,
@@ -2310,6 +2326,213 @@ async function run() {
         return null;
       },
     },
+    {
+      id: 'S5.20-WRITE-CREATE-N',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'POST',
+        url: baseReservations,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          roomTypeId: ctx.roomTypeId,
+          arrivalDate: state.stage520ArrivalDate,
+          departureDate: state.stage520DepartureDate,
+          primaryGuestId: ctx.primaryGuestId,
+          adults: 2,
+          children: 0,
+          roomsCount: 1,
+          ratePerNight: env.ratePerNight,
+          source: 'direct',
+          marketSegment: 'stage5_20',
+          specialRequests: 'stage5.20 move+resize flow',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'missing created reservation N id';
+        return null;
+      },
+      capture: (r) => { state.createdReservationN = r.json?.data?._id || null; },
+    },
+    {
+      id: 'S5.20-WRITE-DETAILS-N',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationN)) return 'created reservation N unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationN}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const rooms = r.json?.data?.reservationRooms;
+        if (!Array.isArray(rooms) || rooms.length < 1) return 'reservation N must include at least one reservation room';
+        if (!ensureObjectIdLike(r.json?.data?.assignedRoom?._id)) return 'reservation N assigned room missing';
+        return null;
+      },
+      capture: (r) => {
+        const rooms = r.json?.data?.reservationRooms || [];
+        state.createdReservationNFirstRoomId = rooms[0]?._id || null;
+        state.createdReservationNAssignedRoomId = r.json?.data?.assignedRoom?._id || null;
+      },
+    },
+    {
+      id: 'S5.20-WRITE-LIST-ROOMS-FOR-MOVE-N',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationNAssignedRoomId)) return 'reservation N assigned room unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${env.baseUrl}/rooms?propertyId=${encodeURIComponent(ctx.propertyId)}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        if (!Array.isArray(r.json?.data) || r.json.data.length === 0) return 'rooms list is empty';
+        return null;
+      },
+      capture: (r) => {
+        const rooms = Array.isArray(r.json?.data) ? r.json.data : [];
+        const candidate = rooms.find((room) => (
+          ensureObjectIdLike(room?._id)
+          && String(room._id) !== String(state.createdReservationNAssignedRoomId)
+          && room.opsStatus !== 'out_of_order'
+          && ['clean', 'inspected'].includes(String(room.cleanStatus || '').toLowerCase())
+          && String(room.occStatus || '').toLowerCase() !== 'occupied'
+        ));
+        state.stage520AlternateRoomId = candidate?._id || null;
+      },
+    },
+    {
+      id: 'S5.20-WRITE-MOVE-ROOM-N',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationN)) return 'created reservation N unavailable';
+        if (!ensureObjectIdLike(state.createdReservationNFirstRoomId)) return 'reservation N room id unavailable';
+        if (!ensureObjectIdLike(state.stage520AlternateRoomId)) return 'no alternate room found for move';
+        return null;
+      },
+      build: () => ({
+        method: 'PATCH',
+        url: `${baseReservations}/${state.createdReservationN}/assign-room`,
+        token: ctx.receptionistToken,
+        body: {
+          roomId: state.stage520AlternateRoomId,
+          reservationRoomId: state.createdReservationNFirstRoomId,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const assignedId = r.json?.data?.assignedRoom?._id || r.json?.data?.assignedRoom;
+        if (String(assignedId || '') !== String(state.stage520AlternateRoomId)) {
+          return `expected assignedRoom ${String(state.stage520AlternateRoomId)}, got ${String(assignedId)}`;
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.20-WRITE-RESIZE-EXTEND-N',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationN)) return 'created reservation N unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationN}/extend`,
+        token: ctx.receptionistToken,
+        body: {
+          newDepartureDate: state.stage520ExtendedDepartureDate,
+          nightlyRate: state.stage520NightlyRate,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        if (String(r.json?.data?.departureDate || '').slice(0, 10) !== state.stage520ExtendedDepartureDate) {
+          return 'extend step did not update departureDate as expected';
+        }
+        if (Number(r.json?.data?.ratePerNight) !== Number(state.stage520NightlyRate)) {
+          return `expected ratePerNight ${state.stage520NightlyRate}, got ${String(r.json?.data?.ratePerNight)}`;
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.20-WRITE-RESIZE-EARLY-DEPARTURE-N',
+      skip: () => {
+        if (!ctx.receptionistToken) return 'receptionist token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationN)) return 'created reservation N unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/${state.createdReservationN}/early-departure`,
+        token: ctx.receptionistToken,
+        body: {
+          newDepartureDate: state.stage520EarlyDepartureDate,
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        if (String(r.json?.data?.departureDate || '').slice(0, 10) !== state.stage520EarlyDepartureDate) {
+          return 'early-departure step did not update departureDate as expected';
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.20-VERIFY-FINAL-N',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationN)) return 'created reservation N unavailable';
+        if (!ensureObjectIdLike(state.stage520AlternateRoomId)) return 'stage5.20 target room unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/${state.createdReservationN}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const data = r.json?.data || {};
+        if (String(data.departureDate || '').slice(0, 10) !== state.stage520EarlyDepartureDate) {
+          return `expected departureDate=${state.stage520EarlyDepartureDate}, got ${String(data.departureDate)}`;
+        }
+        if (Number(data.ratePerNight) !== Number(state.stage520NightlyRate)) {
+          return `expected final ratePerNight=${state.stage520NightlyRate}, got ${String(data.ratePerNight)}`;
+        }
+        const assignedId = data.assignedRoom?._id || data.assignedRoom;
+        if (String(assignedId || '') !== String(state.stage520AlternateRoomId)) {
+          return `expected final assignedRoom=${state.stage520AlternateRoomId}, got ${String(assignedId)}`;
+        }
+        const rooms = Array.isArray(data.reservationRooms) ? data.reservationRooms : [];
+        if (!rooms.length) return 'expected reservationRooms in final verification';
+        const allUpdated = rooms.every((rr) => String(rr?.departureDate || '').slice(0, 10) === state.stage520EarlyDepartureDate);
+        if (!allUpdated) return 'not all reservation-room departure dates were updated after resize sequence';
+        return null;
+      },
+    },
   ];
 
   const results = [];
@@ -2372,6 +2595,7 @@ async function run() {
     state.createdReservationK,
     state.createdReservationL,
     state.createdReservationM,
+    state.createdReservationN,
     state.splitChildReservationId,
   ].filter(ensureObjectIdLike);
   for (const reservationId of cleanupTargets) {

@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -37,6 +37,8 @@ import folioRoutingRouter  from './routes/folio-routing.js';
 import crmCoreRouter       from './routes/crm-core.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config();
 const app = express();
 const PORT = process.env.PMS_PORT || 5000;
 

@@ -4,7 +4,11 @@ import User from '../models/User.js';
 import { createAndSendTokens } from '../utils/tokenHandler.js';
 import { logAction } from '../utils/auditLogger.js';
 
-const PMS_JWT_SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
+
+function getPmsJwtSecret() {
+  return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
+}
 
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
@@ -88,7 +92,7 @@ export const loginUser = async (req, res) => {
   const bearerToken = jwt.sign(
     { id: String(user._id), firstName: user.firstName, lastName: user.lastName,
       email: user.email, role: user.role, propertyId },
-    PMS_JWT_SECRET,
+    getPmsJwtSecret(),
     { expiresIn: '8h' }
   );
 

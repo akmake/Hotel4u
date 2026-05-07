@@ -162,7 +162,7 @@ async function setBulkJobTerminalState(jobId, status, error = null) {
     expiresAt: computeBulkJobExpiryDate(),
   };
   if (error) patch.error = String(error);
-  return BulkActionJob.findByIdAndUpdate(jobId, { $set: patch }, { new: true });
+  return BulkActionJob.findByIdAndUpdate(jobId, { $set: patch }, { returnDocument: 'after' });
 }
 
 async function executeBulkReservationAction({
@@ -189,7 +189,7 @@ async function executeBulkReservationAction({
     const updated = await Reservation.findByIdAndUpdate(
       existing._id,
       { $set: { confirmationSent: true, updatedBy: actor.id || undefined } },
-      { new: true }
+      { returnDocument: 'after' }
     ).lean();
 
     await audit({
@@ -297,7 +297,7 @@ async function executeBulkReservationAction({
           updatedBy: actor.id || undefined,
         },
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).lean();
 
     await audit({
@@ -1226,7 +1226,7 @@ router.post('/:id/confirm', asyncHandler(async (req, res) => {
         updatedBy: actor.id || undefined,
       },
     },
-    { new: true }
+    { returnDocument: 'after' }
   )
     .populate('assignedRoom', 'number floor cleanStatus opsStatus')
     .lean();
@@ -1269,7 +1269,7 @@ router.post('/:id/send-confirmation', asyncHandler(async (req, res) => {
   const updated = await Reservation.findByIdAndUpdate(
     reservation._id,
     { $set: { confirmationSent: true, updatedBy: actor.id || undefined } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 
   await audit({
@@ -1525,20 +1525,37 @@ router.post('/:id/no-show-fee', asyncHandler(async (req, res) => {
 // PATCH /api/reservations/:id/assign-room
 router.patch('/:id/assign-room', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Room assignment requires front-desk permissions');
-  const { roomId, reservationRoomId } = req.body;
+  const { roomId, reservationRoomId, priceAdjustment, adjustmentNote } = req.body;
   const existing = await getReservationOr404(req.params.id, res);
   if (!existing) return;
   assertPropertyScope(req, existing.property);
   const reservation = await Reservation.findByIdAndUpdate(
     req.params.id,
     { assignedRoom: roomId || null },
-    { new: true }
+    { returnDocument: 'after' }
   ).populate('assignedRoom', 'number floor').lean();
 
   if (!reservation) return res.status(404).json({ success: false, error: 'Reservation not found' });
 
   if (reservationRoomId) {
     await ReservationRoom.findByIdAndUpdate(reservationRoomId, { assignedRoom: roomId || null });
+  }
+
+  if (priceAdjustment && Number(priceAdjustment) !== 0) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let folio = await Folio.findOne({ reservation: existing._id, status: 'open' });
+    if (folio) {
+      folio.lines.push({
+        type:        Number(priceAdjustment) > 0 ? 'charge' : 'adjustment',
+        description: adjustmentNote || 'הפרש העברת חדר',
+        amount:      Number(priceAdjustment),
+        serviceDate: todayStr,
+        source:      'pms',
+        createdBy:   req.user._id,
+        department:  'rooms',
+      });
+      await folio.save();
+    }
   }
 
   res.json({ success: true, data: reservation });
@@ -1583,7 +1600,7 @@ router.post('/:id/partial-check-in', asyncHandler(async (req, res) => {
   const updated = await Reservation.findByIdAndUpdate(
     reservation._id,
     { $set: { status, checkedInAt: new Date() } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 
   const actor = actorFromReq(req);
@@ -1633,7 +1650,7 @@ router.post('/:id/partial-check-out', asyncHandler(async (req, res) => {
   const updated = await Reservation.findByIdAndUpdate(
     reservation._id,
     { $set: { status, checkedOutAt: status === 'checked_out' ? new Date() : undefined } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 
   const actor = actorFromReq(req);
@@ -1705,7 +1722,7 @@ router.post('/:id/extend', asyncHandler(async (req, res) => {
         status: 'modified',
       },
     },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 
   await ReservationRoom.updateMany(
@@ -1771,7 +1788,7 @@ router.post('/:id/early-departure', asyncHandler(async (req, res) => {
         status: 'modified',
       },
     },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 
   await ReservationRoom.updateMany(
@@ -1814,7 +1831,7 @@ router.post('/:id/upgrade', asyncHandler(async (req, res) => {
   if (newRoomTypeId) patch.roomTypeBooked = newRoomTypeId;
   if (newRoomId) patch.assignedRoom = newRoomId;
   if (nightlyRate != null) patch.nightlyRate = Number(nightlyRate);
-  const updatedRoom = await ReservationRoom.findByIdAndUpdate(rr._id, patch, { new: true }).lean();
+  const updatedRoom = await ReservationRoom.findByIdAndUpdate(rr._id, patch, { returnDocument: 'after' }).lean();
 
   const segment = await StaySegment.create({
     reservationRoom: rr._id,
@@ -2037,7 +2054,7 @@ router.patch('/rooms/:reservationRoomId', asyncHandler(async (req, res) => {
   const existing = await ReservationRoom.findById(req.params.reservationRoomId).lean();
   if (!existing) return res.status(404).json({ success: false, error: 'Reservation room not found' });
   assertPropertyScope(req, existing.property);
-  const rr = await ReservationRoom.findByIdAndUpdate(req.params.reservationRoomId, update, { new: true }).lean();
+  const rr = await ReservationRoom.findByIdAndUpdate(req.params.reservationRoomId, update, { returnDocument: 'after' }).lean();
   if (!rr) return res.status(404).json({ success: false, error: 'Reservation room not found' });
 
   res.json({ success: true, data: rr });
@@ -2289,7 +2306,7 @@ router.post('/:id/link-group', asyncHandler(async (req, res) => {
   const updated = await Reservation.findByIdAndUpdate(
     reservation._id,
     { $set: { group: groupRef, groupCode: groupCode || null, groupName: groupName || null, status: 'modified' } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 
   await audit({

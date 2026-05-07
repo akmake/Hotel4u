@@ -5,7 +5,11 @@ import { loginUser, logout, refresh, registerUser } from '../controllers/authCon
 import requireAuth from '../middlewares/requireAuth.js';
 import requireRefresh from '../middlewares/requireRefresh.js';
 
-const PMS_JWT_SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
+
+function getPmsJwtSecret() {
+  return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
+}
 
 const router = Router();
 
@@ -26,7 +30,7 @@ router.get('/me', async (req, res, next) => {
   const auth = req.headers.authorization;
   if (auth?.startsWith('Bearer ')) {
     try {
-      const payload = jwt.verify(auth.slice(7), PMS_JWT_SECRET);
+      const payload = jwt.verify(auth.slice(7), getPmsJwtSecret());
       const user = await User.findOne({ _id: payload.id, active: true }).select('-passwordHash').lean();
       if (!user) return res.status(401).json({ success: false, error: 'משתמש לא פעיל' });
       return res.json({

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ListChecks, RefreshCw, XCircle, RotateCcw, ChevronDown, ChevronRight,
   CheckCircle2, AlertCircle, Clock, Loader2, Ban, Filter, X,
@@ -164,15 +165,20 @@ function JobResultsPanel({ jobId, propertyId }) {
 
 // ── Job Row ───────────────────────────────────────────────────────────────────
 
-function JobRow({ job, propertyId, onCancel, onRetry, pollingSet }) {
+function JobRow({ job, propertyId, onCancel, onRetry, onRetryFailed, autoExpand = false, highlighted = false }) {
   const [expanded, setExpanded] = useState(false);
   const isActive   = ACTIVE_STATUSES.has(job.status);
   const canCancel  = ACTIVE_STATUSES.has(job.status) && !job.cancelRequested;
   const canRetry   = job.status === 'failed';
+  const canRetryFailed = canRetry && Number(job.failed || 0) > 0;
+
+  useEffect(() => {
+    if (autoExpand) setExpanded(true);
+  }, [autoExpand]);
 
   return (
     <>
-      <tr className={`border-b border-surface-border hover:bg-surface-muted/40 transition-colors ${isActive ? 'bg-blue-50/30' : ''}`}>
+      <tr className={`border-b border-surface-border hover:bg-surface-muted/40 transition-colors ${isActive ? 'bg-blue-50/30' : ''} ${highlighted ? 'bg-indigo-50/60' : ''}`}>
         <td className="px-4 py-3">
           <button
             onClick={() => setExpanded(e => !e)}
@@ -220,6 +226,15 @@ function JobRow({ job, propertyId, onCancel, onRetry, pollingSet }) {
                 title="הרץ מחדש"
               >
                 <RotateCcw size={13}/> Retry
+              </button>
+            )}
+            {canRetryFailed && (
+              <button
+                onClick={() => onRetryFailed(job)}
+                className="btn-ghost text-xs text-violet-700 hover:bg-violet-50 px-2 py-1 rounded-lg flex items-center gap-1"
+                title="Retry failed reservations only"
+              >
+                <RotateCcw size={13}/> Retry Failed
               </button>
             )}
             {job.cancelRequested && ACTIVE_STATUSES.has(job.status) && (
@@ -342,6 +357,8 @@ function Pagination({ pagination, onChange }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function BulkJobsPage() {
+  const { search } = useLocation();
+  const navigate = useNavigate();
   const { propertyId } = useProperty();
   const { toasts, success, error: toastError } = useToast();
 
@@ -355,6 +372,10 @@ export default function BulkJobsPage() {
   const pollingRef  = useRef(null);
   const filtersRef  = useRef(filters);
   filtersRef.current = filters;
+  const focusJobId = useMemo(() => {
+    const value = new URLSearchParams(search).get('jobId');
+    return value ? String(value) : '';
+  }, [search]);
 
   const fetchJobs = useCallback(async (opts = {}) => {
     if (!propertyId) return;
@@ -400,6 +421,16 @@ export default function BulkJobsPage() {
     });
   }
 
+  function buildRetryPayload(job, reservationIds) {
+    return {
+      propertyId,
+      reservationIds,
+      action: job.action,
+      background: true,
+      ...(job.requestPayload || {}),
+    };
+  }
+
   async function handleCancel(jobId) {
     if (actionBusy.has(jobId)) return;
     setBusy(jobId, true);
@@ -418,13 +449,7 @@ export default function BulkJobsPage() {
     if (actionBusy.has(job.jobId)) return;
     setBusy(job.jobId, true);
     try {
-      const payload = {
-        propertyId,
-        reservationIds: job.reservationIds || [],
-        action: job.action,
-        background: true,
-        ...(job.requestPayload || {}),
-      };
+      const payload = buildRetryPayload(job, job.reservationIds || []);
       await reservationsApi.bulkActions(payload);
       success('עבודה חדשה נוצרה');
       await fetchJobs({ silent: true });
@@ -435,7 +460,33 @@ export default function BulkJobsPage() {
     }
   }
 
+  async function handleRetryFailed(job) {
+    if (actionBusy.has(job.jobId)) return;
+    setBusy(job.jobId, true);
+    try {
+      const details = await reservationsApi.bulkJobStatus(job.jobId, propertyId, true);
+      const failedRows = (details?.job?.results || []).filter((row) => !row?.success && row?.reservationId);
+      const failedReservationIds = [...new Set(failedRows.map((row) => String(row.reservationId)).filter(Boolean))];
+      if (!failedReservationIds.length) {
+        toastError('לא נמצאו הזמנות שנכשלו עבור Retry Failed');
+        return;
+      }
+
+      const payload = buildRetryPayload(job, failedReservationIds);
+      await reservationsApi.bulkActions(payload);
+      success(`נוצרה עבודת Retry עבור ${failedReservationIds.length} הזמנות שנכשלו`);
+      await fetchJobs({ silent: true });
+    } catch (e) {
+      toastError(e.message || 'שגיאה ב-Retry Failed');
+    } finally {
+      setBusy(job.jobId, false);
+    }
+  }
+
   const activeCount = jobs.filter(j => ACTIVE_STATUSES.has(j.status)).length;
+  const focusVisible = useMemo(() => (
+    !focusJobId || jobs.some((job) => String(job.jobId) === String(focusJobId))
+  ), [focusJobId, jobs]);
 
   if (!propertyId) return <PageSpinner />;
 
@@ -455,6 +506,15 @@ export default function BulkJobsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {focusJobId && (
+            <button
+              onClick={() => navigate('/pms/bulk-jobs', { replace: true })}
+              className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg"
+              title="נקה מיקוד משימה"
+            >
+              מיקוד: {shortId(focusJobId)} ✕
+            </button>
+          )}
           {activeCount > 0 && (
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded-full px-2.5 py-1">
               <Loader2 size={11} className="animate-spin"/> {activeCount} פעיל{activeCount !== 1 ? 'ות' : ''}
@@ -473,6 +533,18 @@ export default function BulkJobsPage() {
 
       {/* Filter bar */}
       <FilterBar filters={filters} onChange={setFilters} />
+
+      {focusJobId && !loading && !focusVisible && (
+        <div className="card mt-4 px-4 py-3 text-sm border border-amber-200 bg-amber-50/60 text-amber-800">
+          המשימה {shortId(focusJobId)} לא נמצאה בעמוד הנוכחי או תחת המסננים הפעילים.
+          <button
+            className="btn btn-ghost btn-sm mr-2"
+            onClick={() => setFilters({ page: 1, limit: 20 })}
+          >
+            נקה מסננים
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="card mt-4 overflow-hidden">
@@ -509,7 +581,9 @@ export default function BulkJobsPage() {
                       propertyId={propertyId}
                       onCancel={handleCancel}
                       onRetry={handleRetry}
-                      pollingSet={actionBusy}
+                      onRetryFailed={handleRetryFailed}
+                      autoExpand={focusJobId && String(job.jobId) === String(focusJobId)}
+                      highlighted={focusJobId && String(job.jobId) === String(focusJobId)}
                     />
                   ))}
                 </tbody>

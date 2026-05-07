@@ -38,7 +38,7 @@ const BulkActionJobSchema = new Schema({
   startedAt: { type: Date, default: null },
   completedAt: { type: Date, default: null },
   heartbeatAt: { type: Date, default: null },
-  expiresAt: { type: Date, default: null, index: true },
+  expiresAt: { type: Date, default: null },
 }, { timestamps: true });
 
 BulkActionJobSchema.index({ property: 1, status: 1, updatedAt: -1 });

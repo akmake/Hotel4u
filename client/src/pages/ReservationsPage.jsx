@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, Crown, AlertCircle, Calendar, ChevronLeft, ChevronRight,
   X, Filter, TrendingUp, Users, DoorOpen, DoorClosed, BedDouble,
-  LogIn, LogOut, Plane, CheckCircle2,
+  LogIn, LogOut, Plane, CheckCircle2, ListChecks,
 } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
@@ -252,6 +252,14 @@ export default function ReservationsPage() {
   const debounceRef = useRef(null);
   const bulkPollRef = useRef(null);
 
+  const openBulkJobsPage = useCallback((jobId) => {
+    if (jobId) {
+      navigate(`/pms/bulk-jobs?jobId=${encodeURIComponent(String(jobId))}`);
+      return;
+    }
+    navigate('/pms/bulk-jobs');
+  }, [navigate]);
+
   /* ── debounce search ── */
   const handleSearch = useCallback(v => {
     setSearch(v);
@@ -365,6 +373,7 @@ export default function ReservationsPage() {
   const finalizeBulkJobResult = useCallback((jobSnapshot) => {
     const failedRows = (jobSnapshot?.results || []).filter((row) => !row?.success);
     const summary = {
+      jobId: jobSnapshot?.jobId || null,
       action: jobSnapshot?.action || bulkAction,
       actionLabel: getBulkActionLabel(jobSnapshot?.action || bulkAction),
       total: Number(jobSnapshot?.total || 0),
@@ -504,6 +513,7 @@ export default function ReservationsPage() {
       const failedRows = resultRows.filter((row) => !row?.success);
 
       setBulkResultSummary({
+        jobId: null,
         action: bulkAction,
         actionLabel: bulkActionLabel,
         total,
@@ -540,7 +550,6 @@ export default function ReservationsPage() {
     bulkGroupCode,
     bulkGroupName,
     getBulkValidationError,
-    finalizeBulkJobResult,
     refetch,
     startBulkJobPolling,
     toastError,
@@ -704,6 +713,13 @@ export default function ReservationsPage() {
           <p className="page-subtitle">ניהול כל ההזמנות והגעות</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => openBulkJobsPage()}
+            className="btn btn-secondary flex items-center gap-2"
+          >
+            <ListChecks size={16} />
+            עבודות Bulk
+          </button>
           <button
             onClick={() => setCalOpen(v => !v)}
             className={`btn btn-secondary flex items-center gap-2 ${calOpen ? 'ring-2 ring-brand' : ''}`}
@@ -905,6 +921,14 @@ export default function ReservationsPage() {
               {bulkJob
                 ? `משימה ברקע: ${bulkJob.processed || 0}/${bulkJob.total || selectedCount} (${bulkJob.status})`
                 : `מריץ "${bulkActionLabel}" על ${selectedCount} הזמנות...`}
+              {bulkJob?.jobId && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => openBulkJobsPage(bulkJob.jobId)}
+                >
+                  פתח בעבודות Bulk
+                </button>
+              )}
               {bulkJob?.jobId && !['completed', 'failed', 'cancelled'].includes(String(bulkJob.status || '')) && (
                 <button
                   className="btn btn-ghost btn-sm text-red-600 ml-2"
@@ -930,6 +954,17 @@ export default function ReservationsPage() {
               הסתר
             </button>
           </div>
+
+          {bulkResultSummary.jobId && (
+            <div className="mt-2">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => openBulkJobsPage(bulkResultSummary.jobId)}
+              >
+                מעבר לפרטי משימה
+              </button>
+            </div>
+          )}
 
           <div className="mt-2 text-xs text-ink-secondary flex flex-wrap gap-x-4 gap-y-1">
             <span>סה"כ: <strong className="text-ink">{bulkResultSummary.total}</strong></span>

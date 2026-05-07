@@ -5,7 +5,7 @@ import {
   BedDouble, UserCheck, Megaphone, GitBranch, Bot, FileText,
   BadgeDollarSign, Search, TrendingUp, Building2, Star, PackagePlus,
   LogOut, Calendar, Sparkles, Tag, BookOpen, Funnel, CreditCard,
-  LogIn, Moon, ReceiptText, ListChecks, Zap,
+  LogIn, Moon, ReceiptText, ListChecks, Zap, Radio,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -94,7 +94,8 @@ const PMS_NAV = [
       { path: '/pms/reports',      icon: BarChart3,     label: 'דוחות' },
       { path: '/pms/night-audit',  icon: Moon,          label: 'Night Audit' },
       { path: '/pms/bulk-jobs',    icon: ListChecks,    label: 'עבודות Bulk' },
-      { path: '/pms/automation',   icon: Zap,           label: 'אוטומציה' },
+      { path: '/pms/automation',       icon: Zap,           label: 'אוטומציה' },
+      { path: '/pms/channel-manager',  icon: Radio,         label: 'Channel Manager' },
       { path: '/pms/companies',    icon: Building2,     label: 'חברות' },
       { path: '/pms/settings',     icon: Settings,      label: 'הגדרות' },
     ],
@@ -121,18 +122,21 @@ export default function Sidebar({ collapsed }) {
     <aside className={`sidebar sidebar-scroll ${collapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Logo */}
       <div
-        className="flex items-center gap-3 px-4 py-4 border-b"
-        style={{ borderColor: 'rgba(255,255,255,0.06)', minHeight: 56 }}
+        className="flex items-center gap-3 px-4 py-4"
+        style={{ borderBottom: '1px solid #DDD0BC', minHeight: 62 }}
       >
-        <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center flex-shrink-0">
-          <Hotel size={16} className="text-white" />
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: '#F0E4CC', border: '1px solid #C8A870' }}
+        >
+          <Hotel size={17} style={{ color: '#9A6B1A' }} />
         </div>
         {!collapsed && (
           <div className="overflow-hidden animate-fade-in">
-            <div className="text-sm font-bold text-white leading-tight truncate">
+            <div className="font-bold leading-tight truncate" style={{ color: '#2A1A0E', fontSize: '0.95rem' }}>
               {isPMS ? 'קבלה' : 'Hotel4U'}
             </div>
-            <div className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <div style={{ color: '#9A7A50', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em' }}>
               {isPMS ? 'PMS' : 'v2.0'}
             </div>
           </div>
@@ -176,21 +180,35 @@ export default function Sidebar({ collapsed }) {
       </nav>
 
       {/* Footer */}
-      <div className="border-t p-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="p-3" style={{ borderTop: '1px solid #DDD0BC', background: '#F5EFE5' }}>
         <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="avatar bg-brand/20 text-brand-light flex-shrink-0">
+          <div
+            className="flex-shrink-0 flex items-center justify-center font-bold rounded-xl"
+            style={{
+              width: 36, height: 36,
+              background: '#F0E4CC',
+              border: '1px solid #C8A870',
+              color: '#9A6B1A',
+              fontSize: '0.875rem',
+            }}
+          >
             {user?.name?.[0] || 'U'}
           </div>
           {!collapsed && (
             <div className="flex-1 overflow-hidden animate-fade-in">
-              <div className="text-xs font-semibold text-white/80 truncate">{user?.name || 'משתמש'}</div>
-              <div className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>{user?.role || ''}</div>
+              <div className="font-semibold truncate" style={{ color: '#2A1A0E', fontSize: '0.85rem' }}>
+                {user?.name || 'משתמש'}
+              </div>
+              <div style={{ color: '#7A5C42', fontSize: '0.72rem', fontWeight: 600 }}>
+                {user?.role || ''}
+              </div>
             </div>
           )}
           {!collapsed && (
             <button
               onClick={logout}
-              className="text-white/40 hover:text-white/80 transition-colors"
+              style={{ color: '#B8A080' }}
+              className="transition-colors hover:!text-red-600"
               title="יציאה"
             >
               <LogOut size={14} />

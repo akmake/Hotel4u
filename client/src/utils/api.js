@@ -174,7 +174,7 @@ export const reservations = {
       : (groupOrPayload || {});
     return api.post(`/reservations/${id}/link-group`, payload);
   },
-  assignRoom:       (id, roomId)    => api.patch(`/reservations/${id}/assign-room`, { roomId }),
+  assignRoom:       (id, roomId, adjustment) => api.patch(`/reservations/${id}/assign-room`, { roomId, ...adjustment }),
 
   // Communication
   sendWelcome:         (id) => api.post(`/reservations/${id}/send-welcome`, {}),
@@ -580,5 +580,10 @@ export const integrations = {
     update:        (id, data)    => api.patch(`/integrations/webhooks/${id}`, data),
     rotateSecret:  (id)          => api.post(`/integrations/webhooks/${id}/rotate-secret`, {}),
     remove:        (id)          => api.delete(`/integrations/webhooks/${id}`),
+  },
+  channelQueue: {
+    stats:        (propertyId)                 => api.get(`/integrations/channel-queue/stats?propertyId=${propertyId}`),
+    list:         (propertyId, status, limit)  => api.get(`/integrations/channel-queue?propertyId=${propertyId}${status ? `&status=${status}` : ''}${limit ? `&limit=${limit}` : ''}`),
+    requeueDead:  (propertyId)                 => api.post(`/integrations/channel-queue/requeue-dead`, { propertyId }),
   },
 };

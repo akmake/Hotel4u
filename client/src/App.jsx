@@ -72,6 +72,7 @@ const NightAuditPage       = lazy(() => import('./pages/NightAuditPage'));
 const BulkJobsPage              = lazy(() => import('./pages/BulkJobsPage'));
 const RatesPage                 = lazy(() => import('./pages/RatesPage'));
 const AutomationRulesPage       = lazy(() => import('./pages/AutomationRulesPage'));
+const ChannelManagerPage        = lazy(() => import('./pages/ChannelManagerPage'));
 const SettingsPage              = lazy(() => import('./pages/SettingsPage'));
 
 function PageLoader() {
@@ -198,6 +199,7 @@ export default function App() {
               <Route path="bulk-jobs"         element={<BulkJobsPage />} />
               <Route path="rates"             element={<RatesPage />} />
               <Route path="automation"        element={<AutomationRulesPage />} />
+              <Route path="channel-manager"   element={<ChannelManagerPage />} />
               <Route path="settings"          element={<SettingsPage />} />
             </Route>
 

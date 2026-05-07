@@ -9,6 +9,8 @@ import { assertPropertyScope } from '../middleware/authContext.js';
 import mongoose from 'mongoose';
 import IntegrationLog from '../models/IntegrationLog.js';
 import WebhookSubscription, { WEBHOOK_EVENTS } from '../models/WebhookSubscription.js';
+import ChannelUpdateQueue from '../models/ChannelUpdateQueue.js';
+import { getQueueStats, requeueDeadLetters } from '../services/channelQueueService.js';
 
 const router = Router();
 
@@ -174,6 +176,45 @@ router.delete('/webhooks/:id', asyncHandler(async (req, res) => {
   assertPropertyScope(req, String(sub.property));
   await sub.deleteOne();
   res.json({ success: true, data: { deleted: true } });
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Channel Queue (section 39)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/integrations/channel-queue/stats?propertyId=
+router.get('/channel-queue/stats', asyncHandler(async (req, res) => {
+  const { propertyId } = req.query;
+  assertPropertyScope(req, propertyId);
+  const stats = await getQueueStats(propertyId);
+  res.json({ success: true, data: stats });
+}));
+
+// GET /api/integrations/channel-queue?propertyId=&status=pending,failed,dead_letter&limit=50
+router.get('/channel-queue', asyncHandler(async (req, res) => {
+  const { propertyId, status, limit = 50 } = req.query;
+  assertPropertyScope(req, propertyId);
+
+  const filter = { property: propertyId };
+  if (status) {
+    const statuses = String(status).split(',').map(s => s.trim());
+    filter.status = { $in: statuses };
+  }
+
+  const items = await ChannelUpdateQueue.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(Math.min(Number(limit), 200))
+    .lean();
+
+  res.json({ success: true, data: items });
+}));
+
+// POST /api/integrations/channel-queue/requeue-dead?propertyId=
+router.post('/channel-queue/requeue-dead', asyncHandler(async (req, res) => {
+  const propertyId = req.body.propertyId || req.query.propertyId;
+  assertPropertyScope(req, propertyId);
+  const result = await requeueDeadLetters(propertyId);
+  res.json({ success: true, data: result });
 }));
 
 export default router;
