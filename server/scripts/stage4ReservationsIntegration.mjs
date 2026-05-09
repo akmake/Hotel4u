@@ -222,6 +222,7 @@ async function run() {
     createdReservationKFirstRoomId: null,
     createdReservationKAssignedRoomId: null,
     stage44AlternateRoomId: null,
+    stage44FallbackRoomId: null,
     stage44ExtendedDepartureDate: addDaysYmd(env.departureDate, 1),
     stage44UpdatedRatePerNight: Number(env.ratePerNight) + 55,
     createdReservationL: null,
@@ -240,10 +241,13 @@ async function run() {
     stage54MissingReservationId: randomObjectIdLike(),
     stage56JobId: null,
     stage56MissingReservationId: randomObjectIdLike(),
+    stage5227RetryJobId: null,
+    stage5227NoFailJobId: null,
     createdReservationN: null,
     createdReservationNFirstRoomId: null,
     createdReservationNAssignedRoomId: null,
     stage520AlternateRoomId: null,
+    stage520FallbackRoomId: null,
     stage520ArrivalDate: datePlus(48),
     stage520DepartureDate: datePlus(50),
     stage520ExtendedDepartureDate: datePlus(52),
@@ -1386,7 +1390,42 @@ async function run() {
           && ['clean', 'inspected'].includes(String(room.cleanStatus || '').toLowerCase())
           && String(room.occStatus || '').toLowerCase() !== 'occupied'
         ));
-        state.stage44AlternateRoomId = candidate?._id || state.createdReservationKAssignedRoomId || null;
+        state.stage44AlternateRoomId = candidate?._id || null;
+      },
+    },
+    {
+      id: 'S4.4-WRITE-CREATE-FALLBACK-ROOM-FOR-ASSIGN',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (ensureObjectIdLike(state.stage44AlternateRoomId)) return 'alternate room already available';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${env.baseUrl}/rooms`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          roomTypeId: ctx.roomTypeId,
+          number: `S440-${Date.now()}`,
+          floor: 98,
+          opsStatus: 'available',
+          cleanStatus: 'clean',
+          occStatus: 'vacant',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'fallback room create did not return room id';
+        return null;
+      },
+      capture: (r) => {
+        state.stage44FallbackRoomId = r.json?.data?._id || null;
+        if (ensureObjectIdLike(state.stage44FallbackRoomId)) {
+          state.stage44AlternateRoomId = state.stage44FallbackRoomId;
+        }
       },
     },
     {
@@ -2287,6 +2326,144 @@ async function run() {
       },
     },
     {
+      id: 'S5.8-LIST-HAS-FAILURES-FILTER',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&hasFailures=1&limit=20`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        if (!jobs.length) return 'expected at least one job with failures';
+        for (const j of jobs) {
+          if (Number(j.failed || 0) <= 0) return `expected failed>0 under hasFailures filter, got ${String(j.failed)}`;
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-PRESET-ACTIVE',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&preset=active&limit=20`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        for (const j of jobs) {
+          if (!['queued', 'running'].includes(String(j.status || ''))) {
+            return `expected active preset statuses queued/running, got ${String(j.status)}`;
+          }
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-PRESET-ACTIVE-CANCELABLE',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&preset=active_cancelable&limit=20`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        for (const j of jobs) {
+          if (!['queued', 'running'].includes(String(j.status || ''))) {
+            return `expected active-cancelable statuses queued/running, got ${String(j.status)}`;
+          }
+          if (j.cancelRequested) return 'expected cancelRequested=false under active_cancelable preset';
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-PRESET-FAILED',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&preset=failed&limit=20`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        if (!jobs.length) return 'expected at least one failed preset job';
+        for (const j of jobs) {
+          if (Number(j.failed || 0) <= 0) {
+            return `expected failed>0 under failed preset, got ${String(j.failed)}`;
+          }
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-PRESET-RETRYABLE-FAILURES',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&preset=retryable_failures&limit=20`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        if (!jobs.length) return 'expected at least one retryable-failures preset job';
+        for (const j of jobs) {
+          if (Number(j.failed || 0) <= 0) {
+            return `expected failed>0 under retryable_failures preset, got ${String(j.failed)}`;
+          }
+          if (!['completed', 'failed', 'cancelled'].includes(String(j.status || ''))) {
+            return `expected terminal status under retryable_failures preset, got ${String(j.status)}`;
+          }
+        }
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-LIST-PRESET-MINE',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs?propertyId=${ctx.propertyId}&preset=mine&limit=20`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const { jobs } = r.json?.data || {};
+        if (!Array.isArray(jobs)) return 'expected jobs array';
+        if (!jobs.length) return 'expected at least one mine preset job';
+        for (const j of jobs) {
+          if (String(j.actorId || '') !== String(ctx.adminUser._id || '')) {
+            return `mine preset actor mismatch: expected ${String(ctx.adminUser._id)}, got ${String(j.actorId)}`;
+          }
+        }
+        return null;
+      },
+    },
+    {
       id: 'S5.8-LIST-PAGINATION-LIMIT1',
       skip: () => {
         if (!ctx.adminToken) return 'admin token unavailable';
@@ -2325,6 +2502,224 @@ async function run() {
         if (jobs.length !== 0) return `expected 0 jobs for a future date range, got ${jobs.length}`;
         return null;
       },
+    },
+    {
+      id: 'S5.22.7-WRITE-RETRY-FAILED-ACCEPTED',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.stage56JobId)) return 'stage5.6 background job id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions/jobs/${state.stage56JobId}/retry-failed`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+        },
+      }),
+      expect: [202],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const data = r.json?.data || {};
+        if (data.mode !== 'background') return `expected mode=background, got ${String(data.mode)}`;
+        if (String(data.sourceJobId || '') !== String(state.stage56JobId)) {
+          return `expected sourceJobId=${state.stage56JobId}, got ${String(data.sourceJobId)}`;
+        }
+        if (Number(data.failedCount) !== 1) return `expected failedCount=1, got ${String(data.failedCount)}`;
+        if (!ensureObjectIdLike(data.job?.jobId)) return 'retry job id missing';
+        return null;
+      },
+      capture: (r) => { state.stage5227RetryJobId = r.json?.data?.job?.jobId || null; },
+    },
+    {
+      id: 'S5.22.7-VERIFY-RETRY-FAILED-COMPLETED',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.stage5227RetryJobId)) return 'stage5.22.7 retry job id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs/${state.stage5227RetryJobId}?propertyId=${encodeURIComponent(ctx.propertyId)}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: async (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+
+        const terminalStatuses = new Set(['completed', 'failed', 'cancelled']);
+        const jobUrl = `${baseReservations}/bulk-actions/jobs/${state.stage5227RetryJobId}?propertyId=${encodeURIComponent(ctx.propertyId)}&includeResults=1`;
+        let job = r.json?.data?.job || null;
+
+        for (let i = 0; i < 40; i++) {
+          if (job && terminalStatuses.has(String(job.status || ''))) break;
+          await waitMs(250);
+          const poll = await requestJson({
+            method: 'GET',
+            url: jobUrl,
+            token: ctx.adminToken,
+          });
+          if (poll.status !== 200) return `retry-failed job poll returned status ${poll.status}`;
+          const pollErr = assertSuccessEnvelope(poll);
+          if (pollErr) return `retry-failed poll envelope invalid: ${pollErr}`;
+          job = poll.json?.data?.job || null;
+        }
+
+        if (!job) return 'retry-failed job payload missing';
+        if (job.status !== 'completed') return `expected completed status, got ${String(job.status)}`;
+        if (Number(job.total) !== 1) return `expected job total=1, got ${String(job.total)}`;
+        if (Number(job.processed) !== 1) return `expected job processed=1, got ${String(job.processed)}`;
+        if (Number(job.succeeded) !== 0) return `expected job succeeded=0, got ${String(job.succeeded)}`;
+        if (Number(job.failed) !== 1) return `expected job failed=1, got ${String(job.failed)}`;
+        if (!Array.isArray(job.results) || job.results.length !== 1) return 'expected exactly 1 result row from retry-failed job';
+        if (String(job.results[0]?.reservationId || '') !== String(state.stage56MissingReservationId)) {
+          return 'retry-failed job reservationId mismatch';
+        }
+        if (job.results[0]?.success !== false) return 'expected failed retry row success=false';
+        return null;
+      },
+    },
+    {
+      id: 'S5.22.7-WRITE-BULK-BACKGROUND-ENQUEUE-SUCCESS-ONLY',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.createdReservationM)) return 'created reservation M unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          reservationIds: [state.createdReservationM],
+          action: 'send_confirmation',
+          background: true,
+        },
+      }),
+      expect: [202],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        if (!ensureObjectIdLike(r.json?.data?.job?.jobId)) return 'success-only background job id missing';
+        return null;
+      },
+      capture: (r) => { state.stage5227NoFailJobId = r.json?.data?.job?.jobId || null; },
+    },
+    {
+      id: 'S5.22.7-VERIFY-BULK-BACKGROUND-SUCCESS-ONLY-COMPLETED',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.stage5227NoFailJobId)) return 'stage5.22.7 success-only job id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/jobs/${state.stage5227NoFailJobId}?propertyId=${encodeURIComponent(ctx.propertyId)}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: async (r) => {
+        const envErr = assertSuccessEnvelope(r);
+        if (envErr) return envErr;
+
+        const terminalStatuses = new Set(['completed', 'failed', 'cancelled']);
+        const jobUrl = `${baseReservations}/bulk-actions/jobs/${state.stage5227NoFailJobId}?propertyId=${encodeURIComponent(ctx.propertyId)}&includeResults=1`;
+        let job = r.json?.data?.job || null;
+
+        for (let i = 0; i < 40; i++) {
+          if (job && terminalStatuses.has(String(job.status || ''))) break;
+          await waitMs(250);
+          const poll = await requestJson({
+            method: 'GET',
+            url: jobUrl,
+            token: ctx.adminToken,
+          });
+          if (poll.status !== 200) return `success-only job poll returned status ${poll.status}`;
+          const pollErr = assertSuccessEnvelope(poll);
+          if (pollErr) return `success-only poll envelope invalid: ${pollErr}`;
+          job = poll.json?.data?.job || null;
+        }
+
+        if (!job) return 'success-only job payload missing';
+        if (job.status !== 'completed') return `expected completed status, got ${String(job.status)}`;
+        if (Number(job.total) !== 1) return `expected job total=1, got ${String(job.total)}`;
+        if (Number(job.processed) !== 1) return `expected job processed=1, got ${String(job.processed)}`;
+        if (Number(job.succeeded) !== 1) return `expected job succeeded=1, got ${String(job.succeeded)}`;
+        if (Number(job.failed) !== 0) return `expected job failed=0, got ${String(job.failed)}`;
+        return null;
+      },
+    },
+    {
+      id: 'S5.22.7-VALIDATION-RETRY-FAILED-NO-FAILED-ROWS',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (!ensureObjectIdLike(state.stage5227NoFailJobId)) return 'stage5.22.7 success-only job id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions/jobs/${state.stage5227NoFailJobId}/retry-failed`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+        },
+      }),
+      expect: [409],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.23-RBAC-RESTRICTED-RETRY-FAILED-FORBIDDEN',
+      skip: () => {
+        if (!ctx.restrictedToken) return 'restricted token unavailable';
+        if (!ensureObjectIdLike(state.stage56JobId)) return 'stage5.6 background job id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions/jobs/${state.stage56JobId}/retry-failed`,
+        token: ctx.restrictedToken,
+        body: {
+          propertyId: ctx.propertyId,
+        },
+      }),
+      expect: [403],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.23-SCOPE-WRONG-TOKEN-RETRY-FAILED-FORBIDDEN',
+      skip: () => {
+        if (!ctx.forgedWrongPropertyToken) return 'wrong-property token unavailable';
+        if (!ensureObjectIdLike(state.stage56JobId)) return 'stage5.6 background job id unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions/jobs/${state.stage56JobId}/retry-failed`,
+        token: ctx.forgedWrongPropertyToken,
+        body: {
+          propertyId: ctx.propertyId,
+        },
+      }),
+      expect: [403],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.23-VALIDATION-RETRY-FAILED-JOB-NOT-FOUND',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'POST',
+        url: `${baseReservations}/bulk-actions/jobs/${randomObjectIdLike()}/retry-failed`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+        },
+      }),
+      expect: [404],
+      assert: (r) => assertFailureEnvelope(r),
     },
     {
       id: 'S5.20-WRITE-CREATE-N',
@@ -2413,6 +2808,41 @@ async function run() {
           && String(room.occStatus || '').toLowerCase() !== 'occupied'
         ));
         state.stage520AlternateRoomId = candidate?._id || null;
+      },
+    },
+    {
+      id: 'S5.20-WRITE-CREATE-FALLBACK-ROOM-FOR-MOVE',
+      skip: () => {
+        if (!ctx.adminToken) return 'admin token unavailable';
+        if (ensureObjectIdLike(state.stage520AlternateRoomId)) return 'alternate room already available';
+        return null;
+      },
+      build: () => ({
+        method: 'POST',
+        url: `${env.baseUrl}/rooms`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          roomTypeId: ctx.roomTypeId,
+          number: `S520-${Date.now()}`,
+          floor: 99,
+          opsStatus: 'available',
+          cleanStatus: 'clean',
+          occStatus: 'vacant',
+        },
+      }),
+      expect: [201],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        if (!ensureObjectIdLike(r.json?.data?._id)) return 'fallback room create did not return room id';
+        return null;
+      },
+      capture: (r) => {
+        state.stage520FallbackRoomId = r.json?.data?._id || null;
+        if (ensureObjectIdLike(state.stage520FallbackRoomId)) {
+          state.stage520AlternateRoomId = state.stage520FallbackRoomId;
+        }
       },
     },
     {
@@ -2605,6 +3035,18 @@ async function run() {
         url: `${baseReservations}/${reservationId}/cancel`,
         token: ctx.adminToken,
         body: { reason: 'stage4 cleanup' },
+      });
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+
+  if (ensureObjectIdLike(state.stage520FallbackRoomId)) {
+    try {
+      await requestJson({
+        method: 'DELETE',
+        url: `${env.baseUrl}/rooms/${state.stage520FallbackRoomId}`,
+        token: ctx.adminToken,
       });
     } catch {
       // ignore cleanup errors

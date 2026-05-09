@@ -1,10 +1,10 @@
 # מעקב התקדמות - מערכת הזמנות PMS
 
-תאריך עדכון: 6 במאי 2026
+תאריך עדכון: 8 במאי 2026
 
 ## סטטוס כללי
 - מצב: יציב ומסודר.
-- שלב נוכחי: Stage 4.2 הושלם (Integration + RBAC + Status + Split/Group + Routing/Transfers), עם Gate ב-CI.
+- שלב נוכחי: Stage 5.26 הושלם (Bulk Jobs quick triage presets + URL persistence), עם Gate ירוק מלא.
 
 ## מה הושלם
 1. מחקר עומק ותיעוד זרימות הזמנות מלא.
@@ -652,3 +652,103 @@
 - Validation:
   1. `node --check server/routes/reservations.js` passed.
   2. `npm --prefix client run build` passed.
+
+## Update 2026-05-08 - Stage 5.22.8 Retry-Failed UX + QA Coverage
+- Frontend (`client/src/pages/BulkJobsPage.jsx`):
+  1. `Retry Failed` availability widened from `status=failed` only to any terminal job with failed rows (`completed/failed/cancelled` + `failed > 0`).
+  2. This aligns UI behavior with backend retry semantics from Stage 5.22.7, so partially successful jobs can now retry failed rows directly.
+- Integration coverage (`server/scripts/stage4ReservationsIntegration.mjs`) expanded:
+  1. `S5.22.7-WRITE-RETRY-FAILED-ACCEPTED` - verifies `202` background retry creation from a source job with failed rows.
+  2. `S5.22.7-VERIFY-RETRY-FAILED-COMPLETED` - polls retry job to terminal state and validates per-row failure semantics.
+  3. `S5.22.7-WRITE-BULK-BACKGROUND-ENQUEUE-SUCCESS-ONLY` - creates background source job with zero failed rows.
+  4. `S5.22.7-VERIFY-BULK-BACKGROUND-SUCCESS-ONLY-COMPLETED` - validates completed success-only job.
+  5. `S5.22.7-VALIDATION-RETRY-FAILED-NO-FAILED-ROWS` - verifies `409` guard when no failed rows exist.
+- Validation:
+  1. `node --check server/scripts/stage4ReservationsIntegration.mjs` passed.
+  2. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.23: add integration coverage for `retry-failed` RBAC/property-scope denial paths (`403/404`) and expose a clear UI tooltip when retry is blocked by role.
+
+## Update 2026-05-08 - Stage 5.23 Retry-Failed Guardrails (RBAC/Scope) + Role Tooltip
+- Frontend (`client/src/pages/BulkJobsPage.jsx`):
+  1. Added explicit role-aware guard for `Retry Failed` action using PMS commercial roles set.
+  2. `Retry Failed` button now shows a clear tooltip when blocked by role: "אין הרשאה ל-Retry Failed (נדרשות הרשאות Front Desk/Commercial)".
+  3. Added permission-aware error handling in `handleRetryFailed(...)`:
+     - when backend returns permission denial (`403`/permission wording), operator now gets a clear Hebrew toast explaining missing permission scope.
+- Integration coverage (`server/scripts/stage4ReservationsIntegration.mjs`) expanded with Stage 5.23 guardrail tests:
+  1. `S5.23-RBAC-RESTRICTED-RETRY-FAILED-FORBIDDEN` - restricted actor gets `403`.
+  2. `S5.23-SCOPE-WRONG-TOKEN-RETRY-FAILED-FORBIDDEN` - wrong-property token gets `403`.
+  3. `S5.23-VALIDATION-RETRY-FAILED-JOB-NOT-FOUND` - unknown job id returns `404`.
+- Validation:
+  1. `node --check server/scripts/stage4ReservationsIntegration.mjs` passed.
+  2. `npm --prefix client run build` passed.
+- Recommended next step:
+  1. Stage 5.24: run full integration suite on a live local PMS server and lock a fresh green baseline (`PASS/FAIL/SKIP`) including the new Stage 5.23 tests.
+
+## Update 2026-05-08 - Stage 5.24 Full Integration Baseline Re-Lock
+- Runtime execution:
+  1. Brought up local PMS server on `:4000`.
+  2. Executed full reservations integration suite (`npm --prefix server run qa:reservations:integration`) against live API.
+  3. Included all previous stages + newly added Stage 5.23 guardrail tests in one run.
+- Result:
+  1. Summary: `PASS=103 FAIL=0 SKIP=0`.
+  2. New Stage 5.23 tests passed in baseline run:
+     - `S5.23-RBAC-RESTRICTED-RETRY-FAILED-FORBIDDEN`
+     - `S5.23-SCOPE-WRONG-TOKEN-RETRY-FAILED-FORBIDDEN`
+     - `S5.23-VALIDATION-RETRY-FAILED-JOB-NOT-FOUND`
+- Recommended next step:
+  1. Stage 5.25: continue UI implementation acceleration milestones with mandatory full-suite rerun after each milestone to keep `PASS=103` (or higher) baseline intact.
+
+## Update 2026-05-08 - Stage 5.25 Bulk Jobs Failed-Only Filter + Baseline Stability
+- Backend (`server/routes/reservations.js`):
+  1. Extended bulk jobs list endpoint with optional `hasFailures=1` filter.
+  2. `focusJobId` matching logic now respects failed-only mode as part of filter evaluation.
+- Frontend API + UI:
+  1. `client/src/utils/api.js` `reservations.bulkJobsList(...)` now forwards `hasFailures`.
+  2. `client/src/pages/BulkJobsPage.jsx` added operator toggle filter: "רק עם כשלים".
+  3. Clear-filters and focus auto-align flows updated to reset failed-only mode predictably.
+- Integration coverage (`server/scripts/stage4ReservationsIntegration.mjs`):
+  1. Added `S5.8-LIST-HAS-FAILURES-FILTER` to validate server-side failed-only list behavior.
+  2. Hardened Stage 5.20 move flow against runtime data variance:
+     - added fallback room auto-create when no alternate room exists
+     - added cleanup for fallback room
+  3. This removed runtime flakiness that previously produced intermittent Stage 5.20 SKIPs.
+- Validation:
+  1. `node --check server/routes/reservations.js` passed.
+  2. `node --check server/scripts/stage4ReservationsIntegration.mjs` passed.
+  3. `npm --prefix client run build` passed.
+  4. Full integration suite rerun on live local PMS server:
+     - `PASS=105 FAIL=0 SKIP=0`.
+- Recommended next step:
+  1. Stage 5.26: add bulk-jobs quick triage presets (Active / Failed / My Jobs) with URL persistence and keep full-suite rerun as release gate.
+
+## Update 2026-05-09 - Stage 5.26 Bulk Jobs Quick Triage Presets + URL Persistence
+- Backend (`server/routes/reservations.js`):
+  1. Extended `GET /api/pms/reservations/bulk-actions/jobs` with `preset=active|failed|mine`.
+  2. `active` preset filters to `queued/running`.
+  3. `failed` preset filters to jobs with `failed > 0`.
+  4. `mine` preset scopes to current actor id with property-scope guardrails preserved.
+  5. `focusJobId` matching logic now also respects preset and failed-only filters.
+- Frontend API (`client/src/utils/api.js`):
+  1. `reservations.bulkJobsList(...)` now forwards `preset` query param.
+- Frontend UI (`client/src/pages/BulkJobsPage.jsx`):
+  1. Added quick triage preset bar: `Active`, `Failed`, `My Jobs`.
+  2. Preset selection is URL-persisted (`?preset=...`) and supports refresh/back/forward.
+  3. Manual filters automatically clear preset mode (explicit filter intent wins).
+  4. Focused-job handoff (`jobId`) remains compatible while preserving preset query state.
+  5. Existing role-aware `Retry Failed` guard remains in place across preset modes.
+- Integration coverage (`server/scripts/stage4ReservationsIntegration.mjs`):
+  1. Added preset regression tests:
+     - `S5.8-LIST-PRESET-ACTIVE`
+     - `S5.8-LIST-PRESET-FAILED`
+     - `S5.8-LIST-PRESET-MINE`
+  2. Kept `hasFailures` coverage (`S5.8-LIST-HAS-FAILURES-FILTER`) and existing bulk-jobs list validations.
+  3. Stability hardening retained for Stage 5.20 room-move fallback setup/cleanup to avoid flaky skips.
+- Validation:
+  1. `node --check server/routes/reservations.js` passed.
+  2. `node --check server/scripts/stage4ReservationsIntegration.mjs` passed.
+  3. `npm --prefix client run build` passed (executed outside sandbox due Vite/esbuild parent-directory access in this environment).
+  4. Full integration suite rerun against live local PMS API completed green:
+     - `PASS=109 FAIL=0 SKIP=0`.
+- Recommended next step:
+  1. Stage 5.27: add operator triage presets for "Cancelable Active" and "Retryable Failures" plus URL-sharable filter bundles for team handoff.

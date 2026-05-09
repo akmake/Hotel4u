@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useToast } from '../hooks/useToast';
+import { useAuthStore } from '../stores/authStore';
 import { reservations as reservationsApi } from '../utils/api';
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
@@ -32,6 +33,9 @@ const STATUS_CFG = {
 };
 
 const ACTIVE_STATUSES = new Set(['queued', 'running']);
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+const COMMERCIAL_ROLES = new Set(['super_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'revenue_manager', 'sales_manager']);
+const TRIAGE_PRESETS = new Set(['active', 'active_cancelable', 'failed', 'retryable_failures', 'mine']);
 const POLL_INTERVAL_MS = 4000;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -56,6 +60,19 @@ function fmtDuration(job) {
 
 function shortId(id) {
   return id ? `…${String(id).slice(-6)}` : '—';
+}
+
+function isPermissionErrorMessage(message) {
+  const text = String(message || '').toLowerCase();
+  return text.includes('permission')
+    || text.includes('forbidden')
+    || text.includes('insufficient')
+    || text.includes('403');
+}
+
+function normalizePreset(value) {
+  const v = String(value || '').toLowerCase();
+  return TRIAGE_PRESETS.has(v) ? v : '';
 }
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
@@ -165,12 +182,26 @@ function JobResultsPanel({ jobId, propertyId }) {
 
 // ── Job Row ───────────────────────────────────────────────────────────────────
 
-function JobRow({ job, propertyId, onCancel, onRetry, onRetryFailed, busy = false, autoExpand = false, highlighted = false }) {
+function JobRow({
+  job,
+  propertyId,
+  onCancel,
+  onRetry,
+  onRetryFailed,
+  busy = false,
+  autoExpand = false,
+  highlighted = false,
+  retryFailedRoleBlocked = false,
+}) {
   const [expanded, setExpanded] = useState(false);
   const isActive   = ACTIVE_STATUSES.has(job.status);
   const canCancel  = ACTIVE_STATUSES.has(job.status) && !job.cancelRequested;
   const canRetry   = job.status === 'failed';
-  const canRetryFailed = canRetry && Number(job.failed || 0) > 0;
+  const canRetryFailed = TERMINAL_STATUSES.has(job.status) && Number(job.failed || 0) > 0;
+  const retryFailedBlocked = canRetryFailed && retryFailedRoleBlocked;
+  const retryFailedTitle = retryFailedBlocked
+    ? 'אין הרשאה ל-Retry Failed (נדרשות הרשאות Front Desk/Commercial)'
+    : 'Retry failed reservations only';
 
   useEffect(() => {
     if (autoExpand) setExpanded(true);
@@ -233,9 +264,9 @@ function JobRow({ job, propertyId, onCancel, onRetry, onRetryFailed, busy = fals
             {canRetryFailed && (
               <button
                 onClick={() => onRetryFailed(job)}
-                disabled={busy}
+                disabled={busy || retryFailedBlocked}
                 className="btn-ghost text-xs text-violet-700 hover:bg-violet-50 px-2 py-1 rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Retry failed reservations only"
+                title={retryFailedTitle}
               >
                 <RotateCcw size={13}/> Retry Failed
               </button>
@@ -261,8 +292,37 @@ function JobRow({ job, propertyId, onCancel, onRetry, onRetryFailed, busy = fals
 
 // ── Filter Bar ────────────────────────────────────────────────────────────────
 
+function PresetBar({ preset, onApply }) {
+  const items = [
+    { id: 'active', label: 'פעילות', title: 'Queued + Running' },
+    { id: 'active_cancelable', label: 'פעיל לביטול', title: 'Queued/Running and not cancel-requested' },
+    { id: 'failed', label: 'נכשלו', title: 'Jobs with failed rows' },
+    { id: 'retryable_failures', label: 'מוכן ל-Retry', title: 'Terminal jobs with failed rows' },
+    { id: 'mine', label: 'שלי', title: 'Only jobs created by me' },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 p-3 bg-surface rounded-xl border border-surface-border" dir="rtl">
+      <span className="text-xs font-semibold text-ink-secondary">סינון מהיר:</span>
+      {items.map((item) => {
+        const active = preset === item.id;
+        return (
+          <button
+            key={item.id}
+            onClick={() => onApply(active ? '' : item.id)}
+            className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${active ? 'border-indigo-300 text-indigo-700 bg-indigo-50' : 'border-surface-border text-ink-secondary hover:bg-surface-muted/50'}`}
+            title={item.title}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function FilterBar({ filters, onChange }) {
-  function set(k, v) { onChange({ ...filters, [k]: v, page: 1 }); }
+  function set(k, v) { onChange({ ...filters, [k]: v, preset: '', page: 1 }); }
 
   return (
     <div className="flex flex-wrap items-center gap-3 p-4 bg-surface rounded-xl border border-surface-border" dir="rtl">
@@ -312,10 +372,18 @@ function FilterBar({ filters, onChange }) {
         />
       </div>
 
+      <button
+        onClick={() => set('hasFailures', !filters.hasFailures)}
+        className={`btn-ghost text-xs px-2.5 py-1.5 rounded-lg border ${filters.hasFailures ? 'border-red-300 text-red-700 bg-red-50' : 'border-surface-border text-ink-secondary'}`}
+        title="הצג רק עבודות עם כשלים"
+      >
+        רק עם כשלים
+      </button>
+
       {/* Clear */}
-      {(filters.status || filters.action || filters.from || filters.to) && (
+      {(filters.status || filters.action || filters.from || filters.to || filters.hasFailures || filters.preset) && (
         <button
-          onClick={() => onChange({ page: 1, limit: filters.limit })}
+          onClick={() => onChange({ page: 1, limit: filters.limit, hasFailures: false, preset: '' })}
           className="btn-ghost text-xs text-ink-secondary flex items-center gap-1 px-2 py-1.5 rounded-lg"
         >
           <X size={12}/> נקה פילטרים
@@ -363,9 +431,15 @@ export default function BulkJobsPage() {
   const { search } = useLocation();
   const navigate = useNavigate();
   const { propertyId } = useProperty();
+  const userRole = useAuthStore((s) => s.user?.role || '');
   const { toasts, success, error: toastError } = useToast();
 
-  const [filters,    setFilters]    = useState({ page: 1, limit: 20 });
+  const [filters,    setFilters]    = useState(() => ({
+    page: 1,
+    limit: 20,
+    hasFailures: false,
+    preset: normalizePreset(new URLSearchParams(search).get('preset')),
+  }));
   const [jobs,       setJobs]       = useState([]);
   const [pagination, setPagination] = useState(null);
   const [loading,    setLoading]    = useState(true);
@@ -380,6 +454,7 @@ export default function BulkJobsPage() {
   const filtersRef  = useRef(filters);
   const focusFilterAutoAppliedRef = useRef(new Set());
   filtersRef.current = filters;
+  const presetFromUrl = useMemo(() => normalizePreset(new URLSearchParams(search).get('preset')), [search]);
   const focusJobId = useMemo(() => {
     const value = new URLSearchParams(search).get('jobId');
     return value ? String(value) : '';
@@ -445,11 +520,31 @@ export default function BulkJobsPage() {
     }
   }, [focusJobId, propertyId]);
 
+  // Keep preset in sync with URL (supports refresh/back/forward persistence)
+  useEffect(() => {
+    setFilters((prev) => {
+      if (normalizePreset(prev.preset) === presetFromUrl) return prev;
+      return { ...prev, preset: presetFromUrl, page: 1 };
+    });
+  }, [presetFromUrl]);
+
+  // Persist preset to URL
+  useEffect(() => {
+    const current = normalizePreset(new URLSearchParams(search).get('preset'));
+    const nextPreset = normalizePreset(filters.preset);
+    if (current === nextPreset) return;
+    const params = new URLSearchParams(search);
+    if (nextPreset) params.set('preset', nextPreset);
+    else params.delete('preset');
+    const qs = params.toString();
+    navigate(`/pms/bulk-jobs${qs ? `?${qs}` : ''}`, { replace: true });
+  }, [filters.preset, navigate, search]);
+
   // Initial fetch + re-fetch on filter change
   useEffect(() => {
     fetchJobs({ filters });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchJobs, filters.page, filters.limit, filters.status, filters.action, filters.from, filters.to]);
+  }, [fetchJobs, filters.page, filters.limit, filters.status, filters.action, filters.from, filters.to, filters.hasFailures, filters.preset]);
 
   useEffect(() => {
     fetchFocusedJob({});
@@ -495,8 +590,28 @@ export default function BulkJobsPage() {
   function focusOnJob(jobId) {
     if (!jobId) return false;
     const next = String(jobId);
-    navigate(`/pms/bulk-jobs?jobId=${encodeURIComponent(next)}`, { replace: true });
+    const params = new URLSearchParams(search);
+    params.set('jobId', next);
+    const normalizedPreset = normalizePreset(filters.preset);
+    if (normalizedPreset) params.set('preset', normalizedPreset);
+    else params.delete('preset');
+    const qs = params.toString();
+    navigate(`/pms/bulk-jobs${qs ? `?${qs}` : ''}`, { replace: true });
     return true;
+  }
+
+  function applyPreset(presetId) {
+    const normalized = normalizePreset(presetId);
+    setFilters((prev) => ({
+      ...prev,
+      preset: normalized,
+      status: '',
+      action: '',
+      from: '',
+      to: '',
+      hasFailures: false,
+      page: 1,
+    }));
   }
 
   async function handleCancel(jobId) {
@@ -558,11 +673,16 @@ export default function BulkJobsPage() {
         ]);
       }
     } catch (e) {
+      if (isPermissionErrorMessage(e.message)) {
+        toastError('אין הרשאה לבצע Retry Failed. נדרשות הרשאות Front Desk/Commercial.');
+        return;
+      }
       toastError(e.message || 'Retry Failed error');
     } finally {
       setBusy(job.jobId, false);
     }
   }
+  const retryFailedRoleBlocked = Boolean(userRole && !COMMERCIAL_ROLES.has(userRole));
 
   const activeCount = useMemo(() => {
     const activeIds = new Set(
@@ -591,10 +711,12 @@ export default function BulkJobsPage() {
     setFilters((prev) => {
       const next = {
         ...prev,
+        preset: '',
         status: nextStatus,
         action: nextAction,
         from: '',
         to: '',
+        hasFailures: false,
         page: 1,
       };
       const unchanged = (
@@ -602,6 +724,7 @@ export default function BulkJobsPage() {
         && prev.action === next.action
         && (prev.from || '') === (next.from || '')
         && (prev.to || '') === (next.to || '')
+        && Boolean(prev.hasFailures) === Boolean(next.hasFailures)
         && Number(prev.page || 1) === Number(next.page || 1)
       );
       return unchanged ? prev : next;
@@ -644,7 +767,12 @@ export default function BulkJobsPage() {
         <div className="flex items-center gap-2">
           {focusJobId && (
             <button
-              onClick={() => navigate('/pms/bulk-jobs', { replace: true })}
+              onClick={() => {
+                const params = new URLSearchParams(search);
+                params.delete('jobId');
+                const qs = params.toString();
+                navigate(`/pms/bulk-jobs${qs ? `?${qs}` : ''}`, { replace: true });
+              }}
               className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg"
               title="נקה מיקוד משימה"
             >
@@ -670,8 +798,13 @@ export default function BulkJobsPage() {
         </div>
       </div>
 
+      {/* Preset bar */}
+      <PresetBar preset={normalizePreset(filters.preset)} onApply={applyPreset} />
+
       {/* Filter bar */}
-      <FilterBar filters={filters} onChange={setFilters} />
+      <div className="mt-3">
+        <FilterBar filters={filters} onChange={setFilters} />
+      </div>
 
       {focusJobId && !loading && !focusedJobLoading && !focusedJob && focusedJobError && (
         <div className="card mt-4 px-4 py-3 text-sm border border-red-200 bg-red-50/60 text-red-700">
@@ -684,7 +817,7 @@ export default function BulkJobsPage() {
           המשימה {shortId(focusJobId)} לא נמצאה בעמוד הנוכחי או תחת המסננים הפעילים.
           <button
             className="btn btn-ghost btn-sm mr-2"
-            onClick={() => setFilters({ page: 1, limit: 20 })}
+            onClick={() => setFilters({ page: 1, limit: 20, hasFailures: false, preset: '' })}
           >
             נקה מסננים
           </button>
@@ -729,6 +862,7 @@ export default function BulkJobsPage() {
                   busy={actionBusy.has(focusedJob.jobId)}
                   autoExpand
                   highlighted
+                  retryFailedRoleBlocked={retryFailedRoleBlocked}
                 />
               </tbody>
             </table>
@@ -775,6 +909,7 @@ export default function BulkJobsPage() {
                       busy={actionBusy.has(job.jobId)}
                       autoExpand={focusInTable && String(job.jobId) === String(focusJobId)}
                       highlighted={focusInTable && String(job.jobId) === String(focusJobId)}
+                      retryFailedRoleBlocked={retryFailedRoleBlocked}
                     />
                   ))}
                 </tbody>

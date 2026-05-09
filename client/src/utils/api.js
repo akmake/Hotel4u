@@ -132,12 +132,14 @@ export const reservations = {
     api.post('/reservations/merge', { targetReservationId, sourceReservationId, transferCharges }),
   bulkActions:      (data)           => api.post('/reservations/bulk-actions', data),
   bulkJobsList:     (propertyId, filters = {}) => {
-    const { status, action, from, to, focusJobId, page = 1, limit = 20 } = filters;
+    const { preset, status, action, from, to, hasFailures, focusJobId, page = 1, limit = 20 } = filters;
     const q = new URLSearchParams({ propertyId, page, limit });
+    if (preset) q.set('preset', preset);
     if (status) q.set('status', status);
     if (action) q.set('action', action);
     if (from)   q.set('from', from);
     if (to)     q.set('to', to);
+    if (hasFailures) q.set('hasFailures', '1');
     if (focusJobId) q.set('focusJobId', focusJobId);
     return api.get(`/reservations/bulk-actions/jobs?${q.toString()}`);
   },

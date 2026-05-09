@@ -934,16 +934,18 @@ router.post('/bulk-actions', asyncHandler(async (req, res) => {
   });
 }));
 
-// GET /api/reservations/bulk-actions/jobs?propertyId=&status=&action=&from=&to=&page=1&limit=20
+// GET /api/reservations/bulk-actions/jobs?propertyId=&preset=active|active_cancelable|failed|retryable_failures|mine&status=&action=&from=&to=&hasFailures=1&page=1&limit=20
 router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');
 
   const {
     propertyId,
+    preset,
     status,
     action,
     from,
     to,
+    hasFailures,
     focusJobId,
     page = '1',
     limit = '20',
@@ -955,6 +957,25 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
   assertPropertyScope(req, propertyId);
 
   const filter = { property: propertyId };
+  const presetValue = String(preset || '').toLowerCase();
+
+  if (presetValue === 'active') {
+    filter.status = { $in: ['queued', 'running'] };
+  } else if (presetValue === 'active_cancelable') {
+    filter.status = { $in: ['queued', 'running'] };
+    filter.cancelRequested = { $ne: true };
+  } else if (presetValue === 'failed') {
+    filter.failed = { $gt: 0 };
+  } else if (presetValue === 'retryable_failures') {
+    filter.status = { $in: [...BULK_ACTION_TERMINAL_STATUSES] };
+    filter.failed = { $gt: 0 };
+  } else if (presetValue === 'mine') {
+    const actorId = req.actor?.id ? String(req.actor.id) : '';
+    if (!isObjectIdLike(actorId)) {
+      return res.status(400).json({ success: false, error: 'Actor id unavailable for mine preset' });
+    }
+    filter.actor = actorId;
+  }
 
   if (status) {
     const statuses = String(status).split(',').map(s => s.trim()).filter(Boolean);
@@ -979,6 +1000,10 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
     }
   }
 
+  if (isTruthyFlag(hasFailures)) {
+    filter.failed = { $gt: 0 };
+  }
+
   const pageNum  = Math.max(1, parseInt(page, 10)  || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
   const skip     = (pageNum - 1) * limitNum;
@@ -990,7 +1015,7 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
       focus = { jobId: focusId, notFound: true, matchesFilters: false, inPage: false, page: null };
     } else {
       const focusJob = await BulkActionJob.findById(focusId)
-        .select('_id property status action queuedAt')
+        .select('_id property actor status action failed cancelRequested queuedAt')
         .lean();
 
       if (!focusJob || String(focusJob.property) !== String(propertyId)) {
@@ -998,12 +1023,21 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
       } else {
         const matchesStatus = !filter.status || filter.status.$in.includes(focusJob.status);
         const matchesAction = !filter.action || filter.action.$in.includes(focusJob.action);
+        const matchesActor = !filter.actor || String(focusJob.actor || '') === String(filter.actor);
+        const matchesFailures = !filter.failed || Number(focusJob.failed || 0) > 0;
+        const matchesCancelable = !filter.cancelRequested || !Boolean(focusJob.cancelRequested);
         const queuedAt = new Date(focusJob.queuedAt);
         const gte = filter.queuedAt?.$gte ? new Date(filter.queuedAt.$gte) : null;
         const lte = filter.queuedAt?.$lte ? new Date(filter.queuedAt.$lte) : null;
         const matchesFrom = !gte || queuedAt >= gte;
         const matchesTo = !lte || queuedAt <= lte;
-        const matchesFilters = matchesStatus && matchesAction && matchesFrom && matchesTo;
+        const matchesFilters = matchesStatus
+          && matchesAction
+          && matchesActor
+          && matchesFailures
+          && matchesCancelable
+          && matchesFrom
+          && matchesTo;
 
         if (!matchesFilters) {
           focus = { jobId: String(focusJob._id), notFound: false, matchesFilters: false, inPage: false, page: null };
