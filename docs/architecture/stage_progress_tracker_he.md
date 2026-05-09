@@ -1,10 +1,10 @@
 # מעקב התקדמות - מערכת הזמנות PMS
 
-תאריך עדכון: 9 במאי 2026
+תאריך עדכון: 10 במאי 2026
 
 ## סטטוס כללי
 - מצב: יציב ומסודר.
-- שלב נוכחי: Stage 5.28 הושלם (Bulk Jobs personal saved preset), עם Gate ירוק מלא.
+- שלב נוכחי: Stage 5.29 הושלם (Bulk Jobs named filter bundles), עם Gate ירוק מלא.
 
 ## מה הושלם
 1. מחקר עומק ותיעוד זרימות הזמנות מלא.
@@ -809,4 +809,33 @@
   5. Full integration suite rerun on live local PMS server:
      - `PASS=117 FAIL=0 SKIP=0`.
 - Recommended next step:
-  1. Stage 5.29: allow saving full filter bundles (preset + status/action/date/hasFailures) as named operator shortcuts.
+  1. Stage 5.30: add one-click “Share bundle” links (URL payload) and team-level shared bundles per property.
+
+## Update 2026-05-10 - Stage 5.29 Bulk Jobs Named Filter Bundles
+- Backend:
+  1. Extended user preference model with property-scoped named bundles:
+     - `server/models/User.js` -> `uiPreferences.bulkJobsFilterBundlesByProperty`.
+  2. Extended preferences API in `server/routes/reservations.js`:
+     - `GET /api/pms/reservations/bulk-actions/preferences?propertyId=...` now returns `filterBundles`.
+     - `PUT /api/pms/reservations/bulk-actions/preferences` now supports updating `filterBundles` alongside `defaultPreset`.
+  3. Added strict server-side validation/normalization for bundle payloads:
+     - max bundles per operator/property
+     - max bundle name length
+     - normalized filter fields (`preset/status/action/from/to/hasFailures`).
+- Frontend API:
+  1. `client/src/utils/api.js` updated:
+     - `reservations.saveBulkJobsPreferences(propertyId, defaultPreset, filterBundles)` now supports bundle persistence.
+- Frontend UI (`client/src/pages/BulkJobsPage.jsx`):
+  1. Added named filter shortcuts section:
+     - save current filters as named shortcut
+     - update existing shortcut by name
+     - one-click apply shortcut
+     - delete shortcut
+  2. Bundle list now loads from the same personal preferences payload.
+  3. Existing personal default-preset flow remains intact and now coexists with named bundles.
+- Integration coverage (`server/scripts/stage4ReservationsIntegration.mjs`):
+  1. Added Stage 5.29 preference tests:
+     - set bundles
+     - verify bundles on read
+     - validation failure on oversized bundle name
+     - baseline restore with both default preset and bundles.

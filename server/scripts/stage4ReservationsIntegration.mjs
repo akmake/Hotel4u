@@ -242,6 +242,7 @@ async function run() {
     stage56JobId: null,
     stage56MissingReservationId: randomObjectIdLike(),
     stage58OriginalDefaultPreset: '',
+    stage58OriginalFilterBundles: [],
     stage5227RetryJobId: null,
     stage5227NoFailJobId: null,
     createdReservationN: null,
@@ -2292,9 +2293,15 @@ async function run() {
         if (err) return err;
         const preset = r.json?.data?.defaultPreset;
         if (typeof preset !== 'string') return `expected defaultPreset string, got ${typeof preset}`;
+        if (!Array.isArray(r.json?.data?.filterBundles)) return 'expected filterBundles array';
         return null;
       },
-      capture: (r) => { state.stage58OriginalDefaultPreset = String(r.json?.data?.defaultPreset || ''); },
+      capture: (r) => {
+        state.stage58OriginalDefaultPreset = String(r.json?.data?.defaultPreset || '');
+        state.stage58OriginalFilterBundles = Array.isArray(r.json?.data?.filterBundles)
+          ? r.json.data.filterBundles
+          : [];
+      },
     },
     {
       id: 'S5.8-PREFS-SET-RETRYABLE-FAILURES',
@@ -2335,6 +2342,101 @@ async function run() {
       },
     },
     {
+      id: 'S5.29-PREFS-SET-FILTER-BUNDLES',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'PUT',
+        url: `${baseReservations}/bulk-actions/preferences`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          defaultPreset: 'retryable_failures',
+          filterBundles: [
+            {
+              name: 'כשלים פתוחים',
+              filters: {
+                preset: 'retryable_failures',
+                status: 'failed',
+                action: 'cancel',
+                hasFailures: true,
+              },
+            },
+            {
+              name: 'שלי להיום',
+              filters: {
+                preset: 'mine',
+                from: datePlus(0),
+                to: datePlus(0),
+              },
+            },
+          ],
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const preset = String(r.json?.data?.defaultPreset || '');
+        if (preset !== 'retryable_failures') return `expected retryable_failures, got ${preset}`;
+        const bundles = r.json?.data?.filterBundles;
+        if (!Array.isArray(bundles) || bundles.length !== 2) {
+          return `expected exactly 2 filterBundles, got ${Array.isArray(bundles) ? bundles.length : 'non-array'}`;
+        }
+        const first = bundles[0] || {};
+        if (String(first.name || '') !== 'כשלים פתוחים') return `unexpected first bundle name: ${String(first.name || '')}`;
+        if (String(first.filters?.preset || '') !== 'retryable_failures') return 'first bundle preset mismatch';
+        if (String(first.filters?.status || '') !== 'failed') return 'first bundle status mismatch';
+        if (String(first.filters?.action || '') !== 'cancel') return 'first bundle action mismatch';
+        if (!first.filters?.hasFailures) return 'first bundle hasFailures expected true';
+        return null;
+      },
+    },
+    {
+      id: 'S5.29-PREFS-GET-VERIFY-FILTER-BUNDLES',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/preferences?propertyId=${ctx.propertyId}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const bundles = r.json?.data?.filterBundles;
+        if (!Array.isArray(bundles) || bundles.length !== 2) return 'expected 2 bundles after verify fetch';
+        if (!bundles.every((bundle) => typeof bundle.id === 'string' && bundle.id.trim())) {
+          return 'expected every bundle to include non-empty id';
+        }
+        const mineBundle = bundles.find((bundle) => String(bundle.name || '') === 'שלי להיום');
+        if (!mineBundle) return 'missing "שלי להיום" bundle';
+        if (String(mineBundle.filters?.preset || '') !== 'mine') return 'mine bundle preset mismatch';
+        if (String(mineBundle.filters?.from || '') !== datePlus(0)) return 'mine bundle from mismatch';
+        if (String(mineBundle.filters?.to || '') !== datePlus(0)) return 'mine bundle to mismatch';
+        return null;
+      },
+    },
+    {
+      id: 'S5.29-PREFS-VALIDATION-BUNDLE-NAME-TOO-LONG',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'PUT',
+        url: `${baseReservations}/bulk-actions/preferences`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          filterBundles: [
+            {
+              name: 'x'.repeat(65),
+              filters: { preset: 'active' },
+            },
+          ],
+        },
+      }),
+      expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
       id: 'S5.8-PREFS-VALIDATION-INVALID-PRESET',
       skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
       build: () => ({
@@ -2359,6 +2461,9 @@ async function run() {
         body: {
           propertyId: ctx.propertyId,
           defaultPreset: state.stage58OriginalDefaultPreset || '',
+          filterBundles: Array.isArray(state.stage58OriginalFilterBundles)
+            ? state.stage58OriginalFilterBundles
+            : [],
         },
       }),
       expect: [200],
@@ -2368,6 +2473,7 @@ async function run() {
         const expected = String(state.stage58OriginalDefaultPreset || '');
         const actual = String(r.json?.data?.defaultPreset || '');
         if (actual !== expected) return `expected restored preset ${expected || '<empty>'}, got ${actual || '<empty>'}`;
+        if (!Array.isArray(r.json?.data?.filterBundles)) return 'expected restored filterBundles array';
         return null;
       },
     },

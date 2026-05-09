@@ -46,6 +46,10 @@ const BULK_ACTION_RUNNING_STALE_MS = Math.max(60 * 1000, Number(process.env.BULK
 const BULK_ACTION_MAX_ITEMS = 300;
 const BULK_ACTION_TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 const BULK_JOBS_PRESETS_ALLOWED = new Set(['active', 'active_cancelable', 'failed', 'retryable_failures', 'mine']);
+const BULK_JOBS_STATUS_FILTERS_ALLOWED = new Set(['queued', 'running', 'completed', 'failed', 'cancelled']);
+const BULK_JOBS_MAX_FILTER_BUNDLES = 12;
+const BULK_JOBS_MAX_FILTER_BUNDLE_NAME = 40;
+const BULK_JOBS_FILTER_BUNDLE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const asyncHandler = (fn) => async (req, res, next) => {
   try {
@@ -159,6 +163,120 @@ function isTruthyFlag(value) {
 function normalizeBulkJobsPreset(value = '') {
   const normalized = String(value || '').toLowerCase().trim();
   return BULK_JOBS_PRESETS_ALLOWED.has(normalized) ? normalized : '';
+}
+
+function normalizeBulkJobsStatusFilterValue(value = '') {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .split(',')
+    .map((token) => token.trim())
+    .find((token) => BULK_JOBS_STATUS_FILTERS_ALLOWED.has(token));
+  return normalized || '';
+}
+
+function normalizeBulkJobsActionFilterValue(value = '') {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .split(',')
+    .map((token) => token.trim())
+    .find((token) => BULK_ACTIONS_SUPPORTED.has(token));
+  return normalized || '';
+}
+
+function normalizeBulkJobsDateFilterValue(value = '') {
+  const normalized = String(value || '').trim();
+  return BULK_JOBS_FILTER_BUNDLE_DATE_RE.test(normalized) ? normalized : '';
+}
+
+function normalizeBulkJobsBundleFilters(value = {}) {
+  const data = value && typeof value === 'object' ? value : {};
+  return {
+    preset: normalizeBulkJobsPreset(data.preset),
+    status: normalizeBulkJobsStatusFilterValue(data.status),
+    action: normalizeBulkJobsActionFilterValue(data.action),
+    from: normalizeBulkJobsDateFilterValue(data.from),
+    to: normalizeBulkJobsDateFilterValue(data.to),
+    hasFailures: isTruthyFlag(data.hasFailures) || data.hasFailures === true,
+  };
+}
+
+function generateBulkJobsBundleId() {
+  return `bundle_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeStoredBulkJobsFilterBundles(rawBundles = []) {
+  const source = Array.isArray(rawBundles) ? rawBundles : [];
+  const result = [];
+  const seenIds = new Set();
+
+  for (const row of source) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    const name = String(row.name || '').trim();
+    if (!name) continue;
+
+    let id = String(row.id || '').trim();
+    if (!id || seenIds.has(id)) {
+      id = generateBulkJobsBundleId();
+    }
+    seenIds.add(id);
+
+    const updatedAt = new Date(row.updatedAt || Date.now());
+    result.push({
+      id,
+      name: name.slice(0, BULK_JOBS_MAX_FILTER_BUNDLE_NAME),
+      filters: normalizeBulkJobsBundleFilters(row.filters || {}),
+      updatedAt: Number.isNaN(updatedAt.getTime()) ? new Date().toISOString() : updatedAt.toISOString(),
+    });
+
+    if (result.length >= BULK_JOBS_MAX_FILTER_BUNDLES) break;
+  }
+
+  return result;
+}
+
+function normalizeIncomingBulkJobsFilterBundles(rawBundles) {
+  if (!Array.isArray(rawBundles)) {
+    return { error: 'filterBundles must be an array' };
+  }
+  if (rawBundles.length > BULK_JOBS_MAX_FILTER_BUNDLES) {
+    return { error: `filterBundles supports up to ${BULK_JOBS_MAX_FILTER_BUNDLES} items` };
+  }
+
+  const normalized = [];
+  const seenIds = new Set();
+
+  for (let i = 0; i < rawBundles.length; i += 1) {
+    const row = rawBundles[i];
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      return { error: `filterBundles[${i}] must be an object` };
+    }
+
+    const name = String(row.name || '').trim();
+    if (!name) {
+      return { error: `filterBundles[${i}].name is required` };
+    }
+    if (name.length > BULK_JOBS_MAX_FILTER_BUNDLE_NAME) {
+      return { error: `filterBundles[${i}].name must be <= ${BULK_JOBS_MAX_FILTER_BUNDLE_NAME} characters` };
+    }
+
+    let id = String(row.id || '').trim();
+    if (id.length > 96) {
+      return { error: `filterBundles[${i}].id is too long` };
+    }
+    if (!id || seenIds.has(id)) {
+      id = generateBulkJobsBundleId();
+    }
+    seenIds.add(id);
+
+    normalized.push({
+      id,
+      name,
+      filters: normalizeBulkJobsBundleFilters(row.filters || {}),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  return { value: normalized };
 }
 
 function normalizeBulkJobRequestPayload(payload = {}) {
@@ -986,8 +1104,7 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
 
   if (status) {
     const statuses = String(status).split(',').map(s => s.trim()).filter(Boolean);
-    const validStatuses = new Set(['queued', 'running', 'completed', 'failed', 'cancelled']);
-    const filtered = statuses.filter(s => validStatuses.has(s));
+    const filtered = statuses.filter(s => BULK_JOBS_STATUS_FILTERS_ALLOWED.has(s));
     if (filtered.length) filter.status = { $in: filtered };
   }
 
@@ -1115,19 +1232,22 @@ router.get('/bulk-actions/preferences', asyncHandler(async (req, res) => {
   }
 
   const user = await User.findById(actorId)
-    .select('uiPreferences.bulkJobsDefaultPresetByProperty')
+    .select('uiPreferences.bulkJobsDefaultPresetByProperty uiPreferences.bulkJobsFilterBundlesByProperty')
     .lean();
   if (!user) {
     return res.status(404).json({ success: false, error: 'User not found' });
   }
 
-  const byProperty = user?.uiPreferences?.bulkJobsDefaultPresetByProperty || {};
-  const rawPreset = byProperty?.[String(propertyId)] || '';
+  const byPropertyPreset = user?.uiPreferences?.bulkJobsDefaultPresetByProperty || {};
+  const rawPreset = byPropertyPreset?.[String(propertyId)] || '';
+  const byPropertyBundles = user?.uiPreferences?.bulkJobsFilterBundlesByProperty || {};
+  const rawBundles = byPropertyBundles?.[String(propertyId)] || [];
 
   res.json({
     success: true,
     data: {
       defaultPreset: normalizeBulkJobsPreset(rawPreset),
+      filterBundles: normalizeStoredBulkJobsFilterBundles(rawBundles),
     },
   });
 }));
@@ -1135,7 +1255,8 @@ router.get('/bulk-actions/preferences', asyncHandler(async (req, res) => {
 // PUT /api/reservations/bulk-actions/preferences
 router.put('/bulk-actions/preferences', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');
-  const { propertyId, defaultPreset = '' } = req.body || {};
+  const body = req.body || {};
+  const { propertyId } = body;
   if (!propertyId) {
     return res.status(400).json({ success: false, error: 'propertyId is required' });
   }
@@ -1146,15 +1267,40 @@ router.put('/bulk-actions/preferences', asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, error: 'Actor id unavailable for preferences' });
   }
 
-  const normalizedPreset = String(defaultPreset || '').toLowerCase().trim();
-  if (normalizedPreset && !BULK_JOBS_PRESETS_ALLOWED.has(normalizedPreset)) {
-    return res.status(400).json({ success: false, error: `Unsupported preset: ${normalizedPreset}` });
+  const hasDefaultPreset = Object.prototype.hasOwnProperty.call(body, 'defaultPreset');
+  const hasFilterBundles = Object.prototype.hasOwnProperty.call(body, 'filterBundles');
+  if (!hasDefaultPreset && !hasFilterBundles) {
+    return res.status(400).json({ success: false, error: 'No preference fields provided' });
   }
 
-  const keyPath = `uiPreferences.bulkJobsDefaultPresetByProperty.${String(propertyId)}`;
-  const update = normalizedPreset
-    ? { $set: { [keyPath]: normalizedPreset } }
-    : { $unset: { [keyPath]: '' } };
+  const update = {};
+
+  if (hasDefaultPreset) {
+    const normalizedPreset = String(body.defaultPreset || '').toLowerCase().trim();
+    if (normalizedPreset && !BULK_JOBS_PRESETS_ALLOWED.has(normalizedPreset)) {
+      return res.status(400).json({ success: false, error: `Unsupported preset: ${normalizedPreset}` });
+    }
+    const keyPath = `uiPreferences.bulkJobsDefaultPresetByProperty.${String(propertyId)}`;
+    if (normalizedPreset) {
+      update.$set = { ...(update.$set || {}), [keyPath]: normalizedPreset };
+    } else {
+      update.$unset = { ...(update.$unset || {}), [keyPath]: '' };
+    }
+  }
+
+  if (hasFilterBundles) {
+    const normalizedBundlesResult = normalizeIncomingBulkJobsFilterBundles(body.filterBundles);
+    if (normalizedBundlesResult.error) {
+      return res.status(400).json({ success: false, error: normalizedBundlesResult.error });
+    }
+    const bundleKeyPath = `uiPreferences.bulkJobsFilterBundlesByProperty.${String(propertyId)}`;
+    const bundles = normalizedBundlesResult.value || [];
+    if (bundles.length) {
+      update.$set = { ...(update.$set || {}), [bundleKeyPath]: bundles };
+    } else {
+      update.$unset = { ...(update.$unset || {}), [bundleKeyPath]: '' };
+    }
+  }
 
   const updateResult = await User.updateOne({ _id: actorId }, update);
   if (!updateResult?.matchedCount) {
@@ -1162,16 +1308,19 @@ router.put('/bulk-actions/preferences', asyncHandler(async (req, res) => {
   }
 
   const user = await User.findById(actorId)
-    .select('uiPreferences.bulkJobsDefaultPresetByProperty')
+    .select('uiPreferences.bulkJobsDefaultPresetByProperty uiPreferences.bulkJobsFilterBundlesByProperty')
     .lean();
 
-  const byProperty = user?.uiPreferences?.bulkJobsDefaultPresetByProperty || {};
-  const savedPreset = normalizeBulkJobsPreset(byProperty?.[String(propertyId)] || '');
+  const byPropertyPreset = user?.uiPreferences?.bulkJobsDefaultPresetByProperty || {};
+  const savedPreset = normalizeBulkJobsPreset(byPropertyPreset?.[String(propertyId)] || '');
+  const byPropertyBundles = user?.uiPreferences?.bulkJobsFilterBundlesByProperty || {};
+  const savedBundles = normalizeStoredBulkJobsFilterBundles(byPropertyBundles?.[String(propertyId)] || []);
 
   res.json({
     success: true,
     data: {
       defaultPreset: savedPreset,
+      filterBundles: savedBundles,
     },
   });
 }));

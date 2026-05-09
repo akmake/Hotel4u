@@ -44,6 +44,8 @@ const PRESET_LABELS = {
   mine: 'שלי',
 };
 const POLL_INTERVAL_MS = 4000;
+const FILTER_BUNDLE_MAX_NAME = 40;
+const FILTER_BUNDLE_MAX_ITEMS = 12;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -80,6 +82,57 @@ function isPermissionErrorMessage(message) {
 function normalizePreset(value) {
   const v = String(value || '').toLowerCase();
   return TRIAGE_PRESETS.has(v) ? v : '';
+}
+
+function normalizeSingleFilterValue(value, allowedValues) {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .split(',')
+    .map((token) => token.trim())
+    .find((token) => allowedValues.has(token));
+  return normalized || '';
+}
+
+function normalizeBundleDate(value) {
+  const normalized = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : '';
+}
+
+function normalizeBundleFilters(value = {}) {
+  const allowedStatuses = new Set(Object.keys(STATUS_CFG));
+  const allowedActions = new Set(Object.keys(ACTION_LABELS));
+  const data = value && typeof value === 'object' ? value : {};
+  return {
+    preset: normalizePreset(data.preset),
+    status: normalizeSingleFilterValue(data.status, allowedStatuses),
+    action: normalizeSingleFilterValue(data.action, allowedActions),
+    from: normalizeBundleDate(data.from),
+    to: normalizeBundleDate(data.to),
+    hasFailures: Boolean(data.hasFailures),
+  };
+}
+
+function normalizeFilterBundles(value) {
+  const list = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const normalized = [];
+  for (const row of list) {
+    if (!row || typeof row !== 'object') continue;
+    const name = String(row.name || '').trim();
+    if (!name) continue;
+    const rawId = String(row.id || '').trim();
+    const id = rawId || `local_${name}_${normalized.length}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    normalized.push({
+      id,
+      name: name.slice(0, FILTER_BUNDLE_MAX_NAME),
+      filters: normalizeBundleFilters(row.filters || {}),
+      updatedAt: row.updatedAt || null,
+    });
+    if (normalized.length >= FILTER_BUNDLE_MAX_ITEMS) break;
+  }
+  return normalized;
 }
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
@@ -457,8 +510,11 @@ export default function BulkJobsPage() {
   const [focusedJobError, setFocusedJobError] = useState(null);
   const [focusMeta, setFocusMeta] = useState(null);
   const [savedPreset, setSavedPreset] = useState('');
+  const [savedBundles, setSavedBundles] = useState([]);
+  const [bundleName, setBundleName] = useState('');
   const [prefLoading, setPrefLoading] = useState(false);
   const [prefSaving, setPrefSaving] = useState(false);
+  const [bundleSaving, setBundleSaving] = useState(false);
 
   const pollingRef  = useRef(null);
   const filtersRef  = useRef(filters);
@@ -478,7 +534,9 @@ export default function BulkJobsPage() {
       .then((data) => {
         if (cancelled) return;
         const nextSavedPreset = normalizePreset(data?.defaultPreset);
+        const nextSavedBundles = normalizeFilterBundles(data?.filterBundles);
         setSavedPreset(nextSavedPreset);
+        setSavedBundles(nextSavedBundles);
 
         const current = filtersRef.current || {};
         const shouldAutoApply = Boolean(
@@ -497,7 +555,10 @@ export default function BulkJobsPage() {
         }
       })
       .catch(() => {
-        if (!cancelled) setSavedPreset('');
+        if (!cancelled) {
+          setSavedPreset('');
+          setSavedBundles([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setPrefLoading(false);
@@ -676,6 +737,7 @@ export default function BulkJobsPage() {
       const data = await reservationsApi.saveBulkJobsPreferences(propertyId, nextPreset);
       const saved = normalizePreset(data?.defaultPreset);
       setSavedPreset(saved);
+      setSavedBundles(normalizeFilterBundles(data?.filterBundles));
       if (saved) success('ברירת מחדל נשמרה');
       else success('ברירת המחדל נוקתה');
     } catch (e) {
@@ -683,6 +745,76 @@ export default function BulkJobsPage() {
     } finally {
       setPrefSaving(false);
     }
+  }
+
+  async function persistFilterBundles(nextBundles, successMessage = '') {
+    if (!propertyId || bundleSaving) return false;
+    setBundleSaving(true);
+    try {
+      const data = await reservationsApi.saveBulkJobsPreferences(propertyId, savedPreset, nextBundles);
+      setSavedPreset(normalizePreset(data?.defaultPreset));
+      setSavedBundles(normalizeFilterBundles(data?.filterBundles));
+      if (successMessage) success(successMessage);
+      return true;
+    } catch (e) {
+      toastError(e.message || 'שמירת קיצורי פילטרים נכשלה');
+      return false;
+    } finally {
+      setBundleSaving(false);
+    }
+  }
+
+  function applyFilterBundle(bundle) {
+    if (!bundle) return;
+    const next = normalizeBundleFilters(bundle.filters || {});
+    setFilters((prev) => ({
+      ...prev,
+      ...next,
+      page: 1,
+    }));
+  }
+
+  async function saveCurrentFiltersAsBundle() {
+    if (!propertyId || bundleSaving || prefLoading) return;
+    const name = String(bundleName || '').trim();
+    if (!name) {
+      toastError('יש להזין שם לקיצור');
+      return;
+    }
+    if (name.length > FILTER_BUNDLE_MAX_NAME) {
+      toastError(`שם קיצור יכול להכיל עד ${FILTER_BUNDLE_MAX_NAME} תווים`);
+      return;
+    }
+
+    const snapshot = normalizeBundleFilters(filters);
+    const existing = savedBundles.find((bundle) => String(bundle.name || '').trim().toLowerCase() === name.toLowerCase());
+
+    let nextBundles = [];
+    let successMessage = '';
+    if (existing) {
+      nextBundles = savedBundles.map((bundle) => (
+        bundle.id === existing.id ? { ...bundle, name, filters: snapshot } : bundle
+      ));
+      successMessage = `הקיצור "${name}" עודכן`;
+    } else {
+      if (savedBundles.length >= FILTER_BUNDLE_MAX_ITEMS) {
+        toastError(`אפשר לשמור עד ${FILTER_BUNDLE_MAX_ITEMS} קיצורים`);
+        return;
+      }
+      nextBundles = [...savedBundles, { id: '', name, filters: snapshot }];
+      successMessage = `הקיצור "${name}" נשמר`;
+    }
+
+    const ok = await persistFilterBundles(nextBundles, successMessage);
+    if (ok) setBundleName('');
+  }
+
+  async function removeFilterBundle(bundleId) {
+    if (!bundleId || bundleSaving || prefLoading) return;
+    const bundle = savedBundles.find((row) => String(row.id) === String(bundleId));
+    if (!bundle) return;
+    const nextBundles = savedBundles.filter((row) => String(row.id) !== String(bundleId));
+    await persistFilterBundles(nextBundles, `הקיצור "${bundle.name}" נמחק`);
   }
 
   async function handleCancel(jobId) {
@@ -874,7 +1006,7 @@ export default function BulkJobsPage() {
       <div className="mt-2 flex flex-wrap items-center gap-2" dir="rtl">
         <button
           onClick={loadSavedPreset}
-          disabled={prefLoading || !savedPreset}
+          disabled={prefLoading || prefSaving || bundleSaving || !savedPreset}
           className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-surface-border disabled:opacity-50 disabled:cursor-not-allowed"
           title="טען פריסט ברירת מחדל אישי"
         >
@@ -882,7 +1014,7 @@ export default function BulkJobsPage() {
         </button>
         <button
           onClick={saveCurrentPresetAsDefault}
-          disabled={prefLoading || prefSaving}
+          disabled={prefLoading || prefSaving || bundleSaving}
           className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-surface-border disabled:opacity-50 disabled:cursor-not-allowed"
           title="שמור את הפריסט הפעיל כברירת מחדל אישית (ללא פריסט פעיל יבצע ניקוי)"
         >
@@ -891,6 +1023,52 @@ export default function BulkJobsPage() {
         <span className="text-xs text-ink-secondary">
           ברירת מחדל שמורה: {savedPreset ? (PRESET_LABELS[savedPreset] || savedPreset) : 'לא הוגדרה'}
         </span>
+      </div>
+      <div className="mt-2 p-3 bg-surface rounded-xl border border-surface-border" dir="rtl">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-ink-secondary">קיצורי מסננים:</span>
+          <input
+            type="text"
+            value={bundleName}
+            onChange={(e) => setBundleName(e.target.value)}
+            className="input text-sm py-1.5 px-2 min-w-[220px]"
+            placeholder="שם קיצור (למשל: כשלים השבוע)"
+            maxLength={FILTER_BUNDLE_MAX_NAME}
+            disabled={prefLoading || bundleSaving || prefSaving}
+          />
+          <button
+            onClick={saveCurrentFiltersAsBundle}
+            disabled={prefLoading || bundleSaving || prefSaving}
+            className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-surface-border disabled:opacity-50 disabled:cursor-not-allowed"
+            title="שמור את הפילטרים הפעילים כקיצור בשם"
+          >
+            {bundleSaving ? 'שומר...' : 'שמור קיצור'}
+          </button>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {savedBundles.length === 0 ? (
+            <span className="text-xs text-ink-faint">אין קיצורים שמורים</span>
+          ) : savedBundles.map((bundle) => (
+            <div key={bundle.id} className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface-muted/40 px-2 py-1">
+              <button
+                onClick={() => applyFilterBundle(bundle)}
+                className="text-xs text-ink-secondary hover:text-ink"
+                title="הפעל קיצור מסננים"
+                disabled={prefLoading || bundleSaving || prefSaving}
+              >
+                {bundle.name}
+              </button>
+              <button
+                onClick={() => removeFilterBundle(bundle.id)}
+                className="text-xs text-red-500 hover:text-red-600"
+                title="מחק קיצור"
+                disabled={prefLoading || bundleSaving || prefSaving}
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Filter bar */}

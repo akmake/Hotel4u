@@ -63,6 +63,7 @@ const UserSchema = new Schema({
   cart:                { type: [cartItemSchema], default: [] },
   uiPreferences: {
     bulkJobsDefaultPresetByProperty: { type: Map, of: String, default: {} },
+    bulkJobsFilterBundlesByProperty: { type: Map, of: Schema.Types.Mixed, default: {} },
   },
 
   // Security
