@@ -7,6 +7,7 @@ import Room from '../models/Room.js';
 import RoomType from '../models/RoomType.js';
 import Folio from '../models/Folio.js';
 import BulkActionJob from '../models/BulkActionJob.js';
+import User from '../models/User.js';
 import GuestProfile from '../models/GuestProfile.js';
 import Property from '../models/Property.js';
 import { checkAvailability, incrementInventory } from '../services/availabilityService.js';
@@ -44,6 +45,7 @@ const BULK_ACTION_JOB_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.BULK_A
 const BULK_ACTION_RUNNING_STALE_MS = Math.max(60 * 1000, Number(process.env.BULK_ACTION_RUNNING_STALE_MS || (4 * 60 * 1000)) || (4 * 60 * 1000));
 const BULK_ACTION_MAX_ITEMS = 300;
 const BULK_ACTION_TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+const BULK_JOBS_PRESETS_ALLOWED = new Set(['active', 'active_cancelable', 'failed', 'retryable_failures', 'mine']);
 
 const asyncHandler = (fn) => async (req, res, next) => {
   try {
@@ -152,6 +154,11 @@ function computeBulkJobExpiryDate() {
 
 function isTruthyFlag(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
+}
+
+function normalizeBulkJobsPreset(value = '') {
+  const normalized = String(value || '').toLowerCase().trim();
+  return BULK_JOBS_PRESETS_ALLOWED.has(normalized) ? normalized : '';
 }
 
 function normalizeBulkJobRequestPayload(payload = {}) {
@@ -1089,6 +1096,82 @@ router.get('/bulk-actions/jobs', asyncHandler(async (req, res) => {
         pages: Math.ceil(total / limitNum),
       },
       focus,
+    },
+  });
+}));
+
+// GET /api/reservations/bulk-actions/preferences?propertyId=
+router.get('/bulk-actions/preferences', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');
+  const { propertyId } = req.query;
+  if (!propertyId) {
+    return res.status(400).json({ success: false, error: 'propertyId is required' });
+  }
+  assertPropertyScope(req, propertyId);
+
+  const actorId = req.actor?.id ? String(req.actor.id) : '';
+  if (!isObjectIdLike(actorId)) {
+    return res.status(400).json({ success: false, error: 'Actor id unavailable for preferences' });
+  }
+
+  const user = await User.findById(actorId)
+    .select('uiPreferences.bulkJobsDefaultPresetByProperty')
+    .lean();
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+
+  const byProperty = user?.uiPreferences?.bulkJobsDefaultPresetByProperty || {};
+  const rawPreset = byProperty?.[String(propertyId)] || '';
+
+  res.json({
+    success: true,
+    data: {
+      defaultPreset: normalizeBulkJobsPreset(rawPreset),
+    },
+  });
+}));
+
+// PUT /api/reservations/bulk-actions/preferences
+router.put('/bulk-actions/preferences', asyncHandler(async (req, res) => {
+  requireRoles(req, COMMERCIAL_ROLES, 'Bulk reservation actions require front-desk permissions');
+  const { propertyId, defaultPreset = '' } = req.body || {};
+  if (!propertyId) {
+    return res.status(400).json({ success: false, error: 'propertyId is required' });
+  }
+  assertPropertyScope(req, propertyId);
+
+  const actorId = req.actor?.id ? String(req.actor.id) : '';
+  if (!isObjectIdLike(actorId)) {
+    return res.status(400).json({ success: false, error: 'Actor id unavailable for preferences' });
+  }
+
+  const normalizedPreset = String(defaultPreset || '').toLowerCase().trim();
+  if (normalizedPreset && !BULK_JOBS_PRESETS_ALLOWED.has(normalizedPreset)) {
+    return res.status(400).json({ success: false, error: `Unsupported preset: ${normalizedPreset}` });
+  }
+
+  const keyPath = `uiPreferences.bulkJobsDefaultPresetByProperty.${String(propertyId)}`;
+  const update = normalizedPreset
+    ? { $set: { [keyPath]: normalizedPreset } }
+    : { $unset: { [keyPath]: '' } };
+
+  const updateResult = await User.updateOne({ _id: actorId }, update);
+  if (!updateResult?.matchedCount) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+
+  const user = await User.findById(actorId)
+    .select('uiPreferences.bulkJobsDefaultPresetByProperty')
+    .lean();
+
+  const byProperty = user?.uiPreferences?.bulkJobsDefaultPresetByProperty || {};
+  const savedPreset = normalizeBulkJobsPreset(byProperty?.[String(propertyId)] || '');
+
+  res.json({
+    success: true,
+    data: {
+      defaultPreset: savedPreset,
     },
   });
 }));

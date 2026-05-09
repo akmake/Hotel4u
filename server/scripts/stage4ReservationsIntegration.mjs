@@ -241,6 +241,7 @@ async function run() {
     stage54MissingReservationId: randomObjectIdLike(),
     stage56JobId: null,
     stage56MissingReservationId: randomObjectIdLike(),
+    stage58OriginalDefaultPreset: '',
     stage5227RetryJobId: null,
     stage5227NoFailJobId: null,
     createdReservationN: null,
@@ -2262,6 +2263,113 @@ async function run() {
       }),
       expect: [403],
       assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.8-PREFS-RBAC-RESTRICTED-FORBIDDEN',
+      skip: () => {
+        if (!ctx.restrictedToken) return 'restricted token unavailable';
+        return null;
+      },
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/preferences?propertyId=${ctx.propertyId}`,
+        token: ctx.restrictedToken,
+      }),
+      expect: [403],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.8-PREFS-GET-BASELINE',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/preferences?propertyId=${ctx.propertyId}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const preset = r.json?.data?.defaultPreset;
+        if (typeof preset !== 'string') return `expected defaultPreset string, got ${typeof preset}`;
+        return null;
+      },
+      capture: (r) => { state.stage58OriginalDefaultPreset = String(r.json?.data?.defaultPreset || ''); },
+    },
+    {
+      id: 'S5.8-PREFS-SET-RETRYABLE-FAILURES',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'PUT',
+        url: `${baseReservations}/bulk-actions/preferences`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          defaultPreset: 'retryable_failures',
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const preset = String(r.json?.data?.defaultPreset || '');
+        if (preset !== 'retryable_failures') return `expected retryable_failures, got ${preset}`;
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-PREFS-GET-VERIFY-SET',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'GET',
+        url: `${baseReservations}/bulk-actions/preferences?propertyId=${ctx.propertyId}`,
+        token: ctx.adminToken,
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const preset = String(r.json?.data?.defaultPreset || '');
+        if (preset !== 'retryable_failures') return `expected retryable_failures, got ${preset}`;
+        return null;
+      },
+    },
+    {
+      id: 'S5.8-PREFS-VALIDATION-INVALID-PRESET',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'PUT',
+        url: `${baseReservations}/bulk-actions/preferences`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          defaultPreset: 'totally_not_a_valid_preset',
+        },
+      }),
+      expect: [400],
+      assert: (r) => assertFailureEnvelope(r),
+    },
+    {
+      id: 'S5.8-PREFS-RESTORE-BASELINE',
+      skip: () => (!ctx.adminToken ? 'admin token unavailable' : null),
+      build: () => ({
+        method: 'PUT',
+        url: `${baseReservations}/bulk-actions/preferences`,
+        token: ctx.adminToken,
+        body: {
+          propertyId: ctx.propertyId,
+          defaultPreset: state.stage58OriginalDefaultPreset || '',
+        },
+      }),
+      expect: [200],
+      assert: (r) => {
+        const err = assertSuccessEnvelope(r);
+        if (err) return err;
+        const expected = String(state.stage58OriginalDefaultPreset || '');
+        const actual = String(r.json?.data?.defaultPreset || '');
+        if (actual !== expected) return `expected restored preset ${expected || '<empty>'}, got ${actual || '<empty>'}`;
+        return null;
+      },
     },
     {
       id: 'S5.8-LIST-OK-RETURNS-ARRAY',

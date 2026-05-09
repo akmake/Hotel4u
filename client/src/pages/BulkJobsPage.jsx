@@ -36,6 +36,13 @@ const ACTIVE_STATUSES = new Set(['queued', 'running']);
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 const COMMERCIAL_ROLES = new Set(['super_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'revenue_manager', 'sales_manager']);
 const TRIAGE_PRESETS = new Set(['active', 'active_cancelable', 'failed', 'retryable_failures', 'mine']);
+const PRESET_LABELS = {
+  active: 'פעילות',
+  active_cancelable: 'פעיל לביטול',
+  failed: 'נכשלו',
+  retryable_failures: 'מוכן ל-Retry',
+  mine: 'שלי',
+};
 const POLL_INTERVAL_MS = 4000;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -449,6 +456,9 @@ export default function BulkJobsPage() {
   const [focusedJobLoading, setFocusedJobLoading] = useState(false);
   const [focusedJobError, setFocusedJobError] = useState(null);
   const [focusMeta, setFocusMeta] = useState(null);
+  const [savedPreset, setSavedPreset] = useState('');
+  const [prefLoading, setPrefLoading] = useState(false);
+  const [prefSaving, setPrefSaving] = useState(false);
 
   const pollingRef  = useRef(null);
   const filtersRef  = useRef(filters);
@@ -459,6 +469,42 @@ export default function BulkJobsPage() {
     const value = new URLSearchParams(search).get('jobId');
     return value ? String(value) : '';
   }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!propertyId) return () => { cancelled = true; };
+    setPrefLoading(true);
+    reservationsApi.bulkJobsPreferences(propertyId)
+      .then((data) => {
+        if (cancelled) return;
+        const nextSavedPreset = normalizePreset(data?.defaultPreset);
+        setSavedPreset(nextSavedPreset);
+
+        const current = filtersRef.current || {};
+        const shouldAutoApply = Boolean(
+          nextSavedPreset
+          && !presetFromUrl
+          && !normalizePreset(current.preset)
+          && !current.status
+          && !current.action
+          && !current.from
+          && !current.to
+          && !current.hasFailures
+        );
+
+        if (shouldAutoApply) {
+          setFilters((prev) => ({ ...prev, preset: nextSavedPreset, page: 1 }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSavedPreset('');
+      })
+      .finally(() => {
+        if (!cancelled) setPrefLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [propertyId, presetFromUrl]);
 
   const fetchJobs = useCallback(async (opts = {}) => {
     if (!propertyId) return;
@@ -612,6 +658,31 @@ export default function BulkJobsPage() {
       hasFailures: false,
       page: 1,
     }));
+  }
+
+  function loadSavedPreset() {
+    if (!savedPreset) {
+      toastError('אין פריסט ברירת מחדל שמור');
+      return;
+    }
+    applyPreset(savedPreset);
+  }
+
+  async function saveCurrentPresetAsDefault() {
+    if (!propertyId || prefSaving) return;
+    setPrefSaving(true);
+    try {
+      const nextPreset = normalizePreset(filters.preset);
+      const data = await reservationsApi.saveBulkJobsPreferences(propertyId, nextPreset);
+      const saved = normalizePreset(data?.defaultPreset);
+      setSavedPreset(saved);
+      if (saved) success('ברירת מחדל נשמרה');
+      else success('ברירת המחדל נוקתה');
+    } catch (e) {
+      toastError(e.message || 'שמירת ברירת מחדל נכשלה');
+    } finally {
+      setPrefSaving(false);
+    }
   }
 
   async function handleCancel(jobId) {
@@ -800,6 +871,27 @@ export default function BulkJobsPage() {
 
       {/* Preset bar */}
       <PresetBar preset={normalizePreset(filters.preset)} onApply={applyPreset} />
+      <div className="mt-2 flex flex-wrap items-center gap-2" dir="rtl">
+        <button
+          onClick={loadSavedPreset}
+          disabled={prefLoading || !savedPreset}
+          className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-surface-border disabled:opacity-50 disabled:cursor-not-allowed"
+          title="טען פריסט ברירת מחדל אישי"
+        >
+          טען ברירת מחדל
+        </button>
+        <button
+          onClick={saveCurrentPresetAsDefault}
+          disabled={prefLoading || prefSaving}
+          className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-surface-border disabled:opacity-50 disabled:cursor-not-allowed"
+          title="שמור את הפריסט הפעיל כברירת מחדל אישית (ללא פריסט פעיל יבצע ניקוי)"
+        >
+          {prefSaving ? 'שומר...' : 'שמור ברירת מחדל'}
+        </button>
+        <span className="text-xs text-ink-secondary">
+          ברירת מחדל שמורה: {savedPreset ? (PRESET_LABELS[savedPreset] || savedPreset) : 'לא הוגדרה'}
+        </span>
+      </div>
 
       {/* Filter bar */}
       <div className="mt-3">

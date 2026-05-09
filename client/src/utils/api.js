@@ -131,6 +131,10 @@ export const reservations = {
   merge:            (targetReservationId, sourceReservationId, transferCharges = true) =>
     api.post('/reservations/merge', { targetReservationId, sourceReservationId, transferCharges }),
   bulkActions:      (data)           => api.post('/reservations/bulk-actions', data),
+  bulkJobsPreferences: (propertyId) =>
+    api.get(`/reservations/bulk-actions/preferences?propertyId=${propertyId}`),
+  saveBulkJobsPreferences: (propertyId, defaultPreset = '') =>
+    api.put('/reservations/bulk-actions/preferences', { propertyId, defaultPreset }),
   bulkJobsList:     (propertyId, filters = {}) => {
     const { preset, status, action, from, to, hasFailures, focusJobId, page = 1, limit = 20 } = filters;
     const q = new URLSearchParams({ propertyId, page, limit });

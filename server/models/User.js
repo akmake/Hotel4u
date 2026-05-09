@@ -61,6 +61,9 @@ const UserSchema = new Schema({
   canViewCommissions:  { type: Boolean, default: false },
   reportNames:         { type: [String], default: [] },
   cart:                { type: [cartItemSchema], default: [] },
+  uiPreferences: {
+    bulkJobsDefaultPresetByProperty: { type: Map, of: String, default: {} },
+  },
 
   // Security
   forcedLogoutTime:    { type: String, default: null },

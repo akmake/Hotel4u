@@ -1,10 +1,10 @@
 # מעקב התקדמות - מערכת הזמנות PMS
 
-תאריך עדכון: 8 במאי 2026
+תאריך עדכון: 9 במאי 2026
 
 ## סטטוס כללי
 - מצב: יציב ומסודר.
-- שלב נוכחי: Stage 5.26 הושלם (Bulk Jobs quick triage presets + URL persistence), עם Gate ירוק מלא.
+- שלב נוכחי: Stage 5.28 הושלם (Bulk Jobs personal saved preset), עם Gate ירוק מלא.
 
 ## מה הושלם
 1. מחקר עומק ותיעוד זרימות הזמנות מלא.
@@ -752,3 +752,61 @@
      - `PASS=109 FAIL=0 SKIP=0`.
 - Recommended next step:
   1. Stage 5.27: add operator triage presets for "Cancelable Active" and "Retryable Failures" plus URL-sharable filter bundles for team handoff.
+
+## Update 2026-05-09 - Stage 5.27 Cancelable Active + Retryable Failures Presets
+- Backend (`server/routes/reservations.js`):
+  1. Extended list presets with `active_cancelable` and `retryable_failures`.
+  2. `active_cancelable` applies `status in [queued,running]` plus `cancelRequested != true`.
+  3. `retryable_failures` applies terminal statuses + `failed > 0` for quick retry triage.
+  4. `focusJobId` filter matching now also respects `cancelRequested` preset constraints.
+- Frontend (`client/src/pages/BulkJobsPage.jsx`):
+  1. Added quick preset chips:
+     - `פעיל לביטול` (`active_cancelable`)
+     - `מוכן ל-Retry` (`retryable_failures`)
+  2. Presets remain URL-shareable via existing `?preset=...` flow.
+- Integration coverage (`server/scripts/stage4ReservationsIntegration.mjs`):
+  1. Added `S5.8-LIST-PRESET-ACTIVE-CANCELABLE`.
+  2. Added `S5.8-LIST-PRESET-RETRYABLE-FAILURES`.
+- Validation:
+  1. `node --check server/routes/reservations.js` passed.
+  2. `node --check server/scripts/stage4ReservationsIntegration.mjs` passed.
+  3. `npm --prefix client run build` passed.
+  4. Full suite rerun against local PMS API passed:
+     - `PASS=111 FAIL=0 SKIP=0`.
+- Recommended next step:
+  1. Stage 5.28: add saved personal preset profiles per operator (server-side preference persistence) and one-click restore in Bulk Jobs page.
+
+## Update 2026-05-09 - Stage 5.28 Bulk Jobs Personal Saved Preset
+- Backend:
+  1. Added user-level UI preference storage for Bulk Jobs default preset:
+     - `server/models/User.js` -> `uiPreferences.bulkJobsDefaultPresetByProperty` map.
+  2. Added new endpoints in `server/routes/reservations.js`:
+     - `GET /api/pms/reservations/bulk-actions/preferences?propertyId=...`
+     - `PUT /api/pms/reservations/bulk-actions/preferences`
+  3. Preferences are scoped by actor + property and support preset validation/clear flows.
+- Frontend API:
+  1. Added helpers in `client/src/utils/api.js`:
+     - `reservations.bulkJobsPreferences(propertyId)`
+     - `reservations.saveBulkJobsPreferences(propertyId, defaultPreset)`
+- Frontend UI:
+  1. `client/src/pages/BulkJobsPage.jsx` now loads the saved default preset when entering the page without explicit URL preset.
+  2. Added operator controls:
+     - `טען ברירת מחדל`
+     - `שמור ברירת מחדל`
+  3. Added saved-preset indicator text in-page.
+- Integration coverage:
+  1. Added preference tests in `server/scripts/stage4ReservationsIntegration.mjs`:
+     - RBAC deny for restricted role
+     - baseline get
+     - set + verify
+     - invalid preset validation
+     - restore baseline
+- Validation:
+  1. `node --check server/models/User.js` passed.
+  2. `node --check server/routes/reservations.js` passed.
+  3. `node --check server/scripts/stage4ReservationsIntegration.mjs` passed.
+  4. `npm --prefix client run build` passed.
+  5. Full integration suite rerun on live local PMS server:
+     - `PASS=117 FAIL=0 SKIP=0`.
+- Recommended next step:
+  1. Stage 5.29: allow saving full filter bundles (preset + status/action/date/hasFailures) as named operator shortcuts.
