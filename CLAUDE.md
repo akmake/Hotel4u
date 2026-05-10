@@ -1,0 +1,1018 @@
+# hotel4u — CLAUDE.md
+
+Full codebase index. Read this before touching any file. Skip the codebase exploration — it's all here.
+
+---
+
+## Stack & Quick Start
+
+| Layer | Tech |
+|---|---|
+| Runtime | Node.js (ESM, `"type":"module"`) |
+| Framework | Express.js |
+| Database | MongoDB via Mongoose |
+| Auth | JWT (HttpOnly cookie) + bcryptjs |
+| Real-time | Socket.io |
+| Scheduling | node-cron |
+| Email | Nodemailer |
+| WhatsApp | @whiskeysockets/baileys |
+| Images | Sharp |
+| Validation | zod + express-validator |
+| File upload | Multer |
+
+```bash
+# from server/
+npm run dev          # nodemon, includes WhatsApp
+npm run dev:safe     # nodemon, DISABLE_WHATSAPP=1, 4GB heap
+npm start            # production
+npm run seed         # seed small (12 guests, ~70 reservations)
+npm run seed:big     # seed large (60 guests, ~240 reservations, 60-day coverage)
+```
+
+Login after seed: `admin@galil.co.il` / `hotel4u123`
+
+---
+
+## Folder Map
+
+```
+hotel4u/
+├── CLAUDE.md                    ← YOU ARE HERE
+├── client/                      React + Vite frontend
+└── server/
+    ├── app.js                   Express entry, route mounting, Socket.io, schedulers
+    ├── index.js                 HTTP server (listens on PORT || 4000)
+    ├── socket.js                Socket.IO init
+    ├── seed.js                  Small seed (12 guests)
+    ├── seedBig.js               Big seed (60 guests, dense reservations)
+    ├── config/
+    │   ├── db.js                connectDB() — Mongoose connect
+    │   ├── middlewares.js       configureMiddlewares(app)
+    │   └── routes.js            legacy route config
+    ├── middleware/               PMS-specific context layer
+    │   ├── authContext.js       attachActor / requireActor / assertPropertyScope / requireRoles
+    │   ├── errorHandler.js      Global error formatting
+    │   └── permissions.js       Role-based permission checks
+    ├── middlewares/              Express middleware
+    │   ├── authMiddleware.js    requireAuth / requireAdmin / requireShiftManager / requireMaintenance
+    │   ├── requireAuth.js       Bearer-or-cookie auth gate
+    │   ├── requireRefresh.js    Refresh token validation
+    │   ├── errorHandler.js      JSON error response formatter
+    │   ├── rateLimiter.js       express-rate-limit (100 req/15 min public)
+    │   └── uploadMiddleware.js  Multer config (50MB limit, MIME validation)
+    ├── models/                  Mongoose schemas — see MODEL INDEX below
+    ├── controllers/             Request handlers — see CONTROLLER INDEX below
+    ├── routes/                  Express routers — see ROUTE INDEX below
+    ├── services/                Business logic — see SERVICE INDEX below
+    ├── utils/
+    │   ├── AppError.js          class AppError(message, statusCode)
+    │   ├── tokenHandler.js      createAndSendTokens(user, res)
+    │   ├── auditLogger.js       logAction(req, action, entity, entityId, description)
+    │   ├── validators.js        express-validator chains + handleValidationErrors
+    │   ├── dateHelpers.js       todayYmdInTimezone(timezone)
+    │   ├── googleSheets.js      Google Sheets API
+    │   ├── pushHandler.js       Web Push (web-push)
+    │   ├── invoiceTemplate.js   Invoice HTML template
+    │   ├── excelParser.js       XLSX parse
+    │   └── excelCleaners.js     Bulk import data cleaning
+    ├── lib/
+    │   ├── priceCalc.js         Price calculations
+    │   └── priceCalculator.js   Alternate price calculator
+    ├── scripts/                 One-off utility scripts
+    │   ├── createAdmin.js
+    │   ├── fix_indexes.js
+    │   ├── import-script.js
+    │   ├── stage3ReservationsSmoke.mjs
+    │   └── stage4ReservationsIntegration.mjs
+    └── uploads/                 Static file storage (served at /uploads)
+```
+
+---
+
+## app.js — Request Flow
+
+```
+Incoming request
+  → helmet() → cors() → express.json(50mb) → cookieParser()
+  → express-mongo-sanitize()
+  → /uploads (static)
+  → csurf (cookie-based, skip for /api/pms/*)
+
+  /api/pms/*  → attachActor → requireActor → pmsRouter
+  /api/*      → apiRouter  (CSRF protected)
+  /*          → apiRouter  (fallback)
+  → SPA fallback (../client/dist/index.html)
+  → errorHandler
+```
+
+**On startup**: `initSocket()` → `initScheduler()` → `initPmsScheduler()` → `initWhatsAppListener()` (unless `DISABLE_WHATSAPP=1`)
+
+---
+
+## MODEL INDEX
+
+### Core PMS Models
+
+#### `models/User.js`
+Ref key: `User`
+```
+firstName, lastName, name (String)
+email (String, unique)
+passwordHash (String)
+role (enum): admin | sales | maintenance | shift_manager | super_admin |
+  property_admin | general_manager | front_desk_manager | receptionist |
+  housekeeping_manager | housekeeper | maintenance_manager | technician |
+  finance_manager | cashier | revenue_manager | sales_manager | auditor | owner_readonly
+property (ref: Property)
+active (Boolean)
+lastLoginAt (Date)
+canManagePriceLists, canViewCommissions (Boolean)
+failedLoginAttempts, lockUntil (security)
+tokenVersion (Number)
+twoFactorEnabled, totpSecret (2FA)
+cart [{ product: ref, quantity }]
+Virtual: fullName, isLocked
+Methods: comparePassword(), incrementLoginAttempts(), resetLoginAttempts()
+```
+
+#### `models/Property.js`
+Ref key: `Property`
+```
+name (String, required), legalName, propertyCode (String)
+timezone (default: 'Asia/Jerusalem'), defaultCurrency (default: 'ILS')
+address, city, state, postalCode, country, phone, email, website, logoUrl
+activeLanguages ([String], default: ['he','en'])
+checkInTime (default:'15:00'), checkOutTime (default:'11:00')
+totalRooms (Number)
+taxNumber, vatRate, invoicePrefix, invoiceSequence
+reservationPrefix, reservationSequence
+defaultCancellationHours, defaultCancellationFee
+cancellationPolicies [{
+  code, name, nameEn, freeUntilHours, feePercent, feeFixedAmount
+  feeType: none|first_night|percent|fixed
+  nonRefundable, active, descriptionHe, descriptionEn
+}]
+petPolicy: not_allowed|on_request|allowed
+smokingPolicy: non_smoking|designated_areas|allowed
+buildings [{ code, name, active, floors [{ number, name, wings [{ code, name }] }] }]
+housekeepingZones [{ code, name, roomNumbers [String], active }]
+taxes, surcharges, paymentMethods (config arrays)
+messageTemplates, documentTemplates (template arrays)
+crmSla (lead/opportunity thresholds)
+requiredGuestFields, requiredCheckInFields, requiredCheckOutFields ([String])
+```
+
+#### `models/Room.js`
+Ref key: `Room`
+```
+property (ref: Property), roomType (ref: RoomType)
+number (String, unique per property), floor (Number)
+building, wing, housekeepingZone, maintenanceArea (String)
+opsStatus: available | out_of_order | out_of_service | maintenance_hold | owner_hold | internal_use
+outOfServiceUntil (String YYYY-MM-DD)
+cleanStatus: clean | dirty | inspected | pickup | turndown_required
+occStatus: vacant | occupied | reserved | due_in | due_out | checked_out
+isVip, isSmoking, isAccessible (Boolean)
+accessibilityFeatures ([String enum])
+connectingRoom, preferredAlternateRoom (ref: Room)
+internalNotes (String)
+lastRenovatedAt (Date), active (Boolean)
+Virtual: isSellable
+```
+
+#### `models/RoomType.js`
+Ref key: `RoomType`
+```
+property (ref: Property), code (String, unique per property), name (String)
+shortDesc, fullDesc (String)
+capacityBase, capacityMax, adultsMax, childrenMax (Number)
+baseRate (Number)
+bedType: king|queen|twin|double|single|bunk|mixed|other
+extraBedAllowed, cribAllowed (Boolean)
+roomSizeSqm (Number)
+view: sea|garden|city|mountain|pool|interior|courtyard|other
+amenities, images ([String])
+sellable, showInEngine, closedToSale (Boolean)
+sellOnChannels, blockOnChannels, allowRatePlans ([String])
+overbookingAllowed (Boolean), overbookingLimit (Number)
+active (Boolean), sortOrder (Number)
+```
+
+#### `models/Reservation.js`
+Ref key: `Reservation`
+```
+property (ref: Property)
+confirmationNumber (String, unique)
+idempotencyKey (String, unique sparse)
+status: draft|quote|hold|pending_payment|confirmed|modified|cancelled|
+  waitlisted|no_show|checked_in|in_house|checked_out|
+  partially_checked_in|partially_checked_out
+primaryGuest (ref: GuestProfile), additionalGuests ([ref: GuestProfile])
+adults, children, roomsCount, nights (Number)
+arrivalDate, departureDate (String YYYY-MM-DD)
+source: direct|booking|expedia|agoda|airbnb|gds|walk_in|corporate|agent|phone
+marketSegment (String)
+ratePlan (ref: RatePlan), roomType (ref: RoomType), assignedRoom (ref: Room)
+ratePerNight, totalAmount, taxAmount, discountAmount, surchargeAmount (Number)
+paymentStatus: unpaid|partial|paid|refunded|balance_due
+depositAmount, depositPaid (Number), currency (String)
+guaranteeType: none|credit_card|deposit|voucher|company_guarantee
+confirmationSent, cancellationPolicy, depositPolicy
+quoteExpiresAt, holdExpiresAt, holdReleasedAt (Date)
+company (ref: Company), travelAgent (ref: Company)
+group, groupCode, groupName (String)
+isVip, isOverbooking (Boolean)
+specialRequests, guestNotes, internalNotes, language (String)
+externalId, channelReservationId (String)
+checkedInAt, checkedOutAt, cancelledAt, noShowAt (Date)
+createdBy, updatedBy (ref: User)
+timestamps
+```
+
+#### `models/RatePlan.js` — exports `{ RatePlan, RateDate }`
+**RatePlan**:
+```
+property (ref: Property), code (String, unique per property), name (String)
+type: public|corporate|package|ota|promo|group
+isRefundable, includesBreakfast, halfBoard, fullBoard, allInclusive (Boolean)
+cancellationPolicy, depositPolicy (String)
+channels, activeRoomTypes ([String/ref])
+pricingRules [{
+  name, priority, active, weekdays, seasonFrom, seasonTo
+  minGuests, maxGuests, minChildren, maxChildren
+  minLos, maxLos, minLeadDays, maxLeadDays
+  channels, companies, agents, promoCodes, loyaltyTiers
+  adjustmentType, adjustmentValue
+  childPricePerNight, extraGuestPricePerNight
+}]
+sortOrder (Number), active (Boolean)
+```
+
+**RateDate**:
+```
+ratePlan (ref: RatePlan), roomType (ref: RoomType)
+date (String YYYY-MM-DD, unique with ratePlan+roomType)
+price (Number)
+minLos, maxLos (Number)
+cta, ctd, stopSell (Boolean)
+sellLimit, releaseDays, advancePurchaseMinDays, lastMinuteMaxDays (Number)
+blackouts [{ fromDate, toDate, reason }]
+weekdayAdjustmentPct, occupancy2Price..4Price (Number)
+childPricePerNight, extraGuestPricePerNight (Number)
+```
+
+#### `models/InventoryDate.js`
+```
+property (ref: Property), roomType (ref: RoomType)
+date (String YYYY-MM-DD, unique compound)
+physicalCount, oooCount, bookedCount, tentativeCount, lockedCount (Number)
+blockedCount, allotmentCount, releasedAllotmentCount (Number)
+overbookingLimit (Number)
+stopSell, closedToArrival, closedToDeparture (Boolean)
+minLos, maxLos (Number)
+Virtual: sellableCount, effectiveAllotment, availableCount
+```
+
+#### `models/GuestProfile.js`
+```
+property (ref: Property)
+firstName, lastName (String, required)
+email (String, indexed), phone (String)
+gender: M|F|other|unknown
+country, citizenship, language (default:'he') (String)
+address { line1, city, state, zip, country }
+dateOfBirth (Date)
+idDocType: passport|id_card|drivers_license|other
+passportNumber, passportExpiry
+title, company, jobTitle (String)
+phones, emails, addresses (typed arrays with primary flag)
+loyaltyId, membershipTier, membershipPoints (String/Number)
+vipLevel (Number 0-5)
+isBlacklisted (Boolean), blacklistReason (String)
+roomTypePreference, bedTypePreference, floorPreference, smokingPreference
+pillow, newspaper, specialRequests, preferences, allergies, internalNotes (String)
+notes ([String/Object])
+tags ([String])
+marketingConsent, marketingConsentAt, marketingConsentIp (GDPR)
+privacyConsent, privacyConsentAt, privacyConsentIp, privacyPolicyVersion (GDPR)
+retentionDeleteAfter (Date auto-calc: 7yr from lastStay — Israeli law)
+totalStays, totalRevenue, noShowCount, cancellationCount (Number)
+lastStay (Date)
+isAnonymized (Boolean), mergedInto (ref: GuestProfile)
+Virtual: fullName
+Pre-save: auto-calc retentionDeleteAfter
+```
+
+#### `models/Folio.js`
+```
+property (ref: Property), reservation (ref: Reservation)
+ownerType: guest|room|company|group|house
+ownerRef (String), status: open|closed|suspended
+currency (default:'ILS')
+lines [FolioLine]:
+  type: charge|payment|refund|adjustment|tax|fee|discount|deposit
+  description, department, serviceDate (String YYYY-MM-DD)
+  amount, taxAmount (Number)
+  postedAt (Date)
+  source: pms|pos|manual|channel|routing|night_audit
+  status: posted|voided|refunded|adjusted
+  reference, createdBy, voidedAt, voidReason
+closedAt (Date), closedBy (ref: User)
+Virtual: balance, totalCharges, totalPayments
+```
+
+#### `models/Payment.js`
+```
+property (ref: Property), folio (ref: Folio), reservation (ref: Reservation)
+folioLineId (ObjectId)
+paymentMethod: cash|credit_card|bank_transfer|pay_by_link|voucher|
+  loyalty_points|company_account|ota_virtual_card
+operation: authorization|capture|sale|refund|void|partial_refund|
+  pre_authorization|release_authorization
+amount, currency (Number/String)
+status: pending|authorized|captured|sale|failed|voided|refunded|partially_refunded
+provider, providerReference, correlationId (String)
+tokenId, last4, cardBrand, authCode (String)
+refundedAmount (Number), parentPaymentId (ref: Payment)
+authorizedAt, capturedAt, failedAt, voidedAt, refundedAt (Date)
+failureReason, paymentLinkUrl, paymentLinkExpiry (String/Date)
+createdBy (ref: User), notes (String)
+```
+
+#### `models/Invoice.js`
+```
+property, folio, reservation (refs)
+type: tax_invoice|tax_invoice_receipt|receipt|proforma|credit_note|debit_note
+invoiceNumber (String, unique)
+status: draft|issued|cancelled|pending_allocation
+issueDate, taxDate, serviceDate (String YYYY-MM-DD)
+seller, buyer (PartySchema: name, legalName, vatNumber, idNumber, address, city, country, phone, email)
+lines [InvoiceLine]:
+  description, quantity, unitPrice, discountPct
+  netAmount, vatRate, vatAmount, grossAmount
+  serviceDate, department, folioLineId
+currency, totalNet, totalVat, totalGross, totalDiscount (Number)
+vatRate (Number, default:18)
+payments [{ method, amount, reference, paidAt }]
+amountPaid, balance (Number)
+allocationNumber (Israeli e-invoice), allocationRequestedAt, allocationReceivedAt
+relatedInvoiceId, creditedBy (ObjectId/[ObjectId])
+issuedBy (ref: User), issuedAt (Date)
+Pre-save: lock issued invoices from modification
+```
+
+#### `models/Company.js`
+```
+property (ref: Property)
+name (String), type: corporate|agency|tour_operator|government
+contactName, contactTitle, email, phone, address, taxId (String)
+creditLimit, discountPct (Number 0-100)
+paymentTerms, currency (String)
+contractNumber, contractStartDate, contractEndDate (String)
+contractDocuments [{ name, url, uploadedAt }]
+agentCode, commissionPct, rateCodes (String/Number/[String])
+notes (String), active (Boolean)
+```
+
+#### `models/HousekeepingTask.js`
+```
+property (ref: Property), room (ref: Room), reservation (ref: Reservation)
+type: checkout_clean|stayover|deep_clean|turndown|pickup|arrival_prep
+priority: urgent|high|medium|low
+status: new|assigned|in_progress|paused|completed|failed_inspection|inspected|cancelled
+date (String YYYY-MM-DD), dueTime (String HH:MM)
+assignedTo (ref: User), assignedAt, startedAt, completedAt, pausedAt (Date)
+pauseReason, cancelReason (String)
+inspectedBy (ref: User), inspectedAt (Date)
+notes, inspectionNotes (String)
+supplies [{ item, qty }]
+photos ([String URL])
+isDND, isNoService (Boolean)
+lostFound [{ itemDescription, foundLocation, reportedBy, status, reportedAt }]
+  status: found|claimed|donated|discarded
+issueReported { description, reportedAt, ticketId }
+autoCreated (Boolean)
+```
+
+#### `models/MaintenanceTicket.js`
+```
+property (ref: Property), room (ref: Room)
+areaId (String)
+category: electricity|water|hvac|furniture|cleaning|safety|lock|internet|tv|noise|other
+description (String)
+priority: critical|high|medium|low
+status: new|assigned|in_progress|waiting_parts|waiting_vendor|
+  resolved|verified|closed|reopened
+reportedBy, assignedTo (ref: User)
+vendor { name, phone, email }, vendorContact (String)
+estimatedCost, actualCost (Number)
+dueDate, startedAt, resolvedAt (Date)
+photos [{ url, caption, uploadedBy, uploadedAt }]
+partsNeeded [{ name, quantity, ordered, orderedAt, notes }]
+notes, internalNotes (String/[NoteSchema])
+blocksRoom, slaBreach (Boolean)
+closingApprovedBy (ref: User), closingApprovedAt (Date)
+```
+
+#### `models/GuestRequest.js`
+```
+property, reservation, room, guest (refs)
+category: towels|cleaning|maintenance|food|transport|complaint|
+  amenities|noise|temperature|general
+description (String)
+priority: low|medium|high|urgent
+status: open|assigned|in_progress|resolved|closed|cancelled
+assignedTo (ref: User), assignedAt (Date)
+department (String)
+slaMinutes (Number, default:30), dueAt (Date auto-set)
+resolvedAt, closedAt (Date)
+resolutionNotes (String)
+guestNotified (Boolean), guestNotifiedAt (Date)
+satisfactionScore (Number 1-5)
+createdBy, updatedBy (ref: User)
+Virtual: isOverdue
+```
+
+#### `models/AutomationRule.js`
+```
+property (ref: Property), name (String, max 120), description, active
+trigger: reservation.created|reservation.modified|reservation.cancelled|
+  reservation.noshow|checkin.completed|checkout.completed|room.status_changed|
+  payment.failed|payment.succeeded|housekeeping.completed|maintenance.created|
+  maintenance.sla_breach|schedule.daily|schedule.hourly
+conditions [{ field, operator (eq|ne|gt|lt|gte|lte|in|nin|contains), value }]
+action: send_message|send_confirmation|create_housekeeping_task|
+  create_maintenance_ticket|post_charge|send_payment_link|create_alert|
+  update_room_status|update_reservation|webhook|notify_staff
+actionParams (Mixed)
+exceptions ([ConditionSchema])
+lastRunAt (Date), runCount (Number), lastError (String)
+owner, createdBy (ref: User)
+```
+
+#### `models/Notification.js`
+```
+property (ref: Property), recipientUser (ref: User), recipientRole (String)
+type (enum of reservation.*|housekeeping.*|maintenance.*|folio.*|
+  inventory.*|system.*|automation.*|webhook.*|group.*)
+priority: low|normal|high|critical
+channel: in_app|email|sms|push
+title, body (String)
+entityType, entityId, link (String)
+read (Boolean), readAt (Date), dismissed (Boolean)
+expiresAt (Date, TTL index)
+createdBy (ref: User), timestamps
+```
+
+#### `models/AuditLog.js`
+```
+property (ref: Property), entity, entityId (String/ObjectId)
+actor (ref: User), actorName, actorRole (String)
+action (String: CREATE|UPDATE|DELETE|CHECK_IN|CHECK_OUT|CANCEL|...)
+changesBefore, changesAfter (Object)
+timestamp (Date, indexed), ipAddress, userAgent (String)
+```
+
+### CRM Models (`models/crm/`)
+
+#### `models/crm/CrmLead.js`
+```
+property (ref: Property)
+account (ref: CrmAccount), contact (ref: CrmContact)
+fullName, email, phone, companyName, title (String)
+source: website_form|import|manual|referral|event|partner|ad|api|other
+status: new|working|qualified|disqualified|converted|lost
+score { fit, engagement, intent, negative, total } (Number)
+owner (ref: User), assignedTeam (String)
+nextActionAt, lastActivityAt (Date)
+lostReason (String)
+convertedOpportunity (ref: CrmOpportunity), convertedAt (Date)
+notes, sourceSystem, externalId (String)
+tags ([String]), customFields (Map)
+active (Boolean)
+```
+
+Also in `models/crm/`:  `CrmAccount`, `CrmActivity`, `CrmContact`, `CrmOpportunity`, `CrmPipeline`, `CrmTask`, `CrmTimelineEvent`, `CrmLeadRoutingRule`
+
+### Legacy Models
+
+#### `models/Booking.js` (Ziporiclass legacy)
+```
+hotel, room (refs), roomNumber, guestName, guestPhone, optimaNumber (String)
+arrivalDate, departureDate (Date, indexed)
+pax, babies (Number)
+status: active|cancelled|manual_fix
+source: excel|manual
+notes (String)
+```
+
+#### `models/Hotel.js` (legacy)
+```
+name (String)
+checklists { departure, stayover, arrival } (each: [{ text, order }])
+```
+
+### Other Models (quick reference)
+
+| Model | Purpose |
+|---|---|
+| `Order.js` | Ziporiclass event/room orders, full order lifecycle |
+| `PriceList.js` | Ziporiclass price lists with room configs |
+| `Product.js` | Product catalog (name, price, stock, SKU) |
+| `BulkActionJob.js` | Async bulk operations (checkin/checkout batches) |
+| `InventoryLock.js` | Pessimistic lock for availability |
+| `FolioRoutingRule.js` | Auto-routing charges to company/group folios |
+| `StaySegment.js` | Multi-room stay management |
+| `WebhookSubscription.js` | OTA webhook registrations |
+| `Message.js` | Internal staff messages |
+| `WhatsAppMessage.js` | Baileys WhatsApp message log |
+| `InboundEmail.js` | Inbound email parsing |
+| `Announcement.js` | Property-wide announcements |
+| `AutoReply.js` | WhatsApp auto-reply rules |
+| `AutoReplyLog.js` | Auto-reply execution log |
+| `LeadTrigger.js` | Ziporiclass lead trigger rules |
+| `Counter.js` | Sequence counters (invoice/reservation numbers) |
+| `CommissionHistory.js` | Agent commission history |
+| `CommissionReport.js` | Commission aggregation reports |
+| `CustomerCard.js` | Loyalty customer cards |
+| `Subscription.js` | Product subscriptions |
+| `MerchantMap.js` | Payment provider merchant mapping |
+| `IntegrationLog.js` | OTA integration sync log |
+| `ChannelUpdateQueue.js` | Queued rate/inventory updates to OTAs |
+| `GuestRegistrationCard.js` | Physical check-in registration cards |
+
+---
+
+## ROUTE INDEX
+
+All PMS routes are under `/api/pms/*` and require `attachActor` + `requireActor`.
+All legacy routes are under `/api/*` and use JWT cookie auth.
+
+### PMS Routes (`routes/pms/` → `/api/pms`)
+
+#### `reservations.js` → `/api/pms/reservations`
+```
+POST   /                        Create reservation (availability check included)
+GET    /                        List (filters: date, status, guest, source, roomType)
+GET    /:id                     Single reservation with populated refs
+PATCH  /:id                     Modify (dates, guests, rate, room, notes)
+POST   /:id/check-in            Check in — sets status:'in_house', checkedInAt
+POST   /:id/check-out           Check out — balances folio, sets checkedOutAt
+POST   /:id/cancel              Cancel with reason & refund calculation
+POST   /:id/mark-no-show        Mark no-show
+POST   /:id/send-confirmation   Email confirmation to guest
+POST   /bulk                    Bulk action (check-in / cancel / assign-room)
+GET    /bulk/:jobId             Track BulkActionJob progress
+```
+
+#### `rooms.js` → `/api/pms/rooms`
+```
+GET    /                        List rooms (filters: floor, type, opsStatus, cleanStatus, occStatus)
+GET    /:id                     Single room
+PATCH  /:id                     Update opsStatus / cleanStatus / occStatus / notes
+POST   /:id/block               Mark out of service (sets opsStatus, logs audit)
+POST   /:id/unblock             Release from service
+```
+
+#### `housekeeping.js` → `/api/pms/housekeeping`
+```
+GET    /tasks                   List tasks (filters: date, status, assignedTo, type)
+POST   /tasks                   Create task
+PATCH  /tasks/:id               Update status / assign / notes
+POST   /tasks/:id/complete      Mark complete (upload photos, lost & found)
+GET    /zones                   List housekeeping zones for property
+```
+
+#### `maintenance.js` → `/api/pms/maintenance`
+```
+GET    /tickets                 List tickets (filters: status, priority, room, category)
+POST   /tickets                 Create ticket
+PATCH  /tickets/:id             Update status, assign, add notes/parts
+POST   /tickets/:id/close       Close (critical: requires closingApprovedBy)
+GET    /sla                     SLA breach metrics
+```
+
+#### `guests.js` → `/api/pms/guests`
+```
+GET    /                        List guests (search by name/email/phone)
+POST   /                        Create guest profile
+GET    /:id                     Full guest with stay history
+PATCH  /:id                     Update preferences, loyalty, notes, blacklist
+GET    /:id/history             Reservation history for guest
+```
+
+#### `folio.js` → `/api/pms/folio`
+```
+GET    /:id                     Get folio + all lines
+POST   /:reservationId          Create folio for reservation
+POST   /:id/charge              Post charge line
+POST   /:id/payment             Record payment
+POST   /:id/adjust              Post adjustment
+POST   /:id/close               Close folio after checkout
+```
+
+#### `payments.js` → `/api/pms/payments`
+```
+POST   /                        Authorize / capture payment
+GET    /:id                     Payment details
+POST   /:id/refund              Refund (full or partial)
+POST   /:id/void                Void authorization
+```
+
+#### `invoice.js` → `/api/pms/invoices`
+```
+GET    /                        List invoices (filters: status, date, type, guest)
+POST   /                        Create invoice from folio/reservation
+GET    /:id                     Invoice details + PDF generation
+PATCH  /:id                     Update draft invoice
+POST   /:id/issue               Issue (locks invoice, triggers allocation)
+POST   /:id/credit-note         Issue credit note against invoice
+```
+
+#### `rates.js` → `/api/pms/rates`
+```
+GET    /calendars               Rate calendars (date range + roomType + ratePlan)
+POST   /calendars/:rpId/:rtId   Set rate on specific rate plan + room type
+PATCH  /calendars/:rateId       Update single RateDate (price, restrictions)
+POST   /restrictions            Bulk set CTA / CTD / stopSell
+GET    /overrides/:propertyId   Rate override history
+```
+
+#### `inventory.js` → `/api/pms/inventory`
+```
+GET    /                        Inventory grid (date range, room types)
+PATCH  /:id                     Update InventoryDate (oooCount, stopSell, etc.)
+POST   /bulk                    Bulk update inventory for date range
+```
+
+#### `dashboard.js` → `/api/pms/dashboard`
+```
+GET    /stats                   KPIs: occupancy%, ADR, RevPAR, revenue (today/week/month)
+GET    /arrivals                Today's arrivals list
+GET    /departures              Today's departures list
+GET    /inhouse                 In-house guest count + breakdown by roomType
+GET    /alerts                  System alerts (no-show risk, maintenance blockers, SLA breach)
+```
+
+#### `properties.js` → `/api/pms/properties`
+```
+GET    /                        List properties
+GET    /:id                     Property details + config
+POST   /                        Create property (super_admin only)
+PATCH  /:id                     Update property config (hours, policies, taxes, etc.)
+GET    /room-types              Room types for property
+POST   /room-types              Create room type
+PATCH  /room-types/:id          Update room type
+```
+
+#### `companies.js` → `/api/pms/companies`
+```
+GET    /                        List companies
+POST   /                        Create company
+GET    /:id                     Company details + reservations
+PATCH  /:id                     Update contract, credit, discount
+```
+
+#### `groups.js` → `/api/pms/groups`
+```
+GET    /                        List group blocks
+POST   /                        Create group block (reserves inventory)
+PATCH  /:id                     Update group (add/remove rooms)
+POST   /:id/release             Release unsold rooms back to inventory
+```
+
+#### `guests-requests.js` → `/api/pms/guest-requests`
+```
+GET    /                        List requests (filters: category, status, priority)
+POST   /                        Create request
+PATCH  /:id                     Update status / assign / resolve
+```
+
+#### `automation.js` → `/api/pms/automation`
+```
+GET    /rules                   List automation rules
+POST   /rules                   Create rule (trigger → conditions → action)
+PATCH  /rules/:id               Update rule
+DELETE /rules/:id               Delete rule
+```
+
+#### `notifications.js` → `/api/pms/notifications`
+```
+GET    /                        User notifications (unread first, paginated)
+POST   /:id/read                Mark read
+DELETE /:id                     Dismiss notification
+POST   /read-all                Mark all read
+```
+
+#### `crm-core.js` → `/api/pms/crm`
+```
+GET    /leads                   List leads (score, status, owner, date)
+POST   /leads                   Create lead
+PATCH  /leads/:id               Update status, owner, score, stage
+POST   /leads/:id/convert       Convert lead to opportunity
+GET    /opportunities           List opportunities
+GET    /contacts                Contact list (linked to accounts/leads)
+```
+
+#### `audit-log.js` → `/api/pms/audit-log`
+```
+GET    /                        Audit trail (filterable: entity, actor, action, date)
+```
+
+#### `users.js` → `/api/pms/users`
+```
+GET    /                        List users for property
+POST   /                        Create user
+PATCH  /:id                     Update role / active status
+DELETE /:id                     Deactivate user
+```
+
+#### `reports.js` → `/api/pms/reports`
+```
+GET    /occupancy               Occupancy report (date range)
+GET    /revenue                 Revenue breakdown (by source, roomType, ratePlan)
+GET    /arrivals-departures     Arrival/departure manifest
+GET    /housekeeping            Housekeeping productivity report
+```
+
+### Legacy Routes (`routes/` → `/api`)
+
+| File | Mount | Purpose |
+|---|---|---|
+| `auth.js` | `/api/auth` | login, register, logout, refresh, /me |
+| `userRoutes.js` | `/api/users` | User CRUD |
+| `bookingRoutes.js` | `/api/bookings` | Ziporiclass booking CRUD |
+| `orderRoutes.js` | `/api/orders` | Ziporiclass order management |
+| `roomRoutes.js` | `/api/rooms` | Legacy room management |
+| `priceListRoutes.js` | `/api/pricelists` | Price list CRUD |
+| `leadRoutes.js` | `/api/leads` | Ziporiclass lead management |
+| `announcementRoutes.js` | `/api/announcements` | Announcements |
+| `chatRoutes.js` | `/api/chat` | Internal chat |
+| `whatsappChatRoutes.js` | `/api/whatsapp` | WhatsApp integration |
+| `uploadRoutes.js` | `/api/upload` | File uploads (Multer) |
+| `referrerRoutes.js` | `/api/referrers` | Referrer management |
+| `customerCardRoutes.js` | `/api/customer-cards` | Loyalty cards |
+| `pushRoutes.js` | `/api/push` | Web push subscriptions |
+| `pbxRoutes.js` | `/api/pbx` | PBX integration |
+| `webhookRoutes.js` | `/api/webhooks` | Incoming webhooks (no auth) |
+| `adminHotels.js` | `/api/admin/hotels` | Hotel admin |
+| `adminOrders.js` | `/api/admin/orders` | Order admin |
+| `adminUsers.js` | `/api/admin/users` | User admin |
+| `adminDashboard.js` | `/api/admin/dashboard` | Admin KPIs |
+| `adminRoomTypes.js` | `/api/admin/room-types` | Room type admin |
+| `adminExtraTypes.js` | `/api/admin/extras` | Extra type admin |
+| `adminProducts.js` | `/api/admin/products` | Product admin |
+| `adminAutoReply.js` | `/api/admin/auto-reply` | WhatsApp auto-reply |
+| `adminTriggers.js` | `/api/admin/triggers` | Lead trigger admin |
+| `adminCommissions.js` | `/api/admin/commissions` | Commission management |
+| `adminAudit.js` | `/api/admin/audit` | Audit log view |
+
+---
+
+## SERVICE INDEX
+
+### `services/reservationService.js`
+```
+createReservation({ propertyId, data, actorId, actorName, ip })
+  → availability check → create Reservation + Folio → audit → notification
+
+checkIn(reservationId, roomId, actorId)
+  → validate status → update Reservation (in_house, checkedInAt) → update Room.occStatus
+
+checkOut(reservationId, actorId)
+  → validate status → balance Folio → update Reservation (checked_out, checkedOutAt) → Room to dirty
+
+cancelReservation(reservationId, reason, actorId)
+  → calc refund → update Reservation → release InventoryDate → optional refund Payment
+
+markNoShow(reservationId, actorId)
+  → update Reservation (no_show) → release inventory → notification
+
+modifyReservation(reservationId, updates, actorId)
+  → re-check availability if dates changed → update Reservation → audit delta
+```
+
+### `services/availabilityService.js`
+```
+checkAvailability({ propertyId, roomTypeId, arrivalDate, departureDate, requiredRooms })
+  → returns { available: Boolean, availableCount, dates: [] }
+
+incrementInventory({ propertyId, roomTypeId, date, quantity })
+  → $inc bookedCount on InventoryDate docs
+
+consumeAvailabilityLock(lockId)
+  → atomically consume InventoryLock
+```
+
+### `services/automationEngine.js`
+```
+fireEvent(trigger, data, propertyId)
+  → load matching AutomationRule docs → eval conditions → exec action
+  → actions: sendMessage|createTask|postCharge|sendPaymentLink|webhookDispatch|notifyStaff
+```
+
+### `services/notificationService.js` + `notificationDispatcher.js`
+```
+createNotification({ property, recipientUser, type, title, body, entityType, entityId })
+  → saves Notification → dispatches via channel (in_app / email / sms / push)
+
+dispatch(notification)
+  → in_app: Socket.io emit to user room
+  → email: emailService.sendEmail()
+  → sms: smsService.send()
+  → push: pushHandler.send()
+```
+
+### `services/channelQueueService.js`
+```
+enqueue(propertyId, roomTypeId, date, type)
+  → adds ChannelUpdateQueue entry for OTA sync (Booking/Expedia/Agoda)
+
+processQueue()
+  → reads pending updates → calls OTA APIs → marks processed or failed
+```
+
+### `services/scheduler.js` + `services/pmsScheduler.js`
+```
+initScheduler()
+  → daily 00:01: retention cleanup, commission reports
+  → every 5min: SLA breach check on MaintenanceTickets/GuestRequests
+
+initPmsScheduler()
+  → daily 02:00: auto-create housekeeping tasks for next day
+  → daily 23:59: night audit (post room charges to open folios)
+  → hourly: fire schedule.hourly automation rules
+```
+
+### `services/emailService.js`
+```
+sendEmail(to, subject, html)  → Nodemailer SMTP
+buildReservationConfirmationEmail(reservation, property, guest) → HTML string
+```
+
+### `services/whatsappService.js`
+```
+initWhatsAppListener()  → Baileys WebSocket connection
+sendMessage(phone, text)
+sendTemplate(phone, templateName, params)
+```
+
+### `services/roomService.js`
+```
+updateRoomStatus(roomId, updates, actorId)
+  → updates Room.opsStatus / cleanStatus / occStatus → audit → Socket.io emit
+
+syncOccupancyStatus(propertyId, date)
+  → reconciles Room.occStatus with active Reservation data
+```
+
+### `services/retentionService.js`
+```
+runRetentionCleanup()
+  → finds GuestProfile where retentionDeleteAfter < today
+  → anonymizes: clears PII, sets isAnonymized:true (Israeli 7-year GDPR)
+```
+
+### `services/invoiceService.js`
+```
+createInvoice(reservationId, type, actorId)
+  → reads Folio → builds Invoice doc → assigns invoiceNumber from Counter
+
+requestAllocation(invoiceId)
+  → sends to Israeli tax authority for allocation number
+```
+
+---
+
+## CONTROLLER INDEX
+
+### PMS Controllers (inline in route files or `controllers/admin/`)
+
+| File | Key Exports |
+|---|---|
+| `controllers/authController.js` | `registerUser`, `loginUser`, `logout`, `refresh` |
+| `controllers/userController.js` | User CRUD, profile, password reset |
+| `controllers/bookingController.js` | Booking CRUD (Ziporiclass) |
+| `controllers/orderController.js` | Order lifecycle (Ziporiclass) |
+| `controllers/roomController.js` | Room inventory |
+| `controllers/rateController.js` | Rate calendar operations |
+| `controllers/leadController.js` | Lead management (legacy) |
+| `controllers/dashboardController.js` | Stats aggregation |
+| `controllers/chatController.js` | Internal chat |
+| `controllers/announcementController.js` | Announcements |
+| `controllers/uploadController.js` | File upload + Sharp thumbnails |
+| `controllers/whatsappChatController.js` | WhatsApp chat interface |
+| `controllers/customerCardController.js` | Loyalty cards |
+| `controllers/admin/autoReplyController.js` | WhatsApp auto-reply rules |
+| `controllers/admin/calendarController.js` | HK/maintenance calendar |
+| `controllers/admin/commissionController.js` | Commission calc |
+| `controllers/admin/dashboardController.js` | PMS KPI dashboard |
+| `controllers/admin/extraTypeController.js` | Extra type CRUD |
+| `controllers/admin/hotelAdminController.js` | Hotel admin |
+| `controllers/admin/orderAdminController.js` | Order admin |
+| `controllers/admin/productAdminController.js` | Product admin |
+| `controllers/admin/referralController.js` | Referral management |
+| `controllers/admin/roomTypeController.js` | Room type admin |
+| `controllers/admin/triggerController.js` | Lead triggers |
+| `controllers/admin/userAdminController.js` | User admin |
+
+---
+
+## MIDDLEWARE SUMMARY
+
+### PMS Auth (`middleware/authContext.js`)
+```
+attachActor(req, res, next)    → decodes JWT → loads User → sets req.actor
+requireActor(req, res, next)   → gates: throws 401 if no actor
+assertPropertyScope(req, id)   → throws 403 if actor.property !== id (unless super_admin)
+requireRoles(req, roles, msg)  → throws 403 if actor.role not in roles
+```
+
+### Legacy Auth (`middlewares/authMiddleware.js`)
+```
+requireAuth          → verifies JWT cookie, loads User
+requireAdmin         → role: admin
+requireShiftManager  → role: admin | shift_manager
+requireMaintenance   → role: admin | maintenance | shift_manager
+```
+
+### Error Handling
+```
+utils/AppError.js    → new AppError(message, statusCode) — isOperational:true
+middleware/errorHandler.js → catches AppError → JSON { status, message, [stack in dev] }
+```
+
+---
+
+## KEY PATTERNS & CONVENTIONS
+
+### Date Format
+All dates stored as `String YYYY-MM-DD` (not Date objects) for reservation dates.
+Timestamps (`checkedInAt`, `createdAt` etc.) are `Date` objects.
+Helper: `utils/dateHelpers.js → todayYmdInTimezone(timezone)`
+
+### Confirmation Numbers
+Auto-generated: `{reservationPrefix || 'RES'}-{sequence}` from `Counter` model.
+
+### Role Hierarchy
+```
+super_admin > property_admin > general_manager > front_desk_manager
+> receptionist | revenue_manager | sales_manager | finance_manager | auditor
+> housekeeping_manager > housekeeper
+> maintenance_manager > technician
+> cashier | owner_readonly
+```
+
+### Property Scoping
+Every PMS model has a `property` field. All queries must include `{ property: req.actor.property }`.
+
+### Audit Logging
+Wrap all state-changing operations with `auditLogger.logAction(req, action, entity, entityId)`.
+
+### Socket.io Rooms
+Users join room `property:{propertyId}`. Emit updates there for real-time frontend sync.
+Key events: `room:updated`, `reservation:updated`, `task:updated`, `ticket:updated`
+
+### ESM
+All files use `import/export`. Node `"type":"module"`. No `require()`.
+
+---
+
+## ENV VARS
+
+```
+MONGO_URI              MongoDB connection string (default: mongodb://localhost:27017/hotel4u)
+PORT                   HTTP port (default: 4000)
+JWT_SECRET             JWT signing secret
+JWT_REFRESH_SECRET     Refresh token secret
+CLIENT_URL             CORS allowed origin
+SMTP_HOST/PORT/USER/PASS  Nodemailer SMTP config
+DISABLE_WHATSAPP=1     Skip Baileys WhatsApp init (use in dev)
+NODE_OPTIONS           e.g. --max-old-space-size=4096
+```
+
+---
+
+## SEED FILES
+
+### `server/seed.js` — `npm run seed`
+- 1 Property: מלון הגליל, Tiberias
+- 4 RoomTypes: STD/DLX/FAM/STE (380/520/650/890 ILS)
+- 32 Rooms (floors 1-5)
+- 4 RatePlans: BAR/VIP/OTA/CORP + RateDates (-65 to +65 days)
+- 4 Companies + 7 Users + 12 Guests
+- ~70 Reservations (today + 26 history + 11 future)
+- Folios for all non-future reservations
+- 10 HK Tasks + 4 Maintenance Tickets
+
+### `server/seedBig.js` — `npm run seed:big`
+- Same property + rooms + rate plans
+- 60 Guests (Israeli + international + corporate + VIP)
+- **~240 Reservations** total:
+  - 35 today (in_house + arrivals + checkouts)
+  - ~120 historical (past 90 days, dense)
+  - ~80 future (next 60 days, 1+ arrival per day)
+  - 7 no-shows/cancellations
+- Folios for all in-house + history
+- 15 HK Tasks + 5 Maintenance Tickets
+- Rate dates: -90 to +90 days
