@@ -1,1108 +1,537 @@
-﻿import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search, Plus, Crown, AlertCircle, Calendar, ChevronLeft, ChevronRight,
-  X, Filter, TrendingUp, Users, DoorOpen, DoorClosed, BedDouble,
-  LogIn, LogOut, Plane, CheckCircle2, ListChecks,
+  Search, Plus, Crown, ChevronLeft, ChevronRight,
+  LogIn, LogOut, Users, X, SlidersHorizontal,
+  ArrowUpDown, Building2, Globe, Phone, Footprints,
 } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
-import { useToast } from '../hooks/useToast';
-import { reservations as resApi, dashboard } from '../utils/api';
-import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
-import { ToastContainer } from '../components/ui/Toast';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from '../components/ui/Dialog';
+import { reservations as resApi } from '../utils/api';
+import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import ReservationDrawer from '../components/reservations/ReservationDrawer';
 
-/* ── constants ─────────────────────────────────────── */
-const STATUS_LABELS = {
-  all:          'הכל',
-  in_house:     'In House',
-  confirmed:    'מאושר',
-  checked_out:  'עזב',
-  cancelled:    'בוטל',
-  no_show:      'No Show',
-  modified:     'שונה',
-};
-const STATUS_BADGE = {
-  in_house:    'badge-inhouse',
-  confirmed:   'badge-confirmed',
-  checked_out: 'badge-departure',
-  cancelled:   'badge-cancelled',
-  no_show:     'badge-dirty',
-  modified:    'badge-confirmed',
-};
-const PAY_BADGE = {
-  paid:        'badge-clean',
-  balance_due: 'badge-dirty',
-  pending:     'badge-pending',
-  invoiced:    'badge-inhouse',
-};
-const PAY_LABELS = {
-  all:         'כל תשלומים',
-  paid:        'שולם',
-  balance_due: 'יתרה לתשלום',
-  pending:     'ממתין',
-  invoiced:    'חשבונית',
-};
-const SOURCE_FLAGS = {
-  direct:   '🏨', booking: '🔵', expedia: '🟡', agoda: '🔴',
-  airbnb:   '🟠', phone:   '📞', walk_in: '🚶', other:   '🌐',
-};
-const SOURCE_LABELS = {
-  all: 'כל מקורות', direct: 'ישיר', booking: 'Booking', expedia: 'Expedia',
-  agoda: 'Agoda', airbnb: 'Airbnb', phone: 'טלפון', walk_in: 'Walk-in',
-};
-const BULK_ACTION_OPTIONS = [
-  { value: 'send_confirmation', label: 'שליחת אישור' },
-  { value: 'cancel', label: 'ביטול הזמנות' },
-  { value: 'mark_no_show', label: 'סימון No Show' },
-  { value: 'check_in', label: "צ'ק-אין מרובה" },
-  { value: 'check_out', label: "צ'ק-אאוט מרובה" },
-  { value: 'link_group', label: 'שיוך לקבוצה' },
-  { value: 'unlink_group', label: 'ניתוק מקבוצה' },
-];
-const BULK_BACKGROUND_UI_THRESHOLD = 80;
-function getBulkActionLabel(action) {
-  return BULK_ACTION_OPTIONS.find((o) => o.value === action)?.label || action || '';
-}
+const PAGE_SIZE = 30;
 
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
-}
-function nightsBetween(a, b) {
-  return Math.round((new Date(b) - new Date(a)) / 86400000);
-}
+/* ─── helpers ──────────────────────────────────────────────────────────────── */
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
 function fmtDate(d) {
   if (!d) return '—';
-  const dt = new Date(d + 'T00:00:00');
-  return dt.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
-function initials(first, last) {
-  return ((first?.[0] || '') + (last?.[0] || '')).toUpperCase();
-}
-function avatarBg(vip, blacklisted) {
-  if (blacklisted) return 'bg-red-200 text-red-800';
-  if (vip === 'vvip') return 'bg-amber-200 text-amber-800';
-  if (vip === 'vip')  return 'bg-purple-200 text-purple-800';
-  return 'bg-brand/10 text-brand';
+  return new Date(`${d}T00:00:00`).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
-/* ── stat card ─────────────────────────────────────── */
-function StatCard({ icon: Icon, label, value, color, onClick, active }) {
+function nightsBetween(a, b) {
+  if (!a || !b) return 0;
+  return Math.round((new Date(`${b}T00:00:00`) - new Date(`${a}T00:00:00`)) / 86400000);
+}
+
+function initials(g) {
+  if (!g) return '?';
+  return ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase();
+}
+
+function useDebounce(value, ms = 350) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
+
+/* ─── status / payment config ──────────────────────────────────────────────── */
+const STATUS = {
+  confirmed:        { label: 'מאושר',     cls: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20'   },
+  modified:         { label: 'שונה',      cls: 'bg-yellow-50 text-yellow-700 ring-yellow-600/20'   },
+  in_house:         { label: 'בפנים',     cls: 'bg-green-50 text-green-700 ring-green-600/20'      },
+  partially_checked_in: { label: 'כניסה חלקית', cls: 'bg-teal-50 text-teal-700 ring-teal-600/20'  },
+  checked_out:      { label: 'יצא',       cls: 'bg-gray-100 text-gray-600 ring-gray-500/20'        },
+  partially_checked_out: { label: 'יציאה חלקית', cls: 'bg-orange-50 text-orange-700 ring-orange-600/20' },
+  cancelled:        { label: 'בוטל',      cls: 'bg-red-50 text-red-600 ring-red-600/20'            },
+  no_show:          { label: 'No Show',   cls: 'bg-orange-50 text-orange-700 ring-orange-600/20'   },
+  pending_payment:  { label: 'ממתין לתשלום', cls: 'bg-amber-50 text-amber-700 ring-amber-600/20'  },
+  hold:             { label: 'Hold',      cls: 'bg-sky-50 text-sky-700 ring-sky-600/20'            },
+  waitlisted:       { label: 'רשימת המתנה', cls: 'bg-purple-50 text-purple-700 ring-purple-600/20' },
+};
+
+const PAY = {
+  paid:        { label: 'שולם',       cls: 'bg-emerald-50 text-emerald-700' },
+  partial:     { label: 'חלקי',       cls: 'bg-amber-50 text-amber-700'    },
+  balance_due: { label: 'יתרה',       cls: 'bg-red-50 text-red-600'        },
+  unpaid:      { label: 'לא שולם',    cls: 'bg-red-50 text-red-600'        },
+  pending:     { label: 'ממתין',      cls: 'bg-gray-100 text-gray-600'     },
+  refunded:    { label: 'הוחזר',      cls: 'bg-gray-100 text-gray-500'     },
+};
+
+const SOURCE_ICON = {
+  booking: <Globe size={13} />,
+  expedia: <Globe size={13} />,
+  agoda:   <Globe size={13} />,
+  airbnb:  <Globe size={13} />,
+  direct:  <Building2 size={13} />,
+  phone:   <Phone size={13} />,
+  walk_in: <Footprints size={13} />,
+  other:   <Globe size={13} />,
+};
+
+const SOURCE_LABEL = {
+  direct: 'ישיר', booking: 'Booking', expedia: 'Expedia',
+  agoda: 'Agoda', airbnb: 'Airbnb', phone: 'טלפון', walk_in: 'Walk-in', other: 'אחר',
+};
+
+/* ─── tab config ────────────────────────────────────────────────────────────── */
+const STATUS_TABS = [
+  { id: 'all',         label: 'הכל'           },
+  { id: 'in_house',    label: 'בפנים'         },
+  { id: 'confirmed',   label: 'מאושר'         },
+  { id: 'checked_out', label: 'יצא'           },
+  { id: 'cancelled',   label: 'בוטל'          },
+  { id: 'no_show',     label: 'No Show'       },
+];
+
+/* ─── sub-components ────────────────────────────────────────────────────────── */
+function StatusChip({ status }) {
+  const cfg = STATUS[status] || { label: status, cls: 'bg-gray-100 text-gray-600 ring-gray-500/20' };
   return (
-    <button
-      onClick={onClick}
-      className={`card flex items-center gap-3 px-4 py-3 text-right transition-all hover:shadow-card ${active ? 'ring-2 ring-brand' : ''}`}
-    >
-      <span className={`rounded-lg p-2 ${color}`}><Icon size={18} /></span>
-      <div>
-        <div className={`text-2xl font-bold text-num ${color.replace('bg-','text-').split(' ')[0]}`}>{value ?? '—'}</div>
-        <div className="text-xs text-ink-muted">{label}</div>
-      </div>
-    </button>
-  );
-}
-
-/* ── calendar view ─────────────────────────────────── */
-function CalendarView({ month, year, onPrev, onNext, onDayClick, arrivals, departures, activeDateFilter }) {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
-
-  const arrMap = {};
-  const depMap = {};
-  (arrivals || []).forEach(r => {
-    const d = r.arrivalDate?.slice(0, 10);
-    if (d) arrMap[d] = (arrMap[d] || 0) + 1;
-  });
-  (departures || []).forEach(r => {
-    const d = r.departureDate?.slice(0, 10);
-    if (d) depMap[d] = (depMap[d] || 0) + 1;
-  });
-
-  const cells = [];
-  for (let i = 0; i < firstDow; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  const monthNames = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני',
-    'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-
-  return (
-    <div className="card p-4 animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={onPrev} className="btn-icon"><ChevronRight size={16} /></button>
-        <span className="font-semibold text-ink">{monthNames[month]} {year}</span>
-        <button onClick={onNext} className="btn-icon"><ChevronLeft size={16} /></button>
-      </div>
-      <div className="grid grid-cols-7 text-center text-xs text-ink-muted mb-1">
-        {['א','ב','ג','ד','ה','ו','ש'].map(d => <div key={d}>{d}</div>)}
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((day, i) => {
-          if (!day) return <div key={i} />;
-          const ds = `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-          const arr = arrMap[ds] || 0;
-          const dep = depMap[ds] || 0;
-          const isToday = ds === todayStr();
-          const isActive = activeDateFilter === ds;
-          return (
-            <button
-              key={i}
-              onClick={() => onDayClick(ds)}
-              className={`rounded p-1 text-xs flex flex-col items-center transition-all hover:bg-surface-hover
-                ${isToday ? 'ring-2 ring-brand' : ''}
-                ${isActive ? 'bg-brand/10' : ''}
-              `}
-            >
-              <span className={`font-medium ${isToday ? 'text-brand' : 'text-ink'}`}>{day}</span>
-              <div className="flex gap-0.5 mt-0.5">
-                {arr > 0 && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title={`${arr} הגעות`} />}
-                {dep > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title={`${dep} יציאות`} />}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex gap-4 mt-3 text-xs text-ink-muted justify-center">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"/>הגעות</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block"/>יציאות</span>
-      </div>
-    </div>
-  );
-}
-
-/* ── quick check-in button ─────────────────────────── */
-function QuickCheckIn({ resId, roomAssigned, roomClean, onDone }) {
-  const { error: toastError, success: toastSuccess } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [override, setOverride] = useState(false);
-
-  if (!roomAssigned) return (
-    <span className="flex items-center gap-1 text-red-500 text-xs">
-      <AlertCircle size={12} /> ללא חדר
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${cfg.cls}`}>
+      {cfg.label}
     </span>
   );
+}
 
-  const canCheckIn = roomClean || override;
-
+function PayChip({ status }) {
+  const cfg = PAY[status] || { label: status, cls: 'bg-gray-100 text-gray-500' };
   return (
-    <div className="flex items-center gap-1">
-      {!roomClean && (
-        <label className="flex items-center gap-0.5 text-xs text-amber-600 cursor-pointer">
-          <input type="checkbox" checked={override} onChange={e => setOverride(e.target.checked)} className="rounded" />
-          דרוס
-        </label>
-      )}
-      <button
-        disabled={!canCheckIn || loading}
-        onClick={async e => {
-          e.stopPropagation();
-          setLoading(true);
-          try {
-            await resApi.checkIn(resId, override);
-            toastSuccess('צ\'ק-אין בוצע');
-            onDone();
-          } catch(err) {
-            toastError(err.message || 'שגיאה בצ\'ק-אין');
-          } finally { setLoading(false); }
-        }}
-        className="btn btn-primary btn-sm flex items-center gap-1"
-      >
-        {loading ? <Spinner size="xs" /> : <LogIn size={12} />}
-        צ'ק-אין
-      </button>
-    </div>
+    <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${cfg.cls}`}>
+      {cfg.label}
+    </span>
   );
 }
 
-/* ── main page ─────────────────────────────────────── */
+function SourceBadge({ source }) {
+  const icon = SOURCE_ICON[source] || <Globe size={13} />;
+  const label = SOURCE_LABEL[source] || source;
+  return (
+    <span className="inline-flex items-center gap-1 text-gray-500 text-xs">
+      {icon} {label}
+    </span>
+  );
+}
+
+function Avatar({ guest, isVip }) {
+  const letters = initials(guest);
+  const isVvip = isVip || (guest?.vipLevel >= 3);
+  return (
+    <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold flex-shrink-0
+      ${isVvip ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>
+      {letters}
+    </span>
+  );
+}
+
+function FilterPill({ label, value, options, onChange }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 py-0 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
+    >
+      {options.map(o => (
+        <option key={o.value} value={o.value}>{label ? `${label}: ` : ''}{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
+/* ─── main page ─────────────────────────────────────────────────────────────── */
 export default function ReservationsPage() {
   const { propertyId } = useProperty();
-  const { toasts, success: toastSuccess, error: toastError } = useToast();
-  const today = todayStr();
-
-  /* ── state ── */
-  const [search, setSearch]             = useState('');
-  const [debouncedSearch, setDebounced] = useState('');
-  const [statusFilter, setStatus]       = useState('all');
-  const [payFilter, setPay]             = useState('all');
-  const [sourceFilter, setSource]       = useState('all');
-  const [dateFrom, setDateFrom]         = useState('');
-  const [dateTo, setDateTo]             = useState('');
-  const [calOpen, setCalOpen]           = useState(false);
-  const [calMonth, setCalMonth]         = useState(new Date().getMonth());
-  const [calYear, setCalYear]           = useState(new Date().getFullYear());
-  const [dayFilter, setDayFilter]       = useState('');
-  const [selectedReservationIds, setSelectedReservationIds] = useState([]);
-  const [bulkAction, setBulkAction]     = useState('');
-  const [bulkReason, setBulkReason]     = useState('');
-  const [bulkGroupId, setBulkGroupId]   = useState('');
-  const [bulkGroupCode, setBulkGroupCode] = useState('');
-  const [bulkGroupName, setBulkGroupName] = useState('');
-  const [bulkOverrideClean, setBulkOverrideClean] = useState(false);
-  const [bulkForceCheckout, setBulkForceCheckout] = useState(false);
-  const [bulkLoading, setBulkLoading]   = useState(false);
-  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
-  const [bulkResultSummary, setBulkResultSummary] = useState(null);
-  const [bulkJob, setBulkJob] = useState(null);
   const navigate = useNavigate();
-  const [drawerRes, setDrawerRes]       = useState(null);
-  const debounceRef = useRef(null);
-  const bulkPollRef = useRef(null);
+  const skip = !propertyId;
 
-  const openBulkJobsPage = useCallback((jobId) => {
-    if (jobId) {
-      navigate(`/pms/bulk-jobs?jobId=${encodeURIComponent(String(jobId))}`);
-      return;
-    }
-    navigate('/pms/bulk-jobs');
-  }, [navigate]);
+  /* filter state */
+  const [statusTab,    setStatusTab]    = useState('all');
+  const [search,       setSearch]       = useState('');
+  const [payFilter,    setPayFilter]    = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [dateFrom,     setDateFrom]     = useState('');
+  const [dateTo,       setDateTo]       = useState('');
+  const [showFilters,  setShowFilters]  = useState(false);
+  const [page,         setPage]         = useState(1);
+  const [drawer,       setDrawer]       = useState(null);
 
-  /* ── debounce search ── */
-  const handleSearch = useCallback(v => {
-    setSearch(v);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebounced(v), 350);
-  }, []);
+  const debouncedSearch = useDebounce(search);
 
-  const stopBulkJobPolling = useCallback(() => {
-    if (bulkPollRef.current) {
-      clearInterval(bulkPollRef.current);
-      bulkPollRef.current = null;
-    }
-  }, []);
+  /* reset page when filters change */
+  useEffect(() => setPage(1), [statusTab, debouncedSearch, payFilter, sourceFilter, dateFrom, dateTo]);
 
-  useEffect(() => () => {
-    clearTimeout(debounceRef.current);
-    stopBulkJobPolling();
-  }, [stopBulkJobPolling]);
-
-  /* ── data ── */
-  const statsKey = [propertyId];
-  const { data: statsData, loading: statsLoading } = useApi(
-    () => dashboard.stats(propertyId), [propertyId], !propertyId
-  );
-  const stats = statsData?.data || {};
-
-  const listParams = useMemo(() => {
-    const p = {};
-    if (statusFilter !== 'all') p.status = statusFilter;
-    if (payFilter !== 'all')    p.paymentStatus = payFilter;
-    if (sourceFilter !== 'all') p.source = sourceFilter;
-    if (debouncedSearch)        p.search = debouncedSearch;
-    if (dateFrom)               p.dateFrom = dateFrom;
-    if (dateTo)                 p.dateTo = dateTo;
-    return p;
-  }, [statusFilter, payFilter, sourceFilter, debouncedSearch, dateFrom, dateTo]);
-
-  const { data: listData, loading: listLoading, error: listError, refetch } = useApi(
-    () => resApi.list(propertyId, listParams), [propertyId, JSON.stringify(listParams)], !propertyId
-  );
-
-  const allRes = useMemo(() => listData?.data || [], [listData]);
-
-  /* ── day filter from calendar ── */
-  const filteredRes = useMemo(() => {
-    if (!dayFilter) return allRes;
-    return allRes.filter(r => r.arrivalDate === dayFilter || r.departureDate === dayFilter);
-  }, [allRes, dayFilter]);
-  const filteredIds = useMemo(
-    () => filteredRes.map((r) => String(r._id)),
-    [filteredRes]
-  );
-
-  useEffect(() => {
-    const allIds = new Set(allRes.map((r) => String(r._id)));
-    setSelectedReservationIds((prev) => {
-      const next = prev.filter((id) => allIds.has(id));
-      return next.length === prev.length ? prev : next;
-    });
-  }, [allRes]);
-
-  /* ── total revenue ── */
-  const totalRevenue = useMemo(() =>
-    filteredRes.reduce((s, r) => s + (r.totalAmount || 0), 0), [filteredRes]
-  );
-  const allVisibleSelected = filteredIds.length > 0
-    && filteredIds.every((id) => selectedReservationIds.includes(id));
-  const selectedCount = selectedReservationIds.length;
-  const bulkActionLabel = useMemo(() => getBulkActionLabel(bulkAction), [bulkAction]);
-  const reservationLabelsMap = useMemo(() => {
-    const map = new Map();
-    allRes.forEach((r) => {
-      map.set(String(r._id), r.confirmationNumber || String(r._id).slice(-6).toUpperCase());
-    });
-    return map;
-  }, [allRes]);
-
-  /* ── calendar nav ── */
-  const handleCalPrev = () => {
-    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
-    else setCalMonth(m => m - 1);
-  };
-  const handleCalNext = () => {
-    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
-    else setCalMonth(m => m + 1);
+  const params = {
+    status:         statusTab !== 'all' ? statusTab : undefined,
+    search:         debouncedSearch || undefined,
+    paymentStatus:  payFilter !== 'all' ? payFilter : undefined,
+    source:         sourceFilter !== 'all' ? sourceFilter : undefined,
+    dateFrom:       dateFrom || undefined,
+    dateTo:         dateTo || undefined,
+    page,
+    limit: PAGE_SIZE,
   };
 
-  const toggleSelectOne = useCallback((reservationId) => {
-    setSelectedReservationIds((prev) => (
-      prev.includes(reservationId)
-        ? prev.filter((id) => id !== reservationId)
-        : [...prev, reservationId]
-    ));
-  }, []);
+  const { data: raw, loading, error, refetch } = useApi(
+    () => resApi.list(propertyId, params),
+    [propertyId, statusTab, debouncedSearch, payFilter, sourceFilter, dateFrom, dateTo, page],
+    skip,
+  );
 
-  const toggleSelectAllVisible = useCallback(() => {
-    setSelectedReservationIds((prev) => {
-      if (allVisibleSelected) {
-        return prev.filter((id) => !filteredIds.includes(id));
-      }
-      const nextSet = new Set(prev);
-      filteredIds.forEach((id) => nextSet.add(id));
-      return Array.from(nextSet);
-    });
-  }, [allVisibleSelected, filteredIds]);
+  if (skip) return <PageSpinner />;
+  if (error && !raw) return <ErrorState message={error} onRetry={refetch} />;
 
-  const clearSelection = useCallback(() => {
-    setSelectedReservationIds([]);
-  }, []);
+  const list       = Array.isArray(raw) ? raw : (raw?.reservations || raw?.data || []);
+  const totalCount = raw?.total ?? list.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const today      = todayStr();
 
-  const finalizeBulkJobResult = useCallback((jobSnapshot) => {
-    const failedRows = (jobSnapshot?.results || []).filter((row) => !row?.success);
-    const summary = {
-      jobId: jobSnapshot?.jobId || null,
-      action: jobSnapshot?.action || bulkAction,
-      actionLabel: getBulkActionLabel(jobSnapshot?.action || bulkAction),
-      total: Number(jobSnapshot?.total || 0),
-      processed: Number(jobSnapshot?.processed || 0),
-      succeeded: Number(jobSnapshot?.succeeded || 0),
-      failed: Number(jobSnapshot?.failed || 0),
-      failedRows,
-      completedAt: jobSnapshot?.completedAt || new Date().toISOString(),
-    };
-    setBulkResultSummary(summary);
+  const arriving = list.filter(r => r.arrivalDate === today && r.status === 'confirmed').length;
+  const departing = list.filter(r => r.departureDate === today && r.status === 'in_house').length;
 
-    if (summary.failed > 0) {
-      const firstErr = failedRows[0]?.error;
-      toastError(`בוצעו ${summary.succeeded} הצלחות, ${summary.failed} כשלונות${firstErr ? `: ${firstErr}` : ''}`);
-      setSelectedReservationIds(failedRows.map((row) => String(row.reservationId)).filter(Boolean));
-    } else {
-      toastSuccess(`בוצעה פעולה בהצלחה על ${summary.succeeded} הזמנות`);
-      setSelectedReservationIds([]);
-    }
-  }, [bulkAction, toastError, toastSuccess]);
+  function handleRowClick(res) { setDrawer(res); }
 
-  const startBulkJobPolling = useCallback((jobId) => {
-    if (!propertyId || !jobId) return;
-    stopBulkJobPolling();
-
-    bulkPollRef.current = setInterval(async () => {
-      try {
-        const payload = await resApi.bulkJobStatus(jobId, propertyId, true);
-        const jobSnapshot = payload?.job;
-        if (!jobSnapshot) return;
-
-        setBulkJob(jobSnapshot);
-        if (['completed', 'failed', 'cancelled'].includes(jobSnapshot.status)) {
-          stopBulkJobPolling();
-          setBulkLoading(false);
-          setBulkJob(null);
-
-          if (jobSnapshot.status === 'failed') {
-            toastError(jobSnapshot.error || 'פעולת רקע נכשלה');
-          } else if (jobSnapshot.status === 'cancelled') {
-            toastError('פעולת bulk בוטלה');
-          } else {
-            finalizeBulkJobResult(jobSnapshot);
-          }
-
-          refetch();
-        }
-      } catch (err) {
-        stopBulkJobPolling();
-        setBulkLoading(false);
-        setBulkJob(null);
-        toastError(err.message || 'שגיאה במעקב סטטוס פעולת bulk');
-      }
-    }, 1200);
-  }, [finalizeBulkJobResult, propertyId, refetch, stopBulkJobPolling, toastError]);
-
-  const cancelBulkJob = useCallback(async () => {
-    if (!bulkJob?.jobId || !propertyId) return;
-    try {
-      await resApi.cancelBulkJob(bulkJob.jobId, propertyId);
-      toastSuccess('בקשת ביטול נשלחה למשימה');
-    } catch (err) {
-      toastError(err.message || 'שגיאה בביטול משימה');
-    }
-  }, [bulkJob, propertyId, toastError, toastSuccess]);
-
-  const getBulkValidationError = useCallback(() => {
-    if (!propertyId) return 'Property לא זמין';
-    if (!bulkAction) return 'בחר פעולה מרובה';
-    if (selectedReservationIds.length === 0) return 'לא נבחרו הזמנות';
-    if (bulkAction === 'cancel' && !bulkReason.trim()) return 'נדרשת סיבת ביטול לפעולת ביטול מרובה';
-    if (bulkAction === 'link_group' && !bulkGroupId && !bulkGroupCode && !bulkGroupName) {
-      return 'מלא לפחות שדה קבוצה אחד (ID / Code / Name)';
-    }
-    return null;
-  }, [
-    propertyId,
-    bulkAction,
-    selectedReservationIds,
-    bulkReason,
-    bulkGroupId,
-    bulkGroupCode,
-    bulkGroupName,
-  ]);
-
-  const requestBulkActionConfirmation = useCallback(() => {
-    const validationError = getBulkValidationError();
-    if (validationError) {
-      toastError(validationError);
-      return;
-    }
-    setBulkConfirmOpen(true);
-  }, [getBulkValidationError, toastError]);
-
-  const runBulkAction = useCallback(async () => {
-    const validationError = getBulkValidationError();
-    if (validationError) {
-      toastError(validationError);
-      return;
-    }
-
-    setBulkConfirmOpen(false);
-    const payload = {
-      propertyId,
-      reservationIds: selectedReservationIds,
-      action: bulkAction,
-      background: selectedReservationIds.length >= BULK_BACKGROUND_UI_THRESHOLD,
-    };
-    if (bulkAction === 'cancel') payload.reason = bulkReason.trim();
-    if (bulkAction === 'check_in') payload.overrideClean = bulkOverrideClean;
-    if (bulkAction === 'check_out') payload.forceCheckout = bulkForceCheckout;
-    if (bulkAction === 'link_group') {
-      payload.groupId = bulkGroupId || undefined;
-      payload.groupCode = bulkGroupCode || undefined;
-      payload.groupName = bulkGroupName || undefined;
-    }
-
-    setBulkLoading(true);
-    setBulkResultSummary(null);
-    setBulkJob(null);
-    let delegatedToBackground = false;
-    try {
-      const result = await resApi.bulkActions(payload);
-      if (result?.mode === 'background' && result?.job?.jobId) {
-        delegatedToBackground = true;
-        setBulkJob(result.job);
-        toastSuccess(`הפעולה עברה לרקע. מזהה משימה: ${result.job.jobId.slice(-8)}`);
-        openBulkJobsPage(result.job.jobId);
-        return;
-      }
-
-      const total = Number(result?.total || selectedReservationIds.length || 0);
-      const processed = Number(result?.processed || 0);
-      const succeeded = Number(result?.succeeded || 0);
-      const failed = Number(result?.failed || 0);
-      const resultRows = Array.isArray(result?.results) ? result.results : [];
-      const failedRows = resultRows.filter((row) => !row?.success);
-
-      setBulkResultSummary({
-        jobId: null,
-        action: bulkAction,
-        actionLabel: bulkActionLabel,
-        total,
-        processed,
-        succeeded,
-        failed,
-        failedRows,
-        completedAt: new Date().toISOString(),
-      });
-
-      if (failed > 0) {
-        const firstErr = failedRows[0]?.error;
-        toastError(`בוצעו ${succeeded} הצלחות, ${failed} כשלונות${firstErr ? `: ${firstErr}` : ''}`);
-        setSelectedReservationIds(failedRows.map((row) => String(row.reservationId)).filter(Boolean));
-      } else {
-        toastSuccess(`בוצעה פעולה בהצלחה על ${succeeded} הזמנות`);
-        setSelectedReservationIds([]);
-      }
-      refetch();
-    } catch (err) {
-      toastError(err.message || 'שגיאה בפעולת bulk');
-    } finally {
-      if (!delegatedToBackground) setBulkLoading(false);
-    }
-  }, [
-    propertyId,
-    bulkAction,
-    bulkActionLabel,
-    selectedReservationIds,
-    bulkReason,
-    bulkOverrideClean,
-    bulkForceCheckout,
-    bulkGroupId,
-    bulkGroupCode,
-    bulkGroupName,
-    getBulkValidationError,
-    openBulkJobsPage,
-    refetch,
-    toastError,
-    toastSuccess,
-  ]);
-
-  /* ── clear all filters ── */
-  const hasFilters = statusFilter !== 'all' || payFilter !== 'all' || sourceFilter !== 'all'
-    || debouncedSearch || dateFrom || dateTo || dayFilter;
-  const clearFilters = () => {
-    setSearch(''); setDebounced(''); setStatus('all'); setPay('all'); setSource('all');
-    setDateFrom(''); setDateTo(''); setDayFilter('');
-  };
-
-  /* ── stat card filter ── */
-  const handleStatClick = (key) => {
-    if (key === 'arrivals')   { setStatus('confirmed'); setDateFrom(today); setDateTo(today); }
-    if (key === 'departures') { setStatus('in_house');  setDateFrom(today); setDateTo(today); }
-    if (key === 'inHouse')    { setStatus('in_house');  setDateFrom('');    setDateTo(''); }
-    if (key === 'unassigned') { setStatus('confirmed'); }
-  };
-
-  /* ── table row ── */
-  function ResRow({ r }) {
-    const rowId = String(r._id);
-    const isSelected = selectedReservationIds.includes(rowId);
-    const gFirst = r.primaryGuest?.firstName || '';
-    const gLast  = r.primaryGuest?.lastName  || '';
-    const vip    = r.primaryGuest?.vipLevel;
-    const blk    = r.primaryGuest?.isBlacklisted;
-    const nights = nightsBetween(r.arrivalDate, r.departureDate);
-    const isArrivalToday   = r.arrivalDate === today && ['confirmed','modified'].includes(r.status);
-    const isDepartureToday = r.departureDate === today && ['in_house','checked_in'].includes(r.status);
-    const room = r.assignedRoom;
-
-    return (
-      <tr
-        onClick={() => setDrawerRes(r)}
-        className={`cursor-pointer hover:bg-surface-hover transition-colors
-          ${isArrivalToday ? 'border-r-4 border-r-emerald-500' : ''}
-          ${isDepartureToday ? 'border-r-4 border-r-amber-500' : ''}
-        `}
-      >
-        {/* בחירה מרובה */}
-        <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => toggleSelectOne(rowId)}
-            disabled={bulkLoading}
-            className="w-4 h-4 rounded"
-            aria-label={`בחר הזמנה ${r.confirmationNumber || rowId}`}
-          />
-        </td>
-        {/* אישור */}
-        <td className="px-3 py-2 text-xs font-mono text-ink-secondary">
-          {r.confirmationNumber || r._id?.slice(-6).toUpperCase()}
-        </td>
-        {/* אורח */}
-        <td className="px-3 py-2">
-          <div className="flex items-center gap-2">
-            <div className={`avatar text-xs ${avatarBg(vip, blk)}`}>
-              {initials(gFirst, gLast)}
-            </div>
-            <div>
-              <div className="flex items-center gap-1 text-sm font-medium text-ink">
-                {gFirst} {gLast}
-                {(vip === 'vip' || vip === 'vvip') && <Crown size={12} className="text-amber-500" />}
-                {blk && <AlertCircle size={12} className="text-red-500" />}
-              </div>
-              {r.primaryGuest?.country && (
-                <div className="text-xs text-ink-faint">{r.primaryGuest.country}</div>
-              )}
-            </div>
-          </div>
-        </td>
-        {/* חדר */}
-        <td className="px-3 py-2 text-sm">
-          {room ? (
-            <div>
-              <div className="font-medium text-ink">{room.number}</div>
-              <div className="text-xs text-ink-muted">{r.roomType?.name || '—'}</div>
-            </div>
-          ) : (
-            <span className="flex items-center gap-1 text-red-500 text-xs font-medium">
-              <AlertCircle size={12} /> ללא הקצאה
-            </span>
-          )}
-        </td>
-        {/* הגעה */}
-        <td className="px-3 py-2 text-sm text-ink-secondary">{fmtDate(r.arrivalDate)}</td>
-        {/* עזיבה */}
-        <td className="px-3 py-2 text-sm text-ink-secondary">{fmtDate(r.departureDate)}</td>
-        {/* לילות */}
-        <td className="px-3 py-2 text-center text-sm text-num">{nights}</td>
-        {/* סה"כ */}
-        <td className="px-3 py-2 text-sm text-num text-right">
-          {r.totalAmount != null ? `₪${r.totalAmount.toLocaleString('he-IL')}` : '—'}
-        </td>
-        {/* סטטוס */}
-        <td className="px-3 py-2">
-          <span className={`badge ${STATUS_BADGE[r.status] || 'badge-pending'}`}>
-            {STATUS_LABELS[r.status] || r.status}
-          </span>
-        </td>
-        {/* תשלום */}
-        <td className="px-3 py-2">
-          {r.paymentStatus && (
-            <span className={`badge ${PAY_BADGE[r.paymentStatus] || 'badge-pending'}`}>
-              {PAY_LABELS[r.paymentStatus] || r.paymentStatus}
-            </span>
-          )}
-        </td>
-        {/* מקור */}
-        <td className="px-3 py-2 text-base text-center">
-          <span title={SOURCE_LABELS[r.source] || r.source}>
-            {SOURCE_FLAGS[r.source] || '🌐'}
-          </span>
-        </td>
-        {/* פעולה מהירה */}
-        <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-          {isArrivalToday && (
-            <QuickCheckIn
-              resId={r._id}
-              roomAssigned={!!room}
-              roomClean={['clean','inspected'].includes(room?.cleanStatus)}
-              onDone={refetch}
-            />
-          )}
-          {isDepartureToday && (
-            <button
-              onClick={async e => {
-                e.stopPropagation();
-                try {
-                  await resApi.checkOut(r._id);
-                  toastSuccess('צ\'ק-אאוט בוצע');
-                  refetch();
-                } catch(err) {
-                  toastError(err.message || 'שגיאה');
-                }
-              }}
-              className="btn btn-secondary btn-sm flex items-center gap-1"
-            >
-              <LogOut size={12} /> צ'ק-אאוט
-            </button>
-          )}
-        </td>
-      </tr>
-    );
+  function clearFilters() {
+    setSearch('');
+    setPayFilter('all');
+    setSourceFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setStatusTab('all');
   }
 
-  /* ── render ── */
+  const hasActiveFilters = statusTab !== 'all' || search || payFilter !== 'all' || sourceFilter !== 'all' || dateFrom || dateTo;
+
   return (
-    <div className="flex flex-col gap-4 h-full animate-fade-in">
-      <ToastContainer toasts={toasts} />
-
-      {/* ─── header ─── */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">הזמנות</h1>
-          <p className="page-subtitle">ניהול כל ההזמנות והגעות</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => openBulkJobsPage()}
-            className="btn btn-secondary flex items-center gap-2"
-          >
-            <ListChecks size={16} />
-            עבודות Bulk
-          </button>
-          <button
-            onClick={() => setCalOpen(v => !v)}
-            className={`btn btn-secondary flex items-center gap-2 ${calOpen ? 'ring-2 ring-brand' : ''}`}
-          >
-            <Calendar size={16} />
-            לוח שנה
-          </button>
-          <button
-            onClick={() => navigate('/pms/reservations/new')}
-            className="btn btn-primary flex items-center gap-2"
-          >
-            <Plus size={16} /> הזמנה חדשה
-          </button>
-        </div>
-      </div>
-
-      {/* ─── stats bar ─── */}
-      {!statsLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <StatCard icon={LogIn}    label="הגעות היום"   value={stats.arrivals}    color="bg-emerald-100 text-emerald-700" onClick={() => handleStatClick('arrivals')}   active={statusFilter==='confirmed' && dateFrom===today} />
-          <StatCard icon={LogOut}   label="יציאות היום"  value={stats.departures}  color="bg-amber-100 text-amber-700"    onClick={() => handleStatClick('departures')} active={statusFilter==='in_house'  && dateFrom===today} />
-          <StatCard icon={BedDouble} label="In House"    value={stats.inHouse}     color="bg-blue-100 text-blue-700"     onClick={() => handleStatClick('inHouse')}    active={statusFilter==='in_house'  && !dateFrom} />
-          <StatCard icon={AlertCircle} label="ללא חדר"  value={stats.unassigned}  color="bg-red-100 text-red-700"       onClick={() => handleStatClick('unassigned')} active={false} />
-          <StatCard icon={TrendingUp} label="תפוסה"     value={stats.occupancy != null ? `${stats.occupancy}%` : '—'} color="bg-violet-100 text-violet-700" onClick={() => {}} active={false} />
-        </div>
-      )}
-
-      {/* ─── calendar ─── */}
-      {calOpen && (
-        <CalendarView
-          month={calMonth}
-          year={calYear}
-          onPrev={handleCalPrev}
-          onNext={handleCalNext}
-          onDayClick={d => { setDayFilter(prev => prev === d ? '' : d); }}
-          arrivals={allRes}
-          departures={allRes}
-          activeDateFilter={dayFilter}
-        />
-      )}
-
-      {/* ─── filters ─── */}
-      <div className="card p-3 flex flex-wrap gap-2 items-center">
-        {/* search */}
-        <div className="relative flex-1 min-w-48">
-          <Search size={15} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
-          <input
-            className="input pr-8 w-full text-sm"
-            placeholder="שם, מספר אישור, טלפון..."
-            value={search}
-            onChange={e => handleSearch(e.target.value)}
-          />
-        </div>
-
-        {/* status chips */}
-        <div className="flex gap-1 flex-wrap">
-          {Object.entries(STATUS_LABELS).map(([k, v]) => (
-            <button
-              key={k}
-              onClick={() => setStatus(k)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all
-                ${statusFilter === k ? 'bg-brand text-white border-brand' : 'border-surface-border text-ink-secondary hover:bg-surface-hover'}`}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-
-        {/* date range */}
-        <div className="flex items-center gap-1 text-sm">
-          <span className="text-ink-muted text-xs">מ:</span>
-          <input type="date" className="input text-xs py-1 px-2" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-          <span className="text-ink-muted text-xs">עד:</span>
-          <input type="date" className="input text-xs py-1 px-2" value={dateTo} onChange={e => setDateTo(e.target.value)} />
-        </div>
-
-        {/* pay filter */}
-        <select className="select text-sm py-1" value={payFilter} onChange={e => setPay(e.target.value)}>
-          {Object.entries(PAY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-
-        {/* source filter */}
-        <select className="select text-sm py-1" value={sourceFilter} onChange={e => setSource(e.target.value)}>
-          {Object.entries(SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-
-        {/* clear */}
-        {hasFilters && (
-          <button onClick={clearFilters} className="btn btn-ghost btn-sm flex items-center gap-1 text-red-500">
-            <X size={14} /> נקה
-          </button>
-        )}
-      </div>
-
-      {/* ─── day filter badge ─── */}
-      {dayFilter && (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="bg-brand/10 text-brand px-3 py-1 rounded-full flex items-center gap-1">
-            <Calendar size={13} />
-            מסנן לתאריך: {fmtDate(dayFilter)}
-            <button onClick={() => setDayFilter('')} className="mr-1 hover:text-red-500"><X size={12} /></button>
-          </span>
-        </div>
-      )}
-
-      {/* ─── bulk actions ─── */}
-      {selectedReservationIds.length > 0 && (
-        <div className="card p-3 flex flex-wrap gap-2 items-center">
-          <span className="text-sm font-medium text-ink-secondary">
-            נבחרו {selectedReservationIds.length} הזמנות
-          </span>
-
-          <select
-            className="select text-sm py-1"
-            value={bulkAction}
-            onChange={(e) => setBulkAction(e.target.value)}
-            disabled={bulkLoading}
-          >
-            <option value="">בחר פעולה מרובה...</option>
-            {BULK_ACTION_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-
-          {bulkAction === 'cancel' && (
-            <input
-              className="input text-sm py-1 px-2 min-w-56"
-              value={bulkReason}
-              onChange={(e) => setBulkReason(e.target.value)}
-              placeholder="סיבת ביטול..."
-              disabled={bulkLoading}
-            />
-          )}
-          {bulkAction === 'check_in' && (
-            <label className="flex items-center gap-1 text-xs text-ink-muted">
-              <input
-                type="checkbox"
-                className="w-3.5 h-3.5 rounded"
-                checked={bulkOverrideClean}
-                onChange={(e) => setBulkOverrideClean(e.target.checked)}
-                disabled={bulkLoading}
-              />
-              Override ניקיון
-            </label>
-          )}
-          {bulkAction === 'check_out' && (
-            <label className="flex items-center gap-1 text-xs text-ink-muted">
-              <input
-                type="checkbox"
-                className="w-3.5 h-3.5 rounded"
-                checked={bulkForceCheckout}
-                onChange={(e) => setBulkForceCheckout(e.target.checked)}
-                disabled={bulkLoading}
-              />
-              Force checkout
-            </label>
-          )}
-          {bulkAction === 'link_group' && (
-            <>
-              <input
-                className="input text-sm py-1 px-2 min-w-36"
-                value={bulkGroupId}
-                onChange={(e) => setBulkGroupId(e.target.value)}
-                placeholder="Group ID"
-                disabled={bulkLoading}
-              />
-              <input
-                className="input text-sm py-1 px-2 min-w-28"
-                value={bulkGroupCode}
-                onChange={(e) => setBulkGroupCode(e.target.value)}
-                placeholder="Group Code"
-                disabled={bulkLoading}
-              />
-              <input
-                className="input text-sm py-1 px-2 min-w-40"
-                value={bulkGroupName}
-                onChange={(e) => setBulkGroupName(e.target.value)}
-                placeholder="Group Name"
-                disabled={bulkLoading}
-              />
-            </>
-          )}
-
-          <button
-            onClick={requestBulkActionConfirmation}
-            disabled={bulkLoading || !bulkAction}
-            className="btn btn-primary btn-sm flex items-center gap-1"
-          >
-            {bulkLoading ? <Spinner size="xs" /> : <CheckCircle2 size={12} />}
-            {bulkLoading ? 'מריץ...' : 'בצע'}
-          </button>
-          <button onClick={clearSelection} disabled={bulkLoading} className="btn btn-ghost btn-sm text-red-500 disabled:opacity-50">
-            נקה בחירה
-          </button>
-
-          {bulkLoading && (
-            <div className="w-full flex items-center gap-2 text-xs text-brand">
-              <Spinner size="xs" />
-              {bulkJob
-                ? `משימה ברקע: ${bulkJob.processed || 0}/${bulkJob.total || selectedCount} (${bulkJob.status})`
-                : `מריץ "${bulkActionLabel}" על ${selectedCount} הזמנות...`}
-              {bulkJob?.jobId && (
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => openBulkJobsPage(bulkJob.jobId)}
-                >
-                  פתח בעבודות Bulk
-                </button>
-              )}
-              {bulkJob?.jobId && !['completed', 'failed', 'cancelled'].includes(String(bulkJob.status || '')) && (
-                <button
-                  className="btn btn-ghost btn-sm text-red-600 ml-2"
-                  onClick={cancelBulkJob}
-                >
-                  בטל משימה
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {bulkResultSummary && (
-        <div className={`card p-3 ${bulkResultSummary.failed > 0 ? 'border border-amber-300 bg-amber-50/50' : 'border border-emerald-300 bg-emerald-50/50'}`}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-sm">
-              <span className="font-semibold text-ink">סיכום פעולה:</span>{' '}
-              <span className="text-ink-secondary">{bulkResultSummary.actionLabel || bulkResultSummary.action}</span>{' '}
-              <span className="text-ink-muted">({new Date(bulkResultSummary.completedAt).toLocaleTimeString('he-IL')})</span>
-            </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setBulkResultSummary(null)} disabled={bulkLoading}>
-              הסתר
-            </button>
-          </div>
-
-          {bulkResultSummary.jobId && (
-            <div className="mt-2">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => openBulkJobsPage(bulkResultSummary.jobId)}
-              >
-                מעבר לפרטי משימה
-              </button>
-            </div>
-          )}
-
-          <div className="mt-2 text-xs text-ink-secondary flex flex-wrap gap-x-4 gap-y-1">
-            <span>סה"כ: <strong className="text-ink">{bulkResultSummary.total}</strong></span>
-            <span>טופלו: <strong className="text-ink">{bulkResultSummary.processed}</strong></span>
-            <span>הצלחות: <strong className="text-emerald-700">{bulkResultSummary.succeeded}</strong></span>
-            <span>כשלונות: <strong className={bulkResultSummary.failed > 0 ? 'text-red-700' : 'text-ink'}>{bulkResultSummary.failed}</strong></span>
-          </div>
-
-          {bulkResultSummary.failedRows?.length > 0 && (
-            <div className="mt-2">
-              <div className="text-xs font-medium text-red-700 mb-1">פרטי כשלים:</div>
-              <div className="space-y-1">
-                {bulkResultSummary.failedRows.slice(0, 6).map((row) => {
-                  const rid = String(row?.reservationId || '');
-                  const label = reservationLabelsMap.get(rid) || rid || '—';
-                  return (
-                    <div key={rid} className="text-xs text-red-700">
-                      #{label}: {row?.error || 'שגיאה לא ידועה'}
-                    </div>
-                  );
-                })}
-              </div>
-              {bulkResultSummary.failedRows.length > 6 && (
-                <div className="text-xs text-red-700 mt-1">
-                  ועוד {bulkResultSummary.failedRows.length - 6} כשלים...
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── table ─── */}
-      {listLoading ? (
-        <div className="flex-1 flex items-center justify-center"><PageSpinner /></div>
-      ) : listError ? (
-        <ErrorState message={listError} onRetry={refetch} />
-      ) : filteredRes.length === 0 ? (
-        <div className="empty-state flex-1">
-          <Calendar size={48} className="empty-state-icon" />
-          <p className="text-ink-secondary">לא נמצאו הזמנות</p>
-          {hasFilters && <button onClick={clearFilters} className="btn btn-secondary btn-sm mt-2">נקה מסננים</button>}
-        </div>
-      ) : (
-        <div className="card overflow-auto flex-1">
-          <table className="data-table w-full">
-            <thead>
-              <tr className="text-xs text-ink-muted">
-                <th className="px-2 py-2 text-center">
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleSelectAllVisible}
-                    disabled={bulkLoading}
-                    className="w-4 h-4 rounded"
-                    aria-label="בחר הכל"
-                  />
-                </th>
-                <th className="px-3 py-2 text-right">אישור</th>
-                <th className="px-3 py-2 text-right">אורח</th>
-                <th className="px-3 py-2 text-right">חדר / סוג</th>
-                <th className="px-3 py-2 text-right">הגעה</th>
-                <th className="px-3 py-2 text-right">עזיבה</th>
-                <th className="px-3 py-2 text-center">לילות</th>
-                <th className="px-3 py-2 text-right">סה"כ</th>
-                <th className="px-3 py-2 text-right">סטטוס</th>
-                <th className="px-3 py-2 text-right">תשלום</th>
-                <th className="px-3 py-2 text-center">מקור</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRes.map(r => <ResRow key={r._id} r={r} />)}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* ─── footer ─── */}
-      {filteredRes.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-ink-muted px-1 pb-2">
-          <span>{filteredRes.length} הזמנות</span>
-          <span className="text-num font-medium">
-            סה"כ הכנסות: ₪{totalRevenue.toLocaleString('he-IL')}
-          </span>
-        </div>
-      )}
-
-      {/* ─── modals ─── */}
-      <Dialog open={bulkConfirmOpen} onOpenChange={(open) => { if (!bulkLoading) setBulkConfirmOpen(open); }}>
-        <DialogContent className="max-w-md" dir="rtl">
-          <DialogHeader>
-            <DialogTitle>אישור פעולה מרובה</DialogTitle>
-            <DialogDescription>
-              עומדים לבצע "{bulkActionLabel}" על {selectedCount} הזמנות. הפעולה עשויה להשפיע על סטטוס ההזמנה ולא תמיד ניתנת לשחזור.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="text-sm text-ink-secondary space-y-1">
-            {bulkAction === 'cancel' && <div>סיבת ביטול: <strong className="text-ink">{bulkReason.trim() || '—'}</strong></div>}
-            {bulkAction === 'check_in' && <div>Override ניקיון: <strong className="text-ink">{bulkOverrideClean ? 'כן' : 'לא'}</strong></div>}
-            {bulkAction === 'check_out' && <div>Force checkout: <strong className="text-ink">{bulkForceCheckout ? 'כן' : 'לא'}</strong></div>}
-            {bulkAction === 'link_group' && (
-              <div>
-                קבוצה:
-                {' '}
-                <strong className="text-ink">
-                  {bulkGroupName || bulkGroupCode || bulkGroupId || '—'}
-                </strong>
-              </div>
+    <div className="min-h-screen bg-gray-50" dir="rtl">
+      {/* ── Page header ───────────────────────────────────────────── */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-semibold text-gray-900">הזמנות</h1>
+            {!loading && (
+              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-medium text-gray-600">
+                {totalCount.toLocaleString()}
+              </span>
             )}
           </div>
 
-          <DialogFooter>
+          <div className="flex items-center gap-2">
+            {arriving > 0 && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                <LogIn size={12} /> {arriving} הגעות היום
+              </span>
+            )}
+            {departing > 0 && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                <LogOut size={12} /> {departing} יציאות היום
+              </span>
+            )}
             <button
-              className="btn btn-ghost"
-              onClick={() => setBulkConfirmOpen(false)}
-              disabled={bulkLoading}
+              onClick={() => navigate('/pms/reservations/new')}
+              className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-3.5 py-2 text-sm font-semibold text-white hover:bg-gray-800 transition-colors"
             >
-              ביטול
+              <Plus size={15} />
+              הזמנה חדשה
             </button>
-            <button
-              className="btn btn-primary flex items-center gap-2"
-              onClick={runBulkAction}
-              disabled={bulkLoading}
-            >
-              {bulkLoading ? <Spinner size="xs" /> : <CheckCircle2 size={14} />}
-              {bulkLoading ? 'מבצע...' : 'אישור וביצוע'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
 
-      {drawerRes && (
+        {/* ── Status tabs ─────────────────────────────────────────── */}
+        <div className="mt-4 flex items-center gap-0 border-b border-gray-100 -mb-px">
+          {STATUS_TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusTab(tab.id)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
+                ${statusTab === tab.id
+                  ? 'border-gray-900 text-gray-900'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Filter bar ────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 min-w-48 max-w-sm">
+            <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="חיפוש לפי שם, מספר אישור, טלפון..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white py-1.5 pr-8 pl-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* Toggle extra filters */}
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors
+              ${showFilters ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}
+          >
+            <SlidersHorizontal size={14} />
+            סינון
+            {hasActiveFilters && !showFilters && (
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">
+                !
+              </span>
+            )}
+          </button>
+
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+            >
+              <X size={13} /> נקה סינון
+            </button>
+          )}
+
+          {/* Extra filter row */}
+          {showFilters && (
+            <>
+              <FilterPill
+                label="תשלום"
+                value={payFilter}
+                onChange={setPayFilter}
+                options={[
+                  { value: 'all',        label: 'כל תשלומים'   },
+                  { value: 'paid',       label: 'שולם'          },
+                  { value: 'balance_due',label: 'יתרה לתשלום'  },
+                  { value: 'pending',    label: 'ממתין'         },
+                  { value: 'partial',    label: 'חלקי'          },
+                  { value: 'unpaid',     label: 'לא שולם'      },
+                ]}
+              />
+              <FilterPill
+                label="מקור"
+                value={sourceFilter}
+                onChange={setSourceFilter}
+                options={[
+                  { value: 'all',     label: 'כל המקורות' },
+                  { value: 'direct',  label: 'ישיר'       },
+                  { value: 'booking', label: 'Booking'    },
+                  { value: 'expedia', label: 'Expedia'    },
+                  { value: 'agoda',   label: 'Agoda'      },
+                  { value: 'airbnb',  label: 'Airbnb'     },
+                  { value: 'phone',   label: 'טלפון'      },
+                  { value: 'walk_in', label: 'Walk-in'    },
+                ]}
+              />
+              <div className="flex items-center gap-1 text-sm text-gray-500">
+                <span>מ-</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
+                />
+                <span>עד</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Table area ────────────────────────────────────────────── */}
+      <div className="px-6 py-4">
+        {loading && !list.length ? (
+          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">טוען...</div>
+        ) : !list.length ? (
+          <div className="flex flex-col items-center justify-center h-48 text-center">
+            <Users size={32} className="text-gray-300 mb-2" />
+            <p className="text-gray-500 font-medium">אין הזמנות</p>
+            <p className="text-gray-400 text-sm mt-0.5">נסה לשנות את הסינון</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">אישור</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">אורח</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">חדר / סוג</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">הגעה</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">יציאה</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">לילות</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">סטטוס</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">תשלום</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">מקור</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {list.map(res => {
+                    const g = res.primaryGuest;
+                    const nights = nightsBetween(res.arrivalDate, res.departureDate);
+                    const isToday = res.arrivalDate === today;
+                    const isDep   = res.departureDate === today;
+
+                    return (
+                      <tr
+                        key={res._id}
+                        onClick={() => handleRowClick(res)}
+                        className="cursor-pointer hover:bg-blue-50/30 transition-colors group"
+                      >
+                        {/* Confirmation # */}
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-xs text-gray-500 group-hover:text-gray-700">
+                            {res.confirmationNumber || res._id?.slice(-6).toUpperCase()}
+                          </span>
+                        </td>
+
+                        {/* Guest */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar guest={g} isVip={res.isVip} />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium text-gray-900 truncate">
+                                  {g ? `${g.firstName} ${g.lastName}` : 'אורח לא ידוע'}
+                                </span>
+                                {res.isVip && <Crown size={11} className="text-amber-500 flex-shrink-0" />}
+                              </div>
+                              {g?.phone && (
+                                <span className="text-xs text-gray-400">{g.phone}</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Room */}
+                        <td className="px-4 py-3">
+                          <div>
+                            {res.assignedRoom ? (
+                              <span className="font-semibold text-gray-900">{res.assignedRoom.number}</span>
+                            ) : (
+                              <span className="text-gray-400 text-xs">לא שויך</span>
+                            )}
+                            {res.roomType && (
+                              <div className="text-xs text-gray-400 truncate max-w-[110px]">{res.roomType.name}</div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Arrival */}
+                        <td className="px-4 py-3">
+                          <span className={`font-medium ${isToday ? 'text-indigo-700' : 'text-gray-700'}`}>
+                            {fmtDate(res.arrivalDate)}
+                          </span>
+                          {isToday && (
+                            <div className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wide">היום</div>
+                          )}
+                        </td>
+
+                        {/* Departure */}
+                        <td className="px-4 py-3">
+                          <span className={`font-medium ${isDep ? 'text-amber-700' : 'text-gray-700'}`}>
+                            {fmtDate(res.departureDate)}
+                          </span>
+                          {isDep && (
+                            <div className="text-[10px] font-semibold text-amber-500 uppercase tracking-wide">היום</div>
+                          )}
+                        </td>
+
+                        {/* Nights */}
+                        <td className="px-4 py-3 text-center">
+                          <span className="text-gray-600 font-medium">{nights || '—'}</span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3">
+                          <StatusChip status={res.status} />
+                        </td>
+
+                        {/* Payment */}
+                        <td className="px-4 py-3">
+                          <PayChip status={res.paymentStatus} />
+                        </td>
+
+                        {/* Source */}
+                        <td className="px-4 py-3">
+                          <SourceBadge source={res.source} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Pagination ───────────────────────────────────────── */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-gray-100 bg-white px-4 py-3">
+                <p className="text-sm text-gray-500">
+                  מציג <span className="font-medium text-gray-700">{(page - 1) * PAGE_SIZE + 1}</span>–
+                  <span className="font-medium text-gray-700">{Math.min(page * PAGE_SIZE, totalCount)}</span>
+                  {' '}מתוך{' '}
+                  <span className="font-medium text-gray-700">{totalCount.toLocaleString()}</span>
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                  {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                    const p = totalPages <= 5 ? i + 1 : Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-medium transition-colors
+                          ${page === p
+                            ? 'bg-gray-900 text-white'
+                            : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Reservation drawer ────────────────────────────────────── */}
+      {drawer && (
         <ReservationDrawer
-          res={drawerRes}
-          onClose={() => setDrawerRes(null)}
-          onChanged={() => { refetch(); setDrawerRes(null); }}
+          reservationId={drawer._id}
+          onClose={() => setDrawer(null)}
+          onUpdated={() => { refetch(); setDrawer(null); }}
         />
       )}
     </div>
