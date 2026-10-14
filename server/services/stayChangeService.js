@@ -166,6 +166,7 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
     const ready = policy.requireInspection ? ['inspected'] : ['clean', 'inspected'];
     if (!ready.includes(target.cleanStatus)) throw httpError(`חדר ${target.number} אינו מוכן (${target.cleanStatus})`, 409);
     const to = unit.departureDate || res.departureDate;
+    if (to <= today) throw httpError(to < today ? `מועד העזיבה (${to}) כבר עבר — קודם הארכת שהייה, ואז מעבר` : 'האורח עוזב היום — אין לילה להעביר. לשהייה נוספת: הארכה, ואז מעבר', 409, { code: 'no_nights_left' });
     // T08: re-checked under the lock — the target may have been taken a second ago.
     const conflicts = await conflictingRoomIds({ propertyId, from: today, to, excludeReservationId: res._id });
     if (conflicts.has(String(target._id))) throw httpError(`חדר ${target.number} נתפס בינתיים (${conflicts.get(String(target._id))}) — המעבר לא בוצע`, 409, { code: 'target_taken' });
