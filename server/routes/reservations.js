@@ -1953,6 +1953,11 @@ router.patch('/:id/assign-room', asyncHandler(async (req, res) => {
   // full-range conflict check under a lock, unit and reservation pointer kept in sync.
   requireRoles(req, FRONT_DESK_ROLES, 'Room assignment requires front-desk permissions');
   const { roomId, reservationRoomId, priceAdjustment, adjustmentNote, reason } = req.body;
+  // A price difference is never posted here: an in-house guest is moved through FD-09 (POST
+  // /api/pms/stay/:id/move), which reprices only the remaining nights under the initiator rule.
+  if (priceAdjustment && Number(priceAdjustment) !== 0) {
+    return res.status(422).json({ success: false, error: 'הפרש מחיר נקבע רק במעבר חדר (תיק ההזמנה) — לא בשיבוץ' });
+  }
   const existing = await getReservationOr404(req.params.id, res);
   if (!existing) return;
   assertPropertyScope(req, existing.property);
@@ -1978,23 +1983,6 @@ router.patch('/:id/assign-room', asyncHandler(async (req, res) => {
       }
     });
     await audit({ property: existing.property, actor: actor.id, actorName: actor.name, action: 'reservation.room_unassigned', entityType: 'Reservation', entityId: existing._id, ip: req.ip });
-  }
-
-  if (priceAdjustment && Number(priceAdjustment) !== 0) {
-    requireRoles(req, ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'], 'Price adjustment requires manager permissions');
-    const folio = await Folio.findOne({ reservation: existing._id, status: 'open' });
-    if (folio) {
-      folio.lines.push({
-        type:        Number(priceAdjustment) > 0 ? 'charge' : 'adjustment',
-        description: adjustmentNote || 'הפרש העברת חדר',
-        amount:      Number(priceAdjustment),
-        serviceDate: todayYmdInTimezone((await Property.findById(existing.property).select('timezone').lean())?.timezone || 'Asia/Jerusalem'),
-        source:      'pms',
-        createdBy:   actor.id || undefined,
-        department:  'rooms',
-      });
-      await folio.save();
-    }
   }
 
   const reservation = await Reservation.findById(req.params.id).populate('assignedRoom', 'number floor').lean();

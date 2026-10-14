@@ -7,7 +7,12 @@ import { Modal, Field, ErrorBanner, Banner, Spinner, KeyValues, Tag, useAction, 
 import { formatShort, formatLong, addDays } from '../../utils/date';
 import { cleanLabel } from '../../lib/labels';
 
-const MOVE_REASONS = { guest_request: 'בקשת האורח', maintenance: 'תקלה בחדר', upgrade: 'שדרוג', other: 'אחר' };
+// Fallback only — the server sends the reasons with who initiated them (pricing rule).
+const MOVE_REASONS_FALLBACK = [
+  { value: 'guest_request', label: 'בקשת האורח', guestInitiated: true }, { value: 'upgrade_sold', label: 'שדרוג בתשלום (האורח ביקש)', guestInitiated: true },
+  { value: 'maintenance', label: 'תקלה בחדר', guestInitiated: false }, { value: 'hotel_need', label: 'צורך של המלון (תפוסה/שיבוץ)', guestInitiated: false },
+  { value: 'upgrade_free', label: 'שדרוג מטעם המלון', guestInitiated: false }, { value: 'other', label: 'אחר', guestInitiated: false },
+];
 const EARLY_REASONS = { guest_request: 'בקשת האורח', service_issue: 'תקלה או שירות', event: 'אירוע אישי', other: 'אחר' };
 const CHANNELS = { phone: 'טלפון', email: 'דוא״ל', web: 'אתר', desk: 'בדלפק', ota: 'ערוץ הזמנות (OTA)', company: 'חברה', other: 'אחר' };
 const TRACKS = {
@@ -35,20 +40,59 @@ function localNow() {
 }
 
 // ── FD-09 ───────────────────────────────────────────────────────────────────
-export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitId, canChangePrice, onDone }) {
+// Pricing rule (hotel practice): the agreed price stays by default. Only the remaining nights can be
+// repriced; a hotel-initiated move never costs the guest more; a higher price needs the guest's
+// consent; any change is a manager decision with a reason. The server enforces the same.
+export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitId, fromRoomId, initialRoomId, canChangePrice, onDone }) {
   const action = useAction();
-  const { data, loading, error } = useLoader(() => (open ? stay.moveCandidates(propertyId, reservationId, unitId) : null), [open, reservationId, unitId]);
+  const { data, loading, error } = useLoader(() => (open ? stay.moveCandidates(propertyId, reservationId, unitId, fromRoomId) : null), [open, reservationId, unitId, fromRoomId]);
   const [f, setF] = useState({});
   const [showAll, setShowAll] = useState(false);
-  useEffect(() => { if (open) { setF({ roomId: '', reason: '', note: '', keyRequested: true, rate: '', rateReason: '' }); setShowAll(false); action.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setF({ roomId: initialRoomId || '', reason: '', note: '', keyRequested: true, priceMode: 'keep', rate: '', rateReason: '', guestConsentRef: '' }); setShowAll(false); action.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
-  const rooms = (data?.rooms || []).filter((r) => showAll || r.available);
-  const why = !f.roomId ? 'יש לבחור חדר יעד' : !f.reason ? 'יש לבחור סיבה' : f.reason === 'other' && f.note.trim().length < 3 ? 'יש לפרט' : f.rate && f.rateReason.trim().length < 3 ? 'סיבה לשינוי מחיר' : null;
-  const submit = () => action.run(async () => { const out = await stay.move(propertyId, reservationId, { unitId: data.unitId, roomId: f.roomId, reason: f.reason, note: f.note || undefined, keyRequested: f.keyRequested, ...(f.rate ? { rate: Number(f.rate), rateReason: f.rateReason } : {}) }); onDone?.(out); });
+  const rooms = (data?.rooms || []).filter((r) => showAll || r.available || r.id === f.roomId);
+  const reasons = data?.pricing?.reasons || MOVE_REASONS_FALLBACK;
+  const reason = reasons.find((r) => r.value === f.reason);
+  const guestInitiated = !!reason?.guestInitiated;
+  const target = (data?.rooms || []).find((r) => r.id === f.roomId) || null;
+  const pricing = data?.pricing;
+  const agreed = pricing?.agreed?.total ?? null;
+  const targetPrice = target?.roomType ? pricing?.byType?.[target.roomType.id] : null;
+  const targetTotal = targetPrice?.total ?? null;
+  const nights = pricing?.nights || 0;
+  const manualTotal = f.rate ? Math.round(Number(f.rate) * nights * 100) / 100 : null;
+  const newTotal = f.priceMode === 'target' ? targetTotal : f.priceMode === 'manual' ? manualTotal : agreed;
+  const diff = agreed !== null && newTotal !== null ? Math.round((newTotal - agreed) * 100) / 100 : 0;
+  const increase = f.priceMode !== 'keep' && diff > 0.005;
+  // An option the rule forbids is shown disabled with the reason, never hidden.
+  const targetWhy = targetTotal === null ? (pricing?.ratePlan ? 'אין מחיר בלוח התעריפים לחדר היעד בכל הלילות' : 'להזמנה אין תעריף — אין מחיר להשוואה')
+    : Math.abs(targetTotal - agreed) < 0.005 ? 'אותו מחיר כמו שהוסכם'
+      : targetTotal > agreed && !f.reason ? 'בחרו קודם סיבת מעבר'
+        : targetTotal > agreed && !guestInitiated ? 'המעבר ביוזמת המלון — לא מחייבים את האורח יותר' : null;
+  useEffect(() => { if (f.priceMode === 'target' && targetWhy) set('priceMode')('keep'); }, [targetWhy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  let why = null;
+  if (!f.roomId) why = 'יש לבחור חדר יעד';
+  else if (!f.reason) why = 'יש לבחור סיבה';
+  else if (f.reason === 'other' && f.note.trim().length < 3) why = 'יש לפרט';
+  else if (f.priceMode === 'manual' && !(Number(f.rate) > 0)) why = 'יש להזין מחיר ללילה';
+  else if (increase && !guestInitiated) why = 'במעבר ביוזמת המלון לא מעלים מחיר';
+  else if (f.priceMode !== 'keep' && f.rateReason.trim().length < 3) why = 'סיבה לשינוי המחיר';
+  else if (increase && f.guestConsentRef.trim().length < 2) why = 'נדרש אישור האורח להעלאת המחיר';
+  const submit = () => action.run(async () => {
+    const out = await stay.move(propertyId, reservationId, {
+      unitId: data.unitId, roomId: f.roomId, reason: f.reason, note: f.note || undefined, keyRequested: f.keyRequested,
+      priceMode: f.priceMode,
+      ...(f.priceMode === 'manual' ? { rate: Number(f.rate) } : {}),
+      ...(f.priceMode !== 'keep' ? { rateReason: f.rateReason, guestConsentRef: f.guestConsentRef || undefined } : {}),
+    });
+    onDone?.(out);
+  });
+  const signed = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${money(Math.abs(n))}`;
   return (
-    <Modal open={open} onClose={onClose} busy={action.busy} width={620} title="מעבר חדר" subtitle={data ? `מ־${formatShort(data.from)} עד ${formatShort(data.to)} · לילות שהושלמו לא משתנים` : ''} footer={<Footer action={action} onClose={onClose} label="אישור מעבר" why={why} onSubmit={submit} />}>
+    <Modal open={open} onClose={onClose} busy={action.busy} width={640} title="מעבר חדר" subtitle={data ? `מ־${formatShort(data.from)} עד ${formatShort(data.to)} · ${nights} לילות שנותרו · לילות שהושלמו לא משתנים` : ''} footer={<Footer action={action} onClose={onClose} label="אישור מעבר" why={why} onSubmit={submit} />}>
       <ErrorBanner error={error || action.error} />
-      {loading && !data && <div className="ui-empty"><Spinner /> טוען חדרים…</div>}
+      {loading && !data && <div className="ui-empty"><Spinner /> טוען חדרים ומחירים…</div>}
       {data && (
         <>
           <div className="ui-row" style={{ justifyContent: 'space-between' }}>
@@ -56,32 +100,66 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
             <label className="ui-switch"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />הצגת חדרים לא זמינים</label>
           </div>
           {rooms.length === 0 && <div className="ui-sub">אין חדר פנוי ומוכן לכל הטווח.</div>}
-          <ul className="ui-results" style={{ maxHeight: 240 }}>
-            {rooms.map((r) => (
-              <li key={r.id}>
-                <button type="button" disabled={!r.available} aria-pressed={f.roomId === r.id} style={f.roomId === r.id ? { background: 'rgb(var(--accent-50))' } : undefined} onClick={() => set('roomId')(r.id)}>
-                  <span>חדר {r.number} · {r.roomType?.name}{!r.sameType && <Tag tone="warn">סוג אחר</Tag>}</span>
-                  <span className="ui-sub">{r.available ? `קומה ${r.floor} · ${cleanLabel(r.cleanStatus)}` : r.why}</span>
-                </button>
-              </li>
-            ))}
+          <ul className="ui-results" style={{ maxHeight: 220 }}>
+            {rooms.map((r) => {
+              const t = r.roomType ? pricing?.byType?.[r.roomType.id] : null;
+              const d = t?.total != null && agreed != null ? Math.round((t.total - agreed) * 100) / 100 : null;
+              return (
+                <li key={r.id}>
+                  <button type="button" disabled={!r.available} aria-pressed={f.roomId === r.id} style={f.roomId === r.id ? { background: 'rgb(var(--accent-50))' } : undefined} onClick={() => set('roomId')(r.id)}>
+                    <span>חדר {r.number} · {r.roomType?.name}{!r.sameType && <Tag tone="warn">סוג אחר</Tag>}</span>
+                    <span className="ui-sub">{r.available ? `קומה ${r.floor} · ${cleanLabel(r.cleanStatus)}${d !== null && Math.abs(d) > 0.005 ? ` · לפי לוח התעריפים ${signed(d)}` : ''}` : r.why}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
+          {target && !target.available && <Banner tone="warn">חדר {target.number}: {target.why}. בחרו חדר אחר.</Banner>}
           <div className="ui-grid-2">
-            <Field id="mv-r" label="סיבת מעבר" required error={action.fields.reason}>
+            <Field id="mv-r" label="מי יזם את המעבר ולמה" required error={action.fields.reason}>
               <select id="mv-r" className="select w-full" value={f.reason} onChange={(e) => set('reason')(e.target.value)}>
                 <option value="">בחירה…</option>
-                {Object.entries(MOVE_REASONS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                <optgroup label="ביוזמת האורח">{reasons.filter((r) => r.guestInitiated).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</optgroup>
+                <optgroup label="ביוזמת המלון">{reasons.filter((r) => !r.guestInitiated).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</optgroup>
               </select>
             </Field>
             <Field id="mv-n" label="פירוט" required={f.reason === 'other'} optional={f.reason !== 'other'} error={action.fields.note}>
               <input id="mv-n" className="input w-full" maxLength={300} value={f.note} onChange={(e) => set('note')(e.target.value)} />
             </Field>
           </div>
-          {canChangePrice && (
-            <div className="ui-grid-2">
-              <Field id="mv-rate" label="מחיר חדש ללילה" optional hint="ריק = המחיר הנוכחי נשמר"><input id="mv-rate" type="number" min="1" step="0.01" className="input w-full" value={f.rate} onChange={(e) => set('rate')(e.target.value)} /></Field>
-              {f.rate && <Field id="mv-rr" label="סיבת שינוי המחיר" required error={action.fields.rateReason}><input id="mv-rr" className="input w-full" maxLength={300} value={f.rateReason} onChange={(e) => set('rateReason')(e.target.value)} /></Field>}
-            </div>
+
+          {target && agreed !== null && (
+            <fieldset className="ui-fieldset" style={{ marginTop: 0 }}>
+              <legend className="ui-label">מחיר ל־{nights} הלילות שנותרו</legend>
+              <label className="ui-radio">
+                <input type="radio" name="mv-price" checked={f.priceMode === 'keep'} onChange={() => set('priceMode')('keep')} />
+                <span>המחיר שהוסכם נשמר · {money(agreed)}<span className="ui-sub" style={{ display: 'block' }}>ברירת המחדל. במעבר ביוזמת המלון לחדר יקר יותר — זה שדרוג חינם.</span></span>
+              </label>
+              <label className={`ui-radio ${!canChangePrice || targetWhy ? 'is-disabled' : ''}`}>
+                <input type="radio" name="mv-price" disabled={!canChangePrice || !!targetWhy} checked={f.priceMode === 'target'} onChange={() => set('priceMode')('target')} />
+                <span>
+                  מחיר החדר החדש לפי לוח התעריפים{targetTotal !== null ? ` · ${money(targetTotal)} (${signed(Math.round((targetTotal - agreed) * 100) / 100)})` : ''}
+                  <span className="ui-sub" style={{ display: 'block' }}>{!canChangePrice ? 'שינוי מחיר — מנהל משמרת ומעלה' : targetWhy || (targetTotal < agreed ? 'האורח משלם פחות על הלילות שנותרו' : 'האורח משלם יותר — רק בהסכמתו')}</span>
+                </span>
+              </label>
+              <label className={`ui-radio ${!canChangePrice ? 'is-disabled' : ''}`}>
+                <input type="radio" name="mv-price" disabled={!canChangePrice} checked={f.priceMode === 'manual'} onChange={() => set('priceMode')('manual')} />
+                <span>מחיר ידני ללילה<span className="ui-sub" style={{ display: 'block' }}>{canChangePrice ? (guestInitiated ? 'למשל מחיר מוסכם לשדרוג' : 'במעבר ביוזמת המלון — רק מחיר נמוך יותר (פיצוי)') : 'מנהל משמרת ומעלה'}</span></span>
+              </label>
+              {f.priceMode === 'manual' && (
+                <Field id="mv-rate" label="מחיר ללילה (כולל מע״מ)" required error={action.fields.rate}><input id="mv-rate" type="number" min="1" step="0.01" className="input w-full" value={f.rate} onChange={(e) => set('rate')(e.target.value)} /></Field>
+              )}
+              {f.priceMode !== 'keep' && (
+                <div className="ui-grid-2">
+                  <Field id="mv-rr" label="סיבת שינוי המחיר" required error={action.fields.rateReason}><input id="mv-rr" className="input w-full" maxLength={300} value={f.rateReason} onChange={(e) => set('rateReason')(e.target.value)} /></Field>
+                  {increase && <Field id="mv-gc" label="אישור האורח" required error={action.fields.guestConsentRef} hint="איך ומתי אישר (טלפון, חתימה, הודעה)"><input id="mv-gc" className="input w-full" maxLength={120} value={f.guestConsentRef} onChange={(e) => set('guestConsentRef')(e.target.value)} /></Field>}
+                </div>
+              )}
+              {f.priceMode !== 'keep' && newTotal !== null && (
+                <KeyValues rows={[['שהוסכם ללילות שנותרו', money(agreed)], ['חדש', money(newTotal)], ['הפרש', signed(diff)]]} />
+              )}
+              <div className="ui-sub">המחיר החדש נכנס למחיר הלילה עצמו — סגירת היום תחייב לפיו מהיום. לא נרשמת שורת "הפרש" נפרדת.</div>
+            </fieldset>
           )}
           <label className="ui-check"><input type="checkbox" checked={f.keyRequested} onChange={(e) => set('keyRequested')(e.target.checked)} /><span>נדרש מפתח לחדר החדש (אין ספק מפתחות מחובר — יופיע כמשימה, לא כאישור)</span></label>
           <div className="ui-sub">החדר הקודם יעבור לניקיון ותיפתח משימת חדרנות.</div>

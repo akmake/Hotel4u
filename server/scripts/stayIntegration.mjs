@@ -104,6 +104,30 @@ async function main() {
     check('FD-09 upgrade moves the remaining nights between room-type inventories', (await booked(std, today)) === stdToday - 1 && (await booked(dlx, today)) === dlxToday + 1);
     check('FD-09 key is reported as a separate task (no provider)', r.data?.key?.status === 'not_connected');
 
+    // ── FD-09 pricing rule: who initiated the move decides the price ────────
+    const eco = await RoomType.create({ property: P, code: `${TAG}E`, name: 'חסכוני', baseRate: 300, capacityMax: 3, adultsMax: 3 });
+    await InventoryDate.insertMany(days.map((date) => ({ property: P, roomType: eco._id, date, physicalCount: 2 })));
+    await RateDate.insertMany(days.map((date) => ({ ratePlan: bar._id, roomType: eco._id, date, price: 300 })));
+    const r104 = await mk('104', std); const r202 = await mk('202', dlx, { occStatus: 'occupied' }); const r301 = await mk('301', eco); const r302 = await mk('302', eco, { occStatus: 'occupied' });
+    const pa = await stay({ status: 'in_house', arrival: addDays(today, -1), departure: addDays(today, 2), room: r202, rt: dlx, rate: 800 });
+    r = await call('GET', `/stay/${pa.res._id}/move-candidates?propertyId=${P}&fromRoomId=${r202._id}`, R);
+    check('FD-09 candidates price the remaining nights: agreed vs the target room type from the calendar', r.status === 200 && r.data.pricing.nights === 2 && r.data.pricing.agreed.total === 1600 && r.data.pricing.byType[String(eco._id)]?.total === 600 && r.data.unitId === String(pa.unit._id), JSON.stringify(r.data?.pricing || r).slice(0, 220));
+    r = await call('POST', `/stay/${pa.res._id}/move`, R, { propertyId: P, roomId: String(r301._id), reason: 'maintenance', priceMode: 'target', rateReason: 'חדר נחות' });
+    check('FD-09 repricing a move needs a manager', r.status === 403, r.status);
+    r = await call('POST', `/stay/${pa.res._id}/move`, M, { propertyId: P, roomId: String(r301._id), reason: 'maintenance', priceMode: 'target', rateReason: 'עבר לחדר נחות בגלל תקלה' });
+    let snap = (await Reservation.findById(pa.res._id).lean()).priceSnapshot.nightly;
+    check('FD-09 moved to a cheaper room: only remaining nights repriced down (1600 → 600), the slept night keeps 800', r.status === 200 && r.data.price.before === 1600 && r.data.price.after === 600 && snap.find((n) => n.date === addDays(today, -1))?.price === 800 && snap.find((n) => n.date === today)?.price === 300, JSON.stringify({ st: r.status, e: r.error, p: r.data?.price }));
+    const pb = await stay({ status: 'in_house', arrival: addDays(today, -1), departure: addDays(today, 2), room: r302, rt: eco, rate: 300 });
+    r = await call('POST', `/stay/${pb.res._id}/move`, M, { propertyId: P, roomId: String(r104._id), reason: 'hotel_need', priceMode: 'target', rateReason: 'ניסיון' });
+    check('FD-09 a hotel-initiated move never costs the guest more', r.status === 422 && r.code === 'hotel_initiated_increase', `${r.status} ${r.error || ''}`);
+    r = await call('POST', `/stay/${pb.res._id}/move`, M, { propertyId: P, roomId: String(r104._id), reason: 'guest_request', priceMode: 'target', rateReason: 'האורח ביקש חדר גדול' });
+    check('FD-09 a higher price needs the guest consent', r.status === 422 && r.fields?.guestConsentRef, r.status);
+    r = await call('POST', `/stay/${pb.res._id}/move`, M, { propertyId: P, roomId: String(r104._id), reason: 'guest_request', priceMode: 'target', rateReason: 'האורח ביקש חדר גדול', guestConsentRef: 'אישר בטלפון 10:40' });
+    snap = (await Reservation.findById(pb.res._id).lean()).priceSnapshot.nightly;
+    check('FD-09 guest-requested upgrade: remaining nights at the new room rate (600 → 1000), consent kept in audit', r.status === 200 && r.data.price.after === 1000 && snap.find((n) => n.date === addDays(today, -1))?.price === 300 && snap.find((n) => n.date === addDays(today, 1))?.price === 500 && !!(await AuditLog.exists({ entityId: pb.res._id, action: 'stay.room_moved', 'after.guestConsentRef': 'אישר בטלפון 10:40' })), JSON.stringify({ st: r.status, e: r.error }));
+    r = await call('PATCH', `/reservations/${other.res._id}/assign-room`, M, { roomId: String(r102._id), priceAdjustment: -231, adjustmentNote: 'חצי הפרש' });
+    check('Legacy room-chart assignment no longer posts a price difference', r.status === 422 && (await Folio.find({ reservation: other.res._id }).lean()).every((f) => f.lines.length === 0), r.status);
+
     // ── FD-10 ───────────────────────────────────────────────────────────────
     r = await call('GET', `/stay/${ih.res._id}/extension?propertyId=${P}&newDeparture=${addDays(today, 3)}`, R);
     check('FD-10 preview prices the added night from the calendar', r.status === 200 && r.data.canExtend && r.data.total === 800 && r.data.nightly[0].date === addDays(today, 2), JSON.stringify(r.data || r).slice(0, 200));

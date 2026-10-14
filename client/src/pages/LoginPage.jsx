@@ -1,22 +1,11 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, Hotel, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Hotel, Loader2, LockKeyhole, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
 // Legacy sales roles land on the sales home; every PMS role lands on the front-desk "Today" screen.
 const SALES_ROLES = ['admin', 'sales', 'maintenance', 'shift_manager'];
 const homeFor = (role) => (SALES_ROLES.includes(role) ? '/' : '/pms');
-
-// Seeded demo accounts — shown in local development only, never in a production build.
-const DEMO_USERS = import.meta.env.DEV
-  ? [
-      { email: 'admin@galil.co.il', name: 'מנהל נכס' },
-      { email: 'dina@galil.co.il',  name: 'קבלה' },
-      { email: 'ruth@galil.co.il',  name: 'חדרנות' },
-      { email: 'avi@galil.co.il',   name: 'אחזקה' },
-    ]
-  : [];
-const DEMO_PASSWORD = import.meta.env.DEV ? 'hotel4u123' : '';
 
 function errorMessage(err) {
   const status = err.response?.status;
@@ -37,6 +26,7 @@ export default function LoginPage() {
   const [capsLock, setCapsLock] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [remember, setRemember] = useState(false);
 
   // where to return after login: router state (AuthGate) or ?next= (expired session redirect)
   const nextParam = new URLSearchParams(location.search).get('next');
@@ -52,7 +42,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const u = await login({ email: em, password: pw });
+      const u = await login({ email: em, password: pw, rememberMe: remember });
       navigate(from || homeFor(u?.role), { replace: true });
     } catch (err) {
       setError(errorMessage(err));
@@ -71,117 +61,47 @@ export default function LoginPage() {
   const trackCaps = (e) => setCapsLock(e.getModifierState?.('CapsLock') ?? false);
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-surface">
-      <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-[360px]">
-          {/* Brand */}
-          <div className="flex flex-col items-center text-center mb-8">
-            <div className="w-10 h-10 rounded-lg bg-accent-600 text-white flex items-center justify-center mb-4">
-              <Hotel size={20} strokeWidth={2.25} />
+    <div className="hotjar-login" dir="ltr">
+      <header className="hotjar-login-header">
+        <div className="hotjar-brand"><Hotel size={23} /><strong>Hotel4U</strong></div>
+        <span className="hotjar-language">English <ChevronDown size={14} /></span>
+      </header>
+      <main className="hotjar-login-main">
+        <section className="hotjar-login-form-panel" dir="ltr" aria-labelledby="login-title">
+          <div className="hotjar-login-form">
+            <h1 id="login-title">Sign in</h1>
+            <p className="hotjar-account-caption">Need a Hotel4U account? <button type="button" onClick={() => setError("Contact your hotel administrator to create an account.")}>Sign up</button></p>
+            <div className="hotjar-social-options">
+              <button type="button" className="hotjar-social google" disabled title="התחברות עם Google עדיין אינה זמינה"><span className="hotjar-social-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65Z"/><path fill="#FBBC05" d="M10.53 28.59A14.41 14.41 0 0 1 9.75 24c0-1.59.27-3.13.78-4.59l-7.97-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19Z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.97 6.19C6.51 42.62 14.62 48 24 48Z"/></svg></span>Sign in with Google</button>
+              <button type="button" className="hotjar-social sso" disabled title="התחברות ארגונית עדיין אינה זמינה"><span className="hotjar-social-icon"><LockKeyhole size={27} /></span>Sign in with SAML SSO</button>
+
             </div>
-            <h1 className="text-xl font-semibold text-ink">כניסה ל־<bdi>Hotel4U</bdi></h1>
-            <p className="text-[13px] text-ink-muted mt-1">מערכת ניהול המלון</p>
-          </div>
-
-          {/* Form */}
-          <div className="bg-surface-card border border-surface-border rounded-xl p-6 shadow-card">
-            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="login-email" className="text-[13px] font-medium text-ink-secondary">אימייל</label>
-                <input
-                  id="login-email"
-                  type="email"
-                  dir="ltr"
-                  className="input !h-10 text-right"
-                  value={email}
-                  onChange={e => { setEmail(e.target.value); setError(''); }}
-                  autoComplete="username"
-                  inputMode="email"
-                  autoFocus
-                  required
-                  aria-invalid={!!error}
-                  aria-describedby={error ? 'login-error' : undefined}
-                />
+            <div className="hotjar-divider"><span>Or, sign in with email</span></div>
+            <form onSubmit={handleSubmit}>
+              <div className="hotjar-field">
+                <label htmlFor="login-email">Email address</label>
+                <input id="login-email" type="email" dir="ltr" value={email} onChange={e => { setEmail(e.target.value); setError(''); }} autoComplete="username" inputMode="email" required aria-invalid={!!error} aria-describedby={error ? 'login-error' : undefined} />
               </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="login-password" className="text-[13px] font-medium text-ink-secondary">סיסמה</label>
-                <div className="relative">
-                  <input
-                    id="login-password"
-                    type={showPwd ? 'text' : 'password'}
-                    dir="ltr"
-                    className="input !h-10 text-right !pl-10"
-                    value={password}
-                    onChange={e => { setPassword(e.target.value); setError(''); }}
-                    onKeyUp={trackCaps}
-                    onKeyDown={trackCaps}
-                    autoComplete="current-password"
-                    required
-                    aria-invalid={!!error}
-                    aria-describedby={error ? 'login-error' : undefined}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPwd(v => !v)}
-                    className="absolute left-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-sm btn-icon"
-                    aria-label={showPwd ? 'הסתר סיסמה' : 'הצג סיסמה'}
-                    aria-pressed={showPwd}
-                  >
-                    {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+              <div className="hotjar-field">
+                <label htmlFor="login-password">Password</label>
+                <div className="hotjar-password">
+                  <input id="login-password" type={showPwd ? 'text' : 'password'} dir="ltr" value={password} onChange={e => { setPassword(e.target.value); setError(''); }} onKeyUp={trackCaps} onKeyDown={trackCaps} autoComplete="current-password" required aria-invalid={!!error} aria-describedby={error ? 'login-error' : undefined} />
+                  <button type="button" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? 'הסתר סיסמה' : 'הצג סיסמה'} aria-pressed={showPwd}>{showPwd ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                 </div>
-                {capsLock && (
-                  <p className="text-xs text-amber-700">Caps Lock פעיל</p>
-                )}
+                {capsLock && <p className="hotjar-login-error">Caps Lock פעיל</p>}
+                {error && <p id="login-error" role="alert" className="hotjar-login-error"><AlertCircle size={15} />{error}</p>}
               </div>
-
-              {error && (
-                <div id="login-error" role="alert" className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-[13px] text-red-700">
-                  <AlertCircle size={15} className="shrink-0 mt-px" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading || !email.trim() || !password}
-                className="btn btn-primary !h-10 w-full text-sm mt-1"
-              >
-                {loading ? <><Loader2 size={15} className="animate-spin" /> מתחבר…</> : 'כניסה'}
-              </button>
+              <label className="hotjar-remember"><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />Keep me signed in</label>
+              <Link to="/reset-password" className="hotjar-forgot">Forgot password?</Link>
+              <button type="submit" disabled={loading || !email.trim() || !password} className="hotjar-submit">{loading ? <><Loader2 size={18} className="animate-spin" /> מתחבר…</> : 'Sign in'}</button>
             </form>
+
           </div>
-
-          <p className="text-center text-xs text-ink-muted mt-5">
-            שכחת סיסמה? <Link to="/reset-password" className="underline">שחזור גישה</Link>
-          </p>
-
-          {DEMO_USERS.length > 0 && (
-            <div className="mt-8 border-t border-dashed border-surface-border pt-5">
-              <p className="text-[11px] font-medium text-ink-faint text-center mb-3">סביבת פיתוח · כניסה מהירה</p>
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_USERS.map(u => (
-                  <button
-                    key={u.email}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => doLogin(u.email, DEMO_PASSWORD)}
-                    className="btn btn-secondary btn-sm justify-start"
-                    title={u.email}
-                  >
-                    {u.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        </section>
+        <aside className="hotjar-login-promo" aria-label="Dashboards: your new command center">
+          <img src="/design/hotjar-login-mcp.webp" alt="Dashboards: your new command center. Create dashboards in seconds with new templates, and see your metrics and user sentiment in one place." className="hotjar-promo-source" />
+        </aside>
       </main>
-
-      <footer className="py-4 text-center text-[11px] text-ink-faint">
-        <span dir="ltr">© {new Date().getFullYear()} Hotel4U</span>
-      </footer>
     </div>
   );
 }

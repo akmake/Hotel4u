@@ -14,27 +14,27 @@ import { TODAY, addDays, formatShort, formatDayLabel, isWeekend } from '../utils
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
 import ReservationDrawer from '../components/reservations/ReservationDrawer';
-import RoomMoveDialog from '../components/reservations/RoomMoveDialog';
+import DragMoveDialog from '../components/stay/DragMoveDialog';
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /* Constants                                                                   */
 /* ─────────────────────────────────────────────────────────────────────────── */
-const COL_W    = 54;   // px per day column
-const ROW_H    = 54;   // px per room row
-const LABEL_W  = 232;  // px for the left room-label panel
-const HEADER_H = 72;   // px for the sticky date header (month + day)
+const COL_W    = 72;   // px per day column
+const ROW_H    = 56;   // px per room row
+const LABEL_W  = 200;  // px for the left room-label panel
+const HEADER_H = 64;   // px for the sticky date header (month + day)
 const RESIZE_HANDLE_W = 10;
 
 /* Status visual config — matches OPERA palette */
 const STATUS_CFG = {
-  confirmed:       { bg:'#6366f1', text:'#fff', border:'#4f46e5', label:'מאושר' },
-  in_house:        { bg:'#2563eb', text:'#fff', border:'#1d4ed8', label:'In House' },
-  due_out:         { bg:'#f97316', text:'#fff', border:'#ea580c', label:'יציאה היום' },
-  checked_out:     { bg:'#94a3b8', text:'#fff', border:'#64748b', label:'עזב' },
-  cancelled:       { bg:'#dc2626', text:'#fff', border:'#b91c1c', label:'בוטל', striped: true },
-  no_show:         { bg:'#991b1b', text:'#fff', border:'#7f1d1d', label:'No Show', striped: true },
-  pending_payment: { bg:'#d97706', text:'#fff', border:'#b45309', label:'ממתין לתשלום' },
-  modified:        { bg:'#7c3aed', text:'#fff', border:'#6d28d9', label:'שונה' },
+  confirmed: { bg:'#536578', surface:'#edf1f5', text:'#33465a', border:'#d2dbe4', label:'מאושר' },
+  in_house: { bg:'#496f9d', surface:'#e7eff8', text:'#305477', border:'#c6d7e9', label:'שוהה במלון' },
+  due_out: { bg:'#ae7d36', surface:'#faf1df', text:'#785523', border:'#e8d6b4', label:'יציאה היום' },
+  checked_out: { bg:'#929aa4', surface:'#f0f1f3', text:'#68717d', border:'#dddfe3', label:'עזב' },
+  cancelled: { bg:'#ad6464', surface:'#f9eded', text:'#8e4d4d', border:'#edcece', label:'בוטל' },
+  no_show: { bg:'#ad6464', surface:'#f9eded', text:'#8e4d4d', border:'#edcece', label:'לא הגיע' },
+  pending_payment: { bg:'#ae7d36', surface:'#faf1df', text:'#785523', border:'#e8d6b4', label:'ממתין לתשלום' },
+  modified: { bg:'#7c70a6', surface:'#f0edf7', text:'#625581', border:'#d9d3e8', label:'שונה' },
 };
 
 function getStatusCfg(res) {
@@ -51,8 +51,8 @@ const CLEAN_DOT = {
 };
 
 /* OOO diagonal stripe */
-const OOO_BG = 'repeating-linear-gradient(45deg,rgba(239,68,68,0.12),rgba(239,68,68,0.12) 4px,transparent 4px,transparent 12px)';
-const HOLD_BG = 'repeating-linear-gradient(45deg,rgba(168,85,247,0.10),rgba(168,85,247,0.10) 4px,transparent 4px,transparent 12px)';
+const OOO_BG = '#fcf4f4';
+const HOLD_BG = '#f5f3fa';
 
 const STATUS_OPTIONS = [
   { value: 'active',   label: 'הזמנות פעילות' },
@@ -283,20 +283,18 @@ const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','�
 
 /* Offset from the grid's inline-start (right edge in RTL) + width for a reservation block */
 function resLayout(res, days) {
-  const first = days[0].date;
-  const last  = days[days.length - 1].date;
-  if (res.departureDate <= first || res.arrivalDate > last) return null;
-  // clamp to visible range
-  const clampedStart = res.arrivalDate < first ? first : res.arrivalDate;
-  const clampedEnd   = res.departureDate > addDays(last, 1) ? addDays(last, 1) : res.departureDate;
-  const startIdx = days.findIndex(d => d.date >= clampedStart);
-  const endIdx   = days.findIndex(d => d.date >= clampedEnd);
-  const start    = startIdx === -1 ? 0 : startIdx;
-  const end      = endIdx   === -1 ? days.length : endIdx;
-  const span     = Math.max(1, end - start);
-  const clippedLeft  = res.arrivalDate < first;
-  const clippedRight = res.departureDate > addDays(last, 1);
-  return { left: start * COL_W, width: span * COL_W - 2, span, clippedLeft, clippedRight };
+  const start = nightsBetween(days[0].date, res.arrivalDate) + 0.5;
+  const end = nightsBetween(days[0].date, res.departureDate) + 0.5;
+  if (end <= 0 || start >= days.length || end <= start) return null;
+  const visibleStart = Math.max(0, start);
+  const visibleEnd = Math.min(days.length, end);
+  return {
+    left: visibleStart * COL_W,
+    width: (visibleEnd - visibleStart) * COL_W,
+    span: visibleEnd - visibleStart,
+    clippedLeft: start < 0,
+    clippedRight: end > days.length,
+  };
 }
 
 function nightsBetween(a, b) {
@@ -322,7 +320,7 @@ function ResTooltip({ res, x, y }) {
       left: flipX ? x - 264 : x + 14,
       top:  y - 8,
       background: '#fff',
-      border: '1px solid #DDD0BC',
+      border: '1px solid #e8e8ea',
       borderRadius: 14,
       boxShadow: '0 16px 48px rgba(15,23,42,0.18)',
       minWidth: 248,
@@ -331,7 +329,7 @@ function ResTooltip({ res, x, y }) {
     }}>
       {/* coloured header */}
       <div style={{ padding:'12px 14px 10px', background: cfg.bg }}>
-        <div style={{ display:'flex', alignItems:'center', gap:6, color:'#fff', fontWeight:800, fontSize:13 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6, color:'#505a69', fontWeight:600, fontSize:12 }}>
           {g.vipLevel > 0 && <Crown size={12} />}
           {g.firstName} {g.lastName}
         </div>
@@ -349,13 +347,13 @@ function ResTooltip({ res, x, y }) {
           { label:'מחיר ללילה',  value: res.ratePerNight ? `₪${res.ratePerNight.toLocaleString('he-IL')}` : '—' },
           { label:'סה"כ',        value: res.totalAmount   ? `₪${res.totalAmount.toLocaleString('he-IL')}` : '—' },
         ].map(({ label, value }) => (
-          <div key={label} style={{ display:'flex', justifyContent:'space-between', borderBottom:'1px solid #EAE0D0', paddingBottom:3 }}>
-            <span style={{ color:'#7A5C42' }}>{label}</span>
-            <span style={{ fontWeight:600, color:'#2A1A0E', fontFamily:'monospace' }}>{value}</span>
+          <div key={label} style={{ display:'flex', justifyContent:'space-between', borderBottom:'1px solid #ededf0', paddingBottom:3 }}>
+            <span style={{ color:'#67676f' }}>{label}</span>
+            <span style={{ fontWeight:600, color:'#252525', fontFamily:'monospace' }}>{value}</span>
           </div>
         ))}
         {res.specialRequests && (
-          <div style={{ marginTop:2, fontSize:11, color:'#7A5C42', fontStyle:'italic' }}>
+          <div style={{ marginTop:2, fontSize:11, color:'#67676f', fontStyle:'italic' }}>
             ★ {res.specialRequests}
           </div>
         )}
@@ -365,7 +363,7 @@ function ResTooltip({ res, x, y }) {
           </div>
         )}
       </div>
-      <div style={{ padding:'6px 14px 10px', fontSize:11, color:'#B8A080' }}>
+      <div style={{ padding:'6px 14px 10px', fontSize:11, color:'#93939b' }}>
         לחץ לפתיחת ההזמנה
       </div>
     </div>
@@ -375,115 +373,20 @@ function ResTooltip({ res, x, y }) {
 /* ─────────────────────────────────────────────────────────────────────────── */
 /* Reservation block                                                           */
 /* ─────────────────────────────────────────────────────────────────────────── */
-function ResBlock({
-  res,
-  layout,
-  onHover,
-  onLeave,
-  onClick,
-  onPointerDown,
-  onResizePointerDown,
-  isDragging,
-  isResizing,
-}) {
-  const cfg  = getStatusCfg(res);
-  const g    = res.primaryGuest || {};
-  const nights = nightsBetween(res.arrivalDate, res.departureDate);
-  const ini  = initials(g);
-
-  const stripedBg = cfg.striped
-    ? `repeating-linear-gradient(45deg,${cfg.bg},${cfg.bg} 5px,${cfg.border} 5px,${cfg.border} 10px)`
-    : cfg.bg;
-
-  return (
-    <div
-      onMouseEnter={e => onHover(res, e.clientX, e.clientY)}
-      onMouseLeave={onLeave}
-      onMouseMove={e  => onHover(res, e.clientX, e.clientY)}
-      onClick={() => onClick(res)}
-      onPointerDown={onPointerDown}
-      style={{
-        position:   'absolute',
-        // Logical properties: day 0 sits at the inline-start (right edge in RTL)
-        insetInlineStart: layout.left + 2,
-        top:        6,
-        width:      layout.width - 2,
-        height:     ROW_H - 12,
-        background: stripedBg,
-        borderStartStartRadius: layout.clippedLeft  ? 0 : 8,
-        borderEndStartRadius:   layout.clippedLeft  ? 0 : 8,
-        borderStartEndRadius:   layout.clippedRight ? 0 : 8,
-        borderEndEndRadius:     layout.clippedRight ? 0 : 8,
-        borderInlineStart: layout.clippedLeft ? 'none' : `3px solid ${cfg.border}`,
-        cursor: isResizing ? 'ew-resize' : 'grab',
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        paddingInline: layout.span === 1 ? '4px' : '7px 6px',
-        gap: 5,
-        boxShadow: isDragging
-          ? '0 10px 28px rgba(0,0,0,0.32)'
-          : '0 2px 6px rgba(0,0,0,0.18)',
-        zIndex: isDragging ? 1 : 2,
-        opacity: isDragging ? 0.3 : isResizing ? 0.72 : 1,
-        transition: 'opacity 0.12s, box-shadow 0.12s',
-      }}
-      onMouseEnterCapture={e => { if (!isDragging) { e.currentTarget.style.filter='brightness(1.07)'; e.currentTarget.style.boxShadow='0 4px 14px rgba(0,0,0,0.28)'; }}}
-      onMouseLeaveCapture={e => { e.currentTarget.style.filter=''; e.currentTarget.style.boxShadow='0 2px 6px rgba(0,0,0,0.18)'; }}
-    >
-      {/* Initials circle — only when wide enough */}
-      {layout.span >= 2 && ini && (
-        <div style={{
-          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-          background: 'rgba(255,255,255,0.22)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 9, fontWeight: 800, color: cfg.text,
-          border: '1px solid rgba(255,255,255,0.3)',
-        }}>
-          {ini}
-        </div>
-      )}
-      {g.vipLevel > 0 && layout.span < 2 && (
-        <Crown size={9} style={{ color:'#fde68a', flexShrink:0 }} />
-      )}
-      {layout.span >= 2 && (
-        <span style={{
-          color: cfg.text, fontSize: 11, fontWeight: 700,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex:1,
-        }}>
-          {g.vipLevel > 0 && '★ '}{g.firstName} {layout.span >= 3 ? g.lastName?.[0] + '.' : ''}
-        </span>
-      )}
-      {layout.span >= 4 && (
-        <span style={{
-          color: 'rgba(255,255,255,0.65)', fontSize: 9.5, flexShrink: 0,
-          background: 'rgba(0,0,0,0.12)', borderRadius: 4, padding: '1px 5px',
-        }}>
-          {nights}ל
-        </span>
-      )}
-
-      {!layout.clippedRight && (
-        <div
-          onPointerDown={e => {
-            e.stopPropagation();
-            onResizePointerDown?.(e, res);
-          }}
-          title="גרור לשינוי יציאה"
-          style={{
-            position: 'absolute',
-            insetInlineEnd: 0,
-            top: 0,
-            width: RESIZE_HANDLE_W,
-            height: '100%',
-            cursor: 'ew-resize',
-            background: 'rgba(255,255,255,0.18)',
-            borderInlineStart: '1px dashed rgba(255,255,255,0.5)',
-          }}
-        />
-      )}
-    </div>
-  );
+function ResBlock({ res, layout, onHover, onLeave, onClick, onPointerDown, onResizePointerDown, isDragging, isResizing, verticalOffset = 0 }) {
+  const guest = res.primaryGuest || {};
+  const name = [guest.firstName, guest.lastName].filter(Boolean).join(' ') || 'הזמנה';
+  const cfg = getStatusCfg(res);
+  return <div className={`turo-booking room-stay-card ${isDragging ? 'is-dragging' : ''}`} role="button" tabIndex={0}
+    aria-label={`${name}, ${formatShort(res.arrivalDate)} עד ${formatShort(res.departureDate)}, ${cfg.label}`}
+    title={`${name} · כניסה: ${formatShort(res.arrivalDate)} · יציאה: ${formatShort(res.departureDate)} · ${cfg.label}`}
+    onMouseEnter={e => onHover(res, e.clientX, e.clientY)} onMouseMove={e => onHover(res, e.clientX, e.clientY)} onMouseLeave={onLeave}
+    onClick={() => onClick(res)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(res); } }} onPointerDown={onPointerDown}
+    style={{position:'absolute', insetInlineStart:layout.left + 3, top:verticalOffset + 9, width:Math.max(16, layout.width - 4), height:ROW_H - 18, background:cfg.surface, borderColor:cfg.border, color:cfg.text, '--stay-accent':cfg.bg, zIndex:2, opacity:isDragging ? .3 : isResizing ? .65 : 1}}>
+    <span className="room-stay-name">{name}</span>
+    {layout.width >= 190 && <span className="room-stay-period">כניסה {res.arrivalDate.slice(8,10)+'/'+res.arrivalDate.slice(5,7)} · יציאה {res.departureDate.slice(8,10)+'/'+res.departureDate.slice(5,7)}</span>}
+    {!layout.clippedRight && <span className="turo-booking-resize" title="גרור לשינוי תאריך יציאה" onPointerDown={e => { e.stopPropagation(); onResizePointerDown?.(e,res); }} />}
+  </div>;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -497,7 +400,8 @@ export default function TapeChartPage() {
 
   /* ── view state ────────────────────────────────────────────────────────── */
   const [startDate,   setStartDate]   = useState(() => addDays(TODAY, -3));
-  const [dayCount,    setDayCount]    = useState(21);
+  const [dayCount,    setDayCount]    = useState(14);
+  const [roomSearch, setRoomSearch] = useState('');
   const [filterFloor, setFilterFloor] = useState('all');
   const [filterType,  setFilterType]  = useState('all');
   const [filterStatus,setFilterStatus]= useState('active');
@@ -538,10 +442,11 @@ export default function TapeChartPage() {
   const floors      = useMemo(() => [...new Set(allRooms.map(r => r.floor))].sort((a,b)=>a-b), [allRooms]);
 
   const filteredRooms = useMemo(() => allRooms.filter(r => {
+    if (roomSearch.trim() && !`${r.number} ${r.roomType?.name || ''}`.toLowerCase().includes(roomSearch.trim().toLowerCase())) return false;
     if (filterFloor !== 'all' && r.floor !== Number(filterFloor)) return false;
     if (filterType  !== 'all' && String(r.roomType?._id) !== filterType) return false;
     return true;
-  }), [allRooms, filterFloor, filterType]);
+  }), [allRooms, filterFloor, filterType, roomSearch]);
 
   const byFloor = useMemo(() => floors
     .map(f => ({ floor: f, rooms: filteredRooms.filter(r => r.floor === f) }))
@@ -565,7 +470,7 @@ export default function TapeChartPage() {
     return allRes.filter(res => {
       const hasRoom = res.assignedRoom && String(res.assignedRoom) !== 'null';
       if (hasRoom) return false;
-      return res.departureDate > days[0].date && res.arrivalDate <= days[days.length - 1].date;
+      return res.departureDate >= days[0].date && res.arrivalDate <= days[days.length - 1].date;
     });
   }, [allRes, days]);
 
@@ -580,9 +485,9 @@ export default function TapeChartPage() {
     const viewport = containerRef.current.getBoundingClientRect();
     // RTL: columns grow leftwards from the right edge; scrollLeft is <= 0 in RTL
     const contentX = viewport.right - clientX + Math.abs(containerRef.current.scrollLeft) - LABEL_W;
-    const col = Math.floor(contentX / COL_W);
+    const col = Math.round(contentX / COL_W - 0.5);
     const clampedCol = Math.max(0, Math.min(days.length - 1, col));
-    const visualDeparture = addDays(days[clampedCol].date, 1);
+    const visualDeparture = days[clampedCol].date;
     const minDeparture = addDays(res.arrivalDate, 1);
     return visualDeparture < minDeparture ? minDeparture : visualDeparture;
   }, [days]);
@@ -616,17 +521,6 @@ export default function TapeChartPage() {
   }, [beginResize, drag]);
 
   /* ── move confirm ─────────────────────────────────────────────────────── */
-  async function handleMoveConfirm({ amount, note }) {
-    const { resId, targetRoomId } = pendingMove;
-    setPendingMove(null);
-    try {
-      const adjustment = amount !== 0 ? { priceAdjustment: amount, adjustmentNote: note } : {};
-      await resApi.assignRoom(resId, targetRoomId, adjustment);
-      success('חדר שוּנה בהצלחה');
-      refetch();
-    } catch (err) { toastErr(err.message); }
-  }
-
   async function handleResizeConfirm({ nightlyRate }) {
     if (!pendingResize) return;
     const op = pendingResize;
@@ -693,7 +587,7 @@ export default function TapeChartPage() {
   const totalWidth = LABEL_W + days.length * COL_W;
 
   return (
-    <div className="animate-fade-in" style={{ direction:'rtl', userSelect: drag || resizeDraft ? 'none' : 'auto' }}>
+    <div className="turo-room-calendar" style={{ direction:'rtl', userSelect: drag || resizeDraft ? 'none' : 'auto' }}>
       <ToastContainer toasts={toasts} />
       <DragGhost drag={drag} />
 
@@ -712,11 +606,12 @@ export default function TapeChartPage() {
 
       {/* ── room move dialog ── */}
       {pendingMove && (
-        <RoomMoveDialog
+        <DragMoveDialog
           pending={pendingMove}
-          allRooms={allRooms}
-          onConfirm={handleMoveConfirm}
-          onCancel={() => setPendingMove(null)}
+          rooms={allRooms}
+          propertyId={propertyId}
+          onClose={() => setPendingMove(null)}
+          onDone={(msg) => { setPendingMove(null); success(msg); refetch(); }}
         />
       )}
 
@@ -739,15 +634,17 @@ export default function TapeChartPage() {
       )}
 
       {/* ─── HEADER BAR ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="turo-calendar-toolbar">
         <div>
-          <h1 className="page-title">Tape Chart</h1>
-          <p className="page-subtitle">תצוגת חדרים × תאריכים</p>
+          <h1 className="turo-calendar-title">לוח חדרים</h1>
+
         </div>
 
-        <div className="mr-auto flex items-center gap-2 flex-wrap">
+        <div className="turo-calendar-controls">
+          <label className="turo-room-search"><Search size={15}/><input aria-label="חיפוש חדר" placeholder="חיפוש מספר חדר או סוג…" value={roomSearch} onChange={e => setRoomSearch(e.target.value)} /></label>
           {/* Status filter */}
           <select
+            aria-label="סינון סטטוס הזמנה"
             className="select text-sm"
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
@@ -758,13 +655,13 @@ export default function TapeChartPage() {
           </select>
 
           {/* Floor filter */}
-          <select className="select text-sm" value={filterFloor} onChange={e => setFilterFloor(e.target.value)}>
+          <select aria-label="סינון לפי קומה" className="select text-sm" value={filterFloor} onChange={e => setFilterFloor(e.target.value)}>
             <option value="all">כל הקומות</option>
             {floors.map(f => <option key={f} value={f}>קומה {f}</option>)}
           </select>
 
           {/* Room type filter */}
-          <select className="select text-sm" value={filterType} onChange={e => setFilterType(e.target.value)}>
+          <select aria-label="סינון לפי סוג חדר" className="select text-sm" value={filterType} onChange={e => setFilterType(e.target.value)}>
             <option value="all">כל הסוגים</option>
             {uniqueTypes.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
           </select>
@@ -777,16 +674,16 @@ export default function TapeChartPage() {
                 onClick={() => setDayCount(n)}
                 className={`px-3 py-1.5 font-medium transition-colors ${dayCount === n ? 'bg-brand text-white' : 'bg-white text-ink-secondary hover:bg-surface-hover'}`}
               >
-                {n}י
+                {n} ימים
               </button>
             ))}
           </div>
 
           {/* Navigation */}
           <div className="flex items-center gap-1">
-            <button onClick={goBack}    className="btn btn-ghost btn-icon btn-sm"><ChevronRight size={16} /></button>
+            <button aria-label="תקופה קודמת" onClick={goBack}    className="btn btn-ghost btn-icon btn-sm"><ChevronRight size={16} /></button>
             <button onClick={goToday}   className="btn btn-secondary btn-sm">היום</button>
-            <button onClick={goForward} className="btn btn-ghost btn-icon btn-sm"><ChevronLeft size={16} /></button>
+            <button aria-label="תקופה הבאה" onClick={goForward} className="btn btn-ghost btn-icon btn-sm"><ChevronLeft size={16} /></button>
           </div>
 
           <button onClick={refetch} className="btn btn-ghost btn-icon" title="רענן">
@@ -796,10 +693,10 @@ export default function TapeChartPage() {
       </div>
 
       {/* ─── LEGEND ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-4 mb-3 flex-wrap">
+      <div className="turo-calendar-legend">
         {[
           { key:'confirmed',       label:'מאושר' },
-          { key:'in_house',        label:'In House' },
+          { key:'in_house',        label:'שוהה במלון' },
           { key:'due_out',         label:'יציאה היום' },
           { key:'pending_payment', label:'ממתין לתשלום' },
           { key:'checked_out',     label:'עזב' },
@@ -808,13 +705,13 @@ export default function TapeChartPage() {
           const cfg = STATUS_CFG[key];
           return (
             <div key={key} className="flex items-center gap-1.5 text-xs text-ink-muted">
-              <div style={{ width:24, height:12, borderRadius:3, background:cfg.bg }} />
+              <div style={{ width:7, height:7, borderRadius:'50%', background:cfg.bg }} />
               {label}
             </div>
           );
         })}
         <div className="flex items-center gap-1.5 text-xs text-ink-muted mr-2">
-          <div style={{ width:16, height:12, borderRadius:3, background:'rgba(196,147,64,0.10)', border:'1.5px solid #B8851A' }} />
+          <div style={{ width:16, height:12, borderRadius:3, background:'rgba(89,60,251,0.06)', border:'1.5px solid #252525' }} />
           היום
         </div>
         {unassignedRes.length > 0 && (
@@ -828,23 +725,24 @@ export default function TapeChartPage() {
       {/* ─── GRID ───────────────────────────────────────────────────────── */}
       <div
         ref={containerRef}
+        className="turo-calendar-grid"
         style={{
           overflowX: 'auto',
           overflowY: 'auto',
-          maxHeight: 'calc(100vh - 240px)',
-          borderRadius: 12,
-          border: '1px solid #C8B89A',
-          background: '#FDFAF5',
+          minHeight: 0,
+          borderRadius: 0,
+          border: '1px solid #d8d9dc',
+          background: '#ffffff',
           position: 'relative',
         }}
       >
-        <div style={{ minWidth: totalWidth, position: 'relative' }}>
+        <div style={{ width: totalWidth, minWidth: '100%', position: 'relative' }}>
 
           {/* ── STICKY DATE HEADER ─── */}
           <div style={{
             position: 'sticky', top: 0, zIndex: 30,
-            background: '#FDFAF5',
-            borderBottom: '2px solid #DDD0BC',
+            background: '#ffffff',
+            borderBottom: '1px solid #e8e8ea',
             display: 'flex',
             height: HEADER_H,
           }}>
@@ -852,13 +750,13 @@ export default function TapeChartPage() {
             <div style={{
               width: LABEL_W, flexShrink: 0,
               position: 'sticky', insetInlineStart: 0, zIndex: 40,
-              background: '#2A1A0E',
+              background: '#ffffff',
               display: 'flex', alignItems: 'center', paddingInline: 14,
-              borderBottom: '2px solid #1A0E06',
+              borderBottom: '1px solid #e8e8ea',
             }}>
               <div>
-                <div style={{ color:'#fff', fontWeight:800, fontSize:13 }}>{filteredRooms.length} חדרים</div>
-                <div style={{ color:'rgba(255,255,255,0.5)', fontSize:11 }}>
+                <div style={{ color:'#505a69', fontWeight:600, fontSize:12 }}>{filteredRooms.length} חדרים</div>
+                <div style={{ color:'#85858c', fontSize:11 }}>
                   {formatShort(days[0].date)} — {formatShort(days[days.length - 1].date)}
                 </div>
               </div>
@@ -867,15 +765,15 @@ export default function TapeChartPage() {
             {/* Date columns header */}
             <div style={{ position:'relative', flex:1 }}>
               {/* Month labels row */}
-              <div style={{ display:'flex', height:22, borderBottom:'1px solid #E8DFCF' }}>
+              <div style={{ display:'flex', height:22, borderBottom:'1px solid #ececef' }}>
                 {months.map((m, i) => (
                   <div key={i} style={{
                     width: m.span * COL_W,
                     flexShrink: 0,
                     display: 'flex', alignItems: 'center',
                     paddingInline: 8,
-                    fontSize: 11, fontWeight: 700, color: '#6B4C30',
-                    borderLeft: i > 0 ? '1px solid #E8DFCF' : 'none',
+                    fontSize: 11, fontWeight: 700, color: '#6b6b70',
+                    borderLeft: i > 0 ? '1px solid #ececef' : 'none',
                   }}>
                     {HE_MONTHS[m.month]} {m.year}
                   </div>
@@ -892,11 +790,11 @@ export default function TapeChartPage() {
                       display: 'flex', flexDirection: 'column',
                       alignItems: 'center', justifyContent: 'center',
                       gap: 1,
-                      borderLeft: '1px solid #E8DFCF',
+                      borderLeft: '1px solid #ececef',
                       background: d.isToday
-                        ? 'rgba(196,147,64,0.10)'
+                        ? 'rgba(89,60,251,0.06)'
                         : d.isWeekend
-                          ? 'rgba(180,120,60,0.04)'
+                          ? '#fafafb'
                           : 'transparent',
                       position: 'relative',
                     }}
@@ -904,19 +802,19 @@ export default function TapeChartPage() {
                     {d.isToday && (
                       <div style={{
                         position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)',
-                        width:3, height:3, borderRadius:'50%', background:'#B8851A'
+                        width:3, height:3, borderRadius:'50%', background:'#252525'
                       }} />
                     )}
                     <span style={{
                       fontSize: 10,
                       fontWeight: 600,
-                      color: d.isToday ? '#9A6B1A' : d.isWeekend ? '#7A5040' : '#94a3b8',
+                      color: d.isToday ? '#6550b8' : d.isWeekend ? '#77777d' : '#94a3b8',
                     }}>{d.weekday}</span>
                     <span style={{
-                      fontSize: 14,
-                      fontWeight: d.isToday ? 800 : 600,
-                      color: d.isToday ? '#9A6B1A' : d.isWeekend ? '#5A3820' : '#0f172a',
-                      lineHeight: 1,
+                      fontSize: 13, fontWeight: 500,
+                      color: d.isToday ? '#fff' : '#252525',
+                      background: d.isToday ? '#252525' : 'transparent',
+                      borderRadius: '50%', width: 28, height: 28, display: 'grid', placeItems: 'center',
                     }}>{d.day}</span>
                   </div>
                 ))}
@@ -935,20 +833,20 @@ export default function TapeChartPage() {
                 alignItems: 'center',
                 zIndex: 20,
                 minWidth: totalWidth,
-                background: '#F5EFE6',
-                borderTop: '1px solid #DDD0BC',
-                borderBottom: '1px solid #DDD0BC',
+                background: '#f7f7f8',
+                borderTop: '1px solid #e8e8ea',
+                borderBottom: '1px solid #e8e8ea',
               }}>
                 <div style={{
                   position: 'sticky', insetInlineStart: 0,
                   paddingInline: 16,
                   display: 'flex', alignItems: 'center', gap: 8,
                 }}>
-                  <div style={{ width: 3, height: 14, borderRadius: 2, background: '#C49340', flexShrink: 0 }} />
-                  <span style={{ color:'#4A3020', fontSize:11, fontWeight:800, letterSpacing:'0.06em' }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: '#c3c8d0', flexShrink: 0 }} />
+                  <span style={{ color:'#505057', fontSize:11, fontWeight:800, letterSpacing:'0.06em' }}>
                     קומה {floor}
                   </span>
-                  <span style={{ color:'#9A7A5A', fontSize:10, fontWeight:500 }}>
+                  <span style={{ color:'#8a8a91', fontSize:10, fontWeight:500 }}>
                     — {rooms.length} חדרים
                   </span>
                 </div>
@@ -961,7 +859,7 @@ export default function TapeChartPage() {
                 const roomResArr = resByRoom[String(room._id)] || [];
                 const rowBg = isOOO  ? OOO_BG
                             : isHold ? HOLD_BG
-                            : ri % 2 === 0 ? '#FAF6F0' : '#FDFAF5';
+                            : ri % 2 === 0 ? '#ffffff' : '#ffffff';
                 const isDrop = dropRoomId === String(room._id) && drag?.sourceRoomId !== String(room._id);
 
                 return (
@@ -971,9 +869,9 @@ export default function TapeChartPage() {
                     style={{
                       display: 'flex',
                       height: ROW_H,
-                      borderBottom: '1px solid #EAE0D0',
-                      background: isDrop ? 'rgba(196,147,64,0.07)' : 'inherit',
-                      outline: isDrop ? '2px solid #C49340' : 'none',
+                      borderBottom: '1px solid #ededf0',
+                      background: isDrop ? 'rgba(89,60,251,0.06)' : 'inherit',
+                      outline: isDrop ? '2px solid #593cfb' : 'none',
                       outlineOffset: -2,
                     }}
                   >
@@ -983,14 +881,14 @@ export default function TapeChartPage() {
                       width: LABEL_W, flexShrink: 0,
                       display: 'flex', alignItems: 'center', gap: 10,
                       paddingInline: '14px 10px',
-                      background: isOOO ? '#FEF2F2' : isHold ? '#FAF5FF' : ri % 2 === 0 ? '#FAF6F0' : '#FDFAF5',
-                      borderLeft: '4px solid ' + (isOOO ? '#dc2626' : isHold ? '#7c3aed' : (room.roomType?.code ? '#C49340' : '#DDD0BC')),
-                      borderRight: '1px solid #DDD0BC',
+                      background: isOOO ? '#FEF2F2' : isHold ? '#FAF5FF' : ri % 2 === 0 ? '#ffffff' : '#ffffff',
+                      borderLeft: '1px solid #e8e8ea',
+                      borderRight: '1px solid #e8e8ea',
                     }}>
                       {/* Room number — large */}
                       <div style={{
-                        fontFamily: 'monospace', fontWeight: 900, fontSize: 18,
-                        color: isOOO ? '#dc2626' : '#2A1A0E',
+                        fontFamily: 'inherit', fontWeight: 600, fontSize: 14,
+                        color: isOOO ? '#dc2626' : '#252525',
                         lineHeight: 1, flexShrink: 0, minWidth: 38,
                       }}>{room.number}</div>
 
@@ -998,7 +896,7 @@ export default function TapeChartPage() {
                       <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:3 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                           {room.roomType?.code && (
-                            <span style={{ fontSize:9, fontWeight:800, color:'#9A6B1A', background:'#F7EFE0', padding:'1px 5px', borderRadius:4, letterSpacing:'0.05em', flexShrink:0 }}>
+                            <span style={{ fontSize:9, fontWeight:800, color:'#6550b8', background:'#f3f3f5', padding:'1px 5px', borderRadius:4, letterSpacing:'0.05em', flexShrink:0 }}>
                               {room.roomType.code}
                             </span>
                           )}
@@ -1006,8 +904,8 @@ export default function TapeChartPage() {
                           {isHold && <span style={{ fontSize:9, fontWeight:800, color:'#7c3aed', background:'#ede9fe', padding:'1px 5px', borderRadius:4 }}>Hold</span>}
                         </div>
                         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-                          <div style={{ width:5, height:5, borderRadius:'50%', background: CLEAN_DOT[room.cleanStatus] || '#C8B89A', flexShrink:0 }} />
-                          <span style={{ fontSize:9.5, color:'#9A7A5A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          <div style={{ width:5, height:5, borderRadius:'50%', background: CLEAN_DOT[room.cleanStatus] || '#d8d9dc', flexShrink:0 }} />
+                          <span style={{ fontSize:9.5, color:'#8a8a91', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {room.roomType?.name || '—'}
                           </span>
                         </div>
@@ -1017,7 +915,7 @@ export default function TapeChartPage() {
                       <button
                         onClick={e => { e.stopPropagation(); setBlockRoom(room); }}
                         title={isOOO || isHold ? 'שחרר חדר' : 'חסום חדר'}
-                        style={{ background:'transparent', border:'none', cursor:'pointer', padding:'2px 3px', color: isOOO ? '#dc2626' : isHold ? '#7c3aed' : '#C8B89A', flexShrink:0 }}
+                        style={{ background:'transparent', border:'none', cursor:'pointer', padding:'2px 3px', color: isOOO ? '#dc2626' : isHold ? '#7c3aed' : '#d8d9dc', flexShrink:0 }}
                       >
                         {(isOOO || isHold) ? <Unlock size={11} /> : <Lock size={11} />}
                       </button>
@@ -1034,11 +932,11 @@ export default function TapeChartPage() {
                             position: 'absolute',
                             insetInlineStart: i * COL_W, top: 0,
                             width: COL_W, height: ROW_H,
-                            borderLeft: '1px solid #EAE0D0',
+                            borderLeft: '1px solid #ededf0',
                             background: d.isToday
-                              ? 'rgba(196,147,64,0.06)'
+                              ? 'rgba(89,60,251,0.025)'
                               : d.isWeekend
-                                ? 'rgba(180,120,60,0.03)'
+                                ? '#fafafb'
                                 : 'transparent',
                             cursor: isOOO ? 'default' : 'cell',
                             zIndex: 1,
@@ -1053,7 +951,7 @@ export default function TapeChartPage() {
                           insetInlineStart: todayIdx * COL_W + COL_W / 2 - 0.5,
                           top: 0, bottom: 0,
                           width: 1,
-                          background: 'rgba(184,133,26,0.35)',
+                          background: 'rgba(89,60,251,0.18)',
                           zIndex: 1, pointerEvents:'none',
                         }} />
                       )}
@@ -1088,40 +986,41 @@ export default function TapeChartPage() {
             </div>
           ))}
 
+          {filteredRooms.length === 0 && <div className="turo-calendar-empty"><BedDouble size={24}/><strong>לא נמצאו חדרים</strong><span>נסו לשנות את החיפוש או את הסינון</span></div>}
           {/* ── UNASSIGNED ROW ─── */}
           {unassignedRes.length > 0 && (
             <div>
               <div style={{
                 display:'flex', position:'sticky', insetInlineStart:0,
-                background:'rgba(196,147,64,0.10)',
+                background:'rgba(89,60,251,0.06)',
                 height:28, alignItems:'center', zIndex:20,
                 minWidth: totalWidth,
                 borderTop:'2px solid rgba(196,147,64,0.25)',
               }}>
                 <div style={{ position:'sticky', insetInlineStart:0, paddingInline:14, display:'flex', alignItems:'center', gap:6 }}>
-                  <AlertCircle size={11} style={{ color:'#9A6B1A' }} />
-                  <span style={{ color:'#7A5C42', fontSize:11, fontWeight:700 }}>
+                  <AlertCircle size={11} style={{ color:'#6550b8' }} />
+                  <span style={{ color:'#67676f', fontSize:11, fontWeight:700 }}>
                     ללא חדר ({unassignedRes.length})
                   </span>
                 </div>
               </div>
-              <div style={{ display:'flex', height: ROW_H, borderBottom:'1px solid #DDD0BC' }}>
+              <div style={{ display:'flex', height: ROW_H * unassignedRes.length, borderBottom:'1px solid #e8e8ea' }}>
                 <div style={{
                   position:'sticky', insetInlineStart:0, zIndex:10, width: LABEL_W, flexShrink:0,
                   display:'flex', alignItems:'center', gap:8, paddingInline:12,
-                  background:'rgba(247,239,224,0.5)', borderLeft:'3px solid #C49340', borderRight:'1px solid #E8DFCF',
+                  background:'rgba(247,239,224,0.5)', borderLeft:'3px solid #593cfb', borderRight:'1px solid #ececef',
                 }}>
-                  <span style={{ fontSize:12, color:'#7A5C42', fontWeight:700 }}>לא שויך</span>
+                  <span style={{ fontSize:12, color:'#67676f', fontWeight:700 }}>לא שויך</span>
                 </div>
                 <div style={{ position:'relative', flex:1, background:'rgba(247,239,224,0.3)' }}>
                   {days.map((d,i) => (
                     <div key={d.date} style={{
                       position:'absolute', insetInlineStart:i*COL_W, top:0, width:COL_W, height:ROW_H,
-                      borderLeft:'1px solid #DDD0BC',
-                      background: d.isToday ? 'rgba(196,147,64,0.06)' : 'transparent',
+                      borderLeft:'1px solid #e8e8ea',
+                      background: d.isToday ? 'rgba(89,60,251,0.025)' : 'transparent',
                     }} />
                   ))}
-                  {unassignedRes.map(res => {
+                  {unassignedRes.map((res, reservationIndex) => {
                     const isResizing = resizeDraft?.resId === String(res._id);
                     const visualRes = isResizing
                       ? { ...res, departureDate: resizeDraft.newDepartureDate }
@@ -1132,6 +1031,7 @@ export default function TapeChartPage() {
                       <ResBlock
                         key={res._id}
                         res={visualRes}
+                        verticalOffset={reservationIndex * ROW_H}
                         layout={layout}
                         isDragging={drag?.resId === String(res._id)}
                         isResizing={isResizing}
@@ -1152,7 +1052,7 @@ export default function TapeChartPage() {
       </div>
 
       {/* ─── FOOTER STATS ────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-6 mt-3 text-xs text-ink-muted flex-wrap">
+      <div className="turo-calendar-footer">
         <span><strong className="text-ink">{filteredRooms.length}</strong> חדרים מוצגים</span>
         <span><strong className="text-ink">{allRes.filter(r => ['confirmed','in_house','modified'].includes(r.status)).length}</strong> הזמנות פעילות</span>
         {byFloor.length > 0 && (

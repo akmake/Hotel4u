@@ -10,7 +10,7 @@ import { TODAY, addDays, formatShort, formatDayLabel, isWeekend } from '../utils
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
 import ReservationDrawer from '../components/reservations/ReservationDrawer';
-import RoomMoveDialog from '../components/reservations/RoomMoveDialog';
+import DragMoveDialog from '../components/stay/DragMoveDialog';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const COL_W   = 56;
@@ -371,17 +371,6 @@ export default function RoomRackPage() {
     beginResize(e, res);
   }, [beginResize]);
 
-  async function handleMoveConfirm({ amount, note }) {
-    const { resId, targetRoomId } = pendingMove;
-    setPendingMove(null);
-    try {
-      const adj = amount !== 0 ? { priceAdjustment: amount, adjustmentNote: note } : {};
-      await resApi.assignRoom(resId, targetRoomId, adj);
-      success('חדר שוּנה בהצלחה');
-      refetch();
-    } catch (err) { toastError(err.message); }
-  }
-
   async function handleResizeConfirm({ nightlyRate }) {
     if (!pendingResize) return;
     const op = pendingResize;
@@ -446,7 +435,13 @@ export default function RoomRackPage() {
         <ReservationDrawer reservationId={selectedRes._id} propertyId={propertyId} onChanged={refetch} onClose={() => { setSelectedRes(null); refetch(); }} />
       )}
       {pendingMove && (
-        <RoomMoveDialog pending={pendingMove} allRooms={allRooms} onConfirm={handleMoveConfirm} onCancel={() => setPendingMove(null)} />
+        <DragMoveDialog
+          pending={pendingMove}
+          rooms={allRooms}
+          propertyId={propertyId}
+          onClose={() => setPendingMove(null)}
+          onDone={(msg) => { setPendingMove(null); success(msg); refetch(); }}
+        />
       )}
       {pendingResize && (
         <StayResizeDialog

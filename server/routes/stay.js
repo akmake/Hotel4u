@@ -52,7 +52,7 @@ function actorOf(req) {
 // ── FD-09 ───────────────────────────────────────────────────────────────────
 router.get('/:id/move-candidates', handle(async (req) => {
   requireRoles(req, FRONT_ROLES, 'מעבר חדר מתבצע בקבלה');
-  return moveCandidates({ propertyId: scope(req), reservationId: req.params.id, unitId: req.query.unitId });
+  return moveCandidates({ propertyId: scope(req), reservationId: req.params.id, unitId: req.query.unitId, fromRoomId: req.query.fromRoomId });
 }));
 
 router.post('/:id/move', handle(async (req) => {

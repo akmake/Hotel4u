@@ -73,7 +73,7 @@ const PMS_NAV = [
   {
     group: 'קבלה',
     items: [
-      { path: '/pms',              icon: LayoutDashboard, label: 'היום' },
+      { path: '/pms',              icon: LayoutDashboard, label: 'היום בקבלה' },
       { path: '/pms/work',         icon: ListChecks,      label: 'מרכז משימות' },
       { path: '/pms/tape-chart',   icon: CalendarDays,    label: 'לוח חדרים' },
       { path: '/pms/room-rack',    icon: Calendar,        label: 'Room Rack' },
@@ -122,16 +122,9 @@ const PMS_ROLE_PATHS = {
   housekeeper: ['/pms/housekeeping', '/pms/work'],
 };
 
-const COLLAPSE_KEY = 'hotel4u_nav_collapsed';
-
 function isActivePath(pathname, path) {
   if (path === '/' || path === '/pms') return pathname === path;
   return pathname === path || pathname.startsWith(`${path}/`);
-}
-
-function readCollapsed() {
-  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); }
-  catch { return new Set(); }
 }
 
 export default function Sidebar({ open, onClose }) {
@@ -140,9 +133,9 @@ export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuthStore();
   const { property, propertyId } = useProperty() || {};
 
+  const [expanded, setExpanded] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState(readCollapsed);
   const menuRef = useRef(null);
 
   const isAdmin = user?.role === 'admin';
@@ -151,6 +144,8 @@ export default function Sidebar({ open, onClose }) {
   const pmsAllowedPaths = isPMS ? PMS_ROLE_PATHS[user?.role] : undefined;
   const workspace = isPMS ? (property?.name || 'Hotel4U') : 'Hotel4U מכירות';
   const wsInitial = workspace.replace(/^מלון\s+/, '').trim().charAt(0);
+  const allowedGroups = navGroups.filter(section => (!section.adminOnly || isAdmin) && (!pmsAllowedPaths || section.items.some(item => pmsAllowedPaths.includes(item.path))));
+  const visibleItems = allowedGroups.flatMap(section => section.items.map(item => ({ ...item, group: section.group }))).filter(item => !pmsAllowedPaths || pmsAllowedPaths.includes(item.path));
 
   // "/" opens search (PMS), like Linear.
   useEffect(() => {
@@ -179,137 +174,30 @@ export default function Sidebar({ open, onClose }) {
     };
   }, [menuOpen]);
 
-  const toggleGroup = (group) => {
-    setCollapsedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(group)) next.delete(group); else next.add(group);
-      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next])); } catch { /* storage unavailable */ }
-      return next;
-    });
-  };
-
-
   const go = (path) => { setMenuOpen(false); nav(path); onClose?.(); };
 
   return (
-    <aside className={`sidebar ${open ? 'is-open' : ''}`} aria-label="ניווט ראשי">
-      {/* Workspace row: name (account menu) · search · compose */}
-      <div className="ws-row relative" ref={menuRef}>
-        <button
-          type="button"
-          className="ws-button"
-          onClick={() => setMenuOpen(v => !v)}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-        >
-          <span className="ws-avatar" aria-hidden="true">{wsInitial}</span>
-          <span className="truncate">{workspace}</span>
-          <ChevronDown size={13} className="text-ink-muted shrink-0" />
-        </button>
-        {isPMS && (
-          <button
-            type="button"
-            className="side-icon-btn"
-            onClick={() => setSearchOpen(v => !v)}
-            aria-label="חיפוש"
-            aria-expanded={searchOpen}
-            title="חיפוש ( / )"
-          >
-            <Search size={15} />
-          </button>
-        )}
-        <button
-          type="button"
-          className="side-icon-btn is-raised"
-          onClick={() => go(isPMS ? '/pms/reservations/new' : '/new-order')}
-          aria-label="הזמנה חדשה"
-          title="הזמנה חדשה"
-        >
-          <SquarePen size={14} />
-        </button>
-
-        {menuOpen && (
-          <div role="menu" className="menu top-[34px] right-[10px]">
-            <div className="px-2 py-1.5">
-              <div className="text-[13px] font-medium text-ink truncate">{user?.name || 'משתמש'}</div>
-              <div className="text-[12px] text-ink-muted truncate">{roleLabel(user?.role)}</div>
-            </div>
-            <div className="menu-sep" />
-            {isPMS && (
-              <button type="button" role="menuitem" className="menu-item" onClick={() => go('/pms/me')}>
-                <Users size={14} className="text-ink-muted" />
-                הפרופיל שלי
-              </button>
-            )}
-            <button type="button" role="menuitem" className="menu-item" onClick={() => go(isPMS ? '/' : '/pms')}>
-              <ArrowLeftRight size={14} className="text-ink-muted" />
-              {isPMS ? 'מעבר לאזור מכירות' : 'מעבר לאזור קבלה'}
-            </button>
-            <div className="menu-sep" />
-            <button
-              type="button"
-              role="menuitem"
-              className="menu-item !text-red-600"
-              onClick={() => { setMenuOpen(false); logout(); }}
-            >
-              <LogOut size={14} />
-              יציאה מהמערכת
-            </button>
-          </div>
-        )}
+    <aside className={`sidebar hotjar-sidebar ${expanded ? 'is-expanded' : 'is-collapsed'} ${open ? 'is-open' : ''}`} aria-label="ניווט ראשי">
+      <div className="hotjar-nav-panel" dir="rtl">
+        <button type="button" className="hotjar-sidebar-toggle" onClick={() => { setExpanded(v => !v); setMenuOpen(false); }} aria-label={expanded ? 'צמצום סרגל הצד' : 'פתיחת סרגל הצד'} aria-expanded={expanded} title={expanded ? 'צמצום סרגל הצד' : 'פתיחת סרגל הצד'}><ChevronDown size={18} /><span className="hotjar-nav-heading"><strong>{isPMS ? 'ניהול המלון' : 'מכירות ותפעול'}</strong><small>Hotel4U · מרחב העבודה</small></span></button>
+        {isPMS && <button type="button" className="hotjar-sidebar-search" onClick={() => setSearchOpen(true)} aria-label="חיפוש" title="חיפוש"><Search size={18} /><span>חיפוש במערכת</span><kbd>/</kbd></button>}
+        <nav className="hotjar-context-nav" aria-label="תפריט ראשי">
+          {visibleItems.map(({path, label, icon: Icon, group}, index) => {
+            const active = isActivePath(pathname, path) && !visibleItems.some(item => item.path !== path && item.path.startsWith(`${path}/`) && isActivePath(pathname, item.path));
+            return <div key={path} className="hotjar-nav-entry">{(index === 0 || visibleItems[index - 1].group !== group) && <div className="hotjar-section-caption">{group}</div>}<button type="button" className={`hotjar-context-item ${active ? 'active' : ''}`} onClick={() => go(path)} aria-label={label} title={label} aria-current={active ? 'page' : undefined}><span className="hotjar-item-icon"><Icon size={18} /></span><span>{label}</span></button></div>;
+          })}
+        </nav>
+        <div className="hotjar-workspace" ref={menuRef}>
+          <button type="button" onClick={() => setMenuOpen(v => !v)} aria-label={workspace} title={workspace} aria-haspopup="menu" aria-expanded={menuOpen}><span className="ws-avatar">{wsInitial}</span><span className="hotjar-account-text"><strong>{user?.name || workspace}</strong><small>{roleLabel(user?.role)}</small></span><ChevronDown size={14}/></button>
+          {menuOpen && <div role="menu" className="menu">
+            <div className="px-2 py-1.5">{user?.name}<div className="text-ink-muted text-xs">{roleLabel(user?.role)}</div></div>
+            {isPMS && <button type="button" role="menuitem" className="menu-item" onClick={() => go('/pms/me')}>הפרופיל שלי</button>}
+            <button type="button" role="menuitem" className="menu-item" onClick={() => go(isPMS ? '/' : '/pms')}><ArrowLeftRight size={14}/>{isPMS ? 'מעבר לאזור מכירות' : 'מעבר לאזור קבלה'}</button>
+            <button type="button" role="menuitem" className="menu-item" onClick={logout}><LogOut size={14}/>יציאה מהמערכת</button>
+          </div>}
+        </div>
       </div>
-
       {isPMS && <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} propertyId={propertyId} />}
-
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto pb-3">
-        {navGroups.map(({ group, adminOnly, items }, gi) => {
-          if (adminOnly && !isAdmin) return null;
-          const visibleItems = pmsAllowedPaths
-            ? items.filter(item => pmsAllowedPaths.includes(item.path))
-            : items;
-          if (visibleItems.length === 0) return null;
-          // First group is the unlabeled top block (Linear's Inbox / My issues).
-          const labeled = gi > 0;
-          const collapsed = labeled && collapsedGroups.has(group);
-          const listId = `nav-group-${gi}`;
-          return (
-            <div key={group} className={labeled ? 'nav-group' : 'mt-2'}>
-              {labeled && (
-                <button
-                  type="button"
-                  className="nav-group-label"
-                  onClick={() => toggleGroup(group)}
-                  aria-expanded={!collapsed}
-                  aria-controls={listId}
-                >
-                  {group}
-                  <ChevronDown size={11} className="caret" />
-                </button>
-              )}
-              {!collapsed && (
-                <div id={listId}>
-                  {visibleItems.map(({ path, icon: Icon, label }) => {
-                    const active = isActivePath(pathname, path);
-                    return (
-                      <button
-                        key={path}
-                        type="button"
-                        onClick={() => go(path)}
-                        aria-current={active ? 'page' : undefined}
-                        className={`nav-item ${active ? 'active' : ''}`}
-                      >
-                        <Icon size={16} strokeWidth={1.75} className="nav-icon shrink-0" />
-                        <span className="flex-1 text-right truncate">{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </nav>
     </aside>
   );
 }

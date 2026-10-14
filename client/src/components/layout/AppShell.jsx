@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+import { Menu, Hotel } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { formatLong, todayYmd } from '../../utils/date';
 
 const PAGE_TITLES = {
-  '/pms':                 'היום',
+  '/pms':                 'היום בקבלה',
   '/pms/tape-chart':      'לוח חדרים',
   '/pms/room-rack':       'Room Rack',
   '/pms/reservations':    'הזמנות',
@@ -42,7 +42,7 @@ const PAGE_TITLES = {
 };
 
 // Screens that lay out their own toolbar edge-to-edge inside the content panel (Linear list views).
-const FLUSH_ROUTES = new Set(['/pms']);
+const FLUSH_ROUTES = new Set(['/pms', '/pms/tape-chart']);
 
 export default function AppShell() {
   const { pathname } = useLocation();
@@ -54,11 +54,12 @@ export default function AppShell() {
   useEffect(() => { setNavOpen(false); }, [pathname]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell hotjar-shell">
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       {navOpen && <div className="sidebar-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />}
       <div className="main-content">
         <header className="content-header">
+          <div className="hotjar-shell-brand"><Hotel size={22}/><strong>Hotel4U</strong></div>
           <button
             type="button"
             className="side-icon-btn lg:hidden"

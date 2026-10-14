@@ -5,7 +5,7 @@ import api from '@/utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     format, startOfMonth, endOfMonth, eachDayOfInterval, 
-    isWithinInterval, startOfDay, addMonths, subMonths, isSameDay, addDays
+    isWithinInterval, startOfDay, addMonths, subMonths, isSameDay, addDays, differenceInCalendarDays
 } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { HDate, HebrewCalendar, gematriya } from '@hebcal/core'; 
@@ -137,16 +137,13 @@ export default function AdminCalendarPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#FDFCFB] p-6 lg:p-10 font-sans" dir="rtl">
-            <header className="max-w-[1600px] mx-auto mb-12 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="admin-turo-calendar" dir="rtl">
+            <header className="turo-calendar-toolbar">
                 <div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                        Zipori <span className="text-amber-600 font-serif italic">Status</span>
-                    </h1>
-                    <p className="text-slate-400 font-medium mt-1">ניהול חדרים ותפוסה בסטנדרט פרימיום</p>
+                    <h1 className="turo-calendar-title">לוח שנה</h1>
                 </div>
 
-                <div className="flex flex-wrap gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+                <div className="turo-calendar-controls">
                     <Select onValueChange={setSelectedHotelId} value={selectedHotelId}>
                         <SelectTrigger className="w-56 border-none shadow-none focus:ring-0 font-bold bg-transparent">
                             <MapPin className="ml-2 h-4 w-4 text-amber-600" />
@@ -185,17 +182,7 @@ export default function AdminCalendarPage() {
                     <p className="text-xl font-bold italic">אנא בחר מלון להצגת תמונת המצב</p>
                 </div>
             ) : (
-                <div className="max-w-[1600px] mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-                    {filteredRooms.map((room, index) => (
-                        <RoomLuxuryCard 
-                            key={room.id} 
-                            room={room} 
-                            activeEvent={getActiveEvent(room.id)}
-                            index={index} 
-                            onClick={() => setSelectedRoom(room)} 
-                        />
-                    ))}
-                </div>
+                <AdminRoomTimeline rooms={filteredRooms} events={data?.events || []} currentDate={currentDate} onSelectRoom={setSelectedRoom} onDateChange={setCurrentDate} />
             )}
 
             <AnimatePresence>
@@ -213,6 +200,45 @@ export default function AdminCalendarPage() {
             </AnimatePresence>
         </div>
     );
+}
+
+function AdminRoomTimeline({ rooms, events, currentDate, onSelectRoom, onDateChange }) {
+    const first = startOfMonth(currentDate);
+    const dates = eachDayOfInterval({ start: first, end: endOfMonth(currentDate) });
+    const dayWidth = 64;
+    const labelWidth = 190;
+    return <>
+        <div className="admin-turo-date-nav">
+            <button type="button" aria-label="חודש קודם" onClick={() => onDateChange(subMonths(currentDate, 1))}><ChevronRight size={17}/></button>
+            <strong>{format(currentDate, 'MMMM yyyy', { locale: he })}</strong>
+            <button type="button" aria-label="חודש הבא" onClick={() => onDateChange(addMonths(currentDate, 1))}><ChevronLeft size={17}/></button>
+            <button type="button" onClick={() => onDateChange(new Date())}>היום</button>
+            <span>{rooms.length} חדרים</span>
+        </div>
+        <div className="admin-turo-board">
+            <div style={{ width: labelWidth + dates.length * dayWidth, minWidth: '100%' }}>
+                <div className="admin-turo-dates">
+                    <div className="admin-turo-room-label" style={{width:labelWidth}}>חדרים</div>
+                    {dates.map(day => <div key={day.toISOString()} className="admin-turo-date" style={{width:dayWidth}}><small>{format(day,'EEE',{locale:he})}</small><span className={isSameDay(day,new Date()) ? 'is-today' : ''}>{format(day,'d')}</span></div>)}
+                </div>
+                {rooms.map(room => <div className="admin-turo-room-row" key={room.id}>
+                    <button type="button" className="admin-turo-room-label" style={{width:labelWidth}} onClick={() => onSelectRoom(room)}><Bed size={18}/><span><strong>{room.name}</strong><small>{room.type}</small></span></button>
+                    <div className="admin-turo-room-track" style={{width:dates.length*dayWidth,backgroundSize:`${dayWidth}px 100%`}}>
+                        {events.filter(event => String(event.roomId) === String(room.id)).map((event,index) => {
+                            const start = differenceInCalendarDays(new Date(event.start),first)+.5;
+                            const end = differenceInCalendarDays(new Date(event.end),first)+.5;
+                            if(end<=0 || start>=dates.length || end<=start) return null;
+                            const from=Math.max(0,start), to=Math.min(dates.length,end);
+                            return <button type="button" key={event.id || index} className="admin-turo-stay" style={{insetInlineStart:from*dayWidth+3,width:(to-from)*dayWidth-6}} onClick={() => onSelectRoom(room)} title={`${event.guestName || event.title || 'הזמנה'} · כניסה ${format(new Date(event.start),'dd/MM')} · יציאה ${format(new Date(event.end),'dd/MM')}`}>
+                                <span className="turo-booking-line"/><span className="turo-booking-name">{event.guestName || event.title || 'הזמנה'}</span><span className="turo-booking-dates"><span>{start>=0 && format(new Date(event.start),'dd/MM')}</span><span>{end<=dates.length && format(new Date(event.end),'dd/MM')}</span></span>
+                            </button>;
+                        })}
+                    </div>
+                </div>)}
+                {rooms.length===0 && <div className="turo-calendar-empty">לא נמצאו חדרים להצגה</div>}
+            </div>
+        </div>
+    </>;
 }
 
 function RoomLuxuryCard({ room, activeEvent, onClick, index }) {
@@ -252,7 +278,7 @@ function RoomLuxuryCard({ room, activeEvent, onClick, index }) {
         <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.02 }}
             whileHover={{ y: -8, scale: 1.02 }} onClick={onClick}
-            className="cursor-pointer bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden h-64 flex flex-col justify-between"
+            className="cursor-pointer bg-white rounded-xl p-6 border border-slate-100 shadow-sm hover:shadow-lg transition-all group relative overflow-hidden h-64 flex flex-col justify-between"
         >
             <div className="flex justify-between items-start relative z-10">
                 <div className="h-12 w-12 rounded-2xl flex items-center justify-center bg-slate-50 text-slate-700 shadow-inner group-hover:bg-slate-900 group-hover:text-white transition-colors duration-300">
@@ -265,7 +291,7 @@ function RoomLuxuryCard({ room, activeEvent, onClick, index }) {
             </div>
 
             <div className="relative z-10 mt-2">
-                <h3 className="text-4xl font-black text-slate-800 mb-1">{room.name}</h3>
+                <h3 className="text-2xl font-semibold text-slate-800 mb-1">{room.name}</h3>
                 <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{room.type}</p>
             </div>
 
@@ -276,7 +302,7 @@ function RoomLuxuryCard({ room, activeEvent, onClick, index }) {
                             {statusIcon}
                             <span className="text-xs font-bold">{currentStatusLabel}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px] font-black opacity-80">
+                        <div className="flex items-center gap-1 text-[10px] font-semibold opacity-80">
                             <Users size={10} />
                             <span>{activeEvent.pax}</span>
                         </div>
@@ -385,7 +411,7 @@ function RoomVaultTimeline({ room, hotelId, events, onClose, currentDate, onNext
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ y: 50, scale: 0.98 }} animate={{ y: 0, scale: 1 }} className="bg-white w-full max-w-[95vw] h-[92vh] rounded-[2rem] shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-200">
+            <motion.div initial={{ y: 50, scale: 0.98 }} animate={{ y: 0, scale: 1 }} className="bg-white w-full max-w-[95vw] h-[92vh] rounded-xl shadow-lg flex flex-col md:flex-row overflow-hidden border border-slate-200">
                 
                 <div className="w-full md:w-[22rem] bg-white border-l border-slate-200 text-slate-800 p-8 flex flex-col relative shrink-0 z-20 shadow-xl">
                     <button onClick={onClose} className="absolute top-6 left-6 w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center hover:bg-slate-100 transition-all z-20 shadow-sm text-slate-500">
@@ -393,8 +419,8 @@ function RoomVaultTimeline({ room, hotelId, events, onClose, currentDate, onNext
                     </button>
                     
                     <div className="mt-12 flex flex-col h-full relative z-10">
-                        <span className="text-amber-600 font-black text-[10px] tracking-[0.3em] uppercase mb-2 block">Room Overview</span>
-                        <h2 className="text-7xl font-black mb-1 tracking-tighter leading-none text-slate-900">{room.name}</h2>
+                        <span className="text-amber-600 font-semibold text-[10px] tracking-[0.3em] uppercase mb-2 block">Room Overview</span>
+                        <h2 className="text-3xl font-semibold mb-1 tracking-tighter leading-none text-slate-900">{room.name}</h2>
                         <p className="text-slate-400 text-base font-bold mb-10">{room.type}</p>
 
                         <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 shadow-sm mb-6">
@@ -407,7 +433,7 @@ function RoomVaultTimeline({ room, hotelId, events, onClose, currentDate, onNext
                                     {todayIcon}
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black leading-none mb-1 text-slate-800">{todayStatusTitle}</h3>
+                                    <h3 className="text-xl font-semibold leading-none mb-1 text-slate-800">{todayStatusTitle}</h3>
                                     <p className="text-xs text-slate-500 font-medium truncate w-32">{todayStatusSubtitle}</p>
                                 </div>
                             </div>
@@ -427,7 +453,7 @@ function RoomVaultTimeline({ room, hotelId, events, onClose, currentDate, onNext
                         
                         <div className="mt-auto bg-slate-50 rounded-2xl p-4 flex justify-between items-center border border-slate-100">
                              <span className="text-xs font-bold text-slate-500">תפוסה החודש</span>
-                             <span className="text-xl font-black text-slate-800">{events?.length || 0} <span className="text-xs text-slate-400 font-medium">לילות</span></span>
+                             <span className="text-xl font-semibold text-slate-800">{events?.length || 0} <span className="text-xs text-slate-400 font-medium">לילות</span></span>
                         </div>
                     </div>
                 </div>
@@ -435,7 +461,7 @@ function RoomVaultTimeline({ room, hotelId, events, onClose, currentDate, onNext
                 <div className="flex-1 flex flex-col bg-slate-100/50 h-full relative">
                     <div className="flex items-center justify-between p-8 pb-4 bg-white border-b border-slate-200">
                         <div>
-                            <h3 className="text-4xl font-black text-slate-900 tracking-tight leading-none">
+                            <h3 className="text-2xl font-semibold text-slate-900 tracking-tight leading-none">
                                 {format(currentDate, 'MMMM yyyy', { locale: he })}
                             </h3>
                             <p className="text-amber-600/80 text-lg font-bold mt-1">
@@ -450,11 +476,11 @@ function RoomVaultTimeline({ room, hotelId, events, onClose, currentDate, onNext
 
                     <div className="grid grid-cols-7 gap-0 px-8 py-3 bg-slate-200/50 border-b border-slate-200">
                         {['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].map(d => (
-                            <div key={d} className="text-center text-[11px] font-black text-slate-500 uppercase tracking-widest">{d}</div>
+                            <div key={d} className="text-center text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{d}</div>
                         ))}
                     </div>
 
-                    <div className="flex-1 grid grid-cols-7 grid-rows-6 p-6 gap-3 h-full overflow-hidden">
+                    <div className="flex-1 grid grid-cols-7 auto-rows-fr p-0 gap-px h-full overflow-hidden">
                         {paddingDays.map((_, i) => <div key={`pad-${i}`} />)}
 
                         {days.map((day, i) => {
@@ -500,15 +526,15 @@ function RoomVaultTimeline({ room, hotelId, events, onClose, currentDate, onNext
                             }
 
                             return (
-                                <div key={i} onClick={() => handleDayClick(day, booking)} className={`relative rounded-xl transition-all duration-300 flex flex-col p-3 z-30 ${containerClass}`}>
+                                <div key={i} onClick={() => handleDayClick(day, booking)} className={`relative transition-colors flex flex-col p-3 z-30 ${containerClass}`}>
                                     <div className="flex justify-between items-start w-full mb-1">
-                                        <span className={`text-2xl font-black ${dayNumClass}`}>{format(day, 'd')}</span>
+                                        <span className={`text-2xl font-semibold ${dayNumClass}`}>{format(day, 'd')}</span>
                                         <span className={`text-xs font-bold ${hebDayClass}`}>{hebrewDay}</span>
                                     </div>
 
                                     {booking ? (
                                         <div className="mt-1 flex flex-col">
-                                            <div className={`text-[11px] font-black truncate ${statusColorClass}`}>
+                                            <div className={`text-[11px] font-semibold truncate ${statusColorClass}`}>
                                                 {booking.guestName || booking.title}
                                             </div>
                                             {booking.optimaNumber && (
@@ -541,9 +567,9 @@ function RoomVaultTimeline({ room, hotelId, events, onClose, currentDate, onNext
 
             {/* חלון ניהול הזמנה - הוספת ולידציית תאריכים למניעת קריסה */}
             <Dialog open={bookingDialog.open} onOpenChange={(val) => !val && setBookingDialog({ open: false, data: null })}>
-                <DialogContent className="sm:max-w-[425px] rounded-[2rem] border-none shadow-2xl z-[110]" dir="rtl">
+                <DialogContent className="sm:max-w-[425px] rounded-xl border-none shadow-lg z-[110]" dir="rtl">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-black text-slate-900">
+                        <DialogTitle className="text-2xl font-semibold text-slate-900">
                             {bookingDialog.isNew ? 'הזמנה חדשה' : 'פרטי הזמנה'}
                         </DialogTitle>
                     </DialogHeader>
