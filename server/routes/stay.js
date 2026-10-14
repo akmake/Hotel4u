@@ -7,6 +7,7 @@ import {
   moveCandidates, moveRoom, extensionPreview, extendStay, earlyDeparturePreview,
   modificationPreview, modifyBooking, cancellationPreview, cancelWithNotice,
 } from '../services/stayChangeService.js';
+import { reinstatePreview, reinstateReservation, reverseCheckInPreview, reverseCheckIn, postStayCharge } from '../services/reversalService.js';
 
 const router = Router();
 
@@ -96,6 +97,32 @@ router.post('/:id/cancellation/preview', handle(async (req) => {
 router.post('/:id/cancel', handle(async (req) => {
   requireRoles(req, CANCEL_ROLES, 'אין הרשאה לביטול');
   return cancelWithNotice({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+// ── Gap G6: walking a stay back ─────────────────────────────────────────────
+router.get('/:id/reinstate', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה לשחזור הזמנה');
+  return reinstatePreview({ propertyId: scope(req), reservationId: req.params.id });
+}));
+
+router.post('/:id/reinstate', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה לשחזור הזמנה');
+  return reinstateReservation({ propertyId: scope(req), reservationId: req.params.id, reason: req.body?.reason, actor: actorOf(req), ip: req.ip });
+}));
+
+router.get('/:id/reverse-check-in', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES, 'ביטול כניסה מתבצע בקבלה');
+  return reverseCheckInPreview({ propertyId: scope(req), reservationId: req.params.id });
+}));
+
+router.post('/:id/reverse-check-in', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES, 'ביטול כניסה מתבצע בקבלה');
+  return reverseCheckIn({ propertyId: scope(req), reservationId: req.params.id, reason: req.body?.reason, roomUsed: !!req.body?.roomUsed, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/:id/post-stay-charge', handle(async (req) => {
+  requireRoles(req, [...FRONT_ROLES, 'finance_manager'], 'חיוב אחרי יציאה מותר למנהל או לכספים');
+  return postStayCharge({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
 }));
 
 export default router;

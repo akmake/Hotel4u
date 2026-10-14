@@ -29,6 +29,13 @@ function Steps({ run }) {
           {s.error && <span className="ui-error">{s.error}</span>}
           {s.key === 'post_nights' && s.result?.posted !== undefined && <span className="ui-sub">נרשמו {s.result.posted} לילות</span>}
           {s.key === 'no_shows' && s.result?.marked !== undefined && <span className="ui-sub">סומנו {s.result.marked} כלא הגיעו</span>}
+          {s.key === 'ledgers' && s.result?.trial && (
+            <span className="ui-sub">
+              יתרת סגירה {money(s.result.trial.closing)}
+              {(s.result.checks || []).some((c) => c.ok === false) ? ` · ${(s.result.checks || []).filter((c) => c.ok === false).length} בדיקות לטיפול` : ' · הבדיקות תקינות'}
+              {' · '}<Link to={`/pms/night-audit/report?date=${run.businessDate}`}>לדוח המלא</Link>
+            </span>
+          )}
           {s.finishedAt && <span className="ui-sub">{formatDateTime(s.finishedAt)}</span>}
         </li>
       ))}
@@ -92,6 +99,7 @@ export default function DayClosePage() {
     { key: 'rev', label: 'הכנסות לינה', nowrap: true, align: 'left', render: (r) => (r.snap ? <span className="ui-amount">{money(r.snap.roomRevenue)}</span> : '—') },
     { key: 'adr', label: 'ADR', nowrap: true, align: 'left', render: (r) => (r.snap ? <span className="ui-amount">{money(r.snap.adr)}</span> : '—') },
     { key: 'by', label: 'הריץ', nowrap: true, render: (r) => <div><div>{r.startedBy || '—'}</div><div className="ui-sub">{r.attempts > 1 ? `${r.attempts} ניסיונות · ` : ''}{formatDateTime(r.finishedAt || r.createdAt)}</div></div> },
+    { key: 'rep', label: 'דוחות', srOnly: true, nowrap: true, render: (r) => (r.status === 'done' ? <Link className="btn btn-ghost btn-sm" to={`/pms/night-audit/report?date=${r.businessDate}`}>דוחות</Link> : null) },
   ];
 
   return (
@@ -172,7 +180,7 @@ export default function DayClosePage() {
         </>
       )}
       {history.length > 0 && history[0].status === 'done' && history[0].snap && (
-        <Card title={`דוח יום ${formatShort(history[0].businessDate)}`}><Snapshot s={history[0].snap} /></Card>
+        <Card title={`דוח יום ${formatShort(history[0].businessDate)}`} actions={<Link className="btn btn-secondary btn-sm" to={`/pms/night-audit/report?date=${history[0].businessDate}`}>מאזן בוחן וספרים</Link>}><Snapshot s={history[0].snap} /></Card>
       )}
       <Card title="היסטוריית סגירות" flush>
         <DataTable caption="סגירות יום" columns={columns} rows={data ? history : undefined} loading={loading && !data} empty={<Empty title="עדיין לא נסגר אף יום" />} />

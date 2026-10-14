@@ -581,6 +581,17 @@ GET|POST /queue, POST /queue/:id/take|prioritize|remove, PATCH /queue/:id   FD-0
 Service: `services/frontDeskService.js`. Model: `models/ArrivalQueueEntry.js`. Policy: `Property.checkInPolicy`.
 QA: `npm run qa:frontdesk` (live server + same DB; cleans up after itself).
 
+#### Charge codes, day-close books, walking back (gaps G1/G4/G6 — docs/specification/13-opera-gap-analysis.md)
+```
+GET|POST /api/pms/finance/charge-codes, PATCH /charge-codes/:id   ADM-13 catalogue (models/ChargeCode.js). Folio line `department` = code.
+GET  /api/pms/finance/day-close/report?date=   trial balance, ledgers, revenue by code, receipts, flash (services/ledgerService.js)
+POST /api/pms/finance/folios/:id/close         close a zero-balance window of a finished stay
+GET|POST /api/pms/stay/:id/reinstate | reverse-check-in, POST /stay/:id/post-stay-charge   (services/reversalService.js)
+```
+Every manual charge/payment goes through services/financeService.js + chargeCodeService.js. Legacy line-editing writes
+(/folio/:id/void-line|adjustment|discount|refund|reopen|..., POST /payments, /folio-routing/apply) return 410.
+QA: `npm run qa:books`.
+
 #### `rooms.js` → `/api/pms/rooms`
 ```
 GET    /                        List rooms (filters: floor, type, opsStatus, cleanStatus, occStatus)

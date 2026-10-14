@@ -98,6 +98,18 @@ const ReservationSchema = new Schema({
     proposal:      Schema.Types.Mixed,                     // what the rules suggested, with sources
     decidedBy:     String,
   },
+  // Gap G6: actions that walk a status back (reinstate a cancellation / no-show, reverse a check-in).
+  // Kept as history; the money side (refunds, credit notes) is never touched by these actions.
+  reversals: [{
+    _id: false,
+    kind:   { type: String, enum: ['reinstate_cancelled', 'reinstate_no_show', 'reverse_check_in'] },
+    from:   String,
+    to:     String,
+    at:     Date,
+    by:     { type: Schema.Types.ObjectId, ref: 'User' },
+    byName: String,
+    reason: String,
+  }],
   // RSV-05 / FD-10: last change reason and the guest's confirmation reference.
   lastChange: { at: Date, by: String, reason: String, confirmationRef: String, kind: String },
 

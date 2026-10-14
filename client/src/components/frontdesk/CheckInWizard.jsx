@@ -3,11 +3,12 @@
 // server re-checks everything on "השלמת כניסה". Moving between steps never commits anything.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, BedDouble, KeyRound } from 'lucide-react';
-import { frontdesk, folio as folioApi } from '../../utils/api';
+import { frontdesk, finance } from '../../utils/api';
+import { useChargeCodes } from '../../hooks/useChargeCodes';
 import { GUARANTEE_LABELS, ID_DOC_LABELS, cleanLabel, opsLabel } from '../../lib/labels';
 import { countryOptions } from '../../lib/countries';
 import { formatShort } from '../../utils/date';
-import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList } from '../kit';
+import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, newOpKey } from '../kit';
 import SignaturePad from './SignaturePad';
 
 const STEPS = [
@@ -346,7 +347,11 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
 function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, setReference, onNext }) {
   const g = ctx.guarantee;
   const hasCompany = !!ctx.reservation.company;
-  const [dep, setDep] = useState({ amount: '', method: 'cash' });
+  const [dep, setDep] = useState({ amount: '', method: 'cash', methodRef: '' });
+  const [depKey, setDepKey] = useState(newOpKey());
+  const { payments: methods } = useChargeCodes(propertyId);
+  const depMethods = methods.filter((m) => m.active);
+  const depNeedRef = !!depMethods.find((m) => m.code === dep.method)?.requireReference;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -355,8 +360,10 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, 
     setSaving(true); setError(null); setNotice(null);
     try {
       if (!ctx.reservation.folioId) throw new Error('אין חשבון פתוח להזמנה — לא ניתן לרשום מקדמה');
-      await folioApi.deposit(ctx.reservation.folioId, { amount: Number(dep.amount), method: dep.method, propertyId });
-      setDep((d) => ({ ...d, amount: '' }));
+      // FIN-03 gate: deposit up to the stay cost, active method, reference when required, one post per key.
+      await finance.pay(propertyId, ctx.reservation.folioId, { kind: 'deposit', amount: Number(dep.amount), method: dep.method, methodRef: dep.methodRef?.trim() || undefined, idempotencyKey: depKey });
+      setDep((d) => ({ ...d, amount: '', methodRef: '' }));
+      setDepKey(newOpKey());
       setNotice(`נרשמה מקדמה של ${money(dep.amount, ctx.reservation.currency)}`);
       setMethod('deposit');
       await reload();
@@ -415,12 +422,15 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, 
           </Field>
           <Field id="dep-method" label="אמצעי">
             <select id="dep-method" className="select" style={{ width: 160 }} value={dep.method} onChange={(e) => setDep((d) => ({ ...d, method: e.target.value }))}>
-              <option value="cash">מזומן</option>
-              <option value="credit_card">כרטיס אשראי (מסוף חיצוני)</option>
-              <option value="bank_transfer">העברה בנקאית</option>
+              {(depMethods.length ? depMethods.map((m) => [m.code, m.name]) : [['cash', 'מזומן'], ['credit_card', 'כרטיס אשראי (מסוף חיצוני)'], ['bank_transfer', 'העברה בנקאית']]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Field>
-          <button type="button" className="btn btn-secondary mb-[2px]" onClick={recordDeposit} disabled={saving || !(Number(dep.amount) > 0)}>
+          {depNeedRef && (
+            <Field id="dep-ref" label="אסמכתה">
+              <input id="dep-ref" className="input" dir="ltr" style={{ width: 160 }} maxLength={80} value={dep.methodRef} onChange={(e) => setDep((d) => ({ ...d, methodRef: e.target.value }))} />
+            </Field>
+          )}
+          <button type="button" className="btn btn-secondary mb-[2px]" onClick={recordDeposit} disabled={saving || !(Number(dep.amount) > 0) || (depNeedRef && dep.methodRef.trim().length < 2)}>
             {saving ? <><Spinner /> רושם…</> : 'רישום מקדמה'}
           </button>
         </div>

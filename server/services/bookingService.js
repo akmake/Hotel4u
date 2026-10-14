@@ -487,6 +487,7 @@ const ACTION_LABELS = {
   'reservation.created': 'נוצרה', 'reservation.updated': 'עודכנה', 'reservation.cancelled': 'בוטלה', 'reservation.no_show': 'סומנה אי הגעה',
   'reservation.check_in': 'כניסה', 'reservation.check_out': 'יציאה', 'reservation.price_override': 'מחיר ידני', 'quote.sent': 'הצעה נשלחה',
   'quote.closed': 'הצעה נסגרה', 'quote.converted': 'הצעה הומרה להזמנה', 'reservation.hold_expired': 'החזקה פגה',
+  'reservation.reinstated': 'שוחזרה', 'reservation.check_in_reversed': 'כניסה בוטלה',
 };
 
 export async function getStayFile({ propertyId, id, role }) {
@@ -536,7 +537,15 @@ export async function getStayFile({ propertyId, id, role }) {
       checkOut: canCheckOut ? { ok: true } : { ok: false, why: 'האורח לא בבית' },
       noShow: ['confirmed', 'modified', 'pending_payment'].includes(r.status) && r.arrivalDate === today ? { ok: true } : { ok: false, why: 'רק ביום ההגעה ולהזמנה שלא נכנסה' },
       cancel: ['confirmed', 'modified', 'pending_payment', 'hold', 'draft'].includes(r.status) ? { ok: true } : { ok: false, why: 'לא ניתן לבטל בסטטוס הנוכחי' },
+      // G6 — shown when the status allows it; the server preview gives the exact blockers.
+      reinstate: ['cancelled', 'no_show'].includes(r.status) && r.departureDate > today && (r.status === 'no_show' || r.arrivalDate >= today)
+        ? { ok: true, managerOnly: r.status === 'no_show' } : { ok: false, why: ['cancelled', 'no_show'].includes(r.status) ? 'מועד השהייה עבר — יוצרים הזמנה חדשה' : 'רק הזמנה שבוטלה או לא הגיעה' },
+      reverseCheckIn: IN_HOUSE_STATUSES.includes(r.status) && r.status !== 'partially_checked_out' && r.checkedInAt
+        && new Intl.DateTimeFormat('en-CA', { timeZone: property?.timezone || 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(r.checkedInAt)) === today
+        ? { ok: true } : { ok: false, why: 'רק ביום העסקי של הכניסה' },
+      postStay: r.status === 'checked_out' ? { ok: true } : { ok: false, why: 'רק אחרי יציאה' },
     },
+    reversals: (r.reversals || []).map((x) => ({ kind: x.kind, from: x.from, at: x.at, by: x.byName || '—', reason: x.reason || null })),
   };
 }
 

@@ -2,29 +2,34 @@
 // (FD-06-A05 → GST-05) and expected departure time (FD-07-F06).
 import { useEffect, useMemo, useState } from 'react';
 import { frontdesk, guestRequests } from '../../utils/api';
-import { CHARGE_DEPARTMENT_LABELS, REQUEST_CATEGORY_LABELS } from '../../lib/labels';
+import { REQUEST_CATEGORY_LABELS } from '../../lib/labels';
+import ChargeCodeSelect from '../fin/ChargeCodeSelect';
 import { Modal, Field, Spinner, ErrorBanner, newOpKey, money } from '../kit';
 
 export function ChargeDialog({ open, propertyId, stay, onClose, onDone }) {
-  const [form, setForm] = useState({ description: '', amount: '', department: 'minibar' });
+  const [form, setForm] = useState({ description: '', amount: '' });
+  const [code, setCode] = useState(null);
   const [opKey, setOpKey] = useState(newOpKey());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [fields, setFields] = useState({});
   useEffect(() => {
-    if (open) { setForm({ description: '', amount: '', department: 'minibar' }); setOpKey(newOpKey()); setError(null); setFields({}); }
+    if (open) { setForm({ description: '', amount: '' }); setCode(null); setOpKey(newOpKey()); setError(null); setFields({}); }
   }, [open, stay?.reservationId]);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const pick = (c) => { setCode(c); if (c?.defaultPrice) setForm((f) => ({ ...f, amount: String(c.defaultPrice) })); };
+  const locked = code && code.priceEditable === false;
   async function submit() {
     setSaving(true); setError(null); setFields({});
     try {
-      const out = await frontdesk.postCharge(propertyId, stay.reservationId, { ...form, amount: Number(form.amount), idempotencyKey: opKey });
+      const out = await frontdesk.postCharge(propertyId, stay.reservationId, { description: form.description.trim() || undefined, department: code.code, amount: Number(form.amount), idempotencyKey: opKey });
       onDone?.(out);
     } catch (e) {
       setError(e.message); setFields(e.fields || {});
     } finally { setSaving(false); }
   }
-  const missing = !form.description.trim() ? 'יש לתאר את החיוב' : !(Number(form.amount) > 0) ? 'יש להזין סכום' : null;
+  const missing = !code ? 'יש לבחור קוד חיוב' : !(Number(form.amount) > 0) ? 'יש להזין סכום' : null;
+  const exempt = code && code.vatClass !== 'standard';
   return (
     <Modal
       open={open}
@@ -42,19 +47,17 @@ export function ChargeDialog({ open, propertyId, stay, onClose, onDone }) {
       )}
     >
       <ErrorBanner error={error} />
-      <Field id="ch-desc" label="תיאור" required error={fields.description}>
-        <input id="ch-desc" className="input w-full" maxLength={200} value={form.description} onChange={set('description')} />
-      </Field>
       <div className="ui-grid-2">
-        <Field id="ch-dept" label="מחלקה" required error={fields.department}>
-          <select id="ch-dept" className="select w-full" value={form.department} onChange={set('department')}>
-            {Object.entries(CHARGE_DEPARTMENT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
+        <Field id="ch-dept" label="קוד חיוב" required error={fields.department}>
+          <ChargeCodeSelect id="ch-dept" propertyId={propertyId} value={code?.code} onChange={pick} />
         </Field>
-        <Field id="ch-amount" label="סכום לאורח (כולל מע״מ)" required error={fields.amount} hint={Number(form.amount) > 0 ? `יירשם ${money(form.amount)} — המע״מ מחולץ מהסכום` : undefined}>
-          <input id="ch-amount" type="number" min={0.01} step={0.01} className="input w-full" value={form.amount} onChange={set('amount')} />
+        <Field id="ch-amount" label={exempt ? 'סכום לאורח (ללא מע״מ)' : 'סכום לאורח (כולל מע״מ)'} required error={fields.amount} hint={locked ? 'מחיר קבוע לפי הקטלוג' : Number(form.amount) > 0 ? `יירשם ${money(form.amount)}${exempt ? ' — קוד פטור ממע״מ' : ' — המע״מ מחולץ מהסכום'}` : undefined}>
+          <input id="ch-amount" type="number" min={0.01} step={0.01} className="input w-full" disabled={locked} value={form.amount} onChange={set('amount')} />
         </Field>
       </div>
+      <Field id="ch-desc" label="תיאור" optional hint={code ? `ריק = "${code.name}"` : undefined} error={fields.description}>
+        <input id="ch-desc" className="input w-full" maxLength={200} value={form.description} onChange={set('description')} />
+      </Field>
       <p className="ui-p">החיוב נרשם לחשבון האורח של השהייה ואינו משנה את מחיר הלינה. תיקון חיוב מתבצע בפעולה נגדית, לא במחיקה.</p>
     </Modal>
   );

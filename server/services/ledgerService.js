@@ -25,7 +25,7 @@ const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const PRE_ARRIVAL = ['draft', 'quote', 'hold', 'pending_payment', 'confirmed', 'modified', 'waitlisted'];
 const IN_HOUSE = ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'];
 const VOID_STATUSES = ['cancelled', 'no_show'];
-export const LEDGER_LABELS = { guest: 'יתרות שוהים ועוזבים (Guest Ledger)', deposit: 'מקדמות על הגעות עתידיות (Deposit Ledger)', ar: 'חייבים — חברות (AR / City Ledger)', void: 'יתרות בהזמנות שבוטלו / לא הגיעו' };
+export const LEDGER_LABELS = { guest: 'יתרות שוהים ועוזבים (Guest Ledger)', deposit: 'הזמנות שטרם הגיעו — מקדמות וחיובים מראש (Deposit Ledger)', ar: 'חייבים — חברות (AR / City Ledger)', void: 'יתרות בהזמנות שבוטלו / לא הגיעו' };
 
 function localDate(date, tz) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(date));

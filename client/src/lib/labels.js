@@ -104,7 +104,7 @@ export const DOC_TYPE_LABELS = {
   credit_note: 'מסמך זיכוי', debit_note: 'מסמך חיוב',
 };
 export const DOC_STATUS_LABELS = { draft: 'טיוטה', issued: 'הונפק', cancelled: 'בוטל', pending_allocation: 'ממתין למספר הקצאה' };
-export const DAY_STEP_LABELS = { post_nights: 'רישום חיובי לינה', no_shows: 'טיפול בהגעות שלא הגיעו', snapshot: 'דוח יום', advance: 'סימון היום כסגור' };
+export const DAY_STEP_LABELS = { post_nights: 'רישום חיובי לינה', no_shows: 'טיפול בהגעות שלא הגיעו', snapshot: 'דוח יום', ledgers: 'מאזן בוחן וספרי חשבונות', advance: 'סימון היום כסגור' };
 export const RUN_STATUS_LABELS = { pending: 'ממתין', running: 'רץ', failed: 'נכשל', done: 'הושלם', skipped: 'דולג' };
 
 // Operations (spec OPS-01…OPS-06)

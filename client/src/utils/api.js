@@ -192,6 +192,12 @@ export const finance = {
   creditNote:  (propertyId, invoiceId, body) => api.post(`/finance/invoices/${invoiceId}/credit-note`, { ...body, propertyId }),
   dayClose:    (propertyId)              => api.get(`/finance/day-close?propertyId=${propertyId}`),
   runDayClose: (propertyId, body)        => api.post('/finance/day-close/run', { ...body, propertyId }),
+  dayReport:   (propertyId, date)        => api.get(`/finance/day-close/report?propertyId=${propertyId}${qs({ date })}`),
+  closeFolio:  (propertyId, folioId)     => api.post(`/finance/folios/${folioId}/close`, { propertyId }),
+  // ADM-13 (G1) charge codes & payment methods
+  codes:       (propertyId, params = {}) => api.get(`/finance/charge-codes?propertyId=${propertyId}${qs(params)}`),
+  createCode:  (propertyId, body)        => api.post('/finance/charge-codes', { ...body, propertyId }),
+  updateCode:  (propertyId, id, body)    => api.patch(`/finance/charge-codes/${id}`, { ...body, propertyId }),
 };
 
 // ── Booking: availability & price, create booking/quote, list, stay file (INV-03, RSV-01…04) ──
@@ -227,6 +233,12 @@ export const stay = {
   modify:         (propertyId, id, body)   => api.post(`/stay/${id}/modify`, { ...body, propertyId }),
   cancelPreview:  (propertyId, id, body)   => api.post(`/stay/${id}/cancellation/preview`, { ...body, propertyId }),
   cancel:         (propertyId, id, body)   => api.post(`/stay/${id}/cancel`, { ...body, propertyId }),
+  // G6: walking a stay back
+  reinstatePreview: (propertyId, id)       => api.get(`/stay/${id}/reinstate?propertyId=${propertyId}`),
+  reinstate:      (propertyId, id, reason) => api.post(`/stay/${id}/reinstate`, { propertyId, reason }),
+  reverseCheckInPreview: (propertyId, id)  => api.get(`/stay/${id}/reverse-check-in?propertyId=${propertyId}`),
+  reverseCheckIn: (propertyId, id, body)   => api.post(`/stay/${id}/reverse-check-in`, { ...body, propertyId }),
+  postStayCharge: (propertyId, id, body)   => api.post(`/stay/${id}/post-stay-charge`, { ...body, propertyId }),
 };
 
 // ── Identity (ADM-06, SYS-04) ────────────────────────────────────────────────

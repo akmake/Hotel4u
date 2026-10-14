@@ -192,6 +192,7 @@ const PropertySchema = new Schema({
   financePolicy: {
     cashLimitPerStay:   { type: Number, default: null },     // cumulative cash per reservation
     refundApprovalOver: { type: Number, default: 0 },         // refunds above this need a manager/finance role
+    postStayDays:       { type: Number, default: 30 },        // G6: days after departure a late charge may still be posted
   },
 
   // Front-desk check-in policy (spec FD-03 / ADM-05). Readiness is computed from these on the

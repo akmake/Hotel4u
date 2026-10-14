@@ -4,7 +4,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { finance } from '../../utils/api';
 import { Modal, Field, ErrorBanner, Banner, Spinner, KeyValues, useAction, money, newOpKey } from '../kit';
-import { CHARGE_DEPARTMENT_LABELS, PAY_METHOD_LABELS, REFUND_REASON_LABELS, DOC_TYPE_LABELS } from '../../lib/labels';
+import { PAY_METHOD_LABELS, REFUND_REASON_LABELS, DOC_TYPE_LABELS } from '../../lib/labels';
+import ChargeCodeSelect, { vatPreview } from './ChargeCodeSelect';
+import { useChargeCodes } from '../../hooks/useChargeCodes';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const REF_REQUIRED = ['bank_transfer', 'cheque', 'voucher'];
@@ -22,20 +24,28 @@ function Footer({ action, onClose, label, blockedWhy, danger }) {
 }
 
 // ── FIN-02 ──────────────────────────────────────────────────────────────────
+// The code comes from the property catalogue (G1): it may lock the price, be VAT-free or need a
+// manager. Description is optional — the code name is used when it is left empty.
 export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, businessDate, onSaved }) {
   const action = useAction();
   const [f, setF] = useState({});
+  const [code, setCode] = useState(null);
   const [opKey, setOpKey] = useState('');
   useEffect(() => {
-    if (open) { setF({ description: '', department: '', quantity: '1', unitPrice: '', serviceDate: businessDate || '' }); setOpKey(newOpKey()); action.reset(); }
+    if (open) { setF({ description: '', quantity: '1', unitPrice: '', serviceDate: businessDate || '' }); setCode(null); setOpKey(newOpKey()); action.reset(); }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  const pick = (c) => {
+    setCode(c);
+    if (c?.defaultPrice) set('unitPrice')(String(c.defaultPrice));
+  };
+  const locked = code && code.priceEditable === false;
   const gross = round2(Number(f.quantity || 0) * Number(f.unitPrice || 0));
-  const net = round2(gross / (1 + Number(vatRate) / 100));
+  const { net, tax, exempt } = vatPreview(gross, code, vatRate);
   const e = action.fields;
-  const why = !f.description?.trim() ? 'נדרש תיאור' : !f.department ? 'יש לבחור קוד שירות' : !(gross > 0) ? 'נדרשים כמות ומחיר' : null;
+  const why = !code ? 'יש לבחור קוד חיוב' : !(gross > 0) ? 'נדרשים כמות ומחיר' : null;
   const submit = () => action.run(async () => {
-    const out = await finance.charge(propertyId, folio.id, { ...f, quantity: Number(f.quantity), unitPrice: Number(f.unitPrice), idempotencyKey: opKey });
+    const out = await finance.charge(propertyId, folio.id, { description: f.description?.trim() || undefined, department: code.code, quantity: Number(f.quantity), unitPrice: Number(f.unitPrice), serviceDate: f.serviceDate, idempotencyKey: opKey });
     onSaved?.(out);
   });
   return (
@@ -43,26 +53,24 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
       <form id="fin-form" className="ui-stack" onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }} noValidate>
         <ErrorBanner error={action.error} />
         <div className="ui-grid-2">
-          <Field id="ch-desc" label="תיאור" required error={e.description}>
-            <input id="ch-desc" className="input w-full" maxLength={200} value={f.description || ''} onChange={(ev) => set('description')(ev.target.value)} />
+          <Field id="ch-dep" label="קוד חיוב" required error={e.department}>
+            <ChargeCodeSelect id="ch-dep" propertyId={propertyId} value={code?.code} onChange={pick} />
           </Field>
-          <Field id="ch-dep" label="קוד שירות" required error={e.department}>
-            <select id="ch-dep" className="select w-full" value={f.department || ''} onChange={(ev) => set('department')(ev.target.value)}>
-              <option value="">בחירה…</option>
-              {Object.entries(CHARGE_DEPARTMENT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
+          <Field id="ch-desc" label="תיאור" optional hint={code ? `ריק = "${code.name}"` : undefined} error={e.description}>
+            <input id="ch-desc" className="input w-full" maxLength={200} value={f.description || ''} onChange={(ev) => set('description')(ev.target.value)} />
           </Field>
           <Field id="ch-qty" label="כמות" required error={e.quantity}>
             <input id="ch-qty" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" value={f.quantity || ''} onChange={(ev) => set('quantity')(ev.target.value)} />
           </Field>
-          <Field id="ch-price" label="מחיר ליחידה (כולל מע״מ)" required error={e.unitPrice}>
-            <input id="ch-price" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" value={f.unitPrice || ''} onChange={(ev) => set('unitPrice')(ev.target.value)} />
+          <Field id="ch-price" label={exempt ? 'מחיר ליחידה (ללא מע״מ)' : 'מחיר ליחידה (כולל מע״מ)'} required error={e.unitPrice} hint={locked ? 'מחיר קבוע לפי הקטלוג' : undefined}>
+            <input id="ch-price" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" disabled={locked} value={f.unitPrice || ''} onChange={(ev) => set('unitPrice')(ev.target.value)} />
           </Field>
           <Field id="ch-date" label="מועד שירות" required error={e.serviceDate} hint="נפרד מיום הרישום; לא אחרי היום העסקי">
             <input id="ch-date" type="date" className="input w-full" max={businessDate} value={f.serviceDate || ''} onChange={(ev) => set('serviceDate')(ev.target.value)} />
           </Field>
         </div>
-        {gross > 0 && <KeyValues rows={[['נטו', money(net)], [`מע״מ ${vatRate}%`, money(round2(gross - net))], ['סה״כ לחיוב', money(gross)]]} />}
+        {code?.postLevel === 'manager' && <Banner tone="info">קוד זה נרשם על ידי מנהל משמרת או כספים.</Banner>}
+        {gross > 0 && <KeyValues rows={[['נטו', money(net)], [exempt ? 'מע״מ (קוד פטור)' : `מע״מ ${vatRate}%`, money(tax)], ['סה״כ לחיוב', money(gross)]]} />}
       </form>
     </Modal>
   );
@@ -81,12 +89,17 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved }) {
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  const { payments: methods } = useChargeCodes(propertyId);
+  const active = methods.filter((m) => m.active);
+  const options = active.length ? active.map((m) => [m.code, m.name]) : Object.entries(PAY_METHOD_LABELS);
+  const needRef = REF_REQUIRED.includes(f.method) || !!methods.find((m) => m.code === f.method)?.requireReference;
   const amt = Number(f.amount || 0);
   const e = action.fields;
   let why = null;
   if (!(amt > 0)) why = 'נדרש סכום';
   else if (f.kind === 'payment' && amt - balance > 0.005) why = balance > 0.005 ? 'גבוה מהיתרה' : 'אין יתרה — בחרו מקדמה';
-  else if (REF_REQUIRED.includes(f.method) && (f.methodRef || '').trim().length < 2) why = 'נדרשת אסמכתה';
+  else if (!options.some(([v]) => v === f.method)) why = 'יש לבחור אמצעי תשלום פעיל';
+  else if (needRef && (f.methodRef || '').trim().length < 2) why = 'נדרשת אסמכתה';
   const submit = () => action.run(async () => {
     const out = await finance.pay(propertyId, folio.id, { kind: f.kind, amount: amt, method: f.method, methodRef: f.methodRef?.trim() || undefined, note: f.note?.trim() || undefined, idempotencyKey: opKey });
     onSaved?.(out);
@@ -106,10 +119,10 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved }) {
           </Field>
           <Field id="pm-m" label="אמצעי" required error={e.method}>
             <select id="pm-m" className="select w-full" value={f.method} onChange={(ev) => set('method')(ev.target.value)}>
-              {Object.entries(PAY_METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Field>
-          {REF_REQUIRED.includes(f.method) && (
+          {needRef && (
             <Field id="pm-ref" label="אסמכתה" required error={e.methodRef}>
               <input id="pm-ref" className="input w-full" maxLength={80} value={f.methodRef || ''} onChange={(ev) => set('methodRef')(ev.target.value)} />
             </Field>

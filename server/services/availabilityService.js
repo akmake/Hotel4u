@@ -43,7 +43,7 @@ async function getActiveLocksCountByDate({ propertyId, roomTypeId, dates, ignore
   return map;
 }
 
-async function getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId }) {
+export async function getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId }) {
   // Any stay holding a room blocks it, whatever room type it was booked as (upgrades, moves).
   const query = {
     property: propertyId,

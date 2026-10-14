@@ -69,6 +69,7 @@ async function linesOnIssuedDocs(folioId) {
 }
 
 function ownerLabel(f, companies) {
+  if (f.ownerRef === 'post_stay') return 'חיובים אחרי יציאה';
   if (f.ownerType === 'company') return companies.get(String(f.ownerRef))?.name || 'חברה';
   return { guest: 'אורח', room: 'חדר', group: 'קבוצה', house: 'בית' }[f.ownerType] || f.ownerType;
 }
@@ -233,6 +234,8 @@ export async function postCharge({ propertyId, folioId, input, actor, ip }) {
   if (folio.status === 'closed') throw httpError('החשבון סגור — חיוב נרשם בחשבון פתוח בלבד', 409);
   const res = await Reservation.findById(folio.reservation).select('status arrivalDate departureDate').lean();
   if (!res || !ACTIVE_STAY.includes(res.status)) throw httpError('לא ניתן לחייב הזמנה שבוטלה או לא הגיעה', 409);
+  // G6: after departure a charge is a post-stay charge (manager, reason, own window) — not a regular one.
+  if (res.status === 'checked_out' && input.auditAction !== 'folio.post_stay_charge') throw httpError('האורח כבר יצא — חיוב מאוחר נרשם דרך "חיוב אחרי יציאה" בתיק ההזמנה', 409, { code: 'post_stay_required' });
   const property = await Property.findById(propertyId).select('vatRate timezone').lean();
   const today = businessDateOf(property);
   const errors = {};

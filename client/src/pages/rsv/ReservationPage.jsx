@@ -18,6 +18,7 @@ import {
   useLoader, useAction, money, formatDateTime,
 } from '../../components/kit';
 import { MoveRoomDialog, ExtendDialog, EarlyDepartureDialog, ModifyBookingDialog, CancelBookingDialog } from '../../components/stay/StayChangeDialogs';
+import { ReinstateDialog, ReverseCheckInDialog, PostStayChargeDialog } from '../../components/stay/ReversalDialogs';
 
 const STATUS_TONE = {
   confirmed: 'ok', modified: 'ok', in_house: 'ok', checked_in: 'ok', partially_checked_in: 'ok', partially_checked_out: 'warn',
@@ -31,6 +32,10 @@ const MODIFY_ROLES = [...FRONT_ROLES, 'sales_manager', 'revenue_manager'];
 const PRICE_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'revenue_manager'];
 const PRE_ARRIVAL = ['confirmed', 'modified', 'pending_payment', 'hold'];
 const IN_HOUSE = ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'];
+// G6: who may walk a stay back (the server enforces the same).
+const SHIFT_MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
+const POST_STAY_ROLES = [...SHIFT_MANAGER_ROLES, 'finance_manager'];
+const REVERSAL_LABELS = { reinstate_cancelled: 'שחזור הזמנה שבוטלה', reinstate_no_show: 'שחזור "לא הגיע"', reverse_check_in: 'ביטול כניסה' };
 
 export default function ReservationPage() {
   const { id } = useParams();
@@ -113,6 +118,14 @@ export default function ReservationPage() {
                 inHouse && { label: 'הארכת שהייה', disabled: !canFront, why: 'קבלה בלבד', onSelect: () => setDialog({ kind: 'extend' }) },
                 inHouse && r.departureDate > r.businessDate && { label: 'עזיבה מוקדמת', disabled: !canFront, why: 'קבלה בלבד', onSelect: () => setDialog({ kind: 'early' }) },
                 { label: 'סימון "לא הגיע"', disabled: !r.actions.noShow.ok, why: r.actions.noShow.why, onSelect: () => setDialog({ kind: 'noshow' }) },
+                r.actions.reverseCheckIn?.ok && { label: 'ביטול כניסה', hint: 'נרשם בטעות / חדר לא נכון', disabled: !SHIFT_MANAGER_ROLES.includes(role), why: 'מנהל משמרת ומעלה', onSelect: () => setDialog({ kind: 'reverse' }) },
+                r.actions.postStay?.ok && { label: 'חיוב אחרי יציאה', hint: 'מיני־בר, נזק, חיוב שנשכח', disabled: !POST_STAY_ROLES.includes(role), why: 'מנהל משמרת או כספים', onSelect: () => setDialog({ kind: 'poststay' }) },
+                ['cancelled', 'no_show'].includes(r.status) && r.actions.reinstate && {
+                  label: r.status === 'no_show' ? 'שחזור "לא הגיע"' : 'שחזור ההזמנה', hint: 'בודק מלאי לכל לילה',
+                  disabled: !r.actions.reinstate.ok || (r.actions.reinstate.managerOnly ? !SHIFT_MANAGER_ROLES.includes(role) : !CANCEL_ROLES.includes(role)),
+                  why: !r.actions.reinstate.ok ? r.actions.reinstate.why : r.actions.reinstate.managerOnly ? 'מנהל משמרת ומעלה' : 'אין הרשאה',
+                  onSelect: () => setDialog({ kind: 'reinstate' }),
+                },
                 { separator: true },
                 !isQuote && { label: 'ביטול הזמנה', hint: 'קליטת הודעה ובדיקת זכאות', danger: true, disabled: !r.actions.cancel.ok || !CANCEL_ROLES.includes(role), why: !CANCEL_ROLES.includes(role) ? 'אין הרשאה' : r.actions.cancel.why, onSelect: () => setDialog({ kind: 'cancel' }) },
               ]}
@@ -145,6 +158,11 @@ export default function ReservationPage() {
         </Banner>
       )}
       {r.guest?.blacklisted && <Banner tone="error">האורח ברשימה השחורה — כל פעולה דורשת אישור מנהל.</Banner>}
+      {(r.reversals || []).length > 0 && (
+        <Banner tone="info">
+          {r.reversals.map((x, i) => <div key={i}>{REVERSAL_LABELS[x.kind] || x.kind} · {x.by} · {formatDateTime(x.at)}{x.reason ? ` · ${x.reason}` : ''}</div>)}
+        </Banner>
+      )}
       {isQuote && (
         <Card title={`הצעת מחיר · גרסה ${r.quote.version}`} actions={<Tag tone={r.quote.expired ? 'bad' : r.quote.sentAt ? undefined : 'warn'}>{r.quote.expired ? 'פג תוקף' : r.quote.sentAt ? `נשלחה ${formatDateTime(r.quote.sentAt)}` : 'טרם נשלחה'}</Tag>}>
           <KeyValues rows={[
@@ -237,6 +255,9 @@ export default function ReservationPage() {
         </div>
       </div>
 
+      <ReinstateDialog open={dialog?.kind === 'reinstate'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success(out.roomReleased ? 'ההזמנה שוחזרה · החדר ששובץ נתפס — יש לשבץ מחדש' : 'ההזמנה שוחזרה'); reload(); }} />
+      <ReverseCheckInDialog open={dialog?.kind === 'reverse'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('הכניסה בוטלה — ההזמנה מאושרת וממתינה לכניסה'); reload(); }} />
+      <PostStayChargeDialog open={dialog?.kind === 'poststay'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success('החיוב נרשם בחשבון "אחרי יציאה"'); nav(`/pms/folio?reservation=${r.id}&folio=${out.folioId}`); }} />
       <CancelBookingDialog open={dialog?.kind === 'cancel'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); setCancelled(out); success('הביטול נרשם'); reload(); }} />
       <ModifyBookingDialog open={dialog?.kind === 'modify'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} roomTypes={(types.data || []).map((t) => ({ id: t._id, name: t.name }))} onDone={(out) => { setDialog(null); success(out.unassignedRooms ? `ההזמנה עודכנה · ${out.unassignedRooms} חדרים שוחררו משיבוץ` : 'ההזמנה עודכנה'); reload(); }} />
       <MoveRoomDialog open={dialog?.kind === 'move'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} unitId={dialog?.unitId} canChangePrice={PRICE_ROLES.includes(role)} onDone={(out) => { setDialog(null); success(`עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.key ? ' · יש להנפיק מפתח' : ''}`); reload(); }} />

@@ -77,6 +77,8 @@ const OpportunityBoardPage = lazy(() => import('./pages/OpportunityBoardPage'));
 const ReportsPage          = lazy(() => import('./pages/ReportsPage'));
 const InvoicesPage         = lazy(() => import('./pages/InvoicesPage'));
 const DayClosePage         = lazy(() => import('./pages/fin/DayClosePage'));
+const DayReportPage        = lazy(() => import('./pages/fin/DayReportPage'));
+const ChargeCodesPage      = lazy(() => import('./pages/sys/ChargeCodesPage'));
 const BulkJobsPage              = lazy(() => import('./pages/BulkJobsPage'));
 const RatesPage                 = lazy(() => import('./pages/RatesPage'));
 const AutomationRulesPage       = lazy(() => import('./pages/AutomationRulesPage'));
@@ -230,6 +232,7 @@ export default function App() {
               <Route path="opportunities"     element={<OpportunityBoardPage />} />
               <Route path="reports"           element={<ReportsPage />} />
               <Route path="night-audit"       element={<DayClosePage />} />
+              <Route path="night-audit/report" element={<DayReportPage />} />
               <Route path="bulk-jobs"         element={<BulkJobsPage />} />
               <Route path="rates"             element={<RatesPage />} />
               <Route path="automation"        element={<AutomationRulesPage />} />
@@ -238,6 +241,7 @@ export default function App() {
               <Route path="admin/users"       element={<UsersAdminPage />} />
               <Route path="admin/policy"      element={<PolicyPage />} />
               <Route path="admin/audit"       element={<AuditPage />} />
+              <Route path="admin/charge-codes" element={<ChargeCodesPage />} />
               <Route path="me"                element={<ProfilePage />} />
               <Route path="work"              element={<WorkCenterPage />} />
             </Route>

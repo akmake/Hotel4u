@@ -24,6 +24,8 @@ import DayCloseRun from '../models/DayCloseRun.js';
 import InventoryDate from '../models/InventoryDate.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import AuditLog from '../models/AuditLog.js';
+import ChargeCode from '../models/ChargeCode.js';
+import WorkItem from '../models/WorkItem.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { postNightsUntil } from '../services/roomCharges.js';
 
@@ -230,6 +232,8 @@ async function main() {
     await InventoryDate.deleteMany({ property: { $in: props } });
     await HousekeepingTask.deleteMany({ property: { $in: props } });
     await GuestProfile.deleteMany({ property: { $in: props } });
+    await ChargeCode.deleteMany({ property: { $in: props } });
+    await WorkItem.deleteMany({ property: { $in: props } });
     await Room.deleteMany({ property: { $in: props } });
     await RoomType.deleteMany({ property: { $in: props } });
     await User.deleteMany({ property: { $in: props } });

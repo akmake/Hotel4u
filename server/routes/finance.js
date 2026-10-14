@@ -9,6 +9,7 @@ import {
 } from '../services/financeService.js';
 import { listCodes, createCode, updateCode, CATALOG_ROLES } from '../services/chargeCodeService.js';
 import { dayReport } from '../services/ledgerService.js';
+import { closeSettledFolio } from '../services/reversalService.js';
 
 const router = Router();
 
@@ -72,6 +73,11 @@ router.post('/folios/:id/charges', handle(async (req) => {
 router.post('/folios/:id/lines/:lineId/reverse', handle(async (req) => {
   requireRoles(req, MONEY_WORK, 'אין הרשאה לתקן חיוב');
   return reverseCharge({ propertyId: scope(req), folioId: req.params.id, lineId: req.params.lineId, reason: req.body?.reason, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/folios/:id/close', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה לסגור חשבון');
+  return closeSettledFolio({ propertyId: scope(req), folioId: req.params.id, actor: actorOf(req), ip: req.ip });
 }));
 
 // ── FIN-03 / FIN-04 ─────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
-// Section navigation for property administration (ADM-05 policy, ADM-06 users, ADM-07 audit).
+// Section navigation for property administration (ADM-05 policy, ADM-06 users, ADM-07 audit,
+// ADM-13 charge codes).
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -7,6 +8,7 @@ const TABS = [
   { to: '/pms/admin/users', label: 'משתמשים והרשאות', roles: [...ADMIN, 'auditor'] },
   { to: '/pms/admin/policy', label: 'מדיניות', roles: [...ADMIN, 'front_desk_manager', 'finance_manager', 'auditor', 'housekeeping_manager'] },
   { to: '/pms/admin/audit', label: 'יומן ביקורת', roles: [...ADMIN, 'auditor', 'finance_manager'] },
+  { to: '/pms/admin/charge-codes', label: 'קודי חיוב ותשלום', roles: [...ADMIN, 'finance_manager', 'front_desk_manager', 'auditor'] },
   { to: '/pms/settings', label: 'הגדרות נכס וחדרים', roles: ADMIN },
 ];
 

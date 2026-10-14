@@ -8,6 +8,7 @@ import { ArrowRight, Plus } from 'lucide-react';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuthStore } from '../../stores/authStore';
 import { finance } from '../../utils/api';
+import { useChargeCodes } from '../../hooks/useChargeCodes';
 import {
   LINE_TYPE_LABELS, LINE_DEPARTMENT_LABELS, GUARANTEE_LABELS, SETTLEMENT_LABELS, DOC_TYPE_LABELS, DOC_STATUS_LABELS,
 } from '../../lib/labels';
@@ -16,7 +17,7 @@ import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/ui/Toast';
 import {
   Page, Toolbar, Card, Tiles, Segmented, SearchBox, DataTable, Tag, Pill, Empty, RowMenu, Banner, ConfirmDialog, Pager, KeyValues,
-  ErrorBanner, Spinner, useUrlState, useLoader, money, formatDateTime,
+  ErrorBanner, Spinner, useUrlState, useLoader, useAction, money, formatDateTime,
 } from '../../components/kit';
 import { ChargeDialog, PaymentDialog, RefundDialog, CreditNoteDialog } from '../../components/fin/FinanceDialogs';
 
@@ -77,7 +78,15 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
   const [dialog, setDialog] = useState(null);
   const { data, loading, error, reload } = useLoader(async () => (propertyId ? finance.stay(propertyId, reservationId) : null), [propertyId, reservationId]);
   const folio = useMemo(() => data?.folios.find((f) => f.id === folioParam) || data?.folios[0] || null, [data, folioParam]);
+  const departed = data?.reservation?.status === 'checked_out';
   const canWork = WORK_ROLES.includes(role) && data?.canPost && folio?.status !== 'closed';
+  // G6: after departure a charge is a post-stay charge (from the stay file); payments still allowed.
+  const canCharge = canWork && !departed;
+  const canClose = WORK_ROLES.includes(role) && folio && folio.status !== 'closed' && Math.abs(folio.balance) < 0.005
+    && ['checked_out', 'cancelled', 'no_show'].includes(data?.reservation?.status);
+  const closeAct = useAction();
+  const { charges: codeList } = useChargeCodes(propertyId);
+  const codeName = (k) => codeList.find((c) => c.code === k)?.name || LINE_DEPARTMENT_LABELS[k] || k;
   const canReverse = REVERSE_ROLES.includes(role);
   const canCredit = CREDIT_ROLES.includes(role);
   const canApproveRefund = REVERSE_ROLES.includes(role);
@@ -95,7 +104,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
         <div>
           <div>{l.description}</div>
           <div className="ui-sub">
-            {LINE_TYPE_LABELS[l.type] || l.type}{l.department ? ` · ${LINE_DEPARTMENT_LABELS[l.department] || l.department}` : ''}
+            {LINE_TYPE_LABELS[l.type] || l.type}{l.department ? ` · ${codeName(l.department)}` : ''}
             {l.reason && l.type !== 'refund' && ` · ${l.reason}`}
           </div>
         </div>
@@ -149,6 +158,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
         end={<button type="button" className="btn btn-secondary btn-sm" onClick={() => nav(`/pms/reservations/${r.id}`)}>תיק ההזמנה</button>}
       />
       {data.exceptions.map((x) => <Banner key={`${x.code}-${x.folioId}`} tone="warn">{x.label}</Banner>)}
+      <ErrorBanner error={closeAct.error} />
       <div className="ui-split">
         <div className="ui-stack">
           {data.folios.length > 1 && (
@@ -164,10 +174,12 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
             <Card
               flush
               title={`חשבון ${folio.owner}${folio.status === 'closed' ? ' · סגור' : ''}`}
-              actions={canWork && (
+              actions={(canWork || canClose) && (
                 <>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'charge' })}><Plus size={14} /> חיוב</button>
-                  <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'pay' })}>תשלום</button>
+                  {canCharge && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'charge' })}><Plus size={14} /> חיוב</button>}
+                  {canWork && departed && <button type="button" className="btn btn-ghost btn-sm" onClick={() => nav(`/pms/reservations/${r.id}`)} title="חיוב אחרי יציאה נרשם מתיק ההזמנה (מנהל, עם סיבה)">חיוב אחרי יציאה…</button>}
+                  {canWork && (!departed || folio.balance > 0.005) && <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'pay' })}>תשלום</button>}
+                  {canClose && <button type="button" className="btn btn-secondary btn-sm" disabled={closeAct.busy} onClick={async () => { const out = await closeAct.run(() => finance.closeFolio(propertyId, folio.id)); if (out) { success('החשבון נסגר'); reload(); } }}>סגירת חשבון</button>}
                 </>
               )}
             >
