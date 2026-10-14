@@ -1,13 +1,14 @@
 ﻿import { Router } from 'express';
-import bcrypt from 'bcryptjs';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { assertPropertyScope, requireRoles } from '../middleware/authContext.js';
-import { audit, auditCtxFromReq } from '../services/auditService.js';
+import { assertPropertyScope } from '../middleware/authContext.js';
 import User, { ROLES } from '../models/User.js';
 import { actorPermissions } from '../middleware/permissions.js';
+import { createUser, updateUser, deactivateUser } from '../services/identityService.js';
+
+// Never send secrets or lockout state (2FA secret was leaking here).
+const SAFE = 'firstName lastName email role active property lastLoginAt accessUntil createdAt twoFactorEnabled';
 
 const router = Router();
-const ADMIN_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager'];
 
 // GET /api/users?propertyId=&role=&active=
 router.get('/', asyncHandler(async (req, res) => {
@@ -17,7 +18,7 @@ router.get('/', asyncHandler(async (req, res) => {
   const filter = { property: scopedPropertyId };
   if (role)               filter.role   = role;
   if (active !== undefined) filter.active = active === 'true';
-  const users = await User.find(filter).select('-passwordHash').sort({ firstName: 1 }).lean();
+  const users = await User.find(filter).select(SAFE).sort({ firstName: 1 }).lean();
   res.json({ success: true, data: users });
 }));
 
@@ -37,82 +38,38 @@ router.get('/me/permissions', asyncHandler(async (req, res) => {
 
 // GET /api/users/:id
 router.get('/:id', asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id).select('-passwordHash').lean();
+  const user = await User.findById(req.params.id).select(SAFE).lean();
   if (!user) return res.status(404).json({ success: false, error: 'משתמש לא נמצא' });
   assertPropertyScope(req, String(user.property));
   res.json({ success: true, data: user });
 }));
 
-// POST /api/users
+// Writes go through the ADM-06 rules (authority ranks, no admin-chosen passwords, session revoke).
+const fail = (res, err) => res.status(Number(err?.status) || 500).json({ success: false, error: Number(err?.status) >= 500 || !err?.status ? 'שגיאת שרת' : err.message, ...(err.fields ? { fields: err.fields } : {}) });
+const actorOf = (req) => ({ id: req.actor?.id, name: req.actor?.name, role: req.actor?.role });
+
 router.post('/', asyncHandler(async (req, res) => {
-  requireRoles(req, ['super_admin', 'chain_admin', 'property_admin'], 'Only admins can create users');
-  const { propertyId, firstName, lastName, email, password, role } = req.body;
-  const scopedPropertyId = propertyId || req.actor?.propertyId;
-  assertPropertyScope(req, scopedPropertyId);
-
-  if (!firstName || !lastName || !email || !password || !role)
-    return res.status(400).json({ success: false, error: 'כל שדות החובה נדרשים' });
-  if (!ROLES.includes(role))
-    return res.status(400).json({ success: false, error: `תפקיד לא תקין: ${role}` });
-  if (password.length < 6)
-    return res.status(400).json({ success: false, error: 'הסיסמה חייבת לפחות 6 תווים' });
-
-  const exists = await User.findOne({ email: email.toLowerCase() });
-  if (exists) return res.status(400).json({ success: false, error: 'כתובת האימייל כבר בשימוש' });
-
-  const passwordHash = await bcrypt.hash(password, 12);
-  const user = await User.create({ property: scopedPropertyId, firstName, lastName, email, passwordHash, role });
-  const safe = user.toObject();
-  delete safe.passwordHash;
-
-  await audit({ property: scopedPropertyId, ...auditCtxFromReq(req), action: 'user.create', entityType: 'User', entityId: user._id, after: safe });
-  res.status(201).json({ success: true, data: safe });
+  const propertyId = req.body?.propertyId || req.actor?.propertyId;
+  assertPropertyScope(req, propertyId);
+  try { res.status(201).json({ success: true, data: await createUser({ propertyId, input: req.body || {}, actor: actorOf(req), ip: req.ip }) }); } catch (e) { fail(res, e); }
 }));
 
-// PATCH /api/users/:id
 router.patch('/:id', asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id);
+  const user = await User.findById(req.params.id).select('property').lean();
   if (!user) return res.status(404).json({ success: false, error: 'משתמש לא נמצא' });
   assertPropertyScope(req, String(user.property));
-
-  const allowed = ['firstName', 'lastName', 'email', 'role', 'active'];
-  const before  = (() => { const o = user.toObject(); delete o.passwordHash; return o; })();
-  const update  = {};
-  allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
-
-  if (update.role && !ROLES.includes(update.role))
-    return res.status(400).json({ success: false, error: `תפקיד לא תקין: ${update.role}` });
-
-  // Only admins may change a user's role or active status
-  if ((update.role || update.active !== undefined) && !ADMIN_ROLES.includes(req.actor?.role))
-    return res.status(403).json({ success: false, error: 'אין הרשאה לשנות תפקיד או סטטוס פעילות' });
-
-  if (req.body.password) {
-    if (req.body.password.length < 6)
-      return res.status(400).json({ success: false, error: 'הסיסמה חייבת לפחות 6 תווים' });
-    update.passwordHash = await bcrypt.hash(req.body.password, 12);
-  }
-
-  const updated = await User.findByIdAndUpdate(req.params.id, update, { new: true }).select('-passwordHash').lean();
-  await audit({ property: String(user.property), ...auditCtxFromReq(req), action: 'user.update', entityType: 'User', entityId: user._id, before, after: updated });
-  res.json({ success: true, data: updated });
+  try {
+    if (req.body?.active === false) return res.json({ success: true, data: await deactivateUser({ propertyId: String(user.property), id: req.params.id, reason: req.body?.reason || 'השבתה מהמסך הישן', actor: actorOf(req), ip: req.ip }) });
+    if (req.body?.password) return res.status(422).json({ success: false, error: 'סיסמה לא נקבעת על ידי מנהל — יש להנפיק קישור הגדרת סיסמה' });
+    res.json({ success: true, data: await updateUser({ propertyId: String(user.property), id: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip }) });
+  } catch (e) { fail(res, e); }
 }));
 
-// DELETE /api/users/:id — soft delete (deactivate)
 router.delete('/:id', asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id);
+  const user = await User.findById(req.params.id).select('property').lean();
   if (!user) return res.status(404).json({ success: false, error: 'משתמש לא נמצא' });
   assertPropertyScope(req, String(user.property));
-
-  if (!ADMIN_ROLES.includes(req.actor?.role))
-    return res.status(403).json({ success: false, error: 'רק מנהלים יכולים לנטרל משתמשים' });
-
-  if (req.params.id === req.actor?.id)
-    return res.status(400).json({ success: false, error: 'לא ניתן לנטרל את עצמך' });
-
-  await User.findByIdAndUpdate(req.params.id, { active: false });
-  await audit({ property: String(user.property), ...auditCtxFromReq(req), action: 'user.deactivate', entityType: 'User', entityId: user._id });
-  res.json({ success: true, data: { deactivated: true } });
+  try { res.json({ success: true, data: await deactivateUser({ propertyId: String(user.property), id: req.params.id, reason: req.body?.reason || 'השבתה מהמסך הישן', actor: actorOf(req), ip: req.ip }) }); } catch (e) { fail(res, e); }
 }));
 
 export default router;

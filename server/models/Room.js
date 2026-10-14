@@ -4,7 +4,8 @@ const { Schema, model } = mongoose;
 // Operational status - affects sellability
 export const OPS_STATUS = ['available', 'out_of_order', 'out_of_service', 'maintenance_hold', 'owner_hold', 'internal_use'];
 // Housekeeping status
-export const CLEAN_STATUS = ['clean', 'dirty', 'inspected', 'pickup', 'turndown_required'];
+// 'cleaning' = a housekeeping task is in progress (spec 01: dirty → cleaning → clean → inspected).
+export const CLEAN_STATUS = ['clean', 'dirty', 'cleaning', 'inspected', 'pickup', 'turndown_required'];
 // Occupancy status
 export const OCC_STATUS = ['vacant', 'occupied', 'reserved', 'due_in', 'due_out', 'checked_out'];
 

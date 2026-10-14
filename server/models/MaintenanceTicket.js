@@ -64,6 +64,12 @@ const MaintenanceTicketSchema = new Schema({
   internalNotes: { type: [NoteSchema], default: [] },
 
   blocksRoom:    { type: Boolean, default: false },
+  // OPS-06: what this means for guests — nothing, the room cannot be sold/used, or a guest must move.
+  guestImpact:   { type: String, enum: ['none', 'block', 'move'], default: 'none' },
+  reopenReason:  String,
+  closingNote:   String,
+  closedAt:      Date,
+  closedBy:      { type: Schema.Types.ObjectId, ref: 'User' },
   slaBreach:     { type: Boolean, default: false },
 
   // Closing requires approval for critical

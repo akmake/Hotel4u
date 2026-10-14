@@ -12,8 +12,13 @@ const PAGE_TITLES = {
   '/pms/reservations/new':'הזמנה חדשה',
   '/pms/arrivals':        'הגעות',
   '/pms/arrival-queue':   'תור המתנה לחדר',
-  '/pms/check-out':       "צ'ק-אאוט",
-  '/pms/housekeeping':    'חדרנות',
+  '/pms/in-house':        'שוהים',
+  '/pms/departures':      'עזיבות',
+  '/pms/housekeeping':    'תכנון חדרנות',
+  '/pms/housekeeping/my': 'המשימות שלי',
+  '/pms/housekeeping/inspection': 'בדיקת חדרים',
+  '/pms/housekeeping/rooms': 'מצב חדרים',
+  '/pms/housekeeping/lost-found': 'אבידות ומציאות',
   '/pms/maintenance':     'תחזוקה',
   '/pms/rooms':           'חדרים',
   '/pms/guests':          'אורחים',
@@ -29,6 +34,11 @@ const PAGE_TITLES = {
   '/pms/automation':      'אוטומציה',
   '/pms/channel-manager': 'ערוצי הפצה',
   '/pms/settings':        'הגדרות',
+  '/pms/admin/users':     'משתמשים והרשאות',
+  '/pms/admin/policy':    'מדיניות תפעול וביטול',
+  '/pms/admin/audit':     'יומן ביקורת',
+  '/pms/me':              'הפרופיל שלי',
+  '/pms/work':            'מרכז משימות והעברת משמרת',
 };
 
 // Screens that lay out their own toolbar edge-to-edge inside the content panel (Linear list views).

@@ -165,6 +165,16 @@ export function initPmsScheduler() {
     });
   });
 
+  // Expired holds give their inventory back (RSV-04 / RSV-02 hold) — every 10 minutes.
+  cron.schedule('*/10 * * * *', async () => {
+    try {
+      const { releaseExpiredHolds } = await import('./bookingService.js');
+      await releaseExpiredHolds();
+    } catch (err) {
+      console.error('[pmsScheduler] releaseExpiredHolds failed:', err.message);
+    }
+  });
+
   // Check-in reminders — fires at 09:00 every morning
   cron.schedule('0 9 * * *', async () => {
     await sendCheckInReminders().catch(err =>

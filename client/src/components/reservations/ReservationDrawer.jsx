@@ -11,6 +11,7 @@ import {
   rooms as roomsApi,
   properties as propApi,
 } from '../../utils/api';
+import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { useToast } from '../../hooks/useToast';
 import { Spinner } from '../ui/Spinner';
@@ -340,6 +341,15 @@ function TabDetails({ res, propertyId, onRefresh }) {
     finally { setLoading(null); }
   }
 
+  // Check-in/out run through the front-desk wizards (readiness, registration, every folio).
+  const navigate = useNavigate();
+  function openCheckInWizard() {
+    navigate(`/pms/arrivals?date=${encodeURIComponent(res.arrivalDate)}&checkin=${res._id}`);
+  }
+  function openCheckOutWizard() {
+    navigate(`/pms/departures?checkout=${res._id}`);
+  }
+
   async function handleCheckOut() {
     setLoading('checkOut');
     try {
@@ -547,14 +557,14 @@ function TabDetails({ res, propertyId, onRefresh }) {
       {!cancelMode && !noShowMode && !checkInMode && !modifying && (
         <div className="flex flex-wrap gap-2 pt-2 border-t border-surface-border">
           {canCheckIn && (
-            <button className="btn btn-primary btn-sm gap-1.5 flex-1 justify-center" onClick={() => setCheckInMode(true)}>
+            <button className="btn btn-primary btn-sm gap-1.5 flex-1 justify-center" onClick={openCheckInWizard}>
               <LogIn size={13} /> צ'ק-אין
             </button>
           )}
           {canCheckOut && (
             <button className="btn btn-sm gap-1.5 flex-1 justify-center"
               style={{ background: '#ea580c', color: '#fff', border: 'none' }}
-              onClick={handleCheckOut} disabled={loading === 'checkOut'}>
+              onClick={openCheckOutWizard} disabled={loading === 'checkOut'}>
               {loading === 'checkOut' ? <Spinner size={12} /> : <LogOut size={13} />} צ'ק-אאוט
             </button>
           )}
@@ -877,6 +887,9 @@ export default function ReservationDrawer({
 }) {
   const resId = String(initialRes?._id || reservationId || '');
   const [tab,     setTab]     = useState('details');
+  const navigateTo = useNavigate();
+  // FIN-01: the stay's folio windows open on the folio screen.
+  const openFolio = onFolio || (() => navigateTo(`/pms/folio?reservation=${resId}`));
 
   const { data: freshRes, loading, error, refetch } = useApi(
     () => resApi.get(resId),
@@ -944,8 +957,8 @@ export default function ReservationDrawer({
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 mr-3">
             {loading && <Spinner size={14} />}
-            <button className="btn btn-secondary btn-sm gap-1" onClick={onFolio}>
-              <CreditCard size={12} /> פוליו
+            <button className="btn btn-secondary btn-sm gap-1" onClick={openFolio}>
+              <CreditCard size={12} /> חשבון
             </button>
             <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={18} /></button>
           </div>

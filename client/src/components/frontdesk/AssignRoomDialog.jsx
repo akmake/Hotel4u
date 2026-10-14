@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { frontdesk } from '../../utils/api';
 import { cleanLabel, opsLabel } from '../../lib/labels';
 import { formatShort } from '../../utils/date';
-import { Modal, Field, Spinner, ErrorBanner } from './ui';
+import { Modal, Field, Spinner, ErrorBanner } from '../kit';
 
 export default function AssignRoomDialog({ open, propertyId, row, onClose, onAssigned }) {
   const [allTypes, setAllTypes] = useState(false);
@@ -73,7 +73,7 @@ export default function AssignRoomDialog({ open, propertyId, row, onClose, onAss
       subtitle={data ? `${row?.confirmationNumber} · ${formatShort(data.range.from)}–${formatShort(data.range.to)} · ${data.range.nights} לילות · ${data.roomType?.name || ''}` : row?.confirmationNumber}
       footer={(
         <>
-          {disabledReason && selected !== null && <span className="fd-foot-note">{disabledReason}</span>}
+          {disabledReason && selected !== null && <span className="ui-foot-note">{disabledReason}</span>}
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>ביטול</button>
           <button type="button" className="btn btn-primary" onClick={save} disabled={!!disabledReason || saving} title={disabledReason || undefined}>
             {saving ? <><Spinner /> שומר…</> : replacing ? 'החלפת שיבוץ' : 'אישור שיבוץ'}
@@ -93,15 +93,15 @@ export default function AssignRoomDialog({ open, propertyId, row, onClose, onAss
       {saveError && <ErrorBanner error={saveError} />}
 
       {loading && !data ? (
-        <div className="fd-empty"><Spinner /> טוען חדרים…</div>
+        <div className="ui-empty"><Spinner /> טוען חדרים…</div>
       ) : candidates.length === 0 && !loadError ? (
-        <div className="fd-empty">
+        <div className="ui-empty">
           <strong>אין חדרים מסוג זה בנכס</strong>
           אפשר להציג את כל סוגי החדרים.
         </div>
       ) : (
-        <div className="fd-table-wrap" style={{ maxHeight: 360 }}>
-          <table className="fd-table" aria-label="חדרים לשיבוץ">
+        <div className="ui-table-wrap" style={{ maxHeight: 360 }}>
+          <table className="ui-table" aria-label="חדרים לשיבוץ">
             <thead>
               <tr>
                 <th scope="col" style={{ width: 36 }}><span className="sr-only">בחירה</span></th>
@@ -128,11 +128,11 @@ export default function AssignRoomDialog({ open, propertyId, row, onClose, onAss
                       />
                     </td>
                     <td className="font-medium tabular-nums">{c.number}<span className="text-[rgb(var(--fg-muted))] font-normal"> · קומה {c.floor}</span></td>
-                    <td>{c.roomType?.name || '—'}{!c.sameType && <span className="fd-tag is-warn">סוג אחר</span>}</td>
-                    <td><span className={`fd-dot-label ${['clean', 'inspected'].includes(c.cleanStatus) ? 'is-ok' : 'is-warn'}`}>{cleanLabel(c.cleanStatus)}</span></td>
-                    <td><span className={`fd-dot-label ${c.opsStatus === 'available' ? 'is-ok' : 'is-bad'}`}>{opsLabel(c.opsStatus)}</span></td>
+                    <td>{c.roomType?.name || '—'}{!c.sameType && <span className="ui-tag is-warn">סוג אחר</span>}</td>
+                    <td><span className={`ui-dot-label ${['clean', 'inspected'].includes(c.cleanStatus) ? 'is-ok' : 'is-warn'}`}>{cleanLabel(c.cleanStatus)}</span></td>
+                    <td><span className={`ui-dot-label ${c.opsStatus === 'available' ? 'is-ok' : 'is-bad'}`}>{opsLabel(c.opsStatus)}</span></td>
                     <td>
-                      {c.current ? <span className="fd-tag">משובץ כעת</span>
+                      {c.current ? <span className="ui-tag">משובץ כעת</span>
                         : c.conflict ? <span className="text-[rgb(var(--danger))]">תפוס ({c.conflict})</span>
                           : c.opsStatus !== 'available' ? <span className="text-[rgb(var(--danger))]">חסום</span>
                             : c.occupiedBy ? <span className="text-[rgb(180_83_9)]">פנוי לטווח · אורח קודם טרם יצא</span>
@@ -148,7 +148,7 @@ export default function AssignRoomDialog({ open, propertyId, row, onClose, onAss
       )}
 
       {typeChange && (
-        <div className="fd-banner is-warn mt-3">שיבוץ לסוג חדר אחר אינו משנה את המחיר. שינוי תעריף מתבצע בשינוי הזמנה.</div>
+        <div className="ui-banner is-warn mt-3">שיבוץ לסוג חדר אחר אינו משנה את המחיר. שינוי תעריף מתבצע בשינוי הזמנה.</div>
       )}
 
       {replacing && (

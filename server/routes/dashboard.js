@@ -8,6 +8,14 @@ import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import Folio from '../models/Folio.js';
 import Payment from '../models/Payment.js';
 import ChannelUpdateQueue from '../models/ChannelUpdateQueue.js';
+import Property from '../models/Property.js';
+import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+
+// The property's calendar day (Israel is UTC+2/3 — the server's UTC day is wrong after midnight).
+async function propertyToday(propertyId) {
+  const p = await Property.findById(propertyId).select('timezone').lean();
+  return todayYmdInTimezone(p?.timezone || 'Asia/Jerusalem');
+}
 
 const router = Router();
 
@@ -40,7 +48,7 @@ router.get('/stats', asyncHandler(async (req, res) => {
   requireRoles(req, DASHBOARD_ROLES);
 
   const propertyId = requirePropertyScope(req);
-  const today = new Date().toISOString().split('T')[0];
+  const today = await propertyToday(propertyId);
 
   const [rooms, reservations, hkTasks, maintenanceTickets, failedPayments, unsyncedCount] = await Promise.all([
     Room.find({ property: propertyId, active: true }),
@@ -56,8 +64,8 @@ router.get('/stats', asyncHandler(async (req, res) => {
   ]);
 
   const arrivals = reservations.filter((r) => r.arrivalDate === today && ['confirmed', 'modified', 'pending_payment'].includes(r.status));
-  const departures = reservations.filter((r) => r.departureDate === today && ['in_house', 'checked_in'].includes(r.status));
-  const inHouse = reservations.filter((r) => ['in_house', 'checked_in'].includes(r.status));
+  const departures = reservations.filter((r) => r.departureDate === today && ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'].includes(r.status));
+  const inHouse = reservations.filter((r) => ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'].includes(r.status));
   const unassigned = arrivals.filter((r) => !r.assignedRoom);
 
   const earlyCheckInRequests = arrivals.filter((r) =>
@@ -118,7 +126,7 @@ router.get('/arrivals', asyncHandler(async (req, res) => {
   requireRoles(req, DASHBOARD_ROLES);
 
   const propertyId = requirePropertyScope(req);
-  const today = new Date().toISOString().split('T')[0];
+  const today = await propertyToday(propertyId);
 
   const arrivals = await Reservation.find({
     property: propertyId,
@@ -138,12 +146,12 @@ router.get('/departures', asyncHandler(async (req, res) => {
   requireRoles(req, DASHBOARD_ROLES);
 
   const propertyId = requirePropertyScope(req);
-  const today = new Date().toISOString().split('T')[0];
+  const today = await propertyToday(propertyId);
 
   const departures = await Reservation.find({
     property: propertyId,
     departureDate: today,
-    status: { $in: ['in_house', 'checked_in'] },
+    status: { $in: ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'] },
   })
     .populate('primaryGuest', 'firstName lastName vipLevel')
     .populate('roomType', 'name code')
@@ -161,7 +169,7 @@ router.get('/inhouse', asyncHandler(async (req, res) => {
 
   const inhouse = await Reservation.find({
     property: propertyId,
-    status: { $in: ['in_house', 'checked_in'] },
+    status: { $in: ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'] },
   })
     .populate('primaryGuest', 'firstName lastName vipLevel')
     .populate('roomType', 'name code')
@@ -176,7 +184,7 @@ router.get('/alerts', asyncHandler(async (req, res) => {
   requireRoles(req, DASHBOARD_ROLES);
 
   const propertyId = requirePropertyScope(req);
-  const today = new Date().toISOString().split('T')[0];
+  const today = await propertyToday(propertyId);
   const alerts = [];
 
   const [todayArrivals, todayDepartures, criticalMaintenance, failedPayments, unsyncedItems] = await Promise.all([
@@ -184,7 +192,7 @@ router.get('/alerts', asyncHandler(async (req, res) => {
       .populate('assignedRoom', 'number cleanStatus opsStatus')
       .populate('primaryGuest', 'firstName lastName')
       .lean(),
-    Reservation.find({ property: propertyId, departureDate: today, status: { $in: ['in_house', 'checked_in'] } })
+    Reservation.find({ property: propertyId, departureDate: today, status: { $in: ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'] } })
       .populate('primaryGuest', 'firstName lastName')
       .lean(),
     MaintenanceTicket.find({ property: propertyId, priority: 'critical', status: { $in: ['new', 'assigned', 'in_progress'] }, blocksRoom: true })

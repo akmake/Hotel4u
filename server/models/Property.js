@@ -162,6 +162,38 @@ const PropertySchema = new Schema({
   requiredCheckInFields: { type: [String], default: ['primaryGuest', 'assignedRoom'] },
   requiredCheckOutFields:{ type: [String], default: ['folioBalanced'] },
 
+  // Housekeeping policy (OPS-02/04): checklists per task type and separation of duties.
+  opsPolicy: {
+    inspectorMustDiffer: { type: Boolean, default: true },
+    checklists: {
+      checkout_clean: { type: [String], default: ['מצעים הוחלפו', 'חדר רחצה נוקה וחוטא', 'מגבות ומוצרי אירוח הושלמו', 'רצפה נשאבה ונשטפה', 'מיניבר נבדק', 'פח אשפה רוקן'] },
+      stayover:       { type: [String], default: ['מיטה סודרה', 'מגבות הוחלפו לפי בקשה', 'פח אשפה רוקן', 'מוצרי אירוח הושלמו'] },
+      inspection:     { type: [String], default: ['ניקיון כללי תקין', 'אין ליקוי גלוי בציוד', 'תאורה ומיזוג פועלים', 'מוצרי אירוח מלאים'] },
+    },
+  },
+
+  // Day close (FIN-12). The business day is the property's local date; closing records the day,
+  // posts its nights once and keeps the last closed date so days are closed in order.
+  dayClose: {
+    lastClosedDate: String,                                  // YYYY-MM-DD
+    lastRunId:      { type: Schema.Types.ObjectId, ref: 'DayCloseRun' },
+  },
+
+  // ADM-05 policy publication: every publish bumps the version; bookings keep their own snapshot.
+  policyVersion:     { type: Number, default: 0 },
+  policyPublishedAt: Date,
+  policyPublishedBy: String,
+  // Days of rest/holidays (YYYY-MM-DD) for counting days in cancellation rules — the official
+  // calendar must be loaded by the property (gate G06); Saturdays are always counted as rest.
+  restDays:          { type: [String], default: [] },
+  childMaxAge:       { type: Number, default: null },      // business rule of the property, not law
+
+  // Money policy (FIN-03/04). Legal thresholds are owner decisions (gate G05) — empty = no check.
+  financePolicy: {
+    cashLimitPerStay:   { type: Number, default: null },     // cumulative cash per reservation
+    refundApprovalOver: { type: Number, default: 0 },         // refunds above this need a manager/finance role
+  },
+
   // Front-desk check-in policy (spec FD-03 / ADM-05). Readiness is computed from these on the
   // server; the UI never decides on its own whether a unit may enter.
   checkInPolicy: {
@@ -170,6 +202,9 @@ const PropertySchema = new Schema({
     requireRegistration: { type: Boolean, default: true },  // a signed/saved registration card for the primary guest
     requireSignature:    { type: Boolean, default: false },
     termsVersion:        { type: String, default: 'he-1' }, // version of the registration terms shown to the guest
+    termsText:           { type: String, default: '' },     // approved terms text; a signature counts as signed only against it
+    termsApprovedBy:     String,                             // ADM-05-F09: who approved the published text
+    termsApprovedAt:     Date,
   },
 
   active:           { type: Boolean, default: true },

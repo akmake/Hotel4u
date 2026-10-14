@@ -6,11 +6,12 @@ import {
   BedDouble, UserCheck, Megaphone, GitBranch, Bot, FileText,
   BadgeDollarSign, Search, TrendingUp, Building2, Star, PackagePlus,
   LogOut, Calendar, Sparkles, Tag, BookOpen, Funnel, CreditCard,
-  LogIn, Hourglass, Moon, ReceiptText, ListChecks, Zap, Radio,
+  LogIn, Hourglass, BedSingle, Moon, ReceiptText, ListChecks, Zap, Radio,
   ChevronDown, SquarePen, ArrowLeftRight,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { roleLabel } from '../../lib/labels';
+import GlobalSearch from '../sys/GlobalSearch';
 import { useProperty } from '../../context/PropertyContext';
 
 // ── תפריט מכירות/תפעול ───────────────────────────────────────────────────────
@@ -73,12 +74,14 @@ const PMS_NAV = [
     group: 'קבלה',
     items: [
       { path: '/pms',              icon: LayoutDashboard, label: 'היום' },
+      { path: '/pms/work',         icon: ListChecks,      label: 'מרכז משימות' },
       { path: '/pms/tape-chart',   icon: CalendarDays,    label: 'לוח חדרים' },
       { path: '/pms/room-rack',    icon: Calendar,        label: 'Room Rack' },
       { path: '/pms/reservations', icon: ClipboardList,   label: 'הזמנות' },
       { path: '/pms/arrivals',     icon: LogIn,           label: 'הגעות' },
       { path: '/pms/arrival-queue',icon: Hourglass,       label: 'תור המתנה' },
-      { path: '/pms/check-out',    icon: LogOut,          label: "צ'ק-אאוט" },
+      { path: '/pms/in-house',     icon: BedSingle,       label: 'שוהים' },
+      { path: '/pms/departures',   icon: LogOut,          label: 'עזיבות' },
       { path: '/pms/guests',       icon: Users,           label: 'אורחים' },
       { path: '/pms/folio',        icon: CreditCard,      label: 'חשבונות אורח' },
       { path: '/pms/invoices',     icon: ReceiptText,     label: 'חשבוניות' },
@@ -102,6 +105,9 @@ const PMS_NAV = [
       { path: '/pms/automation',       icon: Zap,        label: 'אוטומציה' },
       { path: '/pms/channel-manager',  icon: Radio,      label: 'ערוצי הפצה' },
       { path: '/pms/companies',        icon: Building2,  label: 'חברות וסוכנים' },
+      { path: '/pms/admin/users',      icon: Users,      label: 'משתמשים והרשאות' },
+      { path: '/pms/admin/policy',     icon: FileText,   label: 'מדיניות' },
+      { path: '/pms/admin/audit',      icon: ClipboardList, label: 'יומן ביקורת' },
       { path: '/pms/settings',         icon: Settings,   label: 'הגדרות' },
     ],
   },
@@ -109,8 +115,9 @@ const PMS_NAV = [
 
 // Roles restricted to specific PMS sections only
 const PMS_ROLE_PATHS = {
-  maintenance: ['/pms/maintenance'],
-  housekeeper: ['/pms/housekeeping'],
+  maintenance: ['/pms/maintenance', '/pms/work'],
+  technician:  ['/pms/maintenance', '/pms/housekeeping', '/pms/work'],
+  housekeeper: ['/pms/housekeeping', '/pms/work'],
 };
 
 const COLLAPSE_KEY = 'hotel4u_nav_collapsed';
@@ -129,13 +136,11 @@ export default function Sidebar({ open, onClose }) {
   const { pathname } = useLocation();
   const nav = useNavigate();
   const { user, logout } = useAuthStore();
-  const { property } = useProperty() || {};
+  const { property, propertyId } = useProperty() || {};
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState(readCollapsed);
-  const searchRef = useRef(null);
   const menuRef = useRef(null);
 
   const isAdmin = user?.role === 'admin';
@@ -159,7 +164,6 @@ export default function Sidebar({ open, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [isPMS]);
 
-  useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -182,15 +186,6 @@ export default function Sidebar({ open, onClose }) {
     });
   };
 
-  const submitSearch = (e) => {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q) return;
-    nav(`/pms/reservations?q=${encodeURIComponent(q)}`);
-    setQuery('');
-    setSearchOpen(false);
-    onClose?.();
-  };
 
   const go = (path) => { setMenuOpen(false); nav(path); onClose?.(); };
 
@@ -214,7 +209,7 @@ export default function Sidebar({ open, onClose }) {
             type="button"
             className="side-icon-btn"
             onClick={() => setSearchOpen(v => !v)}
-            aria-label="חיפוש הזמנה"
+            aria-label="חיפוש"
             aria-expanded={searchOpen}
             title="חיפוש ( / )"
           >
@@ -238,6 +233,12 @@ export default function Sidebar({ open, onClose }) {
               <div className="text-[12px] text-ink-muted truncate">{roleLabel(user?.role)}</div>
             </div>
             <div className="menu-sep" />
+            {isPMS && (
+              <button type="button" role="menuitem" className="menu-item" onClick={() => go('/pms/me')}>
+                <Users size={14} className="text-ink-muted" />
+                הפרופיל שלי
+              </button>
+            )}
             <button type="button" role="menuitem" className="menu-item" onClick={() => go(isPMS ? '/' : '/pms')}>
               <ArrowLeftRight size={14} className="text-ink-muted" />
               {isPMS ? 'מעבר לאזור מכירות' : 'מעבר לאזור קבלה'}
@@ -256,19 +257,7 @@ export default function Sidebar({ open, onClose }) {
         )}
       </div>
 
-      {searchOpen && (
-        <form className="side-search relative" onSubmit={submitSearch} role="search">
-          <Search size={13} className="absolute right-[20px] top-[11px] text-ink-faint pointer-events-none" />
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') { setSearchOpen(false); setQuery(''); } }}
-            placeholder="הזמנה, אורח או טלפון"
-            aria-label="חיפוש הזמנות"
-          />
-        </form>
-      )}
+      {isPMS && <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} propertyId={propertyId} />}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto pb-3">

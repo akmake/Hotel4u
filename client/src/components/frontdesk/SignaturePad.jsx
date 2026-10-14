@@ -58,7 +58,7 @@ export default function SignaturePad({ value, onChange, id }) {
 
   return (
     <div>
-      <div className="fd-sign">
+      <div className="ui-sign">
         <canvas
           id={id}
           ref={canvasRef}
@@ -69,7 +69,7 @@ export default function SignaturePad({ value, onChange, id }) {
           onPointerUp={up}
           onPointerLeave={up}
         />
-        {empty && <span className="fd-sign-ph" aria-hidden="true">חתימת האורח</span>}
+        {empty && <span className="ui-sign-ph" aria-hidden="true">חתימת האורח</span>}
       </div>
       <div className="flex justify-end mt-1">
         <button type="button" className="btn btn-ghost btn-sm" onClick={clear} disabled={empty}>ניקוי חתימה</button>

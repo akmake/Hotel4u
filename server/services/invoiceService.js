@@ -346,9 +346,19 @@ export async function issueCreditNote({ originalInvoiceId, creditAmount, reason,
     const property = await withOptionalSession(Property.findById(original.property), session);
     if (!property) throw Object.assign(new Error('נכס לא נמצא'), { status: 404 });
 
+    // FIN-07: a reason is required, and credits are capped by what was not credited yet
+    // (cumulative — two partial credits can never exceed the original).
+    const why = String(reason || '').trim();
+    if (why.length < 3) throw Object.assign(new Error('מסמך זיכוי מחייב סיבה'), { status: 422 });
+    const prior = await withOptionalSession(Invoice.find({ relatedInvoiceId: original._id, type: 'credit_note', status: { $ne: 'cancelled' } }).select('totalGross'), session);
+    const alreadyCredited = Math.round(prior.reduce((sum, c) => sum + Math.abs(c.totalGross || 0), 0) * 100) / 100;
+    const remaining = Math.round((original.totalGross - alreadyCredited) * 100) / 100;
+    if (remaining <= 0.005) throw Object.assign(new Error('החשבונית כבר זוכתה במלואה'), { status: 409 });
     const vatRate = original.vatRate;
     const isFullCredit = creditAmount === undefined || creditAmount === null;
-    const grossToCredit = isFullCredit ? original.totalGross : Math.min(creditAmount, original.totalGross);
+    if (!isFullCredit && !(Number(creditAmount) > 0)) throw Object.assign(new Error('סכום הזיכוי חייב להיות חיובי'), { status: 422 });
+    if (!isFullCredit && Number(creditAmount) - remaining > 0.005) throw Object.assign(new Error(`ניתן לזכות עד ${remaining.toFixed(2)}`), { status: 422 });
+    const grossToCredit = isFullCredit ? remaining : Number(creditAmount);
 
     // שורות הודעת הזיכוי — ערכים שליליים
     const ratio = grossToCredit / original.totalGross;
@@ -393,18 +403,15 @@ export async function issueCreditNote({ originalInvoiceId, creditAmount, reason,
       relatedInvoiceId: original._id,
       issuedBy,
       issuedAt:         new Date(),
-      notes:            reason || '',
+      notes:            why,
     });
 
     await saveWithOptionalSession(creditNote, session);
 
-    // סמן את החשבונית המקורית כזוכתה
+    // The original stays as issued (a final document is never changed); only the link is added.
     await Invoice.findByIdAndUpdate(
       originalInvoiceId,
-      {
-        $push: { creditedBy: creditNote._id },
-        ...(isFullCredit ? { status: 'cancelled' } : {}),
-      },
+      { $push: { creditedBy: creditNote._id } },
       session ? { session } : {},
     );
 

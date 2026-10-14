@@ -7,6 +7,13 @@ import { fireEvent } from '../services/automationEngine.js';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 
 const router = Router();
+
+// Writes moved to /api/pms/ops (spec OPS-01…OPS-06) so every change passes the same gates
+// (atomic transitions, separation of duties, blocking tickets, reasons). Reads stay for reports.
+router.use((req, res, next) => {
+  if (req.method === 'GET') return next();
+  return res.status(410).json({ success: false, error: 'הנתיב הוחלף — השתמשו ב־/api/pms/ops', code: 'moved_to_ops' });
+});
 const MAINTENANCE_ROLES = ['super_admin', 'property_admin', 'general_manager', 'maintenance_manager', 'technician', 'front_desk_manager'];
 
 // GET /api/maintenance/stats?propertyId=

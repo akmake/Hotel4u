@@ -7,7 +7,7 @@ import { frontdesk, folio as folioApi } from '../../utils/api';
 import { GUARANTEE_LABELS, ID_DOC_LABELS, cleanLabel, opsLabel } from '../../lib/labels';
 import { countryOptions } from '../../lib/countries';
 import { formatShort } from '../../utils/date';
-import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList } from './ui';
+import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList } from '../kit';
 import SignaturePad from './SignaturePad';
 
 const STEPS = [
@@ -27,6 +27,9 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
   const [selected, setSelected] = useState([]);
   const [result, setResult] = useState(null);
   const [method, setMethod] = useState(''); // guarantee method; sent with the final confirmation
+  const [guaranteeRef, setGuaranteeRef] = useState('');
+  // Registration input lives here so moving between steps never loses what was typed.
+  const [regDraft, setRegDraft] = useState(null);
 
   const load = useCallback(async () => {
     if (!reservationId) return null;
@@ -45,20 +48,21 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
 
   useEffect(() => {
     if (!open) return;
-    setCtx(null); setStep('units'); setResult(null); setMethod('');
+    setCtx(null); setStep('units'); setResult(null); setMethod(''); setGuaranteeRef(''); setRegDraft(null);
     load().then((data) => {
       if (!data) return;
       setMethod(data.reservation.guaranteeType && data.reservation.guaranteeType !== 'none' ? data.reservation.guaranteeType : '');
       const open_ = data.units.filter((u) => !['checked_in'].includes(u.readiness.state));
       // Pre-select units that are ready; a single unit is always pre-selected.
       const pre = open_.length === 1 ? open_ : open_.filter((u) => u.readiness.state === 'ready');
-      setSelected(pre.map((u) => u.unitId || 'implicit'));
+      // Units are selected by their position: stable even before unit records exist on the server.
+      setSelected(pre.map((u) => u.index));
     });
   }, [open, load]);
 
   const units = ctx?.units || [];
   const openUnits = units.filter((u) => u.readiness.state !== 'checked_in');
-  const chosen = openUnits.filter((u) => selected.includes(u.unitId || 'implicit'));
+  const chosen = openUnits.filter((u) => selected.includes(u.index));
   const regDone = !!ctx?.registration;
   const guaranteeOk = !!ctx?.guarantee?.ok;
 
@@ -77,35 +81,35 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
   return (
     <Modal open={open} onClose={result ? onDone : onClose} width={880} title={title} subtitle={subtitle}>
       {loadError && <ErrorBanner error={loadError} onRetry={load} />}
-      {!ctx && loading && <div className="fd-empty"><Spinner /> טוען את פרטי ההזמנה…</div>}
+      {!ctx && loading && <div className="ui-empty"><Spinner /> טוען את פרטי ההזמנה…</div>}
       {ctx && result ? (
         <ResultView result={result} ctx={ctx} onClose={onDone} />
       ) : ctx && (
-        <div className="fd-wizard">
-          <nav className="fd-steps" aria-label="שלבי הכניסה">
+        <div className="ui-wizard">
+          <nav className="ui-steps" aria-label="שלבי הכניסה">
             <ol>
               {STEPS.map((s, i) => (
                 <li key={s.id}>
                   <button
                     type="button"
-                    className={`fd-step ${step === s.id ? 'is-current' : ''} ${stepDone[s.id] ? 'is-done' : ''}`}
+                    className={`ui-step ${step === s.id ? 'is-current' : ''} ${stepDone[s.id] ? 'is-done' : ''}`}
                     aria-current={step === s.id ? 'step' : undefined}
                     onClick={() => setStep(s.id)}
                   >
-                    <span className="fd-step-n" aria-hidden="true">{stepDone[s.id] && step !== s.id ? <Check size={12} /> : i + 1}</span>
+                    <span className="ui-step-n" aria-hidden="true">{stepDone[s.id] && step !== s.id ? <Check size={12} /> : i + 1}</span>
                     <span>{s.label}</span>
                   </button>
                 </li>
               ))}
             </ol>
             {ctx.reservation.specialRequests && (
-              <div className="fd-note-box">
-                <div className="fd-note-k">בקשות מיוחדות</div>
+              <div className="ui-note-box">
+                <div className="ui-note-k">בקשות מיוחדות</div>
                 <div>{ctx.reservation.specialRequests}</div>
               </div>
             )}
           </nav>
-          <section className="fd-step-body">
+          <section className="ui-step-body">
             {step === 'units' && (
               <UnitsStep
                 ctx={ctx}
@@ -117,16 +121,17 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
               />
             )}
             {step === 'registration' && (
-              <RegistrationStep ctx={ctx} propertyId={propertyId} reload={load} onNext={() => setStep('guarantee')} />
+              <RegistrationStep ctx={ctx} propertyId={propertyId} reload={load} draft={regDraft} setDraft={setRegDraft} onNext={() => setStep('guarantee')} />
             )}
             {step === 'guarantee' && (
-              <GuaranteeStep ctx={ctx} propertyId={propertyId} reload={load} method={method} setMethod={setMethod} onNext={() => setStep('confirm')} />
+              <GuaranteeStep ctx={ctx} propertyId={propertyId} reload={load} method={method} setMethod={setMethod} reference={guaranteeRef} setReference={setGuaranteeRef} onNext={() => setStep('confirm')} />
             )}
             {step === 'confirm' && (
               <ConfirmStep
                 ctx={ctx}
                 chosen={chosen}
                 method={method}
+                guaranteeRef={guaranteeRef}
                 isManager={isManager}
                 propertyId={propertyId}
                 reload={load}
@@ -146,19 +151,19 @@ function UnitsStep({ ctx, selected, setSelected, onAssign, onQueue, onNext }) {
   const toggle = (key) => setSelected((s) => (s.includes(key) ? s.filter((x) => x !== key) : [...s, key]));
   return (
     <div>
-      <h3 className="fd-h3">אילו יחידות נכנסות עכשיו?</h3>
-      <p className="fd-p">יחידה שאינה מוכנה יכולה להמתין בתור בלי לעכב את האחרות.</p>
-      <div className="fd-units">
+      <h3 className="ui-h3">אילו יחידות נכנסות עכשיו?</h3>
+      <p className="ui-p">יחידה שאינה מוכנה יכולה להמתין בתור בלי לעכב את האחרות.</p>
+      <div className="ui-units">
         {ctx.units.map((u) => {
-          const key = u.unitId || 'implicit';
+          const key = u.index;
           const done = u.readiness.state === 'checked_in';
           const row = {
             key, reservationId: ctx.reservation.id, unitId: u.unitId, confirmationNumber: ctx.reservation.confirmationNumber,
             guest: { name: `${ctx.guest.firstName} ${ctx.guest.lastName}` }, room: u.room, readiness: u.readiness,
           };
           return (
-            <div key={key} className={`fd-unit ${selected.includes(key) ? 'is-selected' : ''} ${done ? 'is-done' : ''}`}>
-              <label className="fd-unit-main">
+            <div key={key} className={`ui-unit ${selected.includes(key) ? 'is-selected' : ''} ${done ? 'is-done' : ''}`}>
+              <label className="ui-unit-main">
                 <input type="checkbox" disabled={done} checked={done || selected.includes(key)} onChange={() => toggle(key)} aria-label={`יחידה ${u.index}`} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -166,7 +171,7 @@ function UnitsStep({ ctx, selected, setSelected, onAssign, onQueue, onNext }) {
                     <span className="text-[rgb(var(--fg-muted))]">{u.roomType?.name}</span>
                     <ReadinessBadge state={u.readiness.state} />
                   </div>
-                  <div className="fd-unit-room">
+                  <div className="ui-unit-room">
                     <BedDouble size={13} aria-hidden="true" />
                     {u.room ? (
                       <span>חדר {u.room.number} · {cleanLabel(u.room.cleanStatus)} · {opsLabel(u.room.opsStatus)}</span>
@@ -176,19 +181,19 @@ function UnitsStep({ ctx, selected, setSelected, onAssign, onQueue, onNext }) {
                 </div>
               </label>
               {!done && (
-                <div className="fd-unit-actions">
+                <div className="ui-unit-actions">
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => onAssign(row)}>{u.room ? 'החלפת חדר' : 'שיבוץ חדר'}</button>
                   {['waiting', 'blocked'].includes(u.readiness.state) && !u.queue && (
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => onQueue(row)}>המתנה לחדר</button>
                   )}
-                  {u.queue && <span className="fd-tag">בתור מאז {new Date(u.queue.arrivedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>}
+                  {u.queue && <span className="ui-tag">בתור מאז {new Date(u.queue.arrivedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>}
                 </div>
               )}
             </div>
           );
         })}
       </div>
-      <div className="fd-step-foot">
+      <div className="ui-step-foot">
         <button type="button" className="btn btn-primary" onClick={onNext}>הבא</button>
       </div>
     </div>
@@ -196,10 +201,10 @@ function UnitsStep({ ctx, selected, setSelected, onAssign, onQueue, onNext }) {
 }
 
 // ── Step 2: registration (FD-05) ────────────────────────────────────────────
-function RegistrationStep({ ctx, propertyId, reload, onNext }) {
+function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) {
   const reg = ctx.registration;
-  const [editing, setEditing] = useState(!reg);
-  const [form, setForm] = useState(() => ({
+  const [editing, setEditing] = useState(!reg || !!draft);
+  const initial = () => ({
     firstName: ctx.guest.firstName || '',
     lastName: ctx.guest.lastName || '',
     dateOfBirth: ctx.guest.dateOfBirth ? String(ctx.guest.dateOfBirth).slice(0, 10) : '',
@@ -211,7 +216,9 @@ function RegistrationStep({ ctx, propertyId, reload, onNext }) {
     signature: null,
     digitalDocConsent: false,
     marketingConsent: false,
-  }));
+  });
+  const form = draft || initial();
+  const setForm = (updater) => setDraft((prev) => (typeof updater === 'function' ? updater(prev || initial()) : updater));
   const [showTerms, setShowTerms] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -224,6 +231,7 @@ function RegistrationStep({ ctx, propertyId, reload, onNext }) {
     try {
       await frontdesk.saveRegistration(propertyId, ctx.reservation.id, { ...form, idDocExpiry: form.idDocExpiry || undefined });
       await reload();
+      setDraft(null);
       setEditing(false);
     } catch (e) {
       setFields(e.fields || {});
@@ -236,15 +244,15 @@ function RegistrationStep({ ctx, propertyId, reload, onNext }) {
   if (!editing && reg) {
     return (
       <div>
-        <h3 className="fd-h3">רישום אורח</h3>
-        <div className="fd-summary">
-          <div className="fd-sum-row"><span>מצב</span><strong>{reg.status === 'signed' ? 'נחתם' : 'נשמר ללא חתימה'}</strong></div>
-          <div className="fd-sum-row"><span>מסמך</span><strong>{ID_DOC_LABELS[reg.idDocType] || reg.idDocType} · נבדק בדלפק</strong></div>
-          <div className="fd-sum-row"><span>נוסח תנאים</span><strong>{reg.termsVersion || '—'}</strong></div>
-          {reg.signedAt && <div className="fd-sum-row"><span>מועד חתימה</span><strong>{new Date(reg.signedAt).toLocaleString('he-IL')}</strong></div>}
+        <h3 className="ui-h3">רישום אורח</h3>
+        <div className="ui-summary">
+          <div className="ui-sum-row"><span>מצב</span><strong>{reg.status === 'signed' ? 'נחתם' : ctx.policy.termsText ? 'נשמר ללא חתימה' : 'נשמר — חתימה לא נחשבת עד שיוגדר נוסח תנאים מאושר'}</strong></div>
+          <div className="ui-sum-row"><span>מסמך</span><strong>{ID_DOC_LABELS[reg.idDocType] || reg.idDocType} · נבדק בדלפק</strong></div>
+          <div className="ui-sum-row"><span>נוסח תנאים</span><strong>{reg.termsVersion || '—'}</strong></div>
+          {reg.signedAt && <div className="ui-sum-row"><span>מועד חתימה</span><strong>{new Date(reg.signedAt).toLocaleString('he-IL')}</strong></div>}
         </div>
-        <div className="fd-step-foot">
-          <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>רישום חדש</button>
+        <div className="ui-step-foot">
+          <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>תיקון רישום</button>
           <button type="button" className="btn btn-primary" onClick={onNext}>הבא</button>
         </div>
       </div>
@@ -254,13 +262,13 @@ function RegistrationStep({ ctx, propertyId, reload, onNext }) {
   const policy = ctx.policy;
   return (
     <div>
-      <h3 className="fd-h3">רישום אורח</h3>
-      <p className="fd-p">
+      <h3 className="ui-h3">רישום אורח</h3>
+      <p className="ui-p">
         {policy.requireRegistration ? 'רישום נדרש לפני כניסה לפי מדיניות הנכס.' : 'רישום אינו נדרש לפי מדיניות הנכס.'}
         {' '}מספר המסמך נשמר בכרטיס הרישום בלבד ואינו מוצג לצוות שאינו מורשה. אין צורך לצלם את המסמך.
       </p>
       <ErrorBanner error={error} />
-      <div className="fd-grid-2">
+      <div className="ui-grid-2">
         <Field id="r-first" label="שם פרטי" required error={fields.firstName}>
           <input id="r-first" className="input w-full" value={form.firstName} maxLength={200} onChange={set('firstName')} aria-invalid={!!fields.firstName} />
         </Field>
@@ -290,20 +298,20 @@ function RegistrationStep({ ctx, propertyId, reload, onNext }) {
         )}
       </div>
 
-      <label className="fd-check">
+      <label className="ui-check">
         <input type="checkbox" checked={form.idVerified} onChange={set('idVerified')} aria-invalid={!!fields.idVerified} />
-        <span>בדקתי את מסמך הזיהוי מול האורח <span className="fd-req">· חובה</span></span>
+        <span>בדקתי את מסמך הזיהוי מול האורח <span className="ui-req">· חובה</span></span>
       </label>
-      {fields.idVerified && <div className="fd-error" role="alert">{fields.idVerified}</div>}
+      {fields.idVerified && <div className="ui-error" role="alert">{fields.idVerified}</div>}
 
-      <div className="fd-terms">
+      <div className="ui-terms">
         <div className="flex items-center justify-between gap-2">
           <span>תנאי שהייה · נוסח <bdi>{policy.termsVersion}</bdi></span>
           <button type="button" className="btn btn-ghost btn-sm" aria-expanded={showTerms} onClick={() => setShowTerms((v) => !v)}>{showTerms ? 'הסתרת הנוסח' : 'הצגת הנוסח'}</button>
         </div>
         {showTerms && (
-          <p className="fd-terms-text">
-            נוסח תנאי השהייה מנוהל בהגדרות הנכס (ADM-05). עד שיוגדר נוסח מאושר, מוצג מזהה הגרסה בלבד ונשמר יחד עם החתימה.
+          <p className="ui-terms-text" style={{ whiteSpace: 'pre-wrap' }}>
+            {policy.termsText || 'לא הוגדר עדיין נוסח תנאים מאושר בהגדרות הנכס. אפשר לשמור רישום; חתימה תישמר כראיה אך הכרטיס יסומן "ממתין" עד שיוגדר נוסח.'}
           </p>
         )}
       </div>
@@ -312,22 +320,22 @@ function RegistrationStep({ ctx, propertyId, reload, onNext }) {
         <SignaturePad id="r-sign" value={form.signature} onChange={(v) => setForm((f) => ({ ...f, signature: v }))} />
       </Field>
 
-      <label className="fd-check">
+      <label className="ui-check">
         <input type="checkbox" checked={form.digitalDocConsent} onChange={set('digitalDocConsent')} />
-        <span>האורח מסכים לקבל מסמכים בדיגיטל <span className="fd-opt">· רשות</span></span>
+        <span>האורח מסכים לקבל מסמכים בדיגיטל <span className="ui-opt">· רשות</span></span>
       </label>
-      <label className="fd-check">
+      <label className="ui-check">
         <input type="checkbox" checked={form.marketingConsent} onChange={set('marketingConsent')} disabled={ctx.guest.marketingConsent} />
         <span>
-          האורח מסכים לקבל דיוור שיווקי <span className="fd-opt">· רשות, נפרד מהרישום</span>
-          {ctx.guest.marketingConsent && <span className="fd-hint"> — כבר ניתנה הסכמה בעבר</span>}
+          האורח מסכים לקבל דיוור שיווקי <span className="ui-opt">· רשות, נפרד מהרישום</span>
+          {ctx.guest.marketingConsent && <span className="ui-hint"> — כבר ניתנה הסכמה בעבר</span>}
         </span>
       </label>
 
-      <div className="fd-step-foot">
-        {reg && <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)} disabled={saving}>חזרה לרישום השמור</button>}
+      <div className="ui-step-foot">
+        {reg && <button type="button" className="btn btn-ghost" onClick={() => { setDraft(null); setEditing(false); }} disabled={saving}>ביטול השינויים</button>}
         <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
-          {saving ? <><Spinner /> שומר…</> : 'שמירת רישום'}
+          {saving ? <><Spinner /> שומר…</> : reg ? 'שמירת רישום מתוקן' : 'שמירת רישום'}
         </button>
       </div>
     </div>
@@ -335,7 +343,7 @@ function RegistrationStep({ ctx, propertyId, reload, onNext }) {
 }
 
 // ── Step 3: guarantee (FIN-03, manual methods only) ─────────────────────────
-function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, onNext }) {
+function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, setReference, onNext }) {
   const g = ctx.guarantee;
   const hasCompany = !!ctx.reservation.company;
   const [dep, setDep] = useState({ amount: '', method: 'cash' });
@@ -361,35 +369,46 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, onNext }) {
 
   return (
     <div>
-      <h3 className="fd-h3">ערבות ותשלום</h3>
-      <div className="fd-summary">
-        <div className="fd-sum-row"><span>מצב נוכחי</span><strong className={g.ok ? 'text-[rgb(21_128_61)]' : 'text-[rgb(180_83_9)]'}>{g.label}</strong></div>
-        <div className="fd-sum-row"><span>סכום ההזמנה</span><strong>{money(g.total, ctx.reservation.currency)}</strong></div>
-        <div className="fd-sum-row"><span>התקבל</span><strong>{money(g.paid, ctx.reservation.currency)}</strong></div>
+      <h3 className="ui-h3">ערבות ותשלום</h3>
+      <div className="ui-summary">
+        <div className="ui-sum-row"><span>מצב נוכחי</span><strong className={g.ok ? 'text-[rgb(21_128_61)]' : 'text-[rgb(180_83_9)]'}>{g.label}</strong></div>
+        <div className="ui-sum-row"><span>סכום ההזמנה</span><strong>{money(g.total, ctx.reservation.currency)}</strong></div>
+        <div className="ui-sum-row"><span>התקבל</span><strong>{money(g.paid, ctx.reservation.currency)}</strong></div>
       </div>
-      <div className="fd-banner is-info mt-3">לא מחובר ספק סליקה. אישור כרטיס אינו מבוצע מכאן — שיטה ״כרטיס אשראי״ מתעדת הסדר ידני בלבד, ואינה תקבול.</div>
+      <div className="ui-banner is-info mt-3">לא מחובר ספק סליקה. אישור כרטיס אינו מבוצע מכאן — שיטה ״כרטיס אשראי״ מתעדת הסדר ידני בלבד, ואינה תקבול.</div>
 
-      <fieldset className="fd-fieldset">
-        <legend className="fd-label">שיטת ערבות {ctx.policy.requireGuarantee && <span className="fd-req">· חובה לפי מדיניות</span>}</legend>
+      <fieldset className="ui-fieldset">
+        <legend className="ui-label">שיטת ערבות {ctx.policy.requireGuarantee && <span className="ui-req">· חובה לפי מדיניות</span>}</legend>
         {['credit_card', 'deposit', 'voucher', 'company_guarantee'].map((m) => {
           const disabled = m === 'company_guarantee' && !hasCompany;
           return (
-            <label key={m} className={`fd-radio ${disabled ? 'is-disabled' : ''}`}>
+            <label key={m} className={`ui-radio ${disabled ? 'is-disabled' : ''}`}>
               <input type="radio" name="guarantee" value={m} checked={method === m} disabled={disabled} onChange={() => setMethod(m)} />
               <span>
                 {GUARANTEE_LABELS[m]}
-                {m === 'company_guarantee' && (hasCompany ? <span className="fd-hint"> — {ctx.reservation.company.name}</span> : <span className="fd-hint"> — אין חברה משויכת להזמנה</span>)}
-                {m === 'deposit' && <span className="fd-hint"> — נדרשת מקדמה שנרשמה בחשבון</span>}
+                {m === 'company_guarantee' && (hasCompany ? <span className="ui-hint"> — {ctx.reservation.company.name}</span> : <span className="ui-hint"> — אין חברה משויכת להזמנה</span>)}
+                {m === 'deposit' && <span className="ui-hint"> — נדרשת מקדמה שנרשמה בחשבון</span>}
               </span>
             </label>
           );
         })}
       </fieldset>
 
-      <div className="fd-sub-card">
-        <div className="fd-label">רישום מקדמה שהתקבלה בדלפק</div>
+      {['credit_card', 'voucher'].includes(method) && (
+        <Field
+          id="g-ref"
+          label={method === 'credit_card' ? '4 ספרות אחרונות או מספר אישור מהמסוף' : 'מספר השובר'}
+          required
+          hint="אסמכתה שאפשר לבדוק בדיעבד — לא מספר כרטיס מלא"
+        >
+          <input id="g-ref" className="input" dir="ltr" style={{ width: 220 }} maxLength={40} autoComplete="off" value={reference} onChange={(e) => setReference(e.target.value.replace(/\s+/g, ''))} />
+        </Field>
+      )}
+
+      <div className="ui-sub-card">
+        <div className="ui-label">רישום מקדמה שהתקבלה בדלפק</div>
         <ErrorBanner error={error} />
-        {notice && <div className="fd-banner is-ok" role="status">{notice}</div>}
+        {notice && <div className="ui-banner is-ok" role="status">{notice}</div>}
         <div className="flex gap-2 items-end flex-wrap">
           <Field id="dep-amount" label="סכום">
             <input id="dep-amount" type="number" min={1} step={1} className="input" style={{ width: 140 }} value={dep.amount} onChange={(e) => setDep((d) => ({ ...d, amount: e.target.value }))} />
@@ -407,7 +426,7 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, onNext }) {
         </div>
       </div>
 
-      <div className="fd-step-foot">
+      <div className="ui-step-foot">
         <button type="button" className="btn btn-primary" onClick={onNext}>הבא</button>
       </div>
     </div>
@@ -415,7 +434,7 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, onNext }) {
 }
 
 // ── Step 4: summary & confirm ───────────────────────────────────────────────
-function ConfirmStep({ ctx, chosen, method, isManager, propertyId, reload, goTo, onSuccess }) {
+function ConfirmStep({ ctx, chosen, method, guaranteeRef, isManager, propertyId, reload, goTo, onSuccess }) {
   const [override, setOverride] = useState(false);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -430,11 +449,14 @@ function ConfirmStep({ ctx, chosen, method, isManager, propertyId, reload, goTo,
   for (const u of chosen) {
     for (const r of u.readiness.reasons) {
       if (r.code === 'guarantee') continue;
-      issues.push({ text: `יחידה ${u.index}: ${r.label}`, step: 'units', hard: r.severity === 'blocked' && r.code !== 'early' });
+      issues.push({ text: `יחידה ${u.index}: ${r.label}`, step: 'units', hard: r.severity === 'blocked' });
     }
   }
-  if (policy.requireRegistration && !ctx.registration) issues.push({ text: 'לא נשמר רישום אורח', step: 'registration' });
-  const guaranteeWillBeOk = ctx.guarantee.ok || ['credit_card', 'voucher'].includes(method) || (method === 'company_guarantee' && ctx.reservation.company);
+  // The guest register is a legal record — no override replaces it.
+  if (policy.requireRegistration && !ctx.registration) issues.push({ text: 'לא נשמר רישום אורח', step: 'registration', hard: true });
+  const refOk = String(guaranteeRef || '').trim().length >= 4;
+  if (['credit_card', 'voucher'].includes(method) && !refOk) issues.push({ text: method === 'voucher' ? 'חסר מספר שובר' : 'חסרה אסמכתת כרטיס', step: 'guarantee', hard: true });
+  const guaranteeWillBeOk = ctx.guarantee.ok || (['credit_card', 'voucher'].includes(method) && refOk) || (method === 'company_guarantee' && ctx.reservation.company);
   if (policy.requireGuarantee && !guaranteeWillBeOk) issues.push({ text: method === 'deposit' ? 'לא התקבלה מקדמה' : 'לא נבחרה שיטת ערבות', step: 'guarantee' });
 
   const hardIssues = issues.filter((i) => i.hard);
@@ -449,7 +471,8 @@ function ConfirmStep({ ctx, chosen, method, isManager, propertyId, reload, goTo,
     try {
       const out = await frontdesk.checkIn(propertyId, ctx.reservation.id, {
         unitIds: chosen.map((u) => u.unitId).filter(Boolean),
-        guarantee: method ? { method } : undefined,
+        unitIndexes: chosen.map((u) => u.index),
+        guarantee: method ? { method, reference: guaranteeRef || undefined } : undefined,
         override: override ? { enabled: true, reason } : undefined,
       });
       onSuccess(out);
@@ -465,22 +488,22 @@ function ConfirmStep({ ctx, chosen, method, isManager, propertyId, reload, goTo,
 
   return (
     <div>
-      <h3 className="fd-h3">סיכום ואישור</h3>
-      <div className="fd-summary">
-        <div className="fd-sum-row"><span>הזמנה</span><strong>{ctx.reservation.confirmationNumber}</strong></div>
-        <div className="fd-sum-row">
+      <h3 className="ui-h3">סיכום ואישור</h3>
+      <div className="ui-summary">
+        <div className="ui-sum-row"><span>הזמנה</span><strong>{ctx.reservation.confirmationNumber}</strong></div>
+        <div className="ui-sum-row">
           <span>יחידות לכניסה</span>
           <strong>{chosen.length ? chosen.map((u) => (u.room ? `חדר ${u.room.number}` : `יחידה ${u.index} ללא חדר`)).join(' · ') : '—'}</strong>
         </div>
-        <div className="fd-sum-row"><span>תאריכים</span><strong>{formatShort(ctx.reservation.arrivalDate)}–{formatShort(ctx.reservation.departureDate)} · {ctx.reservation.nights} לילות</strong></div>
-        <div className="fd-sum-row"><span>ערבות</span><strong>{method ? GUARANTEE_LABELS[method] : ctx.guarantee.label}</strong></div>
-        <div className="fd-sum-row"><span>רישום</span><strong>{ctx.registration ? (ctx.registration.status === 'signed' ? 'נחתם' : 'נשמר') : 'לא נשמר'}</strong></div>
-        <div className="fd-sum-row"><span>מפתח</span><strong className="font-normal">לא מחובר ספק מפתחות — מסירה ידנית לאחר הכניסה</strong></div>
+        <div className="ui-sum-row"><span>תאריכים</span><strong>{formatShort(ctx.reservation.arrivalDate)}–{formatShort(ctx.reservation.departureDate)} · {ctx.reservation.nights} לילות</strong></div>
+        <div className="ui-sum-row"><span>ערבות</span><strong>{method ? GUARANTEE_LABELS[method] : ctx.guarantee.label}</strong></div>
+        <div className="ui-sum-row"><span>רישום</span><strong>{ctx.registration ? (ctx.registration.status === 'signed' ? 'נחתם' : 'נשמר') : 'לא נשמר'}</strong></div>
+        <div className="ui-sum-row"><span>מפתח</span><strong className="font-normal">לא מחובר ספק מפתחות — מסירה ידנית לאחר הכניסה</strong></div>
       </div>
 
       {issues.length > 0 && (
-        <div className="fd-issues">
-          <div className="fd-label">פריטים פתוחים</div>
+        <div className="ui-issues">
+          <div className="ui-label">פריטים פתוחים</div>
           <ul>
             {issues.map((i, k) => (
               <li key={k} className={i.hard ? 'is-blocked' : 'is-waiting'}>
@@ -493,12 +516,12 @@ function ConfirmStep({ ctx, chosen, method, isManager, propertyId, reload, goTo,
       )}
 
       {needsOverride && !hardIssues.length && (
-        <div className="fd-sub-card">
-          <label className={`fd-check ${!isManager ? 'is-disabled' : ''}`}>
+        <div className="ui-sub-card">
+          <label className={`ui-check ${!isManager ? 'is-disabled' : ''}`}>
             <input type="checkbox" checked={override} disabled={!isManager} onChange={(e) => setOverride(e.target.checked)} />
             <span>
               חריג כניסה באישור מנהל
-              {!isManager && <span className="fd-hint"> — זמין רק למנהל משמרת ומעלה. אפשר להעביר את האורח לתור המתנה.</span>}
+              {!isManager && <span className="ui-hint"> — זמין רק למנהל משמרת ומעלה. אפשר להעביר את האורח לתור המתנה.</span>}
             </span>
           </label>
           {override && (
@@ -510,7 +533,7 @@ function ConfirmStep({ ctx, chosen, method, isManager, propertyId, reload, goTo,
       )}
 
       {error && (
-        <div className="fd-banner is-error mt-3" role="alert">
+        <div className="ui-banner is-error mt-3" role="alert">
           <div>
             <div className="font-medium">{error}</div>
             {details?.length > 0 && (
@@ -522,8 +545,8 @@ function ConfirmStep({ ctx, chosen, method, isManager, propertyId, reload, goTo,
         </div>
       )}
 
-      <div className="fd-step-foot">
-        {disabledReason && <span className="fd-foot-note">{disabledReason}</span>}
+      <div className="ui-step-foot">
+        {disabledReason && <span className="ui-foot-note">{disabledReason}</span>}
         <button type="button" className="btn btn-primary" onClick={submit} disabled={!!disabledReason || saving}>
           {saving ? <><Spinner /> מבצע כניסה…</> : `השלמת כניסה${chosen.length > 1 ? ` (${chosen.length} יחידות)` : ''}`}
         </button>
@@ -534,17 +557,17 @@ function ConfirmStep({ ctx, chosen, method, isManager, propertyId, reload, goTo,
 
 function ResultView({ result, ctx, onClose }) {
   return (
-    <div className="fd-result" role="status">
-      <div className="fd-result-icon"><Check size={22} /></div>
-      <h3 className="fd-h3">הכניסה הושלמה</h3>
-      <p className="fd-p">
+    <div className="ui-result" role="status">
+      <div className="ui-result-icon"><Check size={22} /></div>
+      <h3 className="ui-h3">הכניסה הושלמה</h3>
+      <p className="ui-p">
         {ctx.guest.firstName} {ctx.guest.lastName} · {ctx.reservation.confirmationNumber} ·
         {' '}{result.checkedInUnits.length} {result.checkedInUnits.length === 1 ? 'יחידה נכנסה' : 'יחידות נכנסו'}
         {result.remainingUnits > 0 && ` · ${result.remainingUnits} ממתינות`}
       </p>
-      {result.overridden?.length > 0 && <div className="fd-banner is-warn">בוצע בחריג מנהל — נרשם ביומן הביקורת.</div>}
-      <div className="fd-banner is-info"><KeyRound size={14} aria-hidden="true" /> {result.key.label}</div>
-      <div className="fd-step-foot">
+      {result.overridden?.length > 0 && <div className="ui-banner is-warn">בוצע בחריג מנהל — נרשם ביומן הביקורת.</div>}
+      <div className="ui-banner is-info"><KeyRound size={14} aria-hidden="true" /> {result.key.label}</div>
+      <div className="ui-step-foot">
         <button type="button" className="btn btn-primary" onClick={onClose}>חזרה להגעות</button>
       </div>
     </div>

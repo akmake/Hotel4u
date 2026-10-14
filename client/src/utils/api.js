@@ -134,6 +134,157 @@ export const frontdesk = {
   updateQueue:     (propertyId, id, body)    => api.patch(`/frontdesk/queue/${id}`, { ...body, propertyId }),
   prioritizeQueue: (propertyId, id)          => api.post(`/frontdesk/queue/${id}/prioritize`, { propertyId }),
   removeFromQueue: (propertyId, id, reason, version) => api.post(`/frontdesk/queue/${id}/remove`, { propertyId, reason, version }),
+  inHouse:         (propertyId, params = {}) => api.get(`/frontdesk/in-house?propertyId=${propertyId}${qs(params)}`),
+  departures:      (propertyId, params = {}) => api.get(`/frontdesk/departures?propertyId=${propertyId}${qs(params)}`),
+  setEtd:          (propertyId, resId, etd)  => api.patch(`/frontdesk/reservations/${resId}/etd`, { propertyId, etd }),
+  checkOutContext: (propertyId, resId)       => api.get(`/frontdesk/reservations/${resId}/check-out?propertyId=${propertyId}`),
+  checkOut:        (propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/check-out`, { ...body, propertyId }),
+  postCharge:      (propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/charges`, { ...body, propertyId }),
+  postNights:      (propertyId, resId)       => api.post(`/frontdesk/reservations/${resId}/post-nights`, { propertyId }),
+  payFolio:        (propertyId, folioId, body) => api.post(`/frontdesk/folios/${folioId}/payments`, { ...body, propertyId }),
+  refundFolio:     (propertyId, folioId, body) => api.post(`/frontdesk/folios/${folioId}/refunds`, { ...body, propertyId }),
+};
+
+// ── Operations: housekeeping, room status, inspection, lost & found, maintenance (OPS-01…06) ──
+const withP = (propertyId, body = {}) => ({ ...body, propertyId });
+export const ops = {
+  board:          (propertyId, params = {}) => api.get(`/ops/board?propertyId=${propertyId}${qs(params)}`),
+  generate:       (propertyId, date)        => api.post('/ops/tasks/generate', withP(propertyId, { date })),
+  createTask:     (propertyId, body)        => api.post('/ops/tasks', withP(propertyId, body)),
+  assign:         (propertyId, taskIds, assigneeId) => api.post('/ops/tasks/assign', withP(propertyId, { taskIds, assigneeId })),
+  priority:       (propertyId, id, priority, reason) => api.post(`/ops/tasks/${id}/priority`, withP(propertyId, { priority, reason })),
+  cancelTask:     (propertyId, id, reason)  => api.post(`/ops/tasks/${id}/cancel`, withP(propertyId, { reason })),
+  myTasks:        (propertyId, params = {}) => api.get(`/ops/my-tasks?propertyId=${propertyId}${qs(params)}`),
+  start:          (propertyId, id)          => api.post(`/ops/tasks/${id}/start`, withP(propertyId)),
+  pause:          (propertyId, id, reason, note) => api.post(`/ops/tasks/${id}/pause`, withP(propertyId, { reason, note })),
+  dnd:            (propertyId, id, on)      => api.post(`/ops/tasks/${id}/dnd`, withP(propertyId, { on })),
+  complete:       (propertyId, id, checklist, note) => api.post(`/ops/tasks/${id}/complete`, withP(propertyId, { checklist, note })),
+  inspections:    (propertyId)              => api.get(`/ops/inspections?propertyId=${propertyId}`),
+  inspect:        (propertyId, id, body)    => api.post(`/ops/tasks/${id}/inspect`, withP(propertyId, body)),
+  rooms:          (propertyId, params = {}) => api.get(`/ops/rooms?propertyId=${propertyId}${qs(params)}`),
+  setClean:       (propertyId, roomId, body) => api.post(`/ops/rooms/${roomId}/clean-status`, withP(propertyId, body)),
+  unblock:        (propertyId, roomId, reason) => api.post(`/ops/rooms/${roomId}/unblock`, withP(propertyId, { reason })),
+  roomsLite:      (propertyId)              => api.get(`/ops/rooms-lite?propertyId=${propertyId}`),
+  staff:          (propertyId, kind)        => api.get(`/ops/staff?propertyId=${propertyId}${qs({ kind })}`),
+  lostItems:      (propertyId, params = {}) => api.get(`/ops/lost-items?propertyId=${propertyId}${qs(params)}`),
+  createLost:     (propertyId, body)        => api.post('/ops/lost-items', withP(propertyId, body)),
+  transferLost:   (propertyId, id, body)    => api.post(`/ops/lost-items/${id}/transfer`, withP(propertyId, body)),
+  releaseLost:    (propertyId, id, body)    => api.post(`/ops/lost-items/${id}/release`, withP(propertyId, body)),
+  disposeLost:    (propertyId, id, body)    => api.post(`/ops/lost-items/${id}/dispose`, withP(propertyId, body)),
+  tickets:        (propertyId, params = {}) => api.get(`/ops/tickets?propertyId=${propertyId}${qs(params)}`),
+  ticket:         (propertyId, id)          => api.get(`/ops/tickets/${id}?propertyId=${propertyId}`),
+  createTicket:   (propertyId, body)        => api.post('/ops/tickets', withP(propertyId, body)),
+  takeTicket:     (propertyId, id)          => api.post(`/ops/tickets/${id}/take`, withP(propertyId)),
+  updateTicket:   (propertyId, id, body)    => api.patch(`/ops/tickets/${id}`, withP(propertyId, body)),
+  resolveTicket:  (propertyId, id, note)    => api.post(`/ops/tickets/${id}/resolve`, withP(propertyId, { note })),
+  closeTicket:    (propertyId, id, note)    => api.post(`/ops/tickets/${id}/close`, withP(propertyId, { note })),
+  reopenTicket:   (propertyId, id, reason)  => api.post(`/ops/tickets/${id}/reopen`, withP(propertyId, { reason })),
+};
+
+// ── Finance: folio, charges, payments, refunds, credit notes, day close (FIN-01…04, 07, 12) ──
+export const finance = {
+  folios:      (propertyId, params = {}) => api.get(`/finance/folios?propertyId=${propertyId}${qs(params)}`),
+  stay:        (propertyId, resId)       => api.get(`/finance/stays/${resId}?propertyId=${propertyId}`),
+  charge:      (propertyId, folioId, body) => api.post(`/finance/folios/${folioId}/charges`, { ...body, propertyId }),
+  reverse:     (propertyId, folioId, lineId, reason) => api.post(`/finance/folios/${folioId}/lines/${lineId}/reverse`, { propertyId, reason }),
+  pay:         (propertyId, folioId, body) => api.post(`/finance/folios/${folioId}/payments`, { ...body, propertyId }),
+  refund:      (propertyId, folioId, lineId, body) => api.post(`/finance/folios/${folioId}/payments/${lineId}/refund`, { ...body, propertyId }),
+  creditNote:  (propertyId, invoiceId, body) => api.post(`/finance/invoices/${invoiceId}/credit-note`, { ...body, propertyId }),
+  dayClose:    (propertyId)              => api.get(`/finance/day-close?propertyId=${propertyId}`),
+  runDayClose: (propertyId, body)        => api.post('/finance/day-close/run', { ...body, propertyId }),
+};
+
+// ── Booking: availability & price, create booking/quote, list, stay file (INV-03, RSV-01…04) ──
+export const booking = {
+  availability: (propertyId, params)       => api.get(`/booking/availability?propertyId=${propertyId}${qs(params)}`),
+  create:       (propertyId, body)         => api.post('/booking/reservations', { ...body, propertyId }),
+  list:         (propertyId, params = {})  => api.get(`/booking/reservations?propertyId=${propertyId}${qs(params)}`),
+  get:          (propertyId, id)           => api.get(`/booking/reservations/${id}?propertyId=${propertyId}`),
+  cancel:       (propertyId, id, reason)   => api.post(`/booking/reservations/${id}/cancel`, { propertyId, reason }),
+  guests:       (propertyId, q)            => api.get(`/booking/guests?propertyId=${propertyId}${qs({ q })}`),
+  companies:    (propertyId, q)            => api.get(`/booking/companies?propertyId=${propertyId}${qs({ q })}`),
+  quoteSent:    (propertyId, id, channel)  => api.post(`/booking/quotes/${id}/sent`, { propertyId, channel }),
+  quoteClose:   (propertyId, id, reason)   => api.post(`/booking/quotes/${id}/close`, { propertyId, reason }),
+  quoteConvert: (propertyId, id, priceSignature) => api.post(`/booking/quotes/${id}/convert`, { propertyId, priceSignature }),
+  // The PMS API authenticates with a bearer token, so the printable quote is fetched and opened locally.
+  quotePreview: async (propertyId, id) => {
+    const token = getToken();
+    const res = await fetch(`${PMS_BASE}/booking/quotes/${id}/preview?propertyId=${propertyId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const html = await res.text();
+    if (!res.ok) throw new Error(html || `HTTP ${res.status}`);
+    return html;
+  },
+};
+
+// ── Stay changes: move, extend, early departure, booking change, cancellation (FD-09…11, RSV-05/06) ──
+export const stay = {
+  moveCandidates: (propertyId, id, unitId) => api.get(`/stay/${id}/move-candidates?propertyId=${propertyId}${qs({ unitId })}`),
+  move:           (propertyId, id, body)   => api.post(`/stay/${id}/move`, { ...body, propertyId }),
+  extension:      (propertyId, id, newDeparture) => api.get(`/stay/${id}/extension?propertyId=${propertyId}${qs({ newDeparture })}`),
+  extend:         (propertyId, id, body)   => api.post(`/stay/${id}/extend`, { ...body, propertyId }),
+  early:          (propertyId, id)         => api.get(`/stay/${id}/early-departure?propertyId=${propertyId}`),
+  modifyPreview:  (propertyId, id, changes) => api.post(`/stay/${id}/modification/preview`, { propertyId, changes }),
+  modify:         (propertyId, id, body)   => api.post(`/stay/${id}/modify`, { ...body, propertyId }),
+  cancelPreview:  (propertyId, id, body)   => api.post(`/stay/${id}/cancellation/preview`, { ...body, propertyId }),
+  cancel:         (propertyId, id, body)   => api.post(`/stay/${id}/cancel`, { ...body, propertyId }),
+};
+
+// ── Identity (ADM-06, SYS-04) ────────────────────────────────────────────────
+export const identity = {
+  users:      (propertyId, params = {}) => api.get(`/identity/users?propertyId=${propertyId}${qs(params)}`),
+  roles:      (propertyId)              => api.get(`/identity/roles?propertyId=${propertyId}`),
+  create:     (propertyId, body)        => api.post('/identity/users', { ...body, propertyId }),
+  update:     (propertyId, id, body)    => api.patch(`/identity/users/${id}`, { ...body, propertyId }),
+  deactivate: (propertyId, id, reason)  => api.post(`/identity/users/${id}/deactivate`, { propertyId, reason }),
+  reactivate: (propertyId, id)          => api.post(`/identity/users/${id}/reactivate`, { propertyId }),
+  setupLink:  (propertyId, id)          => api.post(`/identity/users/${id}/setup-link`, { propertyId }),
+  me:         ()                        => api.get('/identity/me'),
+  updateMe:   (body)                    => api.patch('/identity/me', body),
+  password:   (current, next)           => api.post('/identity/me/password', { current, next }),
+  logoutAll:  ()                        => api.post('/identity/me/logout-all', {}),
+};
+
+// ── Platform: policy (ADM-05), search (SYS-05), work items (SYS-06) ────────────
+export const platform = {
+  policy:        (propertyId)             => api.get(`/platform/policy?propertyId=${propertyId}`),
+  publishPolicy: (propertyId, body)       => api.put('/platform/policy', { ...body, propertyId }),
+  search:        (propertyId, q)          => api.get(`/platform/search?propertyId=${propertyId}${qs({ q })}`),
+  staff:         (propertyId)             => api.get(`/platform/staff?propertyId=${propertyId}`),
+  work:          (propertyId, params = {}) => api.get(`/platform/work?propertyId=${propertyId}${qs(params)}`),
+  createWork:    (propertyId, body)       => api.post('/platform/work', { ...body, propertyId }),
+  takeWork:      (propertyId, id)         => api.post(`/platform/work/${id}/take`, { propertyId }),
+  transferWork:  (propertyId, id, toUserId, note) => api.post(`/platform/work/${id}/transfer`, { propertyId, toUserId, note }),
+  closeWork:     (propertyId, id, resolution) => api.post(`/platform/work/${id}/close`, { propertyId, resolution }),
+  noteWork:      (propertyId, id, text)   => api.post(`/platform/work/${id}/note`, { propertyId, text }),
+};
+
+// ── Audit log (ADM-07) ────────────────────────────────────────────────────────
+export const audit = {
+  list:   (propertyId, params = {}) => api.get(`/audit-log?propertyId=${propertyId}${qs(params)}`),
+  get:    (id)                      => api.get(`/audit-log/${id}`),
+  // CSV is fetched with the bearer token and saved locally.
+  exportCsv: async (propertyId, params = {}) => {
+    const token = getToken();
+    const res = await fetch(`${PMS_BASE}/audit-log/export?propertyId=${propertyId}${qs(params)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+    return { blob: await res.blob(), name: (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'audit.csv' };
+  },
+};
+
+// ── Password recovery (SYS-02) — public ───────────────────────────────────────
+export const passwordRecovery = {
+  request: async (email) => {
+    const res = await fetch(`${AUTH_BASE}/auth/password/request`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) { const e = new Error(data.error || data.message || `HTTP ${res.status}`); e.fields = data.fields; throw e; }
+    return data.data;
+  },
+  reset: async (token, password) => {
+    const res = await fetch(`${AUTH_BASE}/auth/password/reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) { const e = new Error(data.error || data.message || `HTTP ${res.status}`); e.fields = data.fields; e.code = data.code; throw e; }
+    return data.data;
+  },
 };
 
 // ── Rooms ─────────────────────────────────────────────────────────────────────

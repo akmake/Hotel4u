@@ -1,6 +1,7 @@
 ﻿import InventoryDate from '../models/InventoryDate.js';
 import Room from '../models/Room.js';
 import Reservation from '../models/Reservation.js';
+import ReservationRoom from '../models/ReservationRoom.js';
 import InventoryLock from '../models/InventoryLock.js';
 import { audit } from './auditService.js';
 
@@ -43,9 +44,9 @@ async function getActiveLocksCountByDate({ propertyId, roomTypeId, dates, ignore
 }
 
 async function getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId }) {
+  // Any stay holding a room blocks it, whatever room type it was booked as (upgrades, moves).
   const query = {
     property: propertyId,
-    roomType: roomTypeId,
     assignedRoom: { $ne: null },
     status: { $nin: ['cancelled', 'no_show', 'checked_out'] },
     arrivalDate: { $lt: departureDate },
@@ -54,7 +55,22 @@ async function getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, departu
   if (excludeReservationId) query._id = { $ne: excludeReservationId };
 
   const conflicting = await Reservation.find(query).select('assignedRoom').lean();
-  return new Set(conflicting.map((r) => String(r.assignedRoom)).filter(Boolean));
+  const ids = new Set(conflicting.map((r) => String(r.assignedRoom)).filter(Boolean));
+  // Stay units hold rooms too (multi-room bookings, front-desk assignment).
+  const unitQuery = {
+    property: propertyId,
+    assignedRoom: { $ne: null },
+    status: { $in: ['reserved', 'tentative', 'checked_in', 'in_house'] },
+    arrivalDate: { $lt: departureDate },
+    departureDate: { $gt: arrivalDate },
+  };
+  if (excludeReservationId) unitQuery.reservation = { $ne: excludeReservationId };
+  const units = await ReservationRoom.find(unitQuery).select('assignedRoom reservation').populate('reservation', 'status').lean();
+  for (const u of units) {
+    if (['cancelled', 'no_show', 'checked_out'].includes(u.reservation?.status)) continue;
+    ids.add(String(u.assignedRoom));
+  }
+  return ids;
 }
 
 function isRoomSellableForArrival(room, arrivalDate) {
@@ -278,4 +294,30 @@ export async function incrementInventory(propertyId, roomTypeId, arrivalDate, de
       ip: auditContext.ip,
     }).catch(() => null);
   }
+}
+
+// INV-03: availability per night (never an average) plus the physical rooms free for the whole
+// stay. A night without an inventory row is reported as missing — it is not sellable.
+export async function nightlyAvailability({ propertyId, roomTypeId, arrivalDate, departureDate, ignoreIdempotencyKey = null, excludeReservationId = null }) {
+  const dates = getStayDates(arrivalDate, departureDate);
+  const invDocs = await InventoryDate.find({ property: propertyId, roomType: roomTypeId, date: { $in: dates } }).lean();
+  const invByDate = new Map(invDocs.map((d) => [d.date, d]));
+  const locks = await getActiveLocksCountByDate({ propertyId, roomTypeId, dates, ignoreIdempotencyKey });
+  const nights = dates.map((date) => {
+    const inv = invByDate.get(date);
+    if (!inv) return { date, available: null, missing: true };
+    return {
+      date,
+      available: Math.max(0, computeAvailableCount(inv, locks.get(date) || 0)),
+      stopSell: !!inv.stopSell,
+      closedToArrival: !!inv.closedToArrival,
+      closedToDeparture: !!inv.closedToDeparture,
+      minLos: inv.minLos || null,
+      maxLos: inv.maxLos || null,
+    };
+  });
+  const occupied = await getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId });
+  const candidates = await Room.find({ property: propertyId, roomType: roomTypeId, active: true, opsStatus: { $in: ['available', 'out_of_service'] } }).lean();
+  const freeRooms = candidates.filter((r) => !occupied.has(String(r._id)) && isRoomSellableForArrival(r, arrivalDate)).length;
+  return { nights, freeRooms };
 }

@@ -207,7 +207,7 @@ router.post('/:id/credit-note', asyncHandler(async (req, res) => {
   const creditNote = await issueCreditNote({
     originalInvoiceId: req.params.id,
     creditAmount:      creditAmount != null ? Number(creditAmount) : undefined,
-    reason:            reason || 'ביטול / זיכוי',
+    reason,
     issuedBy:          req.actor?.id,
   });
 

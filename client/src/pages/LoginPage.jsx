@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Hotel, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
@@ -154,7 +154,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-xs text-ink-muted mt-5">
-            שכחת סיסמה? מנהל המערכת יכול לאפס אותה עבורך.
+            שכחת סיסמה? <Link to="/reset-password" className="underline">שחזור גישה</Link>
           </p>
 
           {DEMO_USERS.length > 0 && (

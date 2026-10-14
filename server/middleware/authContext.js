@@ -1,4 +1,6 @@
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import User from '../models/User.js';
 
 const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
 
@@ -16,25 +18,35 @@ function safeVerifyToken(token) {
   }
 }
 
-export function attachActor(req, _res, next) {
-  const authHeader = req.headers.authorization || '';
-  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  const payload = safeVerifyToken(bearer);
-
-  if (payload) {
-    req.actor = {
-      id: payload.id || null,
-      firstName: payload.firstName || '',
-      lastName: payload.lastName || '',
-      name: `${payload.firstName || ''} ${payload.lastName || ''}`.trim() || 'unknown',
-      email: payload.email || null,
-      role: payload.role || null,
-      propertyId: payload.propertyId || null,
-    };
-  } else {
+// The bearer token only says who claims to be calling. On every request the user is re-read: a
+// deactivated user, an expired access window, or a token issued before "log out everywhere" /
+// a password change (tokenVersion) is rejected; role and property come from the database, so a
+// role change applies immediately instead of when the token expires.
+export async function attachActor(req, _res, next) {
+  req.actor = null;
+  try {
+    const authHeader = req.headers.authorization || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const payload = safeVerifyToken(bearer);
+    if (payload?.id && mongoose.isValidObjectId(String(payload.id))) {
+      const user = await User.findById(payload.id).select('firstName lastName email role property active tokenVersion accessUntil').lean();
+      const tokenVersion = Number(payload.tv || 0);
+      const expired = user?.accessUntil && new Date(user.accessUntil) < new Date();
+      if (user && user.active !== false && !expired && tokenVersion === Number(user.tokenVersion || 0)) {
+        req.actor = {
+          id: String(user._id),
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'unknown',
+          email: user.email || null,
+          role: user.role || null,
+          propertyId: user.property ? String(user.property) : null,
+        };
+      }
+    }
+  } catch {
     req.actor = null;
   }
-
   next();
 }
 

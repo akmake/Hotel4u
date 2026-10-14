@@ -26,9 +26,11 @@ const ReservationSchema = new Schema({
   // Dates
   arrivalDate:       { type: String, required: true },    // 'YYYY-MM-DD'
   departureDate:     { type: String, required: true },
+  originalDepartureDate: String,                          // set when the stay ended early (FD-08/FD-11)
   nights:            { type: Number, required: true },
   roomsCount:        { type: Number, default: 1 },
   eta:               { type: String, match: /^([01]\d|2[0-3]):[0-5]\d$/ }, // expected arrival HH:MM (property local); not actual arrival
+  etd:               { type: String, match: /^([01]\d|2[0-3]):[0-5]\d$/ }, // expected departure HH:MM; not actual departure
 
   // Booking details
   source:            { type: String, enum: SOURCE, default: 'direct' },
@@ -54,6 +56,50 @@ const ReservationSchema = new Schema({
   quoteExpiresAt:    Date,
   holdExpiresAt:     Date,
   holdReleasedAt:    Date,
+  // RSV-02/INV-03: the price and terms the guest agreed to, frozen at booking time — later rate or
+  // policy changes never rewrite them silently (T24).
+  priceSnapshot: {
+    ratePlanCode: String,
+    ratePlanName: String,
+    nightly:      [{ date: String, price: Number }],     // gross per room per night
+    total:        Number,                               // gross for all rooms and nights
+    vatRate:      Number,
+    refundable:   Boolean,
+    computedAt:   Date,
+    override:     { by: String, reason: String },      // manual price, manager only
+  },
+  // RSV-04: a documented offer that is not a booking until converted.
+  quote: {
+    version:    Number,
+    validUntil: Date,
+    language:   String,
+    channel:    { type: String, enum: ['email', 'link', 'print'] },
+    sentAt:     Date,
+    sentBy:     String,
+    lostReason: String,
+    closedAt:   Date,
+    convertedAt:Date,
+  },
+  // RSV-02-F09/F10: who booked and who pays may differ from the guest.
+  booker: { name: String, phone: String, email: String },
+  payerType: { type: String, enum: ['guest', 'company', 'booker'], default: 'guest' },
+  childAges: [Number],                                  // RSV-02-F05, for child pricing/occupancy
+  // RSV-06: the cancellation notice as received and the proposal it produced. Receiving the notice,
+  // releasing stock, a credit note and a refund are separate steps; no fee is charged automatically (G06).
+  cancellation: {
+    receivedAt:    Date,                                  // when the guest's notice arrived (not when handled)
+    channel:       { type: String, enum: ['phone', 'web', 'desk', 'ota', 'company', 'email', 'other'] },
+    transactionAt: Date,
+    disclosureAt:  Date,
+    priorCall:     Boolean,
+    track:         { type: String, enum: ['regular', 'protected', 'contractual', 'review'] },
+    reason:        { type: String, enum: ['regret', 'service_failure', 'other'] },
+    note:          String,
+    proposal:      Schema.Types.Mixed,                     // what the rules suggested, with sources
+    decidedBy:     String,
+  },
+  // RSV-05 / FD-10: last change reason and the guest's confirmation reference.
+  lastChange: { at: Date, by: String, reason: String, confirmationRef: String, kind: String },
 
   // Relations
   company:           { type: Schema.Types.ObjectId, ref: 'Company' },

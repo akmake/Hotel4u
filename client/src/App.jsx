@@ -8,6 +8,7 @@ import PushNotificationManager from './components/PushNotificationManager';
 
 // ── Public pages ──────────────────────────────────────────────────────────────
 import LoginPage from './pages/LoginPage';
+const ResetPasswordPage = lazy(() => import('./pages/sys/ResetPasswordPage'));
 const QuotePage = lazy(() => import('./pages/QuotePage'));
 const OrderConfirmationPage = lazy(() => import('./pages/OrderConfirmationPage'));
 
@@ -54,27 +55,38 @@ const SalesPerformancePage     = lazy(() => import('./pages/admin/SalesPerforman
 const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
 const TapeChartPage        = lazy(() => import('./pages/TapeChartPage'));
 const RoomRackPage         = lazy(() => import('./pages/RoomRackPage'));
-const ReservationsPage     = lazy(() => import('./pages/ReservationsPage'));
-const NewReservationPage   = lazy(() => import('./pages/NewReservationPage'));
+const ReservationsPage     = lazy(() => import('./pages/rsv/ReservationsListPage'));
+const NewReservationPage   = lazy(() => import('./pages/rsv/BookingWizardPage'));
+const ReservationPage      = lazy(() => import('./pages/rsv/ReservationPage'));
 const ArrivalsPage         = lazy(() => import('./pages/ArrivalsPage'));
 const ArrivalQueuePage     = lazy(() => import('./pages/ArrivalQueuePage'));
-const CheckOutPage         = lazy(() => import('./pages/CheckOutPage'));
+const InHousePage          = lazy(() => import('./pages/InHousePage'));
+const DeparturesPage       = lazy(() => import('./pages/DeparturesPage'));
 const RoomsPage            = lazy(() => import('./pages/RoomsPage'));
-const HousekeepingPage     = lazy(() => import('./pages/HousekeepingPage'));
-const MaintenancePage      = lazy(() => import('./pages/MaintenancePage'));
+const HousekeepingBoardPage = lazy(() => import('./pages/ops/HousekeepingBoardPage'));
+const MyTasksPage          = lazy(() => import('./pages/ops/MyTasksPage'));
+const InspectionPage       = lazy(() => import('./pages/ops/InspectionPage'));
+const OpsRoomStatusPage    = lazy(() => import('./pages/ops/RoomStatusPage'));
+const LostFoundPage        = lazy(() => import('./pages/ops/LostFoundPage'));
+const MaintenancePage      = lazy(() => import('./pages/ops/MaintenancePage'));
 const GuestsPage           = lazy(() => import('./pages/GuestsPage'));
-const FolioPage            = lazy(() => import('./pages/FolioPage'));
+const FolioPage            = lazy(() => import('./pages/fin/FolioPage'));
 const CompaniesPage        = lazy(() => import('./pages/CompaniesPage'));
 const LeadInboxPage        = lazy(() => import('./pages/LeadInboxPage'));
 const OpportunityBoardPage = lazy(() => import('./pages/OpportunityBoardPage'));
 const ReportsPage          = lazy(() => import('./pages/ReportsPage'));
 const InvoicesPage         = lazy(() => import('./pages/InvoicesPage'));
-const NightAuditPage       = lazy(() => import('./pages/NightAuditPage'));
+const DayClosePage         = lazy(() => import('./pages/fin/DayClosePage'));
 const BulkJobsPage              = lazy(() => import('./pages/BulkJobsPage'));
 const RatesPage                 = lazy(() => import('./pages/RatesPage'));
 const AutomationRulesPage       = lazy(() => import('./pages/AutomationRulesPage'));
 const ChannelManagerPage        = lazy(() => import('./pages/ChannelManagerPage'));
 const SettingsPage              = lazy(() => import('./pages/SettingsPage'));
+const UsersAdminPage            = lazy(() => import('./pages/sys/UsersAdminPage'));
+const PolicyPage                = lazy(() => import('./pages/sys/PolicyPage'));
+const AuditPage                 = lazy(() => import('./pages/sys/AuditPage'));
+const ProfilePage               = lazy(() => import('./pages/sys/ProfilePage'));
+const WorkCenterPage            = lazy(() => import('./pages/sys/WorkCenterPage'));
 
 function PageLoader() {
   return (
@@ -93,20 +105,29 @@ function AuthGate({ children }) {
   return children;
 }
 
-// Roles that can only access specific PMS pages
-const PMS_ROLE_REDIRECT = {
-  maintenance: '/pms/maintenance',
-  housekeeper: '/pms/housekeeping',
+// Roles that can only access specific PMS sections (first entry is their home).
+const PMS_ROLE_SECTIONS = {
+  maintenance: ['/pms/maintenance', '/pms/work', '/pms/me'],
+  technician:  ['/pms/maintenance', '/pms/housekeeping/rooms', '/pms/work', '/pms/me'],
+  housekeeper: ['/pms/housekeeping', '/pms/work', '/pms/me'],
 };
 
 function PmsRoleGuard() {
   const { user } = useAuthStore();
   const { pathname } = useLocation();
-  const redirectTo = user?.role ? PMS_ROLE_REDIRECT[user.role] : undefined;
-  if (redirectTo && !pathname.startsWith(redirectTo)) {
-    return <Navigate to={redirectTo} replace />;
+  const allowed = user?.role ? PMS_ROLE_SECTIONS[user.role] : undefined;
+  if (allowed && !allowed.some((p) => pathname.startsWith(p))) {
+    return <Navigate to={allowed[0]} replace />;
   }
   return <Outlet />;
+}
+
+// /pms/housekeeping lands each role on the view it works in (OPS-01 is for supervisors/desk).
+function HousekeepingHome() {
+  const role = useAuthStore((s) => s.user?.role);
+  if (role === 'housekeeper') return <Navigate to="/pms/housekeeping/my" replace />;
+  if (['technician', 'maintenance_manager'].includes(role)) return <Navigate to="/pms/housekeeping/rooms" replace />;
+  return <HousekeepingBoardPage />;
 }
 
 export default function App() {
@@ -134,6 +155,7 @@ export default function App() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/quote/:orderId" element={<QuotePage />} />
 
           {/* Protected — all inside AppShell */}
@@ -186,12 +208,19 @@ export default function App() {
               <Route path="room-rack"         element={<RoomRackPage />} />
               <Route path="reservations"      element={<ReservationsPage />} />
               <Route path="reservations/new"  element={<NewReservationPage />} />
+              <Route path="reservations/:id"  element={<ReservationPage />} />
               <Route path="arrivals"          element={<ArrivalsPage />} />
               <Route path="arrival-queue"     element={<ArrivalQueuePage />} />
               <Route path="check-in"          element={<Navigate to="/pms/arrivals" replace />} />
-              <Route path="check-out"         element={<CheckOutPage />} />
+              <Route path="in-house"          element={<InHousePage />} />
+              <Route path="departures"        element={<DeparturesPage />} />
+              <Route path="check-out"         element={<Navigate to="/pms/departures" replace />} />
               <Route path="rooms"             element={<RoomsPage />} />
-              <Route path="housekeeping"      element={<HousekeepingPage />} />
+              <Route path="housekeeping"      element={<HousekeepingHome />} />
+              <Route path="housekeeping/my"   element={<MyTasksPage />} />
+              <Route path="housekeeping/inspection" element={<InspectionPage />} />
+              <Route path="housekeeping/rooms" element={<OpsRoomStatusPage />} />
+              <Route path="housekeeping/lost-found" element={<LostFoundPage />} />
               <Route path="maintenance"       element={<MaintenancePage />} />
               <Route path="guests"            element={<GuestsPage />} />
               <Route path="folio"             element={<FolioPage />} />
@@ -200,12 +229,17 @@ export default function App() {
               <Route path="leads"             element={<LeadInboxPage />} />
               <Route path="opportunities"     element={<OpportunityBoardPage />} />
               <Route path="reports"           element={<ReportsPage />} />
-              <Route path="night-audit"       element={<NightAuditPage />} />
+              <Route path="night-audit"       element={<DayClosePage />} />
               <Route path="bulk-jobs"         element={<BulkJobsPage />} />
               <Route path="rates"             element={<RatesPage />} />
               <Route path="automation"        element={<AutomationRulesPage />} />
               <Route path="channel-manager"   element={<ChannelManagerPage />} />
               <Route path="settings"          element={<SettingsPage />} />
+              <Route path="admin/users"       element={<UsersAdminPage />} />
+              <Route path="admin/policy"      element={<PolicyPage />} />
+              <Route path="admin/audit"       element={<AuditPage />} />
+              <Route path="me"                element={<ProfilePage />} />
+              <Route path="work"              element={<WorkCenterPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

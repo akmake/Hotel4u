@@ -121,6 +121,14 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // POST /api/payments
+// Writes that post folio lines bypassed every money gate (balance cap, cash policy, catalogue,
+// refund caps). They are closed; payments and refunds are recorded on /api/pms/finance (FIN-03/04).
+// A live payment provider (authorize/capture/webhook) is gate G10 and does not exist yet.
+const goneMsg = 'הפעולה הוחלפה: תשלום והחזר נרשמים במסך החשבון (FIN-03/FIN-04). ספק סליקה חי טרם חובר (שער G10).';
+for (const path of ['/', '/:id/refund', '/:id/void']) {
+  router.post(path, (req, res) => res.status(410).json({ success: false, error: goneMsg }));
+}
+
 router.post('/', asyncHandler(async (req, res) => {
   requireRoles(req, PAYMENT_WRITE_ROLES);
 

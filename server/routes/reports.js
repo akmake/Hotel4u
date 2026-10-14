@@ -11,10 +11,10 @@ import HousekeepingTask from '../models/HousekeepingTask.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import Invoice from '../models/Invoice.js';
 import GuestRegistrationCard from '../models/GuestRegistrationCard.js';
+import Property from '../models/Property.js';
 
 const router = Router();
 const REPORT_VIEW_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'finance_manager', 'cashier', 'revenue_manager', 'auditor', 'owner_readonly'];
-const REPORT_NIGHT_AUDIT_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'finance_manager'];
 
 router.use((req, _res, next) => {
   requireRoles(req, REPORT_VIEW_ROLES, 'Reports access denied');
@@ -222,92 +222,11 @@ router.get('/night-audit-preview', asyncHandler(async (req, res) => {
   });
 }));
 
-// POST /api/reports/night-audit
-// Runs the night audit: posts room charges + marks no-shows
-router.post('/night-audit', asyncHandler(async (req, res) => {
-  requireRoles(req, REPORT_NIGHT_AUDIT_ROLES, 'Night audit requires manager permissions');
-  const { propertyId, date, markNoShows = false } = req.body;
-  assertPropertyScope(req, propertyId);
-  const auditDate = date || new Date().toISOString().split('T')[0];
-
-  // Idempotency — refuse if already ran for this date
-  const alreadyRan = await AuditLog.findOne({
-    property: propertyId,
-    action: 'night_audit.completed',
-    'after.date': auditDate,
-  }).lean();
-  if (alreadyRan) {
-    return res.status(409).json({
-      success: false,
-      error: `Night Audit ל-${auditDate} כבר הורץ ב-${new Date(alreadyRan.createdAt).toLocaleString('he-IL')}`,
-    });
-  }
-
-  const inHouse = await Reservation.find({
-    property: propertyId,
-    status: { $in: ['in_house', 'checked_in'] },
-  }).lean();
-
-  let chargesPosted = 0;
-  const errors = [];
-
-  for (const reservation of inHouse) {
-    try {
-      const folio = await Folio.findOne({ reservation: reservation._id, status: 'open' });
-      if (!folio) continue;
-      folio.lines.push({
-        type: 'charge',
-        description: 'לינה — Night Audit',
-        amount: reservation.ratePerNight || 0,
-        taxAmount: 0,
-        department: 'room',
-        serviceDate: auditDate,
-        source: 'night_audit',
-        status: 'posted',
-      });
-      await folio.save();
-      chargesPosted++;
-    } catch (e) {
-      errors.push({ reservationId: String(reservation._id), error: e.message });
-    }
-  }
-
-  // Mark no-shows
-  let noShowsMarked = 0;
-  if (markNoShows) {
-    const confirmed = await Reservation.find({
-      property: propertyId,
-      arrivalDate: auditDate,
-      status: 'confirmed',
-    });
-    for (const r of confirmed) {
-      r.status = 'no_show';
-      await r.save();
-      noShowsMarked++;
-    }
-  }
-
-  // Save audit trail
-  await audit({
-    property: propertyId,
-    action: 'night_audit.completed',
-    entityType: 'Property',
-    entityId: propertyId,
-    after: { date: auditDate, chargesPosted, noShowsMarked, errors: errors.length },
-    ip: req.ip,
-  }).catch(() => null);
-
-  res.json({
-    success: true,
-    data: {
-      date: auditDate,
-      chargesPosted,
-      noShowsMarked,
-      errors,
-      message: `Night Audit הושלם — ${chargesPosted} חיובי לינה, ${noShowsMarked} No Show`,
-    },
-  });
-}));
+// POST /api/reports/night-audit — moved to /api/pms/finance/day-close (FIN-12): one run per
+// business day, readiness decisions, resumable steps. This old entry point no longer writes.
+router.post('/night-audit', (req, res) => {
+  res.status(410).json({ success: false, error: 'הנתיב הוחלף — סגירת יום ב־/api/pms/finance/day-close', code: 'moved_to_finance' });
+});
 
 // GET /api/reports/night-audit-history?propertyId=&limit=30
 router.get('/night-audit-history', asyncHandler(async (req, res) => {
@@ -1288,6 +1207,7 @@ router.get('/tourist-registry', asyncHandler(async (req, res) => {
   // אורחים שהגיעו ביום הנבחר OR שוהים עדיין (arrivalDate <= date < departureDate)
   const cards = await GuestRegistrationCard.find({
     property: propertyId,
+    supersededBy: { $exists: false }, // the register lists the current card per guest/stay only
     $or: [
       { arrivalDate: date },                            // הגיעו היום
       { arrivalDate: { $lte: date }, departureDate: { $gt: date } }, // שוהים עדיין

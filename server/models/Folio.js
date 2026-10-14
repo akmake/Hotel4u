@@ -19,6 +19,15 @@ const FolioLineSchema = new Schema({
   createdBy:   { type: Schema.Types.ObjectId, ref: 'User' },
   voidedAt:    Date,
   voidReason:  String,
+  // FIN-02 / FIN-04 links: a reversal points at the charge it cancels, a refund at the payment it
+  // returns. Lines are never deleted — corrections are new lines.
+  reversalOf:  { type: Schema.Types.ObjectId },
+  refundOf:    { type: Schema.Types.ObjectId },
+  quantity:    Number,
+  unitPrice:   Number,                                     // gross per unit as entered
+  method:      String,                                     // payment/refund method
+  methodRef:   String,                                     // transfer / cheque / voucher reference
+  reason:      String,
 }, { _id: true });
 
 const FolioSchema = new Schema({
@@ -31,6 +40,16 @@ const FolioSchema = new Schema({
   lines:       [FolioLineSchema],
   closedAt:    Date,
   closedBy:    { type: Schema.Types.ObjectId, ref: 'User' },
+  // How a balance was left at departure (FD-08-F04). A folio that still owes money stays open:
+  // paid → closed; company_ar → receivable of the paying company; approved_open → manager exception.
+  settlement: {
+    mode:       { type: String, enum: ['paid', 'company_ar', 'approved_open'] },
+    balance:    Number,
+    reason:     String,
+    approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    approvedByName: String,
+    at:         Date,
+  },
 }, { timestamps: true, toJSON: { virtuals: true } });
 
 FolioSchema.virtual('balance').get(function () {

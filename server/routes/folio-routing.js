@@ -122,77 +122,9 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 
 // ── POST /api/folio-routing/apply — apply routing rules to a charge
 // Called internally when adding a charge, routes it to the correct folio per active rules
-router.post('/apply', asyncHandler(async (req, res) => {
-  requireRoles(req, MANAGER_ROLES, 'Applying routing requires finance permissions');
-  const { propertyId, reservationId, department, chargeType = 'charge', serviceDate, amount, taxAmount, description } = req.body;
-  assertPropertyScope(req, propertyId);
+// Posting lines here bypassed the finance gates. Routing of charges between payers is FIN-05
+// (slice 11) and will post through the finance service.
+router.post('/apply', (req, res) => res.status(410).json({ success: false, error: 'הפעולה הוחלפה: ניתוב חיובים ייבנה במסך המשלמים (FIN-05)' }));
 
-  const rules = await FolioRoutingRule.find({
-    reservation: reservationId,
-    active: true,
-  }).sort({ createdAt: 1 });
-
-  const guestFolio = await Folio.findOne({ reservation: reservationId, ownerType: 'guest', status: 'open' });
-  if (!guestFolio) return res.status(404).json({ success: false, error: 'Guest folio not found' });
-
-  let remainingPct = 100;
-  const posted = [];
-
-  for (const rule of rules) {
-    // Match department
-    if (rule.departments.length > 0 && !rule.departments.includes(department)) continue;
-    // Match charge type
-    if (rule.chargeTypes.length > 0 && !rule.chargeTypes.includes(chargeType)) continue;
-    // Match date range
-    if (rule.fromDate && serviceDate && serviceDate < rule.fromDate) continue;
-    if (rule.toDate   && serviceDate && serviceDate > rule.toDate)   continue;
-    // Match remaining percentage
-    if (remainingPct <= 0) break;
-
-    const pct = Math.min(rule.percentage, remainingPct);
-    const routedAmount = Math.round(amount * pct) / 100;
-    const routedTax    = Math.round((taxAmount || 0) * pct) / 100;
-
-    const targetFolio = rule.targetFolioId
-      ? await Folio.findById(rule.targetFolioId)
-      : null;
-
-    if (targetFolio && targetFolio.status === 'open') {
-      targetFolio.lines.push({
-        type: chargeType,
-        description: `[Routing ${pct}%] ${description}`,
-        amount: routedAmount,
-        taxAmount: routedTax,
-        department,
-        serviceDate,
-        source: 'routing',
-        status: 'posted',
-      });
-      await targetFolio.save();
-      posted.push({ folioId: targetFolio._id, ownerType: rule.targetOwnerType, amount: routedAmount });
-      remainingPct -= pct;
-    }
-  }
-
-  // Post remaining percentage to guest folio
-  if (remainingPct > 0) {
-    const guestAmount = Math.round(amount * remainingPct) / 100;
-    const guestTax    = Math.round((taxAmount || 0) * remainingPct) / 100;
-    guestFolio.lines.push({
-      type: chargeType,
-      description,
-      amount: guestAmount,
-      taxAmount: guestTax,
-      department,
-      serviceDate,
-      source: 'routing',
-      status: 'posted',
-    });
-    await guestFolio.save();
-    posted.push({ folioId: guestFolio._id, ownerType: 'guest', amount: guestAmount });
-  }
-
-  res.json({ success: true, data: { applied: posted } });
-}));
 
 export default router;

@@ -13,10 +13,14 @@ export const requireAuth = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    const user = await User.findById(decoded.id).select('-passwordHash');
+    const user = await User.findById(decoded.id).select('-passwordHash -totpSecret');
     
     if (!user) {
       return res.status(401).json({ message: 'משתמש לא נמצא' });
+    }
+    // A deactivated account or an expired access window ends the cookie session too (ADM-06).
+    if (user.active === false || (user.accessUntil && user.accessUntil < new Date())) {
+      return res.status(401).json({ message: 'המשתמש הושבת או שתוקף הגישה הסתיים' });
     }
 
     // בדיקת שעת ניתוק כפוי (לא חלה על מנהלים)

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { frontdesk } from '../../utils/api';
 import { QUEUE_REASON_LABELS } from '../../lib/labels';
 import { roleLabel } from '../../lib/labels';
-import { Modal, Field, Spinner, ErrorBanner } from './ui';
+import { Modal, Field, Spinner, ErrorBanner } from '../kit';
 
 // Suggest the delay reason from the server's readiness reasons.
 function suggestReason(row) {
@@ -69,7 +69,7 @@ export default function QueueDialog({ open, propertyId, row, currentUser, isMana
       subtitle={`${row?.confirmationNumber || ''}${row?.room ? ` · חדר ${row.room.number}` : ' · ללא שיבוץ'} · שעת ההגעה תירשם עכשיו`}
       footer={(
         <>
-          {missing && <span className="fd-foot-note">{missing}</span>}
+          {missing && <span className="ui-foot-note">{missing}</span>}
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>ביטול</button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={!!missing || saving}>
             {saving ? <><Spinner /> שומר…</> : 'הוספה לתור'}
@@ -78,7 +78,7 @@ export default function QueueDialog({ open, propertyId, row, currentUser, isMana
       )}
     >
       <ErrorBanner error={error} />
-      <div className="fd-grid-2">
+      <div className="ui-grid-2">
         <Field id="q-reason" label="סיבת עיכוב" required error={fields.reason}>
           <select id="q-reason" className="select w-full" value={form.reason || ''} onChange={set('reason')}>
             <option value="">בחירה…</option>

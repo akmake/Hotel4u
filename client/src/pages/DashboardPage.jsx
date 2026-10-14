@@ -122,7 +122,7 @@ const ALERT_KINDS = [
   { prefix: 'dirty',    label: 'חדרים לא מוכנים',      unit: 'חדרים',  route: '/pms/housekeeping' },
   { prefix: 'maint',    label: 'תקלה קריטית בחדר',     unit: 'קריאות', route: '/pms/maintenance' },
   { prefix: 'pendpay',  label: 'תשלום ממתין להגעה',    unit: 'הזמנות', route: '/pms/reservations' },
-  { prefix: 'balance',  label: 'יתרה פתוחה ביציאה',    unit: 'הזמנות', route: '/pms/check-out' },
+  { prefix: 'balance',  label: 'יתרה פתוחה ביציאה',    unit: 'הזמנות', route: '/pms/departures' },
   { prefix: 'failpay',  label: 'תשלומים שנכשלו',       unit: 'תשלומים', route: '/pms/folio' },
   { prefix: 'channel',  label: 'סנכרון ערוצי הפצה',    unit: 'עדכונים', route: '/pms/channel-manager' },
 ];
@@ -353,7 +353,7 @@ export default function DashboardPage() {
               {checkedIn} / {counts.arrivals}
               <span className="muted">נכנסו</span>
             </Prop>
-            <Prop label="עזיבות" onClick={() => navigate('/pms/check-out')}>
+            <Prop label="עזיבות" onClick={() => navigate('/pms/departures')}>
               {checkedOut} / {counts.departures}
               <span className="muted">יצאו</span>
             </Prop>

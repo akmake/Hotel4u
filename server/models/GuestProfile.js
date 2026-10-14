@@ -90,7 +90,15 @@ const GuestProfileSchema = new Schema({
   cancellationCount: { type: Number, default: 0 },
   lastStay:       Date,
   isAnonymized:   { type: Boolean, default: false },
+  anonymizedAt:   Date,
   mergedInto:     { type: Schema.Types.ObjectId, ref: 'GuestProfile' },
+  mergedAt:       Date,
+  // GST-02: identity document — issuing country and who verified it (no copy is required).
+  idDocCountry:   String,
+  idVerifiedBy:   String,
+  idVerifiedAt:   Date,
+  residency:      String,                                  // residence ≠ citizenship ≠ tax status (G04)
+  marketingOptOutAt: Date,                                 // GST-04-A06: immediate, separate from service messages
 }, { timestamps: true });
 
 GuestProfileSchema.virtual('fullName').get(function () {

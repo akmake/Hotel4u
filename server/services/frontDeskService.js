@@ -16,13 +16,15 @@ import HousekeepingTask from '../models/HousekeepingTask.js';
 import ArrivalQueueEntry from '../models/ArrivalQueueEntry.js';
 import User from '../models/User.js';
 import { checkIn as checkInReservation, markNoShow } from './reservationService.js';
+import { fireEvent } from './automationEngine.js';
 import { audit } from './auditService.js';
+import { withLocks } from './locks.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 
-export const MANAGER_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
+export const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 
 const ARRIVING_STATUSES = ['confirmed', 'modified', 'pending_payment', 'partially_checked_in'];
-const IN_HOUSE_STATUSES = ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'];
+export const IN_HOUSE_STATUSES = ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'];
 // Reservation statuses that hold a room for their date range.
 const HOLDING_STATUSES = ['hold', 'pending_payment', 'confirmed', 'modified', 'in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'];
 const UNIT_OPEN_STATUSES = ['reserved', 'tentative'];
@@ -38,10 +40,14 @@ export function httpError(message, status = 400, extra = {}) {
 }
 
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
+const QUEUE_OWNER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'housekeeping_manager', 'housekeeper'];
+
+// Locks moved to services/locks.js (shared with booking); re-exported for existing imports.
+export { withLocks };
 const idStr = (v) => (v ? String(v._id || v) : null);
 const nightsBetween = (a, b) => Math.max(0, Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000));
 
-function policyOf(property) {
+export function policyOf(property) {
   const p = property?.checkInPolicy || {};
   return {
     requireInspection: !!p.requireInspection,
@@ -49,6 +55,7 @@ function policyOf(property) {
     requireRegistration: p.requireRegistration !== false,
     requireSignature: !!p.requireSignature,
     termsVersion: p.termsVersion || 'he-1',
+    termsText: p.termsText || '',
   };
 }
 
@@ -67,17 +74,26 @@ export function businessDateOf(property) {
 // ── Stay units ──────────────────────────────────────────────────────────────
 // Reservations created through the API have ReservationRoom units; older/seeded ones do not.
 // Reads present such a reservation as one implicit unit; writes materialise it first.
-function implicitUnit(res) {
-  return {
+function unitStatusFor(resStatus) {
+  if (['cancelled', 'no_show', 'checked_out'].includes(resStatus)) return resStatus;
+  return IN_HOUSE_STATUSES.includes(resStatus) && resStatus !== 'partially_checked_in' ? 'in_house' : 'reserved';
+}
+
+// One implicit unit per booked room, in the same order ensureUnits will create them, so the
+// screen and the first write agree (unit index is the stable handle until ids exist).
+function implicitUnits(res) {
+  const count = Math.max(1, Number(res.roomsCount || 1));
+  return Array.from({ length: count }, (_, i) => ({
     _id: null,
     implicit: true,
+    index: i + 1,
     reservation: res._id,
     roomTypeBooked: res.roomType,
-    assignedRoom: res.assignedRoom || null,
+    assignedRoom: i === 0 ? (res.assignedRoom || null) : null,
     arrivalDate: res.arrivalDate,
     departureDate: res.departureDate,
-    status: IN_HOUSE_STATUSES.includes(res.status) && res.status !== 'partially_checked_in' ? 'in_house' : 'reserved',
-  };
+    status: unitStatusFor(res.status),
+  }));
 }
 
 export async function ensureUnits(reservation) {
@@ -94,7 +110,7 @@ export async function ensureUnits(reservation) {
     ratePlan: reservation.ratePlan || undefined,
     nightlyRate: Number(reservation.ratePerNight || 0),
     guests: [reservation.primaryGuest?._id || reservation.primaryGuest].filter(Boolean),
-    status: IN_HOUSE_STATUSES.includes(reservation.status) ? 'in_house' : 'reserved',
+    status: unitStatusFor(reservation.status),
   }));
   return ReservationRoom.insertMany(docs);
 }
@@ -107,7 +123,7 @@ function folioPaid(folio) {
     .reduce((s, l) => s + Number(l.amount || 0), 0);
 }
 
-function guaranteeState(res, folio) {
+export function guaranteeState(res, folio) {
   const paid = Math.max(folioPaid(folio), Number(res.depositPaid || 0));
   const type = res.guaranteeType || 'none';
   let ok = false;
@@ -139,7 +155,8 @@ function computeReadiness({ res, unit, room, guest, policy, businessDate, occupi
     reasons.push(reason('blacklisted', 'האורח מסומן ברשימה שחורה — נדרשת החלטת מנהל', 'blocked'));
   }
   if (res.arrivalDate > businessDate) {
-    reasons.push(reason('early', `הגעה מתוכננת ל־${res.arrivalDate} — כניסה מוקדמת דורשת אישור מנהל`, 'blocked'));
+    // Another day entirely: dates must change (RSV-05); not something an override should paper over.
+    reasons.push(reason('early', `ההזמנה מתחילה ב־${res.arrivalDate} — כדי להכניס היום יש לשנות את תאריכי ההזמנה`, 'blocked'));
   }
   if (!room) {
     reasons.push(reason('no_room', 'לא שובץ חדר', 'blocked', 'assign'));
@@ -157,7 +174,7 @@ function computeReadiness({ res, unit, room, guest, policy, businessDate, occupi
     }
     const ready = policy.requireInspection ? ['inspected'] : ['clean', 'inspected'];
     if (!ready.includes(room.cleanStatus)) {
-      const cleanLabel = { dirty: 'מלוכלך', pickup: 'ממתין לסידור', turndown_required: 'ממתין להכנת לילה', clean: 'נקי אך טרם נבדק' }[room.cleanStatus] || room.cleanStatus;
+      const cleanLabel = { dirty: 'מלוכלך', cleaning: 'בניקיון', pickup: 'ממתין לסידור', turndown_required: 'ממתין להכנת לילה', clean: 'נקי אך טרם נבדק' }[room.cleanStatus] || room.cleanStatus;
       reasons.push(reason(
         room.cleanStatus === 'clean' ? 'not_inspected' : 'room_dirty',
         `חדר ${room.number} ${cleanLabel}`,
@@ -176,10 +193,11 @@ function computeReadiness({ res, unit, room, guest, policy, businessDate, occupi
   return { state, reasons };
 }
 
-// Who physically occupies each room right now (an in-house stay that has not checked out).
-async function occupancyMap(propertyId, roomIds, excludeReservationIds = []) {
-  if (!roomIds.length) return new Map();
-  const exclude = excludeReservationIds.map(String);
+// Who physically occupies each room right now: room id → [{ resId, label }]. Unit records are the
+// truth for stays that have them; the reservation-level pointer only counts for stays without units.
+async function occupancyMap(propertyId, roomIds) {
+  const map = new Map();
+  if (!roomIds.length) return map;
   const [stays, units] = await Promise.all([
     Reservation.find({
       property: propertyId,
@@ -190,15 +208,26 @@ async function occupancyMap(propertyId, roomIds, excludeReservationIds = []) {
       property: propertyId,
       assignedRoom: { $in: roomIds },
       status: { $in: ['in_house', 'checked_in'] },
-    }).populate('reservation', 'confirmationNumber').lean(),
+    }).populate('reservation', 'confirmationNumber status').lean(),
   ]);
-  const map = new Map();
-  for (const s of stays) if (!exclude.includes(String(s._id))) map.set(String(s.assignedRoom), s.confirmationNumber);
+  const withUnits = new Set((await ReservationRoom.distinct('reservation', { reservation: { $in: stays.map((x) => x._id) } })).map(String));
+  const add = (roomId, resId, label) => {
+    const k = String(roomId);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push({ resId: String(resId), label });
+  };
+  for (const st of stays) if (!withUnits.has(String(st._id))) add(st.assignedRoom, st._id, st.confirmationNumber);
   for (const u of units) {
-    const resId = String(u.reservation?._id || u.reservation);
-    if (!exclude.includes(resId)) map.set(String(u.assignedRoom), u.reservation?.confirmationNumber || 'שהייה אחרת');
+    if (['checked_out', 'cancelled', 'no_show'].includes(u.reservation?.status)) continue;
+    add(u.assignedRoom, u.reservation?._id || u.reservation, u.reservation?.confirmationNumber || 'שהייה אחרת');
   }
   return map;
+}
+
+// The occupant of a room other than the given reservation, if any.
+function occupantOther(occ, roomId, resId) {
+  const list = occ.get(String(roomId)) || [];
+  return list.find((x) => x.resId !== String(resId))?.label || null;
 }
 
 // ── FD-02 arrivals ──────────────────────────────────────────────────────────
@@ -208,6 +237,7 @@ const SORTS = {
   room: (r) => r.room?.number || '~',
   confirmation: (r) => r.confirmationNumber,
 };
+const collate = (a, b) => String(a).localeCompare(String(b), 'he', { numeric: true, sensitivity: 'base' });
 
 export async function listArrivals({ propertyId, date, q, roomTypeId, assignment, readiness, includeCheckedIn, sort = 'eta', dir = 'asc', page = 1, pageSize = 50 }) {
   const property = await loadProperty(propertyId);
@@ -215,7 +245,9 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   const day = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? date : businessDate;
   const policy = policyOf(property);
 
-  const statuses = includeCheckedIn ? [...ARRIVING_STATUSES, ...IN_HOUSE_STATUSES] : ARRIVING_STATUSES;
+  // Entered stays are always loaded so the "checked in" count is right; they are hidden from the
+  // rows unless asked for.
+  const statuses = [...ARRIVING_STATUSES, ...IN_HOUSE_STATUSES, 'checked_out'];
   const filter = { property: propertyId, arrivalDate: day, status: { $in: [...new Set(statuses)] } };
   if (isId(roomTypeId)) filter.roomType = roomTypeId;
 
@@ -250,20 +282,20 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   const queueByUnit = new Map(queue.map((e) => [String(e.reservationRoom), e]));
   const queueByRes = new Map(queue.map((e) => [String(e.reservation), e]));
 
-  const allUnits = reservations.flatMap((r) => (unitsByRes.get(String(r._id)) || [implicitUnit(r)]).map((u) => ({ r, u })));
+  const allUnits = reservations.flatMap((r) => (unitsByRes.get(String(r._id)) || implicitUnits(r)).map((u) => ({ r, u })));
   const roomIds = [...new Set(allUnits.map(({ u }) => idStr(u.assignedRoom)).filter(Boolean))];
   const rooms = await Room.find({ _id: { $in: roomIds } }).select('number floor cleanStatus opsStatus occStatus roomType').lean();
   const roomById = new Map(rooms.map((x) => [String(x._id), x]));
-  const occ = await occupancyMap(propertyId, roomIds, resIds);
+  const occ = await occupancyMap(propertyId, roomIds);
 
   let rows = allUnits.map(({ r, u }, idx) => {
-    const list = unitsByRes.get(String(r._id)) || [u];
+    const list = unitsByRes.get(String(r._id)) || allUnits.filter((x) => x.r === r).map((x) => x.u);
     const room = roomById.get(idStr(u.assignedRoom)) || null;
     const guarantee = guaranteeState(r, folioByRes.get(String(r._id)));
     const q2 = u._id ? queueByUnit.get(String(u._id)) : queueByRes.get(String(r._id));
     const readinessResult = computeReadiness({
       res: r, unit: u, room, guest: r.primaryGuest, policy, businessDate,
-      occupiedBy: room ? occ.get(String(room._id)) : null, guarantee, queue: q2,
+      occupiedBy: room ? occupantOther(occ, room._id, r._id) : null, guarantee, queue: q2,
     });
     const g = r.primaryGuest || {};
     return {
@@ -301,6 +333,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   rows = rows.filter((r) => r.readiness.state !== 'closed');
   const counts = { all: rows.length, ready: 0, waiting: 0, queued: 0, blocked: 0, checked_in: 0 };
   for (const row of rows) counts[row.readiness.state] = (counts[row.readiness.state] || 0) + 1;
+  if (!includeCheckedIn) rows = rows.filter((r) => r.readiness.state !== 'checked_in');
 
   if (assignment === 'assigned') rows = rows.filter((r) => r.room);
   else if (assignment === 'unassigned') rows = rows.filter((r) => !r.room);
@@ -310,12 +343,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
 
   const key = SORTS[sort] || SORTS.eta;
   const sign = dir === 'desc' ? -1 : 1;
-  rows.sort((a, b) => {
-    const ka = key(a); const kb = key(b);
-    if (ka < kb) return -1 * sign;
-    if (ka > kb) return 1 * sign;
-    return a.key < b.key ? -1 : 1; // stable tie-break on a fixed id
-  });
+  rows.sort((a, b) => (collate(key(a), key(b)) * sign) || (a.key < b.key ? -1 : 1)); // tie-break on a fixed id
 
   const size = [25, 50, 100].includes(Number(pageSize)) ? Number(pageSize) : 50;
   const total = rows.length;
@@ -336,14 +364,15 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
 }
 
 // ── Shared loaders for writes ───────────────────────────────────────────────
-async function loadReservationInScope(reservationId, propertyId) {
+export async function loadReservationInScope(reservationId, propertyId) {
   if (!isId(String(reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
   const res = await Reservation.findById(reservationId)
-    .populate('primaryGuest', 'firstName lastName isBlacklisted blacklistReason dateOfBirth citizenship country passportNumber idDocType email phone marketingConsent')
+    .populate('primaryGuest', 'firstName lastName isBlacklisted blacklistReason dateOfBirth citizenship country email phone marketingConsent')
     .populate('roomType', 'name code')
     .populate('company', 'name');
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
-  if (String(res.property) !== String(propertyId)) throw httpError('ההזמנה אינה שייכת לנכס הפעיל', 403);
+  // Same answer as "not found": don't reveal that the id exists in another property.
+  if (String(res.property) !== String(propertyId)) throw httpError('ההזמנה לא נמצאה', 404);
   return res;
 }
 
@@ -351,7 +380,7 @@ async function unitReadiness(res, unit, property) {
   const policy = policyOf(property);
   const room = unit.assignedRoom ? await Room.findById(unit.assignedRoom).lean() : null;
   const [occ, folio, queue] = await Promise.all([
-    room ? occupancyMap(res.property, [room._id], [res._id]) : new Map(),
+    room ? occupancyMap(res.property, [room._id]) : new Map(),
     Folio.findOne({ reservation: res._id }).select('lines').lean(),
     unit._id ? ArrivalQueueEntry.findOne({ reservationRoom: unit._id, status: 'active' }).lean() : null,
   ]);
@@ -362,7 +391,7 @@ async function unitReadiness(res, unit, property) {
     queue,
     readiness: computeReadiness({
       res, unit, room, guest: res.primaryGuest, policy, businessDate: businessDateOf(property),
-      occupiedBy: room ? occ.get(String(room._id)) : null, guarantee, queue,
+      occupiedBy: room ? occupantOther(occ, room._id, res._id) : null, guarantee, queue,
     }),
   };
 }
@@ -372,7 +401,7 @@ export async function getCheckInContext({ propertyId, reservationId }) {
   const property = await loadProperty(propertyId);
   const res = await loadReservationInScope(reservationId, propertyId);
   const units = await ReservationRoom.find({ reservation: res._id }).populate('roomTypeBooked', 'name code').sort({ createdAt: 1, _id: 1 }).lean();
-  const list = units.length ? units : [implicitUnit(res.toObject())];
+  const list = units.length ? units : implicitUnits(res.toObject());
   const out = [];
   for (const [i, u] of list.entries()) {
     const { room, readiness, queue } = await unitReadiness(res, u, property);
@@ -439,6 +468,9 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
   const property = await loadProperty(propertyId);
   const policy = policyOf(property);
   const res = await loadReservationInScope(reservationId, propertyId);
+  if (![...ARRIVING_STATUSES, ...IN_HOUSE_STATUSES].includes(res.status)) {
+    throw httpError('רישום אורח נשמר רק להזמנה שמגיעה או שוהה', 409);
+  }
   const firstName = String(input.firstName || '').trim().slice(0, 200);
   const lastName = String(input.lastName || '').trim().slice(0, 200);
   const errors = {};
@@ -446,18 +478,35 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
   if (!lastName) errors.lastName = 'שם משפחה נדרש';
   if (!input.dateOfBirth || Number.isNaN(Date.parse(input.dateOfBirth))) errors.dateOfBirth = 'תאריך לידה נדרש';
   else if (Date.parse(input.dateOfBirth) > Date.now()) errors.dateOfBirth = 'תאריך לידה עתידי';
+  else if (Date.parse(input.dateOfBirth) < Date.parse('1900-01-01')) errors.dateOfBirth = 'תאריך לידה לא סביר';
+  if (input.idDocExpiry) {
+    if (Number.isNaN(Date.parse(input.idDocExpiry))) errors.idDocExpiry = 'תאריך לא תקין';
+    else if (Date.parse(input.idDocExpiry) < Date.parse(businessDateOf(property))) errors.idDocExpiry = 'תוקף המסמך פג';
+  }
   if (!/^[A-Za-z]{2}$/.test(String(input.nationality || ''))) errors.nationality = 'יש לבחור אזרחות';
   if (!['passport', 'id_card', 'drivers_license', 'other'].includes(input.idDocType)) errors.idDocType = 'יש לבחור סוג מסמך';
   const idDocNumber = String(input.idDocNumber || '').trim().slice(0, 40);
   if (!idDocNumber) errors.idDocNumber = 'מספר מסמך נדרש';
   if (input.idVerified !== true) errors.idVerified = 'יש לאשר שמסמך הזיהוי נבדק';
-  const signature = typeof input.signature === 'string' && input.signature.startsWith('data:image/png;base64,') ? input.signature : null;
-  if (policy.requireSignature && !signature) errors.signature = 'נדרשת חתימת האורח';
-  if (signature && signature.length > 400_000) errors.signature = 'קובץ החתימה גדול מדי';
+  // Only a real PNG data URL is accepted; anything else is an error, never silently dropped.
+  let signature = null;
+  if (input.signature !== undefined && input.signature !== null && input.signature !== '') {
+    const m = typeof input.signature === 'string' ? /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(input.signature) : null;
+    const bytes = m ? Buffer.from(m[1], 'base64') : null;
+    if (!bytes || bytes.length < 8 || bytes.readUInt32BE(0) !== 0x89504e47) errors.signature = 'קובץ החתימה אינו תקין';
+    else if (input.signature.length > 400_000) errors.signature = 'קובץ החתימה גדול מדי';
+    else signature = input.signature;
+  }
+  if (policy.requireSignature && !signature && !errors.signature) errors.signature = 'נדרשת חתימת האורח';
   if (Object.keys(errors).length) throw httpError('יש לתקן את שדות הרישום', 422, { fields: errors });
 
   const unitRoom = await ReservationRoom.findOne({ reservation: res._id }).sort({ createdAt: 1 }).populate('assignedRoom', 'number').lean();
   const roomNumber = unitRoom?.assignedRoom?.number || (res.assignedRoom ? (await Room.findById(res.assignedRoom).select('number').lean())?.number : undefined);
+
+  // A signature only counts as "signed" against an approved terms text; without one it is kept
+  // as evidence but the card stays pending.
+  const signedStatus = signature && policy.termsText ? 'signed' : 'pending';
+  const previous = await GuestRegistrationCard.find({ reservation: res._id, guest: res.primaryGuest._id, supersededBy: { $exists: false } }).select('_id').lean();
 
   const card = await GuestRegistrationCard.create({
     property: res.property,
@@ -473,7 +522,7 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
     idDocExpiry: input.idDocExpiry && !Number.isNaN(Date.parse(input.idDocExpiry)) ? new Date(input.idDocExpiry) : undefined,
     arrivalDate: res.arrivalDate,
     departureDate: res.departureDate,
-    status: signature ? 'signed' : 'pending',
+    status: signedStatus,
     signatureUrl: signature || undefined,
     signatureHash: signature ? crypto.createHash('sha256').update(signature).digest('hex') : undefined,
     signedAt: signature ? new Date() : undefined,
@@ -486,27 +535,45 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
     ipAddress: ip,
   });
 
+  // A correction replaces the earlier card: the register shows only the current one, the old one
+  // stays for the record (cards cannot be deleted).
+  if (previous.length) {
+    await GuestRegistrationCard.updateMany(
+      { _id: { $in: previous.map((x) => x._id) } },
+      { $set: { supersededBy: card._id, supersededAt: new Date() } },
+    );
+  }
+
   // Marketing consent is its own decision, never pre-checked and never implied by registration.
   if (input.marketingConsent === true && !res.primaryGuest.marketingConsent) {
+    const at = new Date();
     await GuestProfile.updateOne(
       { _id: res.primaryGuest._id },
-      { $set: { marketingConsent: true, marketingConsentAt: new Date(), marketingConsentIp: ip, marketingConsentFormVer: `registration:${policy.termsVersion}` } },
+      { $set: { marketingConsent: true, marketingConsentAt: at, marketingConsentIp: ip, marketingConsentFormVer: 'front_desk_marketing:v1' } },
     );
+    await audit({
+      property: res.property, actor: actor.id, actorName: actor.name,
+      action: 'guest.marketing_consent_granted', entityType: 'GuestProfile', entityId: res.primaryGuest._id,
+      after: { channel: 'front_desk', recordedBy: actor.name, formVersion: 'front_desk_marketing:v1', at }, ip,
+    });
   }
 
   // Never write the ID number or the signature image into the audit trail.
   await audit({
     property: res.property, actor: actor.id, actorName: actor.name,
     action: 'registration.saved', entityType: 'GuestRegistrationCard', entityId: card._id,
-    after: { reservation: String(res._id), status: card.status, idDocType: card.idDocType, termsVersion: card.termsVersion, signed: !!signature },
+    after: { reservation: String(res._id), status: card.status, idDocType: card.idDocType, termsVersion: card.termsVersion, signed: !!signature, supersedes: previous.map((x) => String(x._id)) },
     ip,
   });
 
-  return { id: String(card._id), status: card.status, signedAt: card.signedAt, idVerified: true, termsVersion: card.termsVersion };
+  return {
+    id: String(card._id), status: card.status, signedAt: card.signedAt, idVerified: true, termsVersion: card.termsVersion,
+    termsMissing: !policy.termsText,
+  };
 }
 
 // ── FD-03 complete check-in ─────────────────────────────────────────────────
-export async function completeCheckIn({ propertyId, reservationId, unitIds, guarantee, override, actor, ip }) {
+export async function completeCheckIn({ propertyId, reservationId, unitIds, unitIndexes, guarantee, override, actor, ip }) {
   const property = await loadProperty(propertyId);
   const policy = policyOf(property);
   const res = await loadReservationInScope(reservationId, propertyId);
@@ -517,29 +584,34 @@ export async function completeCheckIn({ propertyId, reservationId, unitIds, guar
   if (overrideOn && !isManager) throw httpError('חריג כניסה מותר רק למנהל משמרת ומעלה', 403);
   if (overrideOn && overrideReason.length < 3) throw httpError('חריג כניסה מחייב סיבה', 422, { fields: { overrideReason: 'יש לפרט סיבה' } });
 
-  // Guarantee is recorded on the reservation before entry, and validated server-side.
+  // The guarantee method is validated now and applied in memory so readiness sees it, but it is
+  // only persisted once every check passed — a refused check-in leaves no side effects.
+  let guaranteeChange = null;
   if (guarantee?.method) {
     if (!GUARANTEE_METHODS.includes(guarantee.method)) throw httpError('שיטת ערבות לא מוכרת', 422);
     if (guarantee.method === 'company_guarantee' && !res.company) {
       throw httpError('ערבות חברה דורשת חברה משויכת להזמנה', 422, { fields: { guarantee: 'אין חברה משויכת' } });
     }
+    // A self-declared card or voucher needs something checkable behind it.
+    const ref = String(guarantee.reference || '').trim();
+    if (['credit_card', 'voucher'].includes(guarantee.method) && ref.length < 4) {
+      throw httpError(guarantee.method === 'credit_card' ? 'יש לרשום 4 ספרות אחרונות או מספר אישור מהמסוף' : 'יש לרשום את מספר השובר', 422, { fields: { guaranteeReference: 'נדרשת אסמכתה' } });
+    }
     if (res.guaranteeType !== guarantee.method) {
-      const before = res.guaranteeType;
+      guaranteeChange = { before: res.guaranteeType, after: guarantee.method };
       res.guaranteeType = guarantee.method;
-      res.updatedBy = actor.id || undefined;
-      await res.save();
-      await audit({
-        property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.guarantee_set',
-        entityType: 'Reservation', entityId: res._id, before: { guaranteeType: before },
-        after: { guaranteeType: guarantee.method, reference: guarantee.reference ? String(guarantee.reference).slice(0, 80) : undefined }, ip,
-      });
     }
   }
 
+  return withLocks([`res:${res._id}`], () => checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, overrideOn, overrideReason, actor, ip }));
+}
+
+async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, overrideOn, overrideReason, actor, ip }) {
   const units = await ensureUnits(res);
-  const wanted = Array.isArray(unitIds) && unitIds.length
-    ? units.filter((u) => unitIds.map(String).includes(String(u._id)))
-    : (units.length === 1 ? units : []);
+  let wanted;
+  if (Array.isArray(unitIds) && unitIds.filter(Boolean).length) wanted = units.filter((u) => unitIds.map(String).includes(String(u._id)));
+  else if (Array.isArray(unitIndexes) && unitIndexes.length) wanted = unitIndexes.map((i) => units[Number(i) - 1]).filter(Boolean);
+  else wanted = units.length === 1 ? units : [];
   if (!wanted.length) throw httpError('יש לבחור לפחות יחידת שהייה אחת לכניסה', 422);
 
   // Re-check every selected unit now; a room blocked or taken since the wizard opened fails here.
@@ -548,56 +620,84 @@ export async function completeCheckIn({ propertyId, reservationId, unitIds, guar
   for (const u of wanted) {
     const { readiness } = await unitReadiness(res, u.toObject(), property);
     if (readiness.state === 'checked_in') { failures.push({ unitId: String(u._id), reasons: [reason('already_in', 'היחידה כבר נכנסה', 'blocked')] }); continue; }
-    const hard = readiness.reasons.filter((r) => r.severity === 'blocked' && r.code !== 'early');
-    const early = readiness.reasons.find((r) => r.code === 'early');
+    const hard = readiness.reasons.filter((r) => r.severity === 'blocked');
     const soft = readiness.reasons.filter((r) => r.severity === 'waiting');
     const guaranteeMissing = readiness.reasons.find((r) => r.code === 'guarantee');
     const unresolved = [...hard];
-    if (early) { if (overrideOn) usedOverride.add('early'); else unresolved.push(early); }
     if (soft.length) { if (overrideOn) soft.forEach((s) => usedOverride.add(s.code)); else unresolved.push(...soft); }
     if (guaranteeMissing) { if (overrideOn) usedOverride.add('guarantee'); else unresolved.push({ ...guaranteeMissing, severity: 'blocked' }); }
     if (unresolved.length) failures.push({ unitId: String(u._id), reasons: unresolved });
   }
+  // The guest register is a legal record: no override skips it.
   if (policy.requireRegistration) {
     const card = await GuestRegistrationCard.exists({ reservation: res._id, guest: res.primaryGuest._id });
-    if (!card) {
-      if (overrideOn) usedOverride.add('registration');
-      else failures.push({ unitId: null, reasons: [reason('registration', 'לא נשמר רישום אורח', 'blocked', 'registration')] });
-    }
+    if (!card) failures.push({ unitId: null, reasons: [reason('registration', 'לא נשמר רישום אורח', 'blocked', 'registration')] });
   }
   if (failures.length) {
     throw httpError('הכניסה לא בוצעה — יש סיבות פתוחות', 409, { details: failures });
   }
 
+  if (guaranteeChange) {
+    res.updatedBy = actor.id || undefined;
+    await res.save();
+    await audit({
+      property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.guarantee_set',
+      entityType: 'Reservation', entityId: res._id, before: { guaranteeType: guaranteeChange.before },
+      after: { guaranteeType: guaranteeChange.after, reference: guarantee.reference ? String(guarantee.reference).slice(0, 80) : undefined }, ip,
+    });
+  }
+
   const allUnits = units.length;
-  const willBeIn = units.filter((u) => !UNIT_OPEN_STATUSES.includes(u.status)).length + wanted.length;
   const singleFull = allUnits === 1 && wanted.length === 1;
+
+  // Claim the units atomically: only units still open flip to in-house. If any was taken meanwhile
+  // (another desk, a retry), undo our claim and stop before anything is charged.
+  const claim = await ReservationRoom.updateMany(
+    { _id: { $in: wanted.map((u) => u._id) }, status: { $in: UNIT_OPEN_STATUSES } },
+    { $set: { status: 'in_house' } },
+  );
+  if (claim.modifiedCount !== wanted.length) {
+    await ReservationRoom.updateMany({ _id: { $in: wanted.map((u) => u._id) }, status: 'in_house' }, { $set: { status: 'reserved' } }).catch(() => null);
+    throw httpError('אחת היחידות נכנסה בינתיים — רעננו את המסך', 409, { code: 'already_in' });
+  }
 
   if (singleFull) {
     // Keep the established single-room path (folio posting, guest stats, automations).
     // That path reads the reservation-level room pointer, so align it with the unit first.
-    if (String(res.assignedRoom || '') !== String(wanted[0].assignedRoom || '')) {
-      res.assignedRoom = wanted[0].assignedRoom;
-      await res.save();
+    try {
+      if (String(res.assignedRoom || '') !== String(wanted[0].assignedRoom || '')) {
+        res.assignedRoom = wanted[0].assignedRoom;
+        await res.save();
+      }
+      await checkInReservation({
+        reservationId: res._id,
+        actorId: actor.id,
+        actorName: actor.name,
+        ip,
+        overrideClean: overrideOn,
+        overrideEarlyArrival: false,
+      });
+    } catch (err) {
+      await ReservationRoom.updateOne({ _id: wanted[0]._id }, { $set: { status: 'reserved' } }).catch(() => null);
+      throw err;
     }
-    await checkInReservation({
-      reservationId: res._id,
-      actorId: actor.id,
-      actorName: actor.name,
-      ip,
-      overrideClean: overrideOn,
-      overrideEarlyArrival: overrideOn,
-    });
-    await ReservationRoom.updateOne({ _id: wanted[0]._id }, { $set: { status: 'in_house' } });
   } else {
     // Multi-room: only the selected units enter; the reservation reflects a partial entry.
-    await ReservationRoom.updateMany({ _id: { $in: wanted.map((u) => u._id) } }, { $set: { status: 'in_house' } });
     await Room.updateMany({ _id: { $in: wanted.map((u) => u.assignedRoom).filter(Boolean) } }, { $set: { occStatus: 'occupied' } });
     const before = { status: res.status };
-    res.status = willBeIn >= allUnits ? 'in_house' : 'partially_checked_in';
+    // Recount after the write: a parallel entry of another unit must not leave the stay "partial".
+    const stillOpen = await ReservationRoom.countDocuments({ reservation: res._id, status: { $in: UNIT_OPEN_STATUSES } });
+    const firstEntry = !['in_house', 'partially_checked_in'].includes(res.status);
+    res.status = stillOpen === 0 ? 'in_house' : 'partially_checked_in';
     if (!res.checkedInAt) res.checkedInAt = new Date();
     res.updatedBy = actor.id || undefined;
     await res.save();
+    if (firstEntry) {
+      await GuestProfile.findByIdAndUpdate(res.primaryGuest._id, { $inc: { totalStays: 1, totalRevenue: res.totalAmount || 0 } });
+    }
+    fireEvent('checkin.completed', {
+      property: String(res.property), reservation: res.toObject(), actor: { id: actor.id, name: actor.name },
+    }).catch(() => null);
     await audit({
       property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.units_check_in',
       entityType: 'Reservation', entityId: res._id, before, after: { status: res.status, unitIds: wanted.map((u) => String(u._id)) }, ip,
@@ -618,11 +718,13 @@ export async function completeCheckIn({ propertyId, reservationId, unitIds, guar
   );
 
   const fresh = await Reservation.findById(res._id).select('status checkedInAt confirmationNumber').lean();
+  const remaining = await ReservationRoom.countDocuments({ reservation: res._id, status: { $in: UNIT_OPEN_STATUSES } });
   return {
     reservationId: String(res._id),
+    confirmationNumber: fresh.confirmationNumber,
     status: fresh.status,
     checkedInUnits: wanted.map((u) => String(u._id)),
-    remainingUnits: allUnits - willBeIn,
+    remainingUnits: remaining,
     overridden: [...usedOverride],
     // Key issuing is a separate integration (INT-04); no lock provider is connected.
     key: { status: 'not_connected', label: 'לא מחובר ספק מפתחות — מסירה ידנית' },
@@ -630,7 +732,7 @@ export async function completeCheckIn({ propertyId, reservationId, unitIds, guar
 }
 
 // ── INV-02 room candidates & assignment ─────────────────────────────────────
-async function conflictingRoomIds({ propertyId, from, to, excludeReservationId }) {
+export async function conflictingRoomIds({ propertyId, from, to, excludeReservationId }) {
   const [resConflicts, unitConflicts] = await Promise.all([
     Reservation.find({
       property: propertyId,
@@ -647,11 +749,14 @@ async function conflictingRoomIds({ propertyId, from, to, excludeReservationId }
       status: { $in: UNIT_HOLDING_STATUSES },
       arrivalDate: { $lt: to },
       departureDate: { $gt: from },
-    }).select('assignedRoom').lean(),
+    }).select('assignedRoom reservation').populate('reservation', 'status confirmationNumber').lean(),
   ]);
   const map = new Map();
   for (const r of resConflicts) map.set(String(r.assignedRoom), r.confirmationNumber);
-  for (const u of unitConflicts) if (!map.has(String(u.assignedRoom))) map.set(String(u.assignedRoom), 'יחידה אחרת');
+  for (const u of unitConflicts) {
+    if (!u.reservation || !HOLDING_STATUSES.includes(u.reservation.status)) continue;
+    if (!map.has(String(u.assignedRoom))) map.set(String(u.assignedRoom), u.reservation.confirmationNumber || 'יחידה אחרת');
+  }
   return map;
 }
 
@@ -659,8 +764,10 @@ export async function roomCandidates({ propertyId, reservationId, unitId, allTyp
   const property = await loadProperty(propertyId);
   const policy = policyOf(property);
   const res = await loadReservationInScope(reservationId, propertyId);
+  if (![...ARRIVING_STATUSES, 'hold'].includes(res.status)) throw httpError('שיבוץ מתבצע רק להזמנה שטרם נכנסה', 409);
   let unit = null;
   if (unitId) {
+    if (!isId(String(unitId))) throw httpError('מזהה יחידה לא תקין', 400);
     unit = await ReservationRoom.findOne({ _id: unitId, reservation: res._id }).lean();
     if (!unit) throw httpError('יחידת השהייה לא נמצאה', 404);
   }
@@ -675,14 +782,14 @@ export async function roomCandidates({ propertyId, reservationId, unitId, allTyp
   const roomFilter = { property: propertyId, active: { $ne: false } };
   if (!allTypes) roomFilter.roomType = roomTypeId;
   const rooms = await Room.find(roomFilter).populate('roomType', 'name code').sort({ floor: 1, number: 1 }).lean();
-  const occ = await occupancyMap(propertyId, rooms.map((r) => r._id), [res._id]);
+  const occ = await occupancyMap(propertyId, rooms.map((r) => r._id));
   const readyClean = policy.requireInspection ? ['inspected'] : ['clean', 'inspected'];
   const currentRoomId = idStr(unit ? unit.assignedRoom : res.assignedRoom);
 
   const candidates = rooms.map((room) => {
     const conflict = conflicts.get(String(room._id)) || null;
     const blocked = room.opsStatus && room.opsStatus !== 'available';
-    const occupiedBy = occ.get(String(room._id)) || null;
+    const occupiedBy = occupantOther(occ, room._id, res._id);
     return {
       id: String(room._id),
       number: room.number,
@@ -707,9 +814,16 @@ export async function roomCandidates({ propertyId, reservationId, unitId, allTyp
   };
 }
 
-export async function assignRoom({ propertyId, reservationId, unitId, roomId, reason: changeReason, actor, ip }) {
+export async function assignRoom(args) {
+  if (!isId(String(args.roomId || ''))) throw httpError('יש לבחור חדר', 422);
+  if (!isId(String(args.reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
+  // Lock the room (two reservations racing for it) and the reservation (unit materialisation).
+  return withLocks([`room:${args.roomId}`, `res:${args.reservationId}`], () => assignRoomLocked(args));
+}
+
+async function assignRoomLocked({ propertyId, reservationId, unitId, roomId, reason: changeReason, actor, ip }) {
   const res = await loadReservationInScope(reservationId, propertyId);
-  if (!isId(String(roomId || ''))) throw httpError('יש לבחור חדר', 422);
+  if (![...ARRIVING_STATUSES, 'hold'].includes(res.status)) throw httpError('שיבוץ מתבצע רק להזמנה שטרם נכנסה', 409);
   const room = await Room.findOne({ _id: roomId, property: propertyId }).lean();
   if (!room) throw httpError('החדר לא נמצא בנכס', 404);
   if (room.opsStatus && room.opsStatus !== 'available') throw httpError(`חדר ${room.number} חסום תפעולית`, 409);
@@ -804,7 +918,7 @@ function queueDto(e, extras = {}) {
   };
 }
 
-async function populateQueue(query) {
+function populateQueue(query) {
   return query
     .populate({ path: 'reservation', select: 'confirmationNumber primaryGuest isVip arrivalDate departureDate', populate: { path: 'primaryGuest', select: 'firstName lastName vipLevel' } })
     .populate('room', 'number cleanStatus opsStatus')
@@ -823,21 +937,53 @@ export async function listQueue({ propertyId, status = 'active' }) {
     filter.resolvedAt = { $gte: since };
   }
   const rows = await populateQueue(ArrivalQueueEntry.find(filter).sort({ priority: -1, arrivedAt: 1, _id: 1 }).limit(200)).lean();
-  // Re-derive readiness for active entries so "ready now" is visible without a manual refresh.
-  const out = [];
-  for (const e of rows) {
+  // Re-derive readiness for active entries (batched) so "ready now" shows without a manual refresh.
+  const active = rows.filter((e) => e.status === 'active');
+  const policy = policyOf(property);
+  const businessDate = businessDateOf(property);
+  const resIds = active.map((e) => idStr(e.reservation));
+  const [resDocs, unitDocs, folios] = await Promise.all([
+    Reservation.find({ _id: { $in: resIds } }).populate('primaryGuest', 'isBlacklisted').lean(),
+    ReservationRoom.find({ _id: { $in: active.map((e) => idStr(e.reservationRoom)) } }).lean(),
+    Folio.find({ reservation: { $in: resIds } }).select('reservation lines').lean(),
+  ]);
+  const roomIds = unitDocs.map((u) => u.assignedRoom).filter(Boolean);
+  const [roomDocs, occ] = await Promise.all([Room.find({ _id: { $in: roomIds } }).lean(), occupancyMap(propertyId, roomIds)]);
+  const resById = new Map(resDocs.map((x) => [String(x._id), x]));
+  const unitById = new Map(unitDocs.map((x) => [String(x._id), x]));
+  const roomById = new Map(roomDocs.map((x) => [String(x._id), x]));
+  const folioByRes = new Map(folios.map((f) => [String(f.reservation), f]));
+  const out = rows.map((e) => {
     let readiness = null;
-    if (e.status === 'active') {
-      const res = await Reservation.findById(idStr(e.reservation)).populate('primaryGuest', 'isBlacklisted');
-      const unit = await ReservationRoom.findById(idStr(e.reservationRoom)).lean();
-      if (res && unit) readiness = (await unitReadiness(res, unit, property)).readiness;
+    const res = resById.get(idStr(e.reservation));
+    const unit = unitById.get(idStr(e.reservationRoom));
+    if (e.status === 'active' && res && unit) {
+      const room = unit.assignedRoom ? roomById.get(String(unit.assignedRoom)) : null;
+      readiness = computeReadiness({
+        res, unit, room, guest: res.primaryGuest, policy, businessDate,
+        occupiedBy: room ? occupantOther(occ, room._id, res._id) : null,
+        guarantee: guaranteeState(res, folioByRes.get(String(res._id))), queue: e,
+      });
     }
-    out.push(queueDto(e, { readiness }));
-  }
-  return { businessDate: businessDateOf(property), rows: out };
+    return queueDto(e, { readiness });
+  });
+  return { businessDate, rows: out };
 }
 
-export async function addToQueue({ propertyId, reservationId, unitId, input, actor, ip }) {
+export async function addToQueue(args) {
+  if (!isId(String(args.reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
+  return withLocks([`res:${args.reservationId}`], () => addToQueueLocked(args));
+}
+
+function etaError(value) {
+  if (!value) return null;
+  const t = Date.parse(value);
+  if (Number.isNaN(t)) return 'מועד לא תקין';
+  if (t < Date.now() - 3600_000 || t > Date.now() + 24 * 3600_000) return 'הערכה צריכה להיות ב־24 השעות הקרובות';
+  return null;
+}
+
+async function addToQueueLocked({ propertyId, reservationId, unitId, input, actor, ip }) {
   const property = await loadProperty(propertyId);
   const res = await loadReservationInScope(reservationId, propertyId);
   if (!ARRIVING_STATUSES.includes(res.status)) throw httpError('רק הזמנה מאושרת שטרם נכנסה יכולה להיכנס לתור', 409);
@@ -853,13 +999,14 @@ export async function addToQueue({ propertyId, reservationId, unitId, input, act
   if (!isId(String(ownerId || ''))) errors.ownerId = 'יש לבחור אחראי';
   const priority = input.priority === 'urgent' ? 'urgent' : 'normal';
   if (priority === 'urgent' && !MANAGER_ROLES.includes(actor.role)) errors.priority = 'עדיפות דחופה דורשת אישור מנהל';
-  if (input.readyEta && Number.isNaN(Date.parse(input.readyEta))) errors.readyEta = 'מועד לא תקין';
+  if (etaError(input.readyEta)) errors.readyEta = etaError(input.readyEta);
   if (input.guestContact && !['desk', 'message'].includes(input.guestContact)) errors.guestContact = 'ערך לא תקין';
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי התור', 422, { fields: errors });
 
-  const owner = await User.findOne({ _id: ownerId, property: propertyId }).select('firstName lastName active').lean()
-    || (actor.role === 'super_admin' ? await User.findById(ownerId).select('firstName lastName').lean() : null);
-  if (!owner) throw httpError('האחראי אינו משתמש בנכס', 422, { fields: { ownerId: 'משתמש לא בנכס' } });
+  // Owner must be an active desk/housekeeping user of this property — never someone elsewhere.
+  const owner = await User.findOne({ _id: ownerId, property: propertyId, active: { $ne: false }, role: { $in: QUEUE_OWNER_ROLES } })
+    .select('firstName lastName').lean();
+  if (!owner) throw httpError('האחראי אינו משתמש פעיל בקבלה או בחדרנות בנכס', 422, { fields: { ownerId: 'משתמש לא מתאים' } });
 
   let entry;
   try {
@@ -894,12 +1041,13 @@ async function loadEntry(id, propertyId) {
   if (!isId(String(id || ''))) throw httpError('מזהה לא תקין', 400);
   const entry = await ArrivalQueueEntry.findById(id);
   if (!entry) throw httpError('רשומת התור לא נמצאה', 404);
-  if (String(entry.property) !== String(propertyId)) throw httpError('הרשומה אינה שייכת לנכס הפעיל', 403);
+  if (String(entry.property) !== String(propertyId)) throw httpError('רשומת התור לא נמצאה', 404);
   return entry;
 }
 
 function assertVersion(entry, version) {
-  if (version !== undefined && version !== null && Number(version) !== entry.__v) {
+  if (version === undefined || version === null || version === '') throw httpError('חסרה גרסת רשומה — רעננו את המסך', 422, { code: 'version_required' });
+  if (Number(version) !== entry.__v) {
     throw httpError('הרשומה עודכנה על ידי משתמש אחר — רעננו ונסו שוב', 409, { code: 'version_conflict' });
   }
 }
@@ -908,8 +1056,8 @@ export async function takeQueueOwnership({ propertyId, id, version, actor, ip })
   const entry = await loadEntry(id, propertyId);
   if (entry.status !== 'active') throw httpError('הרשומה כבר אינה פעילה', 409);
   // Atomic: only succeeds if nobody changed the entry since the user saw it.
-  const filter = { _id: entry._id, status: 'active' };
-  if (version !== undefined && version !== null) filter.__v = Number(version);
+  assertVersion(entry, version);
+  const filter = { _id: entry._id, status: 'active', __v: Number(version) };
   const updated = await ArrivalQueueEntry.findOneAndUpdate(
     filter,
     { $set: { owner: actor.id, ownerName: actor.name, updatedBy: actor.id }, $inc: { __v: 1 } },
@@ -926,7 +1074,7 @@ export async function updateQueueEntry({ propertyId, id, input, actor, ip }) {
   assertVersion(entry, input.version);
   const before = { readyEta: entry.readyEta, priority: entry.priority, guestContact: entry.guestContact, reason: entry.reason, notes: entry.notes };
   if (input.readyEta !== undefined) {
-    if (input.readyEta && Number.isNaN(Date.parse(input.readyEta))) throw httpError('מועד לא תקין', 422);
+    if (etaError(input.readyEta)) throw httpError(etaError(input.readyEta), 422, { fields: { readyEta: etaError(input.readyEta) } });
     entry.readyEta = input.readyEta ? new Date(input.readyEta) : undefined;
   }
   if (input.priority !== undefined) {
@@ -960,11 +1108,13 @@ export async function removeFromQueue({ propertyId, id, reason: why, version, ac
   assertVersion(entry, version);
   const text = String(why || '').trim().slice(0, 500);
   if (text.length < 3) throw httpError('הסרה מהתור מחייבת סיבה', 422, { fields: { reason: 'יש לפרט סיבה' } });
-  entry.status = 'removed';
-  entry.removalReason = text;
-  entry.resolvedAt = new Date();
-  entry.updatedBy = actor.id || undefined;
-  await entry.save();
+  // Conditional write: a check-in that resolved the entry meanwhile wins over the removal.
+  const updated = await ArrivalQueueEntry.findOneAndUpdate(
+    { _id: entry._id, status: 'active', __v: entry.__v },
+    { $set: { status: 'removed', removalReason: text, resolvedAt: new Date(), updatedBy: actor.id || undefined }, $inc: { __v: 1 } },
+    { returnDocument: 'after' },
+  );
+  if (!updated) throw httpError('הרשומה עודכנה בינתיים — רעננו ונסו שוב', 409, { code: 'version_conflict' });
   await audit({ property: entry.property, actor: actor.id, actorName: actor.name, action: 'arrival_queue.removed', entityType: 'ArrivalQueueEntry', entityId: entry._id, reason: text, after: { status: 'removed' }, ip });
   return { id: String(entry._id) };
 }
@@ -987,11 +1137,14 @@ export async function prioritizeHousekeeping({ propertyId, id, actor, ip }) {
       await task.save();
     }
   } else {
+    if (entry.reason === 'occupied') throw httpError('האורח הקודם עדיין בחדר — אין משימת ניקיון לקדם עד שייצא', 409);
     const room = await Room.findById(roomId).select('cleanStatus').lean();
+    if (room?.cleanStatus === 'inspected') throw httpError('החדר כבר נבדק ומוכן — אין צורך בניקיון', 409);
     task = await HousekeepingTask.create({
       property: propertyId,
       room: roomId,
       reservation: entry.reservation,
+      // A clean room waits for inspection/prep; anything else needs a full clean.
       type: room?.cleanStatus === 'clean' ? 'arrival_prep' : 'checkout_clean',
       priority: 'urgent',
       date: today,
@@ -999,9 +1152,7 @@ export async function prioritizeHousekeeping({ propertyId, id, actor, ip }) {
     });
     created = true;
   }
-  entry.housekeepingTask = task._id;
-  entry.updatedBy = actor.id || undefined;
-  await entry.save();
+  await ArrivalQueueEntry.updateOne({ _id: entry._id }, { $set: { housekeepingTask: task._id, updatedBy: actor.id || undefined } });
   await audit({ property: entry.property, actor: actor.id, actorName: actor.name, action: 'arrival_queue.hk_priority', entityType: 'HousekeepingTask', entityId: task._id, after: { created, priority: 'urgent', queueEntry: String(entry._id) }, ip });
   return { taskId: String(task._id), created, status: task.status };
 }

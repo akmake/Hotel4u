@@ -1,0 +1,25 @@
+// Section navigation for property administration (ADM-05 policy, ADM-06 users, ADM-07 audit).
+import { NavLink } from 'react-router-dom';
+import { useAuthStore } from '../../stores/authStore';
+
+const ADMIN = ['super_admin', 'chain_admin', 'property_admin', 'general_manager'];
+const TABS = [
+  { to: '/pms/admin/users', label: 'משתמשים והרשאות', roles: [...ADMIN, 'auditor'] },
+  { to: '/pms/admin/policy', label: 'מדיניות', roles: [...ADMIN, 'front_desk_manager', 'finance_manager', 'auditor', 'housekeeping_manager'] },
+  { to: '/pms/admin/audit', label: 'יומן ביקורת', roles: [...ADMIN, 'auditor', 'finance_manager'] },
+  { to: '/pms/settings', label: 'הגדרות נכס וחדרים', roles: ADMIN },
+];
+
+export default function AdminNav({ end }) {
+  const role = useAuthStore((s) => s.user?.role);
+  return (
+    <div className="ui-toolbar">
+      <nav className="ui-seg" aria-label="ניהול">
+        {TABS.filter((t) => t.roles.includes(role)).map((t) => (
+          <NavLink key={t.to} to={t.to} className={({ isActive }) => (isActive ? 'is-on' : '')}>{t.label}</NavLink>
+        ))}
+      </nav>
+      {end && <div className="ui-toolbar-end">{end}</div>}
+    </div>
+  );
+}

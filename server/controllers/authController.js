@@ -15,7 +15,7 @@ export function signPmsToken(user) {
   const propertyId = user.property ? String(user.property) : null;
   return jwt.sign(
     { id: String(user._id), firstName: user.firstName, lastName: user.lastName,
-      email: user.email, role: user.role, propertyId },
+      email: user.email, role: user.role, propertyId, tv: Number(user.tokenVersion || 0) },
     getPmsJwtSecret(),
     { expiresIn: '8h' }
   );
@@ -69,7 +69,7 @@ export const loginUser = async (req, res) => {
   if (!email || !password)
     return res.status(400).json({ message: 'חסר אימייל או סיסמה' });
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: String(email).trim().toLowerCase() });
   if (!user) {
     // עיכוב מלאכותי למניעת timing attack
     await bcrypt.hash(password, 12);
@@ -77,14 +77,23 @@ export const loginUser = async (req, res) => {
   }
 
   if (user.isLocked)
-    return res.status(423).json({ message: 'החשבון נעול זמנית' });
+    return res.status(423).json({ message: 'החשבון נעול זמנית אחרי ניסיונות כושלים — נסו שוב בעוד כמה דקות' });
 
   if (!(await bcrypt.compare(password, user.passwordHash))) {
     await user.incrementLoginAttempts();
     return res.status(401).json({ message: 'אימייל או סיסמה שגויים' });
   }
 
+  // SYS-01: a deactivated account or an expired access window cannot open a session (checked
+  // after the password so the response does not reveal which accounts exist).
+  if (user.active === false)
+    return res.status(403).json({ message: 'המשתמש הושבת — פנו למנהל המערכת' });
+  if (user.accessUntil && user.accessUntil < new Date())
+    return res.status(403).json({ message: 'תוקף הגישה של המשתמש הסתיים — פנו למנהל המערכת' });
+
   await user.resetLoginAttempts();
+  user.lastLoginAt = new Date();
+  await user.updateOne({ lastLoginAt: user.lastLoginAt });
 
   const propertyId = user.property ? String(user.property) : null;
   const userPayload = {

@@ -1,0 +1,335 @@
+// Stay-change dialogs: FD-09 room move, FD-10 extension, FD-11 early departure (preview, then the
+// checkout wizard), RSV-05 booking change and RSV-06 cancellation notice. Each shows the
+// consequences from the server first; the commit re-checks everything.
+import { useEffect, useMemo, useState } from 'react';
+import { stay } from '../../utils/api';
+import { Modal, Field, ErrorBanner, Banner, Spinner, KeyValues, Tag, useAction, useLoader, money } from '../kit';
+import { formatShort, formatLong, addDays } from '../../utils/date';
+import { cleanLabel } from '../../lib/labels';
+
+const MOVE_REASONS = { guest_request: 'בקשת האורח', maintenance: 'תקלה בחדר', upgrade: 'שדרוג', other: 'אחר' };
+const EARLY_REASONS = { guest_request: 'בקשת האורח', service_issue: 'תקלה או שירות', event: 'אירוע אישי', other: 'אחר' };
+const CHANNELS = { phone: 'טלפון', email: 'דוא״ל', web: 'אתר', desk: 'בדלפק', ota: 'ערוץ הזמנות (OTA)', company: 'חברה', other: 'אחר' };
+const TRACKS = {
+  regular: { label: 'רגיל', hint: 'צרכן שרכש מרחוק' },
+  protected: { label: 'אוכלוסייה מוגנת', hint: 'אזרח ותיק, אדם עם מוגבלות, עולה חדש — תנאים מורחבים, נדרשת בדיקה' },
+  contractual: { label: 'חוזי', hint: 'מכירה בדלפק/לחברה או לפי תנאי ההזמנה' },
+  review: { label: 'לבירור', hint: 'לא ברור — ההחלטה תועבר לבדיקה' },
+};
+const CANCEL_REASONS = { regret: 'חרטה', service_failure: 'כשל שירות / אי־התאמה', other: 'אחר' };
+
+function Footer({ action, onClose, label, why, danger, onSubmit }) {
+  return (
+    <>
+      {why && <span className="ui-foot-note">{why}</span>}
+      <button type="button" className="btn btn-secondary" onClick={onClose} disabled={action.busy}>ביטול</button>
+      <button type="button" className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`} disabled={action.busy || !!why} onClick={onSubmit}>{action.busy ? <><Spinner /> שומר…</> : label}</button>
+    </>
+  );
+}
+
+function localNow() {
+  const d = new Date();
+  const p = (x) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ── FD-09 ───────────────────────────────────────────────────────────────────
+export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitId, canChangePrice, onDone }) {
+  const action = useAction();
+  const { data, loading, error } = useLoader(() => (open ? stay.moveCandidates(propertyId, reservationId, unitId) : null), [open, reservationId, unitId]);
+  const [f, setF] = useState({});
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => { if (open) { setF({ roomId: '', reason: '', note: '', keyRequested: true, rate: '', rateReason: '' }); setShowAll(false); action.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  const rooms = (data?.rooms || []).filter((r) => showAll || r.available);
+  const why = !f.roomId ? 'יש לבחור חדר יעד' : !f.reason ? 'יש לבחור סיבה' : f.reason === 'other' && f.note.trim().length < 3 ? 'יש לפרט' : f.rate && f.rateReason.trim().length < 3 ? 'סיבה לשינוי מחיר' : null;
+  const submit = () => action.run(async () => { const out = await stay.move(propertyId, reservationId, { unitId: data.unitId, roomId: f.roomId, reason: f.reason, note: f.note || undefined, keyRequested: f.keyRequested, ...(f.rate ? { rate: Number(f.rate), rateReason: f.rateReason } : {}) }); onDone?.(out); });
+  return (
+    <Modal open={open} onClose={onClose} busy={action.busy} width={620} title="מעבר חדר" subtitle={data ? `מ־${formatShort(data.from)} עד ${formatShort(data.to)} · לילות שהושלמו לא משתנים` : ''} footer={<Footer action={action} onClose={onClose} label="אישור מעבר" why={why} onSubmit={submit} />}>
+      <ErrorBanner error={error || action.error} />
+      {loading && !data && <div className="ui-empty"><Spinner /> טוען חדרים…</div>}
+      {data && (
+        <>
+          <div className="ui-row" style={{ justifyContent: 'space-between' }}>
+            <span className="ui-label">חדר יעד · חובה</span>
+            <label className="ui-switch"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />הצגת חדרים לא זמינים</label>
+          </div>
+          {rooms.length === 0 && <div className="ui-sub">אין חדר פנוי ומוכן לכל הטווח.</div>}
+          <ul className="ui-results" style={{ maxHeight: 240 }}>
+            {rooms.map((r) => (
+              <li key={r.id}>
+                <button type="button" disabled={!r.available} aria-pressed={f.roomId === r.id} style={f.roomId === r.id ? { background: 'rgb(var(--accent-50))' } : undefined} onClick={() => set('roomId')(r.id)}>
+                  <span>חדר {r.number} · {r.roomType?.name}{!r.sameType && <Tag tone="warn">סוג אחר</Tag>}</span>
+                  <span className="ui-sub">{r.available ? `קומה ${r.floor} · ${cleanLabel(r.cleanStatus)}` : r.why}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="ui-grid-2">
+            <Field id="mv-r" label="סיבת מעבר" required error={action.fields.reason}>
+              <select id="mv-r" className="select w-full" value={f.reason} onChange={(e) => set('reason')(e.target.value)}>
+                <option value="">בחירה…</option>
+                {Object.entries(MOVE_REASONS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </Field>
+            <Field id="mv-n" label="פירוט" required={f.reason === 'other'} optional={f.reason !== 'other'} error={action.fields.note}>
+              <input id="mv-n" className="input w-full" maxLength={300} value={f.note} onChange={(e) => set('note')(e.target.value)} />
+            </Field>
+          </div>
+          {canChangePrice && (
+            <div className="ui-grid-2">
+              <Field id="mv-rate" label="מחיר חדש ללילה" optional hint="ריק = המחיר הנוכחי נשמר"><input id="mv-rate" type="number" min="1" step="0.01" className="input w-full" value={f.rate} onChange={(e) => set('rate')(e.target.value)} /></Field>
+              {f.rate && <Field id="mv-rr" label="סיבת שינוי המחיר" required error={action.fields.rateReason}><input id="mv-rr" className="input w-full" maxLength={300} value={f.rateReason} onChange={(e) => set('rateReason')(e.target.value)} /></Field>}
+            </div>
+          )}
+          <label className="ui-check"><input type="checkbox" checked={f.keyRequested} onChange={(e) => set('keyRequested')(e.target.checked)} /><span>נדרש מפתח לחדר החדש (אין ספק מפתחות מחובר — יופיע כמשימה, לא כאישור)</span></label>
+          <div className="ui-sub">החדר הקודם יעבור לניקיון ותיפתח משימת חדרנות.</div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// ── FD-10 ───────────────────────────────────────────────────────────────────
+export function ExtendDialog({ open, onClose, propertyId, reservationId, departureDate, canManualPrice, onDone, onMoveInstead }) {
+  const action = useAction();
+  const check = useAction();
+  const [f, setF] = useState({});
+  const [preview, setPreview] = useState(null);
+  useEffect(() => { if (open) { setF({ newDeparture: departureDate ? addDays(departureDate, 1) : '', paymentArrangement: '', guestConfirmation: '', manualRate: '', reason: '' }); setPreview(null); action.reset(); check.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  useEffect(() => {
+    if (!open || !f.newDeparture || !departureDate || f.newDeparture <= departureDate) { setPreview(null); return; }
+    check.run(async () => setPreview(await stay.extension(propertyId, reservationId, f.newDeparture)));
+  }, [open, f.newDeparture]); // eslint-disable-line react-hooks/exhaustive-deps
+  const manual = f.manualRate !== '' && Number(f.manualRate) > 0;
+  let why = null;
+  if (!preview) why = 'בחרו תאריך יציאה חדש';
+  else if (!preview.canExtend) why = preview.blockers[0]?.label;
+  else if (preview.needsManualPrice && !manual) why = 'אין מחיר בלוח — נדרש מחיר ידני של מנהל';
+  else if (manual && f.reason.trim().length < 3) why = 'סיבת חריג מחיר';
+  else if (f.paymentArrangement.trim().length < 2) why = 'הסדר תשלום / ערבות';
+  else if (f.guestConfirmation.trim().length < 2) why = 'אסמכתה לאישור האורח';
+  const total = preview ? (manual ? Number(f.manualRate) * preview.nights * preview.units : preview.total) : null;
+  const submit = () => action.run(async () => { const out = await stay.extend(propertyId, reservationId, { newDeparture: f.newDeparture, priceSignature: preview.priceSignature, paymentArrangement: f.paymentArrangement, guestConfirmation: f.guestConfirmation, ...(manual ? { manualRate: Number(f.manualRate), reason: f.reason } : {}) }); onDone?.(out); });
+  return (
+    <Modal open={open} onClose={onClose} busy={action.busy} width={560} title="הארכת שהייה" subtitle={departureDate ? `יציאה נוכחית: ${formatLong(departureDate)}` : ''} footer={<Footer action={action} onClose={onClose} label="אישור הארכה" why={why} onSubmit={submit} />}>
+      <ErrorBanner error={action.error} />
+      <Field id="ex-d" label="יציאה חדשה" required>
+        <input id="ex-d" type="date" className="input" min={departureDate ? addDays(departureDate, 1) : undefined} value={f.newDeparture} onChange={(e) => set('newDeparture')(e.target.value)} />
+      </Field>
+      {check.busy && <div className="ui-sub"><Spinner /> בודק זמינות ומחיר…</div>}
+      <ErrorBanner error={check.error} />
+      {preview && (
+        <>
+          {!preview.canExtend && (
+            <Banner tone="error">
+              <div className="ui-stack" style={{ gap: 4 }}>
+                {preview.blockers.map((b) => <span key={b.label}>{b.label}</span>)}
+                {preview.suggestion && <span className="ui-sub">{preview.suggestion}</span>}
+                {preview.suggestion && onMoveInstead && <button type="button" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={onMoveInstead}>מעבר לחדר פנוי</button>}
+              </div>
+            </Banner>
+          )}
+          <KeyValues rows={[
+            ...preview.nightly.map((n) => [formatLong(n.date), money(manual ? Number(f.manualRate) : n.price)]),
+            preview.missingRates.length ? ['ללא מחיר בלוח', preview.missingRates.map(formatShort).join(', ')] : null,
+            preview.units > 1 ? ['יחידות', `× ${preview.units}`] : null,
+            ['תוספת', total != null ? money(total) : '—'],
+          ]} />
+          {canManualPrice && (
+            <div className="ui-grid-2">
+              <Field id="ex-m" label="מחיר ידני ללילה" optional={!preview.needsManualPrice} required={preview.needsManualPrice}><input id="ex-m" type="number" min="1" step="0.01" className="input w-full" value={f.manualRate} onChange={(e) => set('manualRate')(e.target.value)} /></Field>
+              {manual && <Field id="ex-mr" label="סיבת חריג מחיר" required error={action.fields.reason}><input id="ex-mr" className="input w-full" maxLength={300} value={f.reason} onChange={(e) => set('reason')(e.target.value)} /></Field>}
+            </div>
+          )}
+          <div className="ui-grid-2">
+            <Field id="ex-p" label="הסדר תשלום / ערבות" required error={action.fields.paymentArrangement}><input id="ex-p" className="input w-full" maxLength={200} value={f.paymentArrangement} onChange={(e) => set('paymentArrangement')(e.target.value)} placeholder="כרטיס בקובץ, מזומן בעזיבה…" /></Field>
+            <Field id="ex-g" label="אישור האורח" required error={action.fields.guestConfirmation}><input id="ex-g" className="input w-full" maxLength={200} value={f.guestConfirmation} onChange={(e) => set('guestConfirmation')(e.target.value)} placeholder="בעל־פה בדלפק, מייל…" /></Field>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// ── FD-11 ───────────────────────────────────────────────────────────────────
+export function EarlyDepartureDialog({ open, onClose, propertyId, reservationId, onContinue }) {
+  const { data, loading, error } = useLoader(() => (open ? stay.early(propertyId, reservationId) : null), [open, reservationId]);
+  const [reason, setReason] = useState('');
+  useEffect(() => { if (open) setReason(''); }, [open]);
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      width={520}
+      title="עזיבה מוקדמת"
+      subtitle={data ? `במקום ${formatLong(data.departureDate)} — היום` : ''}
+      footer={(
+        <>
+          {!reason && <span className="ui-foot-note">יש לבחור סיבה</span>}
+          <button type="button" className="btn btn-secondary" onClick={onClose}>ביטול</button>
+          <button type="button" className="btn btn-primary" disabled={!data || !reason} onClick={() => onContinue(EARLY_REASONS[reason])}>המשך ליציאה</button>
+        </>
+      )}
+    >
+      <ErrorBanner error={error} />
+      {loading && !data && <div className="ui-empty"><Spinner /> מחשב השלכות…</div>}
+      {data && (
+        <>
+          <KeyValues rows={[
+            ['לילות שישתחררו', `${data.nightsReleased}${data.units > 1 ? ` × ${data.units} יחידות` : ''}`],
+            ['מדיניות שנרכשה', data.policy || 'לא נשמרה בהזמנה'],
+            data.documents.length ? ['מסמכים שהונפקו', data.documents.map((d) => d.number).join(', ')] : null,
+          ]} />
+          <ul className="ui-reasons">{data.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+          <fieldset className="ui-fieldset" style={{ marginTop: 0 }}>
+            <legend className="ui-label">סיבת העזיבה · חובה</legend>
+            {Object.entries(EARLY_REASONS).map(([v, l]) => <label key={v} className="ui-radio"><input type="radio" name="er" checked={reason === v} onChange={() => setReason(v)} /><span>{l}</span></label>)}
+          </fieldset>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// ── RSV-05 ──────────────────────────────────────────────────────────────────
+export function ModifyBookingDialog({ open, onClose, propertyId, reservation, roomTypes, onDone }) {
+  const action = useAction();
+  const check = useAction();
+  const [f, setF] = useState({});
+  const [preview, setPreview] = useState(null);
+  useEffect(() => {
+    if (open && reservation) {
+      setF({ arrival: reservation.arrivalDate, departure: reservation.departureDate, adults: String(reservation.adults), children: String(reservation.children || 0), childAges: (reservation.childAges || []).map(String), roomTypeId: '', reason: '', confirmationRef: '' });
+      setPreview(null); action.reset(); check.reset();
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const set = (k) => (v) => { setF((p) => ({ ...p, [k]: v })); setPreview(null); };
+  const kids = Number(f.children || 0);
+  useEffect(() => { setF((p) => ({ ...p, childAges: Array.from({ length: kids }, (_, i) => p.childAges?.[i] ?? '') })); }, [kids]);
+  const changes = useMemo(() => {
+    if (!reservation) return {};
+    const c = {};
+    if (f.arrival !== reservation.arrivalDate) c.arrival = f.arrival;
+    if (f.departure !== reservation.departureDate) c.departure = f.departure;
+    if (Number(f.adults) !== reservation.adults) c.adults = Number(f.adults);
+    if (Number(f.children) !== (reservation.children || 0)) c.children = Number(f.children);
+    if (kids > 0) c.childAges = (f.childAges || []).map(Number);
+    if (f.roomTypeId) c.roomTypeId = f.roomTypeId;
+    return c;
+  }, [f, reservation, kids]);
+  const hasChange = Object.keys(changes).some((k) => k !== 'childAges') || (kids > 0 && JSON.stringify(changes.childAges) !== JSON.stringify(reservation?.childAges || []));
+  const doPreview = () => check.run(async () => setPreview(await stay.modifyPreview(propertyId, reservation.id, changes)));
+  let why = null;
+  if (!hasChange) why = 'לא שונה דבר';
+  else if (!preview) why = 'יש לבדוק את ההשלכות';
+  else if (!preview.canApply) why = preview.blockers[0]?.label;
+  else if (f.reason.trim().length < 3) why = 'סיבת שינוי';
+  else if (f.confirmationRef.trim().length < 2) why = 'אסמכתה לאישור הלקוח';
+  const submit = () => action.run(async () => { const out = await stay.modify(propertyId, reservation.id, { changes, reason: f.reason, confirmationRef: f.confirmationRef, version: preview.version, priceSignature: preview.priceSignature }); onDone?.(out); });
+  return (
+    <Modal open={open} onClose={onClose} busy={action.busy} width={620} title="שינוי הזמנה" subtitle={reservation ? `${reservation.confirmationNumber} · ${reservation.guest?.name || ''}` : ''} footer={<Footer action={action} onClose={onClose} label="אישור השינוי" why={why} onSubmit={submit} />}>
+      <ErrorBanner error={action.error} />
+      <div className="ui-grid-3">
+        <Field id="md-a" label="כניסה" required error={check.fields.dates}><input id="md-a" type="date" className="input w-full" value={f.arrival || ''} onChange={(e) => { set('arrival')(e.target.value); if (f.departure <= e.target.value) set('departure')(addDays(e.target.value, 1)); }} /></Field>
+        <Field id="md-d" label="יציאה" required><input id="md-d" type="date" className="input w-full" min={f.arrival ? addDays(f.arrival, 1) : undefined} value={f.departure || ''} onChange={(e) => set('departure')(e.target.value)} /></Field>
+        <Field id="md-rt" label="סוג חדר" optional hint="ריק = ללא שינוי">
+          <select id="md-rt" className="select w-full" value={f.roomTypeId || ''} onChange={(e) => set('roomTypeId')(e.target.value)}>
+            <option value="">{reservation?.roomType || 'ללא שינוי'}</option>
+            {(roomTypes || []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </Field>
+        <Field id="md-ad" label="מבוגרים" required error={check.fields.adults}><input id="md-ad" type="number" min="1" className="input w-full" value={f.adults || ''} onChange={(e) => set('adults')(e.target.value)} /></Field>
+        <Field id="md-ch" label="ילדים" error={check.fields.children}><input id="md-ch" type="number" min="0" className="input w-full" value={f.children || ''} onChange={(e) => set('children')(e.target.value)} /></Field>
+      </div>
+      {kids > 0 && (
+        <div className="ui-row">
+          <span className="ui-label">גילי ילדים</span>
+          {(f.childAges || []).map((a, i) => <input key={i} type="number" min="0" max="17" className="input" style={{ width: 70 }} aria-label={`גיל ילד ${i + 1}`} value={a} onChange={(e) => set('childAges')(f.childAges.map((x, j) => (j === i ? e.target.value : x)))} />)}
+        </div>
+      )}
+      <div className="ui-row"><button type="button" className="btn btn-secondary btn-sm" disabled={!hasChange || check.busy} onClick={doPreview}>{check.busy ? <Spinner /> : 'בדיקת השלכות'}</button></div>
+      <ErrorBanner error={check.error} />
+      {preview && (
+        <>
+          {!preview.canApply && <Banner tone="error">{preview.blockers.map((b) => b.label).join(' · ')}</Banner>}
+          <KeyValues rows={[
+            ['תאריכים', `${formatShort(preview.before.arrival)}–${formatShort(preview.before.departure)} ← ${formatShort(preview.after.arrival)}–${formatShort(preview.after.departure)}`],
+            ['הרכב', `${preview.before.adults}+${preview.before.children} ← ${preview.after.adults}+${preview.after.children}`],
+            ['סוג חדר', preview.after.roomType],
+            ['סכום', `${money(preview.before.total)} ← ${money(preview.after.total)}`],
+            ['הפרש', <span key="d" className={`ui-amount ${preview.difference > 0 ? 'is-due' : preview.difference < 0 ? 'is-credit' : 'is-zero'}`}>{money(preview.difference)}</span>],
+          ]} />
+          {preview.creditNoteNeeded && <Banner tone="warn">הונפקו מסמכים ({preview.documents.map((d) => d.number).join(', ')}) והסכום יורד — נדרש מסמך זיכוי במסך החשבון.</Banner>}
+          <div className="ui-grid-2">
+            <Field id="md-why" label="סיבת השינוי" required error={action.fields.reason}><input id="md-why" className="input w-full" maxLength={300} value={f.reason} onChange={(e) => setF((p) => ({ ...p, reason: e.target.value }))} /></Field>
+            <Field id="md-ref" label="אישור הלקוח" required error={action.fields.confirmationRef}><input id="md-ref" className="input w-full" maxLength={200} value={f.confirmationRef} onChange={(e) => setF((p) => ({ ...p, confirmationRef: e.target.value }))} placeholder="טלפון, מייל…" /></Field>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// ── RSV-06 ──────────────────────────────────────────────────────────────────
+export function CancelBookingDialog({ open, onClose, propertyId, reservation, onDone }) {
+  const action = useAction();
+  const check = useAction();
+  const [f, setF] = useState({});
+  const [preview, setPreview] = useState(null);
+  useEffect(() => { if (open) { setF({ channel: '', track: '', reason: '', note: '', receivedAt: localNow(), transactionAt: '', disclosureAt: '', priorCall: false }); setPreview(null); action.reset(); check.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const set = (k) => (v) => { setF((p) => ({ ...p, [k]: v })); setPreview(null); };
+  const body = () => ({
+    channel: f.channel, track: f.track, reason: f.reason, note: f.note || undefined, priorCall: f.priorCall,
+    receivedAt: f.receivedAt ? new Date(f.receivedAt).toISOString() : undefined,
+    transactionAt: f.transactionAt ? new Date(f.transactionAt).toISOString() : undefined,
+    disclosureAt: f.disclosureAt ? new Date(f.disclosureAt).toISOString() : undefined,
+  });
+  const ready = f.channel && f.track && f.reason && (f.reason !== 'other' || f.note.trim().length >= 3);
+  let why = null;
+  if (!ready) why = 'יש להשלים ערוץ, מסלול וסיבה';
+  else if (!preview) why = 'יש לבדוק זכאות';
+  const submit = () => action.run(async () => { const out = await stay.cancel(propertyId, reservation.id, body()); onDone?.(out); });
+  return (
+    <Modal open={open} onClose={onClose} busy={action.busy} width={640} title="ביטול הזמנה — קליטת הודעה ובדיקת זכאות" subtitle={reservation ? `${reservation.confirmationNumber} · הגעה ${formatShort(reservation.arrivalDate)}` : ''} footer={<Footer action={action} onClose={onClose} label="רישום הביטול" why={why} danger onSubmit={submit} />}>
+      <ErrorBanner error={action.error} />
+      <Banner tone="info">קבלת הודעת ביטול לא מותנית באישור. הכסף (דמי ביטול, החזר) ומסמך הזיכוי — פעולות נפרדות אחרי הביטול.</Banner>
+      <div className="ui-grid-3">
+        <Field id="cx-ch" label="ערוץ ההודעה" required error={check.fields.channel || action.fields.channel}>
+          <select id="cx-ch" className="select w-full" value={f.channel} onChange={(e) => set('channel')(e.target.value)}><option value="">בחירה…</option>{Object.entries(CHANNELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        </Field>
+        <Field id="cx-at" label="מועד קבלת ההודעה" required hint="מתי האורח הודיע — לא מתי מטפלים" error={check.fields.receivedAt || action.fields.receivedAt}>
+          <input id="cx-at" type="datetime-local" className="input w-full" max={localNow()} value={f.receivedAt} onChange={(e) => set('receivedAt')(e.target.value)} />
+        </Field>
+        <Field id="cx-r" label="סיבה" required error={check.fields.reason}>
+          <select id="cx-r" className="select w-full" value={f.reason} onChange={(e) => set('reason')(e.target.value)}><option value="">בחירה…</option>{Object.entries(CANCEL_REASONS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        </Field>
+        <Field id="cx-tx" label="מועד העסקה" optional hint="ריק = מועד יצירת ההזמנה"><input id="cx-tx" type="datetime-local" className="input w-full" value={f.transactionAt} onChange={(e) => set('transactionAt')(e.target.value)} /></Field>
+        <Field id="cx-dc" label="מועד מסירת גילוי/תנאים" optional hint="ריק = מועד העסקה"><input id="cx-dc" type="datetime-local" className="input w-full" value={f.disclosureAt} onChange={(e) => set('disclosureAt')(e.target.value)} /></Field>
+        <Field id="cx-n" label="פירוט" required={f.reason === 'other'} optional={f.reason !== 'other'} error={check.fields.note}><input id="cx-n" className="input w-full" maxLength={500} value={f.note} onChange={(e) => set('note')(e.target.value)} /></Field>
+      </div>
+      <fieldset className="ui-fieldset" style={{ marginTop: 0 }}>
+        <legend className="ui-label">מסלול זכאות · חובה</legend>
+        {Object.entries(TRACKS).map(([v, t]) => <label key={v} className="ui-radio"><input type="radio" name="trk" checked={f.track === v} onChange={() => set('track')(v)} /><span>{t.label}<span className="ui-sub" style={{ display: 'block' }}>{t.hint}</span></span></label>)}
+      </fieldset>
+      {f.track === 'protected' && <label className="ui-check"><input type="checkbox" checked={f.priorCall} onChange={(e) => set('priorCall')(e.target.checked)} /><span>התקיימה שיחה טלפונית לפני הרכישה</span></label>}
+      <div className="ui-row"><button type="button" className="btn btn-secondary btn-sm" disabled={!ready || check.busy} onClick={() => check.run(async () => setPreview(await stay.cancelPreview(propertyId, reservation.id, body())))}>{check.busy ? <Spinner /> : 'בדיקת זכאות'}</button></div>
+      <ErrorBanner error={check.error} />
+      {preview && (
+        <div className="ui-sub-card">
+          <ul className="ui-reasons">{preview.lines.map((l) => <li key={l}>{l}</li>)}</ul>
+          <KeyValues rows={[
+            ['דמי ביטול מוצעים', preview.proposedFee === null ? 'לבירור' : money(preview.proposedFee)],
+            ['שולם עד כה', money(preview.paid)],
+            ['החזר מוצע', preview.proposedRefund === null ? 'לבירור' : money(preview.proposedRefund)],
+            ['מקור הכלל', preview.sources.join(' · ')],
+          ]} />
+          {preview.documents?.length > 0 && <Banner tone="warn">הונפקו מסמכים ({preview.documents.map((d) => d.number).join(', ')}) — תיקון במסמך זיכוי.</Banner>}
+          <Tag tone="warn">{preview.gate}</Tag>
+        </div>
+      )}
+    </Modal>
+  );
+}

@@ -20,6 +20,10 @@ import {
   modifyReservation,
 } from '../services/reservationService.js';
 import { audit } from '../services/auditService.js';
+import { completeCheckIn, assignRoom as frontDeskAssignRoom, withLocks } from '../services/frontDeskService.js';
+import { completeCheckOut } from '../services/departureService.js';
+import { postCharge } from '../services/financeService.js';
+import { randomUUID } from 'node:crypto';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import { emit } from '../services/webhookService.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
@@ -29,6 +33,8 @@ const router = Router();
 const OVERRIDE_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const HIGH_PRIV_CHECKIN_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const HIGH_PRIV_CHECKOUT_ROLES = ['super_admin', 'property_admin', 'general_manager', 'finance_manager', 'cashier'];
+const FRONT_DESK_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist'];
+const DEPARTURE_ROLES = [...FRONT_DESK_ROLES, 'finance_manager', 'cashier'];
 const COMMERCIAL_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'revenue_manager', 'sales_manager'];
 const BULK_ACTIONS_SUPPORTED = new Set([
   'send_confirmation',
@@ -489,46 +495,41 @@ async function executeBulkReservationAction({
   }
 
   if (action === 'check_in') {
-    const checkedIn = await checkIn({
+    // Bulk entry obeys the same gates as a single check-in; units that are not ready fail with
+    // their reason instead of being forced in.
+    const units = await ReservationRoom.find({ reservation: existing._id, status: { $in: ['reserved', 'tentative'] } }).select('_id').lean();
+    const result = await completeCheckIn({
+      propertyId: String(existing.property),
       reservationId: String(existing._id),
-      overrideClean: !!overrideClean,
-      overrideEarlyArrival: !!overrideEarlyArrival,
-      actorId: actor.id,
-      actorName: actor.name,
+      unitIds: units.map((u) => String(u._id)),
+      override: overrideClean ? { enabled: true, reason } : undefined,
+      actor: { id: actor.id, name: actor.name, role: actor.role },
       ip,
     });
-    await ReservationRoom.updateMany(
-      { reservation: checkedIn._id, status: { $in: ['reserved', 'tentative'] } },
-      { $set: { status: 'in_house' } }
-    );
-    emit(String(checkedIn.property), 'guest.checked_in', {
-      reservationId: String(checkedIn._id),
-      confirmationNumber: checkedIn.confirmationNumber,
-      checkedInAt: checkedIn.checkedInAt,
-      mode: 'bulk',
+    emit(String(existing.property), 'guest.checked_in', {
+      reservationId: String(existing._id), confirmationNumber: existing.confirmationNumber, checkedInAt: new Date(), mode: 'bulk',
     }).catch(() => null);
-    return { reservationId, success: true, status: checkedIn.status };
+    return { reservationId, success: true, status: result.status };
   }
 
   if (action === 'check_out') {
-    const checkedOut = await checkOut({
+    let plan = [];
+    if (forceCheckout) {
+      const open = await Folio.find({ reservation: existing._id, status: { $ne: 'closed' } }).select('_id').lean();
+      plan = open.map((f) => ({ folioId: String(f._id), mode: 'approved_open', reason }));
+    }
+    const result = await completeCheckOut({
+      propertyId: String(existing.property),
       reservationId: String(existing._id),
-      forceCheckout: !!forceCheckout,
-      actorId: actor.id,
-      actorName: actor.name,
+      unitIds: (await ReservationRoom.find({ reservation: existing._id, status: { $in: ['in_house', 'checked_in'] } }).select('_id').lean()).map((u) => String(u._id)),
+      settlements: plan,
+      actor: { id: actor.id, name: actor.name, role: actor.role },
       ip,
     });
-    await ReservationRoom.updateMany(
-      { reservation: checkedOut._id, status: { $nin: ['cancelled', 'no_show'] } },
-      { $set: { status: 'checked_out' } }
-    );
-    emit(String(checkedOut.property), 'guest.checked_out', {
-      reservationId: String(checkedOut._id),
-      confirmationNumber: checkedOut.confirmationNumber,
-      checkedOutAt: checkedOut.checkedOutAt,
-      mode: 'bulk',
+    emit(String(existing.property), 'guest.checked_out', {
+      reservationId: String(existing._id), confirmationNumber: existing.confirmationNumber, checkedOutAt: new Date(), mode: 'bulk',
     }).catch(() => null);
-    return { reservationId, success: true, status: checkedOut.status };
+    return { reservationId, success: true, status: result.status };
   }
 
   if (action === 'link_group' || action === 'unlink_group') {
@@ -1760,69 +1761,55 @@ router.patch('/:id', asyncHandler(async (req, res) => {
 
 // POST /api/reservations/:id/check-in
 router.post('/:id/check-in', asyncHandler(async (req, res) => {
-  requireRoles(req, COMMERCIAL_ROLES, 'Check-in requires front-desk permissions');
-  const { overrideClean, overrideEarlyArrival } = req.body;
-  if (overrideClean || overrideEarlyArrival) {
-    requireRoles(req, HIGH_PRIV_CHECKIN_ROLES, 'Override clean/early check-in requires manager privileges');
-  }
+  // Legacy entry point: delegates to the front-desk service so every check-in passes the same
+  // readiness, registration and guarantee gates as the wizard (FD-03).
+  requireRoles(req, FRONT_DESK_ROLES, 'Check-in requires front-desk permissions');
   const existing = await getReservationOr404(req.params.id, res);
   if (!existing) return;
   assertPropertyScope(req, existing.property);
   const actor = actorFromReq(req);
-  const reservation = await checkIn({
+  const { overrideClean, reason, guarantee } = req.body || {};
+  const result = await completeCheckIn({
+    propertyId: String(existing.property),
     reservationId: req.params.id,
-    overrideClean: !!overrideClean,
-    overrideEarlyArrival: !!overrideEarlyArrival,
-    actorId: actor.id,
-    actorName: actor.name,
+    guarantee,
+    override: overrideClean ? { enabled: true, reason } : undefined,
+    actor: { id: actor.id, name: actor.name, role: actor.role },
     ip: req.ip,
   });
-
-  await ReservationRoom.updateMany(
-    { reservation: reservation._id, status: { $in: ['reserved', 'tentative'] } },
-    { $set: { status: 'in_house' } }
-  );
-
-  emit(String(reservation.property), 'guest.checked_in', {
-    reservationId: String(reservation._id),
-    confirmationNumber: reservation.confirmationNumber,
-    checkedInAt: reservation.checkedInAt,
+  emit(String(existing.property), 'guest.checked_in', {
+    reservationId: String(existing._id), confirmationNumber: existing.confirmationNumber, checkedInAt: new Date(),
   }).catch(() => null);
-
-  res.json({ success: true, data: reservation });
+  res.json({ success: true, data: result });
 }));
 
 // POST /api/reservations/:id/check-out
 router.post('/:id/check-out', asyncHandler(async (req, res) => {
-  requireRoles(req, COMMERCIAL_ROLES, 'Check-out requires front-desk permissions');
-  const { forceCheckout } = req.body;
-  if (forceCheckout) {
-    requireRoles(req, HIGH_PRIV_CHECKOUT_ROLES, 'Force checkout requires finance/manager privileges');
-  }
+  // Legacy entry point: delegates to the departure service — every folio is checked, a balance
+  // is never closed silently (FD-08). `forceCheckout` becomes a manager-approved open balance.
+  requireRoles(req, DEPARTURE_ROLES, 'Check-out requires front-desk permissions');
   const existing = await getReservationOr404(req.params.id, res);
   if (!existing) return;
   assertPropertyScope(req, existing.property);
   const actor = actorFromReq(req);
-  const reservation = await checkOut({
+  const { forceCheckout, reason, settlements, early } = req.body || {};
+  let plan = Array.isArray(settlements) ? settlements : [];
+  if (forceCheckout && !plan.length) {
+    const open = await Folio.find({ reservation: existing._id, status: { $ne: 'closed' } }).select('_id').lean();
+    plan = open.map((f) => ({ folioId: String(f._id), mode: 'approved_open', reason }));
+  }
+  const result = await completeCheckOut({
+    propertyId: String(existing.property),
     reservationId: req.params.id,
-    forceCheckout: !!forceCheckout,
-    actorId: actor.id,
-    actorName: actor.name,
+    settlements: plan,
+    early,
+    actor: { id: actor.id, name: actor.name, role: actor.role },
     ip: req.ip,
   });
-
-  await ReservationRoom.updateMany(
-    { reservation: reservation._id, status: { $nin: ['cancelled', 'no_show'] } },
-    { $set: { status: 'checked_out' } }
-  );
-
-  emit(String(reservation.property), 'guest.checked_out', {
-    reservationId: String(reservation._id),
-    confirmationNumber: reservation.confirmationNumber,
-    checkedOutAt: reservation.checkedOutAt,
+  emit(String(existing.property), 'guest.checked_out', {
+    reservationId: String(existing._id), confirmationNumber: existing.confirmationNumber, checkedOutAt: new Date(),
   }).catch(() => null);
-
-  res.json({ success: true, data: reservation });
+  res.json({ success: true, data: result });
 }));
 
 // POST /api/reservations/:id/cancel
@@ -1962,148 +1949,102 @@ router.post('/:id/no-show-fee', asyncHandler(async (req, res) => {
 
 // PATCH /api/reservations/:id/assign-room
 router.patch('/:id/assign-room', asyncHandler(async (req, res) => {
-  requireRoles(req, COMMERCIAL_ROLES, 'Room assignment requires front-desk permissions');
-  const { roomId, reservationRoomId, priceAdjustment, adjustmentNote } = req.body;
+  // Legacy entry point (tape chart, room rack, drawer): assignment goes through INV-02 rules —
+  // full-range conflict check under a lock, unit and reservation pointer kept in sync.
+  requireRoles(req, FRONT_DESK_ROLES, 'Room assignment requires front-desk permissions');
+  const { roomId, reservationRoomId, priceAdjustment, adjustmentNote, reason } = req.body;
   const existing = await getReservationOr404(req.params.id, res);
   if (!existing) return;
   assertPropertyScope(req, existing.property);
-  const reservation = await Reservation.findByIdAndUpdate(
-    req.params.id,
-    { assignedRoom: roomId || null },
-    { returnDocument: 'after' }
-  ).populate('assignedRoom', 'number floor').lean();
-
-  if (!reservation) return res.status(404).json({ success: false, error: 'Reservation not found' });
-
-  if (reservationRoomId) {
-    await ReservationRoom.findByIdAndUpdate(reservationRoomId, { assignedRoom: roomId || null });
+  const actor = actorFromReq(req);
+  if (roomId) {
+    await frontDeskAssignRoom({
+      propertyId: String(existing.property),
+      reservationId: req.params.id,
+      unitId: reservationRoomId || undefined,
+      roomId,
+      reason: reason || adjustmentNote || 'שינוי שיבוץ מלוח החדרים',
+      actor: { id: actor.id, name: actor.name, role: actor.role },
+      ip: req.ip,
+    });
+  } else {
+    // Unassign: only units that have not entered.
+    await withLocks([`res:${existing._id}`], async () => {
+      const filter = { reservation: existing._id, status: { $in: ['reserved', 'tentative'] } };
+      if (reservationRoomId) filter._id = reservationRoomId;
+      await ReservationRoom.updateMany(filter, { $set: { assignedRoom: null } });
+      if (['confirmed', 'modified', 'pending_payment', 'hold'].includes(existing.status)) {
+        await Reservation.updateOne({ _id: existing._id }, { $set: { assignedRoom: null } });
+      }
+    });
+    await audit({ property: existing.property, actor: actor.id, actorName: actor.name, action: 'reservation.room_unassigned', entityType: 'Reservation', entityId: existing._id, ip: req.ip });
   }
 
   if (priceAdjustment && Number(priceAdjustment) !== 0) {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    let folio = await Folio.findOne({ reservation: existing._id, status: 'open' });
+    requireRoles(req, ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'], 'Price adjustment requires manager permissions');
+    const folio = await Folio.findOne({ reservation: existing._id, status: 'open' });
     if (folio) {
       folio.lines.push({
         type:        Number(priceAdjustment) > 0 ? 'charge' : 'adjustment',
         description: adjustmentNote || 'הפרש העברת חדר',
         amount:      Number(priceAdjustment),
-        serviceDate: todayStr,
+        serviceDate: todayYmdInTimezone((await Property.findById(existing.property).select('timezone').lean())?.timezone || 'Asia/Jerusalem'),
         source:      'pms',
-        createdBy:   req.user._id,
+        createdBy:   actor.id || undefined,
         department:  'rooms',
       });
       await folio.save();
     }
   }
 
+  const reservation = await Reservation.findById(req.params.id).populate('assignedRoom', 'number floor').lean();
   res.json({ success: true, data: reservation });
 }));
 
 // POST /api/reservations/:id/partial-check-in
 router.post('/:id/partial-check-in', asyncHandler(async (req, res) => {
-  requireRoles(req, COMMERCIAL_ROLES, 'Partial check-in requires front-desk permissions');
-  const { reservationRoomIds = [], overrideClean = false } = req.body;
+  requireRoles(req, FRONT_DESK_ROLES, 'Partial check-in requires front-desk permissions');
+  const { reservationRoomIds = [], overrideClean = false, reason, guarantee } = req.body;
   if (!Array.isArray(reservationRoomIds) || reservationRoomIds.length === 0) {
     return res.status(400).json({ success: false, error: 'reservationRoomIds is required' });
   }
-  if (overrideClean) requireRoles(req, HIGH_PRIV_CHECKIN_ROLES, 'Override clean check-in requires manager privileges');
-
-  const reservation = await getReservationOr404(req.params.id, res);
-  if (!reservation) return;
-  assertPropertyScope(req, reservation.property);
-
-  const rooms = await ReservationRoom.find({
-    reservation: reservation._id,
-    _id: { $in: reservationRoomIds },
-  }).populate('assignedRoom');
-
-  for (const rr of rooms) {
-    if (rr.assignedRoom && !overrideClean && !['clean', 'inspected'].includes(rr.assignedRoom.cleanStatus)) {
-      return res.status(409).json({ success: false, error: `Room ${rr.assignedRoom.number} is not clean` });
-    }
-  }
-
-  await ReservationRoom.updateMany(
-    { reservation: reservation._id, _id: { $in: reservationRoomIds } },
-    { $set: { status: 'in_house' } }
-  );
-  await Room.updateMany(
-    { _id: { $in: rooms.map((r) => r.assignedRoom?._id).filter(Boolean) } },
-    { $set: { occStatus: 'occupied' } }
-  );
-
-  const totalRooms = await ReservationRoom.countDocuments({ reservation: reservation._id });
-  const inHouseRooms = await ReservationRoom.countDocuments({ reservation: reservation._id, status: 'in_house' });
-  const status = inHouseRooms >= totalRooms ? 'in_house' : 'partially_checked_in';
-  const updated = await Reservation.findByIdAndUpdate(
-    reservation._id,
-    { $set: { status, checkedInAt: new Date() } },
-    { returnDocument: 'after' }
-  ).lean();
-
+  const existing = await getReservationOr404(req.params.id, res);
+  if (!existing) return;
+  assertPropertyScope(req, existing.property);
   const actor = actorFromReq(req);
-  await audit({
-    property: reservation.property,
-    actor: actor.id || null,
-    actorName: actor.name || 'system',
-    action: 'reservation.partial_check_in',
-    entityType: 'Reservation',
-    entityId: reservation._id,
-    after: { reservationRoomIds, status },
+  const result = await completeCheckIn({
+    propertyId: String(existing.property),
+    reservationId: req.params.id,
+    unitIds: reservationRoomIds,
+    guarantee,
+    override: overrideClean ? { enabled: true, reason } : undefined,
+    actor: { id: actor.id, name: actor.name, role: actor.role },
     ip: req.ip,
-  }).catch(() => null);
-
-  res.json({ success: true, data: updated });
+  });
+  res.json({ success: true, data: result });
 }));
 
 // POST /api/reservations/:id/partial-check-out
 router.post('/:id/partial-check-out', asyncHandler(async (req, res) => {
-  requireRoles(req, COMMERCIAL_ROLES, 'Partial check-out requires front-desk permissions');
-  const { reservationRoomIds = [] } = req.body;
+  requireRoles(req, DEPARTURE_ROLES, 'Partial check-out requires front-desk permissions');
+  const { reservationRoomIds = [], settlements, early } = req.body;
   if (!Array.isArray(reservationRoomIds) || reservationRoomIds.length === 0) {
     return res.status(400).json({ success: false, error: 'reservationRoomIds is required' });
   }
-
-  const reservation = await getReservationOr404(req.params.id, res);
-  if (!reservation) return;
-  assertPropertyScope(req, reservation.property);
-
-  const rooms = await ReservationRoom.find({
-    reservation: reservation._id,
-    _id: { $in: reservationRoomIds },
-  }).lean();
-
-  await ReservationRoom.updateMany(
-    { reservation: reservation._id, _id: { $in: reservationRoomIds } },
-    { $set: { status: 'checked_out' } }
-  );
-  await Room.updateMany(
-    { _id: { $in: rooms.map((r) => r.assignedRoom).filter(Boolean) } },
-    { $set: { occStatus: 'checked_out', cleanStatus: 'dirty' } }
-  );
-
-  const totalRooms = await ReservationRoom.countDocuments({ reservation: reservation._id });
-  const checkedOutRooms = await ReservationRoom.countDocuments({ reservation: reservation._id, status: 'checked_out' });
-  const status = checkedOutRooms >= totalRooms ? 'checked_out' : 'partially_checked_out';
-  const updated = await Reservation.findByIdAndUpdate(
-    reservation._id,
-    { $set: { status, checkedOutAt: status === 'checked_out' ? new Date() : undefined } },
-    { returnDocument: 'after' }
-  ).lean();
-
+  const existing = await getReservationOr404(req.params.id, res);
+  if (!existing) return;
+  assertPropertyScope(req, existing.property);
   const actor = actorFromReq(req);
-  await audit({
-    property: reservation.property,
-    actor: actor.id || null,
-    actorName: actor.name || 'system',
-    action: 'reservation.partial_check_out',
-    entityType: 'Reservation',
-    entityId: reservation._id,
-    after: { reservationRoomIds, status },
+  const result = await completeCheckOut({
+    propertyId: String(existing.property),
+    reservationId: req.params.id,
+    unitIds: reservationRoomIds,
+    settlements: Array.isArray(settlements) ? settlements : [],
+    early,
+    actor: { id: actor.id, name: actor.name, role: actor.role },
     ip: req.ip,
-  }).catch(() => null);
-
-  res.json({ success: true, data: updated });
+  });
+  res.json({ success: true, data: result });
 }));
 
 // POST /api/reservations/:id/extend
@@ -2665,63 +2606,29 @@ router.post('/:id/send-welcome', asyncHandler(async (req, res) => {
 // Add service/extra charge to reservation folio (F&B, spa, etc.)
 router.post('/:id/add-service', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Adding services requires front-desk permissions');
-  const { description, amount, department = 'service', quantity = 1, serviceDate, taxRate = 0.17 } = req.body;
-  if (!description || !(Number(amount) > 0)) {
-    return res.status(400).json({ success: false, error: 'description and amount are required' });
-  }
-
+  const { description, amount, department = 'other', quantity = 1, serviceDate } = req.body || {};
   const reservation = await getReservationOr404(req.params.id, res);
   if (!reservation) return;
   assertPropertyScope(req, reservation.property);
-
-  if (['cancelled', 'no_show'].includes(reservation.status)) {
-    return res.status(400).json({ success: false, error: 'Cannot add services to cancelled/no-show reservation' });
+  // Goes through the finance service (catalogue code, VAT class, audit). Amount is the guest price.
+  let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'guest', status: { $ne: 'closed' } })
+    || await Folio.findOne({ reservation: reservation._id, status: { $ne: 'closed' } });
+  if (!folio && !['cancelled', 'no_show'].includes(reservation.status)) {
+    folio = await Folio.create({ property: reservation.property, reservation: reservation._id, ownerType: 'guest', status: 'open', currency: reservation.currency || 'ILS', lines: [] });
   }
-
-  let folio = await Folio.findOne({ reservation: reservation._id, status: 'open' });
-  if (!folio) {
-    folio = await Folio.create({
-      property: reservation.property,
-      reservation: reservation._id,
-      ownerType: 'guest',
-      status: 'open',
-      currency: reservation.currency || 'ILS',
-      lines: [],
+  if (!folio) return res.status(409).json({ success: false, error: 'לא ניתן לחייב הזמנה שבוטלה או לא הגיעה' });
+  const a = actorOrSystem(req);
+  try {
+    const out = await postCharge({
+      propertyId: String(reservation.property), folioId: String(folio._id), actor: { id: a.id, name: a.name, role: a.role }, ip: req.ip,
+      input: { description, department, quantity: Number(quantity) || 1, unitPrice: Number(amount), serviceDate, idempotencyKey: req.body?.idempotencyKey || `legacy-${randomUUID()}` },
     });
+    res.status(201).json({ success: true, data: out });
+  } catch (err) {
+    const status = Number(err?.status || 500);
+    if (status >= 500) throw err;
+    res.status(status).json({ success: false, error: err.message, ...(err.fields ? { fields: err.fields } : {}) });
   }
-
-  const unitAmount = Number(amount);
-  const qty = Math.max(1, Number(quantity));
-  const lineAmount = unitAmount * qty;
-  const lineTax = Math.round(lineAmount * Number(taxRate));
-
-  folio.lines.push({
-    type: 'charge',
-    description,
-    amount: lineAmount,
-    taxAmount: lineTax,
-    quantity: qty,
-    unitPrice: unitAmount,
-    department,
-    serviceDate: serviceDate || await todayByPropertyTimezone(reservation.property),
-    source: 'manual',
-    status: 'posted',
-  });
-  await folio.save();
-
-  const actor = actorFromReq(req);
-  await audit({
-    property: reservation.property,
-    actor: actor.id || null,
-    actorName: actor.name || 'system',
-    action: 'folio.service_added',
-    entityType: 'Folio',
-    entityId: folio._id,
-    after: { description, amount: lineAmount, department, reservationId: reservation._id },
-    ip: req.ip,
-  }).catch(() => null);
-
-  res.status(201).json({ success: true, data: folio });
 }));
 
 // POST /api/reservations/:id/link-group — פרק כה + 26 (Group Blocks)

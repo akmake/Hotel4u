@@ -3,6 +3,10 @@
 import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import User from '../models/User.js';
+import { emit } from '../services/webhookService.js';
+import {
+  listInHouse, listDepartures, setEtd, getCheckOutContext, recordPayment, refundCredit, postServiceCharge, completeCheckOut, postPendingNights,
+} from '../services/departureService.js';
 import {
   listArrivals, getCheckInContext, saveRegistration, completeCheckIn,
   roomCandidates, assignRoom, setEta, noShowFromArrivals,
@@ -15,6 +19,9 @@ const FRONT_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_ma
 const ARRIVALS_READ_ROLES = [...FRONT_ROLES, 'housekeeping_manager', 'auditor', 'owner_readonly'];
 const QUEUE_READ_ROLES = [...FRONT_ROLES, 'housekeeping_manager', 'housekeeper'];
 const QUEUE_WORK_ROLES = [...FRONT_ROLES, 'housekeeping_manager'];
+// Departures touch money: cashiers and finance work them alongside the desk.
+const DEPARTURE_WORK_ROLES = [...FRONT_ROLES, 'finance_manager', 'cashier'];
+const DEPARTURE_READ_ROLES = [...DEPARTURE_WORK_ROLES, 'auditor', 'owner_readonly'];
 
 // Errors from the service carry field-level messages (`fields`) and per-unit reasons (`details`);
 // the shared error handler drops those, so this router answers them itself.
@@ -38,8 +45,25 @@ const handle = (fn) => async (req, res) => {
 
 function scope(req) {
   const propertyId = req.query.propertyId || req.body?.propertyId || req.actor?.propertyId;
+  if (!propertyId) {
+    const err = new Error('יש לבחור נכס');
+    err.status = 400;
+    throw err;
+  }
   assertPropertyScope(req, propertyId);
   return String(propertyId);
+}
+
+// Housekeeping sees what it needs to prepare rooms — not payment, blacklist, company or free text.
+const HK_ROLES = ['housekeeping_manager', 'housekeeper'];
+const HK_REASON_CODES = new Set(['no_room', 'room_blocked', 'room_occupied', 'room_dirty', 'not_inspected']);
+function forHousekeeping(req, row) {
+  if (!HK_ROLES.includes(req.actor?.role)) return row;
+  const out = { ...row };
+  delete out.guarantee; delete out.company; delete out.specialRequests; delete out.notes; delete out.guestContact; delete out.source;
+  if (out.guest) out.guest = { name: out.guest.name, vip: out.guest.vip };
+  if (out.readiness) out.readiness = { ...out.readiness, reasons: (out.readiness.reasons || []).filter((r) => HK_REASON_CODES.has(r.code)) };
+  return out;
 }
 
 function actorOf(req) {
@@ -51,7 +75,7 @@ function actorOf(req) {
 router.get('/arrivals', handle(async (req) => {
   requireRoles(req, ARRIVALS_READ_ROLES);
   const q = req.query;
-  return listArrivals({
+  const data = await listArrivals({
     propertyId: scope(req),
     date: q.date,
     q: q.q,
@@ -64,6 +88,7 @@ router.get('/arrivals', handle(async (req) => {
     page: q.page,
     pageSize: q.pageSize,
   });
+  return { ...data, rows: data.rows.map((r) => forHousekeeping(req, r)) };
 }));
 
 router.patch('/reservations/:id/eta', handle(async (req) => {
@@ -90,15 +115,19 @@ router.post('/reservations/:id/registration', handle(async (req) => {
 router.post('/reservations/:id/check-in', handle(async (req) => {
   requireRoles(req, FRONT_ROLES);
   const b = req.body || {};
-  return completeCheckIn({
-    propertyId: scope(req),
+  const propertyId = scope(req);
+  const result = await completeCheckIn({
+    propertyId,
     reservationId: req.params.id,
     unitIds: b.unitIds,
+    unitIndexes: b.unitIndexes,
     guarantee: b.guarantee,
     override: b.override,
     actor: actorOf(req),
     ip: req.ip,
   });
+  emit(propertyId, 'guest.checked_in', { reservationId: result.reservationId, confirmationNumber: result.confirmationNumber, checkedInAt: new Date() }).catch(() => null);
+  return result;
 }));
 
 // ── INV-02 ──────────────────────────────────────────────────────────────────
@@ -129,7 +158,8 @@ router.get('/staff', handle(async (req) => {
 
 router.get('/queue', handle(async (req) => {
   requireRoles(req, QUEUE_READ_ROLES);
-  return listQueue({ propertyId: scope(req), status: req.query.status === 'resolved' ? 'resolved' : 'active' });
+  const data = await listQueue({ propertyId: scope(req), status: req.query.status === 'resolved' ? 'resolved' : 'active' });
+  return { ...data, rows: data.rows.map((r) => forHousekeeping(req, r)) };
 }));
 
 router.post('/queue', handle(async (req) => {
@@ -156,6 +186,61 @@ router.post('/queue/:id/prioritize', handle(async (req) => {
 router.post('/queue/:id/remove', handle(async (req) => {
   requireRoles(req, FRONT_ROLES);
   return removeFromQueue({ propertyId: scope(req), id: req.params.id, reason: req.body?.reason, version: req.body?.version, actor: actorOf(req), ip: req.ip });
+}));
+
+// ── FD-06 / FD-07 / FD-08 ───────────────────────────────────────────────────
+router.get('/in-house', handle(async (req) => {
+  requireRoles(req, DEPARTURE_READ_ROLES);
+  const q = req.query;
+  return listInHouse({ propertyId: scope(req), q: q.q, departure: q.departure, view: q.view, page: q.page, pageSize: q.pageSize });
+}));
+
+router.get('/departures', handle(async (req) => {
+  requireRoles(req, DEPARTURE_READ_ROLES);
+  return listDepartures({ propertyId: scope(req), date: req.query.date, status: req.query.status, q: req.query.q });
+}));
+
+router.patch('/reservations/:id/etd', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return setEtd({ propertyId: scope(req), reservationId: req.params.id, etd: req.body?.etd, actor: actorOf(req), ip: req.ip });
+}));
+
+router.get('/reservations/:id/check-out', handle(async (req) => {
+  requireRoles(req, DEPARTURE_WORK_ROLES);
+  return getCheckOutContext({ propertyId: scope(req), reservationId: req.params.id });
+}));
+
+router.post('/reservations/:id/check-out', handle(async (req) => {
+  requireRoles(req, DEPARTURE_WORK_ROLES);
+  const b = req.body || {};
+  return completeCheckOut({
+    propertyId: scope(req), reservationId: req.params.id, unitIds: b.unitIds,
+    unitIndexes: b.unitIndexes,
+    settlements: Array.isArray(b.settlements) ? b.settlements : [], early: b.early, actor: actorOf(req), ip: req.ip,
+  }).then((result) => {
+    emit(String(req.query.propertyId || req.body?.propertyId || req.actor?.propertyId), 'guest.checked_out', { reservationId: result.reservationId, checkedOutAt: new Date() }).catch(() => null);
+    return result;
+  });
+}));
+
+router.post('/reservations/:id/charges', handle(async (req) => {
+  requireRoles(req, DEPARTURE_WORK_ROLES);
+  return postServiceCharge({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/reservations/:id/post-nights', handle(async (req) => {
+  requireRoles(req, DEPARTURE_WORK_ROLES);
+  return postPendingNights({ propertyId: scope(req), reservationId: req.params.id, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/folios/:folioId/payments', handle(async (req) => {
+  requireRoles(req, DEPARTURE_WORK_ROLES);
+  return recordPayment({ propertyId: scope(req), folioId: req.params.folioId, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/folios/:folioId/refunds', handle(async (req) => {
+  requireRoles(req, DEPARTURE_WORK_ROLES); // the service narrows this to managers/finance
+  return refundCredit({ propertyId: scope(req), folioId: req.params.folioId, input: req.body || {}, actor: actorOf(req), ip: req.ip });
 }));
 
 export default router;

@@ -159,6 +159,12 @@ router.patch('/:id/clean-status', asyncHandler(async (req, res) => {
   requireRoles(req, ROOM_MANAGER_ROLES, 'Changing room status requires manager permissions');
   const { cleanStatus, propertyId } = req.body;
   assertPropertyScope(req, propertyId);
+  // Same gates as /api/pms/ops (OPS-03): "inspected" only comes from an inspection, "cleaning" only
+  // from a started task, and the room must belong to the property in scope.
+  if (cleanStatus === 'inspected') return res.status(422).json({ success: false, error: 'סטטוס "נבדק" נקבע רק בבדיקת חדר (חדרנות ← בדיקת חדרים)' });
+  if (!['clean', 'dirty', 'pickup', 'turndown_required'].includes(cleanStatus)) return res.status(422).json({ success: false, error: 'סטטוס ניקיון לא מוכר' });
+  const inScope = await Room.exists({ _id: req.params.id, property: propertyId });
+  if (!inScope) return res.status(404).json({ success: false, error: 'Room not found' });
   const actor = actorOrSystem(req);
   const room = await updateCleanStatus({
     roomId: req.params.id,
@@ -182,6 +188,8 @@ router.patch('/:id/ops-status', asyncHandler(async (req, res) => {
   requireRoles(req, ROOM_MANAGER_ROLES, 'Changing room status requires manager permissions');
   const { opsStatus, outOfServiceUntil, reason, propertyId } = req.body;
   assertPropertyScope(req, propertyId);
+  const inScope = await Room.exists({ _id: req.params.id, property: propertyId });
+  if (!inScope) return res.status(404).json({ success: false, error: 'Room not found' });
   const actor = actorOrSystem(req);
   const room = await updateOpsStatus({
     roomId: req.params.id,

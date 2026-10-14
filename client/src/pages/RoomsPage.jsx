@@ -34,7 +34,6 @@ const OPS_CFG = {
 const CLEAN_ACTIONS = [
   { value:'clean',     label:'נקי ✓',  color:'#166534', bg:'#dcfce7', border:'#86efac' },
   { value:'dirty',     label:'מלוכלך', color:'#92400e', bg:'#fffbeb', border:'#fcd34d' },
-  { value:'inspected', label:'נבדק ★', color:'#1e40af', bg:'#eff6ff', border:'#93c5fd' },
   { value:'pickup',    label:'Pickup', color:'#854d0e', bg:'#fef9c3', border:'#fde047' },
 ];
 const OPS_ACTIONS = [

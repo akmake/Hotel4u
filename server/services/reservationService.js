@@ -6,6 +6,7 @@ import HousekeepingTask from '../models/HousekeepingTask.js';
 import GuestProfile from '../models/GuestProfile.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import StaySegment from '../models/StaySegment.js';
+import ArrivalQueueEntry from '../models/ArrivalQueueEntry.js';
 import {
   checkAvailability,
   incrementInventory,
@@ -15,8 +16,13 @@ import { enqueueChannelUpdate } from './channelQueueService.js';
 import { audit } from './auditService.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { fireEvent } from './automationEngine.js';
+import { withLocks } from './locks.js';
 
-let _counter = 1000;
+// Quoted prices include VAT: the tax part is extracted (118 at 18% → 18), never added on top.
+function vatIncluded(gross, ratePct) {
+  const rate = Number(ratePct ?? 18) / 100;
+  return Math.round((Number(gross) - Number(gross) / (1 + rate)) * 100) / 100;
+}
 
 function httpError(message, status = 500) {
   const err = new Error(message);
@@ -24,13 +30,20 @@ function httpError(message, status = 500) {
   return err;
 }
 
-async function nextConfirmationNumber() {
-  const last = await Reservation.findOne().sort({ createdAt: -1 }).select('confirmationNumber');
-  if (last?.confirmationNumber) {
-    const n = parseInt(last.confirmationNumber.replace('RES-', ''), 10);
-    if (!Number.isNaN(n)) _counter = n;
+// Atomic per-property sequence (Property.reservationSequence). If the sequence is behind numbers
+// that already exist (seeded/imported data), it jumps past the highest one and tries again.
+export async function allocateConfirmationNumber(propertyId) {
+  const prop = await Property.findById(propertyId).select('reservationPrefix').lean();
+  const prefix = (prop?.reservationPrefix || 'RES').replace(/[^A-Za-z0-9]/g, '') || 'RES';
+  for (let i = 0; i < 6; i += 1) {
+    const p = await Property.findByIdAndUpdate(propertyId, { $inc: { reservationSequence: 1 } }, { returnDocument: 'after' }).select('reservationSequence').lean();
+    const candidate = `${prefix}-${p?.reservationSequence ?? Date.now()}`;
+    if (!(await Reservation.exists({ confirmationNumber: candidate }))) return candidate;
+    const taken = await Reservation.find({ confirmationNumber: new RegExp(`^${prefix}-[0-9]+$`) }).select('confirmationNumber').lean();
+    const max = taken.reduce((m, r) => Math.max(m, Number(r.confirmationNumber.slice(prefix.length + 1)) || 0), 0);
+    await Property.updateOne({ _id: propertyId, reservationSequence: { $lt: max } }, { $set: { reservationSequence: max } });
   }
-  return `RES-${++_counter}`;
+  throw httpError('לא ניתן להקצות מספר אישור — נסו שוב', 503);
 }
 
 async function todayByPropertyTimezone(propertyId) {
@@ -38,7 +51,16 @@ async function todayByPropertyTimezone(propertyId) {
   return todayYmdInTimezone(prop?.timezone || 'Asia/Jerusalem');
 }
 
-export async function createReservation({ propertyId, data, actorId, actorName, ip }) {
+// Selling inventory is check-then-write; two clerks selling the last room at the same moment must
+// not both succeed (T01). The whole creation runs under a per room-type lock; a concurrent request
+// waits briefly and then sees the room as taken.
+export async function createReservation(args) {
+  const roomTypeId = args?.data?.roomTypeId;
+  if (!roomTypeId || ['draft', 'quote'].includes(String(args?.data?.bookingStatus || '').toLowerCase())) return createReservationUnlocked(args);
+  return withLocks([`inv:${args.propertyId}:${roomTypeId}`], () => createReservationUnlocked(args), { waitMs: 4000 });
+}
+
+async function createReservationUnlocked({ propertyId, data, actorId, actorName, ip }) {
   const {
     roomTypeId,
     arrivalDate,
@@ -112,7 +134,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     || null;
 
   const totalAmount = Number(ratePerNight) * nights * normalizedRoomsCount;
-  const confNum = await nextConfirmationNumber();
+  const confNum = await allocateConfirmationNumber(propertyId);
 
   const res = await Reservation.create({
     property: propertyId,
@@ -135,7 +157,7 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     assignedRoom: assignedRoom?._id || null,
     ratePerNight: Number(ratePerNight),
     totalAmount,
-    taxAmount: Math.round(totalAmount * 0.17),
+    taxAmount: vatIncluded(totalAmount, (await Property.findById(propertyId).select('vatRate').lean())?.vatRate),
     paymentStatus: 'unpaid',
     currency: currency || 'ILS',
     guaranteeType: guaranteeType || 'none',
@@ -178,7 +200,11 @@ export async function createReservation({ propertyId, data, actorId, actorName, 
     });
   }
 
-  const selectedRooms = shouldAssignRoom ? (avail.availableRooms || []).slice(0, normalizedRoomsCount) : [];
+  // Unit 0 must hold the same room as the reservation-level pointer (one source of truth).
+  const selectedRooms = shouldAssignRoom
+    ? [assignedRoom, ...(avail.availableRooms || []).filter((r) => String(r._id) !== String(assignedRoom?._id))]
+      .filter(Boolean).slice(0, normalizedRoomsCount)
+    : [];
   if (selectedRooms.length > 0 && shouldCommitInventory) {
     await Room.updateMany(
       { _id: { $in: selectedRooms.map((r) => r._id) } },
@@ -288,37 +314,20 @@ export async function checkIn({ reservationId, actorId, actorName, ip, overrideC
 
   const before = res.toObject();
 
-  res.status = 'in_house';
-  res.checkedInAt = new Date();
-  res.updatedBy = actorId;
-  await res.save();
+  // Atomic claim: only one concurrent request can move the reservation into the house.
+  const claimed = await Reservation.findOneAndUpdate(
+    { _id: res._id, status: { $in: ['confirmed', 'modified', 'pending_payment'] } },
+    { $set: { status: 'in_house', checkedInAt: new Date(), updatedBy: actorId } },
+    { returnDocument: 'after' },
+  );
+  if (!claimed) throw httpError('Reservation was checked in meanwhile', 409);
+  res.status = claimed.status;
+  res.checkedInAt = claimed.checkedInAt;
 
   await Room.findByIdAndUpdate(room._id, { occStatus: 'occupied' });
 
-  const folio = await Folio.findOne({ reservation: reservationId, status: 'open' });
-  if (folio) {
-    const dates = [];
-    const cur = new Date(res.arrivalDate);
-    const end = new Date(res.departureDate);
-    while (cur < end) {
-      dates.push(cur.toISOString().split('T')[0]);
-      cur.setDate(cur.getDate() + 1);
-    }
-    for (const date of dates) {
-      folio.lines.push({
-        type: 'charge',
-        description: 'Room Night',
-        amount: res.ratePerNight,
-        taxAmount: Math.round(res.ratePerNight * 0.17),
-        department: 'rooms',
-        serviceDate: date,
-        source: 'pms',
-        status: 'posted',
-        createdBy: actorId,
-      });
-    }
-    await folio.save();
-  }
+  // Lodging is not pre-posted here: day close posts each night and checkout posts any night still
+  // missing (services/roomCharges.js). Posting all nights at entry double-charged with night audit.
 
   await GuestProfile.findByIdAndUpdate(res.primaryGuest, {
     $inc: { totalStays: 1, totalRevenue: res.totalAmount },
@@ -412,10 +421,26 @@ export async function checkOut({ reservationId, actorId, actorName, ip, forceChe
   return res;
 }
 
+// A stay that ends without entering closes its open units and any waiting-queue entry, whatever
+// screen or job ended it (cancel, no-show, night audit).
+async function closeOpenUnits(reservationId, unitStatus, why) {
+  await ReservationRoom.updateMany({ reservation: reservationId, status: { $in: ['reserved', 'tentative'] } }, { $set: { status: unitStatus } });
+  await ArrivalQueueEntry.updateMany(
+    { reservation: reservationId, status: 'active' },
+    { $set: { status: 'removed', removalReason: why, resolvedAt: new Date() }, $inc: { __v: 1 } },
+  );
+}
+
 export async function cancelReservation({ reservationId, reason, actorId, actorName, ip }) {
   const res = await Reservation.findById(reservationId);
   if (!res) throw httpError('Reservation not found', 404);
-  if (['cancelled', 'checked_out'].includes(res.status)) throw httpError('Reservation already closed/cancelled', 409);
+  if (['cancelled', 'checked_out', 'no_show'].includes(res.status)) throw httpError('Reservation already closed/cancelled', 409);
+  // A stay that has started is not cancelled silently (T32) — it is checked out or handled as an exception.
+  if (['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'].includes(res.status)) {
+    throw httpError('השהייה כבר התחילה — לא מבטלים אחרי כניסה; יש לטפל ביציאה או כחריג', 409);
+  }
+  // Only statuses that took inventory give it back (a draft or an unheld quote never took any).
+  const heldInventory = ['confirmed', 'modified', 'pending_payment', 'hold'].includes(res.status);
 
   const before = res.toObject();
   res.status = 'cancelled';
@@ -423,15 +448,18 @@ export async function cancelReservation({ reservationId, reason, actorId, actorN
   res.cancellationReason = reason || '';
   res.updatedBy = actorId;
   await res.save();
+  await closeOpenUnits(res._id, 'cancelled', 'ההזמנה בוטלה');
 
-  await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -(res.roomsCount || 1), {
-    propertyId: res.property,
-    actorId,
-    actorName,
-    ip,
-    action: 'inventory.reservation_cancelled',
-    reason: `Reservation ${res.confirmationNumber}`,
-  });
+  if (heldInventory) {
+    await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -(res.roomsCount || 1), {
+      propertyId: res.property,
+      actorId,
+      actorName,
+      ip,
+      action: 'inventory.reservation_cancelled',
+      reason: `Reservation ${res.confirmationNumber}`,
+    });
+  }
 
   if (res.assignedRoom) {
     await Room.findByIdAndUpdate(res.assignedRoom, { occStatus: 'vacant' });
@@ -558,7 +586,7 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
     const roomsCount = Math.max(1, Number(res.roomsCount) || 1);
     res.ratePerNight = rate;
     res.totalAmount = rate * nights * roomsCount;
-    res.taxAmount = Math.round(res.totalAmount * 0.17);
+    res.taxAmount = vatIncluded(res.totalAmount, (await Property.findById(res.property).select('vatRate').lean())?.vatRate);
 
     if (typeChanged) {
       const bestRoom = avail.availableRooms.find(r => ['clean', 'inspected'].includes(r.cleanStatus))
@@ -566,10 +594,29 @@ export async function modifyReservation({ reservationId, data, actorId, actorNam
         || null;
       res.assignedRoom = bestRoom?._id || null;
     }
+
+    // Stay units carry their own range/type/room; they must follow the reservation, otherwise
+    // assignment and conflict checks run against the old dates.
+    const unitDocs = await ReservationRoom.find({ reservation: res._id, status: { $in: ['reserved', 'tentative'] } }).sort({ createdAt: 1, _id: 1 });
+    for (const [i, u] of unitDocs.entries()) {
+      u.arrivalDate = newArrival;
+      u.departureDate = newDeparture;
+      u.nightlyRate = rate;
+      if (typeChanged) {
+        u.roomTypeBooked = newRoomTypeId;
+        u.assignedRoom = i === 0 ? (res.assignedRoom || null) : null;
+      } else if (datesChanged && u.assignedRoom) {
+        // The room was checked for the old range only; release it for re-assignment unless it is
+        // the reservation's own pointer, which checkAvailability just validated.
+        if (String(u.assignedRoom) !== String(res.assignedRoom || '')) u.assignedRoom = null;
+      }
+      await u.save();
+    }
   } else if (ratePerNight != null && Number(ratePerNight) !== res.ratePerNight) {
     res.ratePerNight = Number(ratePerNight);
     res.totalAmount = Number(ratePerNight) * res.nights * Math.max(1, Number(res.roomsCount) || 1);
-    res.taxAmount = Math.round(res.totalAmount * 0.17);
+    res.taxAmount = vatIncluded(res.totalAmount, (await Property.findById(res.property).select('vatRate').lean())?.vatRate);
+    await ReservationRoom.updateMany({ reservation: res._id, status: { $in: ['reserved', 'tentative'] } }, { $set: { nightlyRate: Number(ratePerNight) } });
   }
 
   if (ratePlanId !== undefined) res.ratePlan = ratePlanId || null;
@@ -640,6 +687,7 @@ export async function markNoShow({ reservationId, actorId, actorName, ip }) {
   res.noShowAt = new Date();
   res.updatedBy = actorId;
   await res.save();
+  await closeOpenUnits(res._id, 'no_show', 'סומנה אי הגעה');
 
   await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -(res.roomsCount || 1), {
     propertyId: res.property,

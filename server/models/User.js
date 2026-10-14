@@ -72,7 +72,12 @@ const UserSchema = new Schema({
   totpSecret:          { type: String, default: '' },
   failedLoginAttempts: { type: Number, default: 0 },
   lockUntil:           { type: Date, default: null },
-  tokenVersion:        { type: Number, default: 0 },
+  tokenVersion:        { type: Number, default: 0 },      // bumped on deactivation / password change / "log out everywhere"
+  accessUntil:         { type: Date, default: null },     // ADM-06-F07: end of access for temps and vendors
+  language:            { type: String, enum: ['he', 'en'], default: 'he' },
+  displayName:         { type: String, maxlength: 100 },
+  deactivatedAt:       Date,
+  deactivatedBy:       String,
 }, { timestamps: true, versionKey: false });
 
 // ─── Virtuals ─────────────────────────────────────────────────────────────────

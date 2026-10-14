@@ -57,15 +57,18 @@ export async function updateOpsStatus({ roomId, opsStatus, outOfServiceUntil, re
   }
 
   if (normalizedStatus === 'available') {
-    const hasCriticalBlockingTicket = await MaintenanceTicket.exists({
+    // Same rule as OPS-06 unblock: no open ticket that blocks the room (blocking flag, critical,
+    // or guest impact "block").
+    const blocking = await MaintenanceTicket.findOne({
       room: room._id,
-      priority: 'critical',
-      blocksRoom: true,
-      status: { $nin: ['resolved', 'verified', 'closed'] },
-    });
+      status: { $in: ['new', 'assigned', 'in_progress', 'waiting_parts', 'waiting_vendor', 'reopened'] },
+      $or: [{ blocksRoom: true }, { priority: 'critical' }, { guestImpact: 'block' }],
+    }).select('description').lean();
 
-    if (hasCriticalBlockingTicket) {
-      throw new Error('Cannot set room to available while critical blocking maintenance is open');
+    if (blocking) {
+      const err = new Error(`יש עדיין תקלה פתוחה שחוסמת את החדר: ${blocking.description}`);
+      err.status = 409;
+      throw err;
     }
   }
 

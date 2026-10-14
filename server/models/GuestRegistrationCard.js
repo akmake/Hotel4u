@@ -48,6 +48,9 @@ const GuestRegistrationCardSchema = new Schema({
   termsVersion:  { type: String },                      // גרסת נוסח התנאים שהוצג (FD-05-F05)
   digitalDocConsent: { type: Boolean, default: false }, // הסכמה למסמך דיגיטלי — נפרדת משיווק (FD-05-F08)
   reservationRoom: { type: Schema.Types.ObjectId, ref: 'ReservationRoom' },
+  // A corrected card replaces the previous one; the old card stays for the record (no deletion).
+  supersededBy:  { type: Schema.Types.ObjectId, ref: 'GuestRegistrationCard' },
+  supersededAt:  { type: Date },
 
   // ── מיקום ───────────────────────────────────────────────────────────
   assignedRoom:  { type: String },                      // מס' חדר בעת הצ'ק-אין

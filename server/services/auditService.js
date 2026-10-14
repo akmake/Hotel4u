@@ -15,7 +15,9 @@ export async function audit({
       actorName: actorName || 'system',
       action,
       entityType,
-      entityId,
+      // Bulk actions have no single record: anchor them to the property so the entry is not dropped
+      // (entityId is required and a failed write is swallowed below).
+      entityId:  entityId || property || undefined,
       before:    before    || undefined,
       after:     after     || undefined,
       reason:    reason    || undefined,

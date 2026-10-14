@@ -3,14 +3,15 @@
 // the server (version check); a stale view gets a conflict instead of a silent overwrite.
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { RefreshCw, Crown } from 'lucide-react';
+import * as Menu from '@radix-ui/react-dropdown-menu';
+import { RefreshCw, Crown, MoreHorizontal } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useAuthStore } from '../stores/authStore';
 import { frontdesk } from '../utils/api';
 import { QUEUE_REASON_LABELS, cleanLabel, opsLabel } from '../lib/labels';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/Toast';
-import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, formatTime, formatWait, minutesSince } from '../components/frontdesk/ui';
+import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, formatTime, formatWait, minutesSince } from '../components/kit';
 import AssignRoomDialog from '../components/frontdesk/AssignRoomDialog';
 
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
@@ -60,10 +61,10 @@ export default function ArrivalQueuePage() {
   const rows = data?.rows || [];
 
   return (
-    <div className="fd-page" dir="rtl">
+    <div className="ui-page" dir="rtl">
       <ToastContainer toasts={toasts} />
-      <div className="fd-toolbar">
-        <div className="fd-seg" role="tablist" aria-label="תצוגה">
+      <div className="ui-toolbar">
+        <div className="ui-seg" role="tablist" aria-label="תצוגה">
           <button type="button" role="tab" aria-selected={view === 'active'} className={view === 'active' ? 'is-on' : ''} onClick={() => setView('active')}>ממתינים{view === 'active' && data ? ` · ${rows.length}` : ''}</button>
           <button type="button" role="tab" aria-selected={view === 'resolved'} className={view === 'resolved' ? 'is-on' : ''} onClick={() => setView('resolved')}>טופלו לאחרונה</button>
         </div>
@@ -73,10 +74,10 @@ export default function ArrivalQueuePage() {
         </div>
       </div>
 
-      <section className="fd-card" aria-label="תור המתנה לחדר">
+      <section className="ui-card" aria-label="תור המתנה לחדר">
         <ErrorBanner error={error} onRetry={load} />
-        <div className="fd-table-wrap" aria-busy={loading}>
-          <table className="fd-table">
+        <div className="ui-table-wrap" aria-busy={loading}>
+          <table className="ui-table">
             <thead>
               <tr>
                 <th scope="col">אורח</th>
@@ -89,9 +90,9 @@ export default function ArrivalQueuePage() {
               </tr>
             </thead>
             <tbody>
-              {loading && !data && <tr><td colSpan={7}><div className="fd-empty"><Spinner /> טוען…</div></td></tr>}
+              {loading && !data && <tr><td colSpan={7}><div className="ui-empty"><Spinner /> טוען…</div></td></tr>}
               {data && rows.length === 0 && (
-                <tr><td colSpan={7}><div className="fd-empty">
+                <tr><td colSpan={7}><div className="ui-empty">
                   <strong>{view === 'active' ? 'אין אורחים בהמתנה' : 'לא טופלו רשומות ב־36 השעות האחרונות'}</strong>
                   {view === 'active' && 'אורח שהגיע וחדרו לא מוכן נוסף לתור ממסך ההגעות.'}
                 </div></td></tr>
@@ -107,31 +108,31 @@ export default function ArrivalQueuePage() {
                       <div className="font-medium flex items-center gap-1">
                         {r.guest.name}
                         {r.guest.vip && <Crown size={12} className="text-amber-600" aria-label="VIP" />}
-                        {r.priority === 'urgent' && <span className="fd-tag is-bad">דחוף</span>}
+                        {r.priority === 'urgent' && <span className="ui-tag is-bad">דחוף</span>}
                       </div>
-                      <div className="fd-sub"><bdi>{r.confirmationNumber}</bdi> · הגיע {formatTime(r.arrivedAt)}</div>
+                      <div className="ui-sub"><bdi>{r.confirmationNumber}</bdi> · הגיע {formatTime(r.arrivedAt)}</div>
                     </td>
                     <td>
                       {r.room ? (
                         <>
                           <div className="tabular-nums font-medium">{r.room.number}</div>
-                          <div className="fd-sub">{cleanLabel(r.room.cleanStatus)} · {opsLabel(r.room.opsStatus)}</div>
+                          <div className="ui-sub ui-nowrap">{cleanLabel(r.room.cleanStatus)} · {opsLabel(r.room.opsStatus)}</div>
                         </>
                       ) : <span className="text-[rgb(var(--fg-muted))]">ללא שיבוץ</span>}
                     </td>
                     <td className="tabular-nums">
                       <div className={wait >= 30 && view === 'active' ? 'text-[rgb(185_28_28)] font-medium' : ''}>{formatWait(wait)}</div>
-                      {r.readyEta && <div className={`fd-sub ${late ? 'text-[rgb(185_28_28)]' : ''}`}>הערכה {formatTime(r.readyEta)}{late ? ' · עבר' : ''}</div>}
-                      {!r.readyEta && view === 'active' && <div className="fd-sub">אין הערכת מוכנות</div>}
+                      {r.readyEta && <div className={`ui-sub ${late ? 'text-[rgb(185_28_28)]' : ''}`}>הערכה {formatTime(r.readyEta)}{late ? ' · עבר' : ''}</div>}
+                      {!r.readyEta && view === 'active' && <div className="ui-sub">אין הערכת מוכנות</div>}
                     </td>
-                    <td>
+                    <td className="ui-nowrap">
                       <div>{QUEUE_REASON_LABELS[r.reason] || r.reason}</div>
-                      {r.housekeepingTask && <div className="fd-sub">משימת חדרנות: {HK_STATUS_LABELS[r.housekeepingTask.status] || r.housekeepingTask.status}{r.housekeepingTask.priority === 'urgent' ? ' · דחופה' : ''}</div>}
-                      {r.notes && <div className="fd-sub">{r.notes}</div>}
+                      {r.housekeepingTask && <div className="ui-sub">משימת חדרנות: {HK_STATUS_LABELS[r.housekeepingTask.status] || r.housekeepingTask.status}{r.housekeepingTask.priority === 'urgent' ? ' · דחופה' : ''}</div>}
+                      {r.notes && <div className="ui-sub">{r.notes}</div>}
                     </td>
                     <td>
-                      <div>{r.owner?.name || '—'}{mine && <span className="fd-sub"> (אני)</span>}</div>
-                      {r.guestContact && <div className="fd-sub">עדכון אורח: {r.guestContact === 'desk' ? 'בדלפק' : 'בהודעה'}</div>}
+                      <div>{r.owner?.name || '—'}{mine && <span className="ui-sub"> (אני)</span>}</div>
+                      {r.guestContact && <div className="ui-sub">עדכון אורח: {r.guestContact === 'desk' ? 'בדלפק' : 'בהודעה'}</div>}
                     </td>
                     <td style={{ minWidth: 200 }}>
                       {view === 'active' ? (
@@ -142,13 +143,13 @@ export default function ArrivalQueuePage() {
                       ) : (
                         <div>
                           {r.status === 'checked_in' ? 'נכנס' : 'הוסר'} · {formatTime(r.resolvedAt)}
-                          {r.removalReason && <div className="fd-sub">{r.removalReason}</div>}
+                          {r.removalReason && <div className="ui-sub">{r.removalReason}</div>}
                         </div>
                       )}
                     </td>
                     <td>
                       {view === 'active' && (
-                        <div className="fd-row-actions">
+                        <div className="ui-row-actions">
                           {isFront && (
                             <button
                               type="button"
@@ -160,14 +161,37 @@ export default function ArrivalQueuePage() {
                           {!mine && (
                             <button type="button" className="btn btn-secondary btn-sm" disabled={busyId === r.id} onClick={() => act(r, () => frontdesk.takeQueue(propertyId, r.id, r.version), 'האחריות הועברה אליך')}>קבלת אחריות</button>
                           )}
-                          {r.room && r.housekeepingTask?.priority !== 'urgent' && (
-                            <button type="button" className="btn btn-secondary btn-sm" disabled={busyId === r.id} onClick={() => act(r, () => frontdesk.prioritizeQueue(propertyId, r.id), 'נשלחה בקשת עדיפות לחדרנות')}>עדיפות לחדרנות</button>
-                          )}
-                          {isFront && (
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAssignRow({ key: r.id, reservationId: r.reservationId, unitId: r.unitId, confirmationNumber: r.confirmationNumber, guest: r.guest })}>חלופה</button>
-                          )}
-                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditRow(r)}>עדכון</button>
-                          {isFront && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRemoveRow(r)}>הסרה</button>}
+                          <Menu.Root dir="rtl">
+                            <Menu.Trigger asChild>
+                              <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label={`פעולות נוספות — ${r.guest.name}`}><MoreHorizontal size={15} /></button>
+                            </Menu.Trigger>
+                            <Menu.Portal>
+                              <Menu.Content className="ui-menu" align="end" sideOffset={4}>
+                                <Menu.Item
+                                  className="ui-menu-item"
+                                  disabled={!r.room || r.housekeepingTask?.priority === 'urgent' || busyId === r.id}
+                                  onSelect={() => act(r, () => frontdesk.prioritizeQueue(propertyId, r.id), 'נשלחה בקשת עדיפות לחדרנות')}
+                                >
+                                  עדיפות לחדרנות
+                                  {!r.room && <span className="ui-menu-why">אין חדר משובץ</span>}
+                                  {r.room && r.housekeepingTask?.priority === 'urgent' && <span className="ui-menu-why">כבר סומנה דחופה</span>}
+                                </Menu.Item>
+                                {isFront && (
+                                  <Menu.Item className="ui-menu-item" onSelect={() => setAssignRow({ key: r.id, reservationId: r.reservationId, unitId: r.unitId, confirmationNumber: r.confirmationNumber, guest: r.guest })}>
+                                    חדר חלופי
+                                    <span className="ui-menu-why">בדיקת זמינות לכל השהייה</span>
+                                  </Menu.Item>
+                                )}
+                                <Menu.Item className="ui-menu-item" onSelect={() => setEditRow(r)}>עדכון פרטי המתנה</Menu.Item>
+                                {isFront && (
+                                  <>
+                                    <Menu.Separator className="ui-menu-sep" />
+                                    <Menu.Item className="ui-menu-item" onSelect={() => setRemoveRow(r)}>הסרה מהתור</Menu.Item>
+                                  </>
+                                )}
+                              </Menu.Content>
+                            </Menu.Portal>
+                          </Menu.Root>
                         </div>
                       )}
                     </td>
@@ -177,7 +201,7 @@ export default function ArrivalQueuePage() {
             </tbody>
           </table>
         </div>
-        <div className="fd-foot">
+        <div className="ui-foot">
           <span className="text-[13px] text-[rgb(var(--fg-muted))]">
             ״עדיפות לחדרנות״ מסמנת את משימת הניקיון כדחופה — היא אינה מסמנת את החדר כמוכן.
           </span>
@@ -224,7 +248,7 @@ function RemoveDialog({ row, propertyId, onClose, onDone }) {
       )}
     >
       <ErrorBanner error={error} />
-      <p className="fd-p">ההסרה אינה מבטלת את ההזמנה ואינה משנה את החדר.</p>
+      <p className="ui-p">ההסרה אינה מבטלת את ההזמנה ואינה משנה את החדר.</p>
       <Field id="rm-reason" label="סיבת ההסרה" required hint="לדוגמה: האורח יצא ויחזור בערב">
         <input id="rm-reason" className="input w-full" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
       </Field>
@@ -278,7 +302,7 @@ function EditDialog({ row, propertyId, isManager, onClose, onDone }) {
       )}
     >
       <ErrorBanner error={error} />
-      <div className="fd-grid-2">
+      <div className="ui-grid-2">
         <Field id="ed-reason" label="סיבת עיכוב" required>
           <select id="ed-reason" className="select w-full" value={form.reason || ''} onChange={set('reason')}>
             {Object.entries(QUEUE_REASON_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}

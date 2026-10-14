@@ -56,6 +56,12 @@ const GuestRequestSchema = new Schema({
   satisfactionScore: { type: Number, min: 1, max: 5 },
 
   // Audit
+  // GST-05: a paid service needs the guest's approval before anything is charged; links to the work it created.
+  expectedCharge:   { type: Number, default: 0 },
+  guestApproval:    String,                                // reference of the guest's approval (when charged)
+  linkedTicket:     { type: Schema.Types.ObjectId, ref: 'MaintenanceTicket' },
+  linkedTask:       { type: Schema.Types.ObjectId, ref: 'HousekeepingTask' },
+  outcome:          String,
   createdBy:    { type: Schema.Types.ObjectId, ref: 'User' },
   updatedBy:    { type: Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });

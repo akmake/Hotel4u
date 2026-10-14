@@ -36,6 +36,12 @@ const HousekeepingTaskSchema = new Schema({
   inspectionNotes: String,
   supplies:    [{ item: String, qty: Number }],
   photos:      [String],                                   // URLs / base64 refs
+  checklist:   [{ item: String, done: Boolean }],           // OPS-02 results, from the property checklist
+  returnReason:String,                                     // OPS-04 "return to cleaning"
+  returnedAt:  Date,
+  returnedBy:  { type: Schema.Types.ObjectId, ref: 'User' },
+  inspectionChecklist: [{ item: String, done: Boolean }],
+  defects:     [{ text: String, severity: { type: String, enum: ['minor', 'major', 'blocking'] } }],
   isDND:       { type: Boolean, default: false },          // Do Not Disturb
   isNoService: { type: Boolean, default: false },          // Guest declined service
   lostFound:   [LostFoundSchema],

@@ -53,6 +53,7 @@ import { getCalendarData } from './controllers/admin/calendarController.js';
 
 // --- ייבוא נתיבי PMS (hotel4u) ---
 import { attachActor, requireActor } from './middleware/authContext.js';
+import { authLimiter } from './middlewares/rateLimiter.js';
 import pmsDashboardRouter    from './routes/dashboard.js';
 import pmsPropertiesRouter   from './routes/properties.js';
 import pmsRoomsRouter        from './routes/rooms.js';
@@ -76,6 +77,12 @@ import pmsInvoiceRouter          from './routes/invoice.js';
 import pmsGuestRequestsRouter    from './routes/guest-requests.js';
 import pmsFolioRoutingRouter      from './routes/folio-routing.js';
 import pmsFrontDeskRouter         from './routes/frontdesk.js';
+import pmsOperationsRouter        from './routes/operations.js';
+import pmsFinanceRouter           from './routes/finance.js';
+import pmsBookingRouter           from './routes/booking.js';
+import pmsStayRouter              from './routes/stay.js';
+import pmsIdentityRouter          from './routes/identity.js';
+import pmsPlatformRouter          from './routes/platform.js';
 // --- חיבור למסד הנתונים ---
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -135,6 +142,8 @@ const csrfProtection = csurf({
 const apiRouter = express.Router();
 
 // 1. נתיבים ציבוריים (ללא CSRF)
+apiRouter.use('/auth/login', authLimiter);
+apiRouter.use('/auth/password', authLimiter);
 apiRouter.use('/auth', authRoutes);
 apiRouter.use('/webhooks', webhookRoutes);
 
@@ -218,6 +227,12 @@ pmsRouter.use('/invoices',       pmsInvoiceRouter);
 pmsRouter.use('/guest-requests', pmsGuestRequestsRouter);
 pmsRouter.use('/folio-routing',  pmsFolioRoutingRouter);
 pmsRouter.use('/frontdesk',      pmsFrontDeskRouter);
+pmsRouter.use('/ops',            pmsOperationsRouter);
+pmsRouter.use('/finance',        pmsFinanceRouter);
+pmsRouter.use('/booking',        pmsBookingRouter);
+pmsRouter.use('/stay',           pmsStayRouter);
+pmsRouter.use('/identity',       pmsIdentityRouter);
+pmsRouter.use('/platform',       pmsPlatformRouter);
 
 // =========================================================================
 // ✨ הפתרון הכפול: חיבור ה-Router לשני הנתיבים

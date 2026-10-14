@@ -1330,7 +1330,13 @@ export default function SettingsPage() {
       {tab === 'roomtypes' && <RoomTypesTab  propertyId={propertyId} success={success} toastError={toastError} />}
       {tab === 'rooms'     && <RoomsTab      propertyId={propertyId} success={success} toastError={toastError} />}
       {tab === 'crm-sla'   && <CrmSlaTab     propertyId={propertyId} success={success} toastError={toastError} />}
-      {tab === 'users'     && <UsersTab      propertyId={propertyId} success={success} toastError={toastError} />}
+      {tab === 'users'     && (
+        <div className="card p-5" dir="rtl">
+          <div className="font-semibold mb-1">משתמשים והרשאות עברו למסך ניהול משתמשים</div>
+          <div className="text-[13px] text-ink-muted mb-3">הזמנה עם קישור הגדרת סיסמה, תפקידים לפי סמכות, תוקף גישה והשבתה שמנתקת מושבים.</div>
+          <a href="/pms/admin/users" className="btn btn-primary btn-sm">למסך המשתמשים</a>
+        </div>
+      )}
       {tab === 'webhooks'  && <WebhooksTab   propertyId={propertyId} success={success} toastError={toastError} />}
     </div>
   );

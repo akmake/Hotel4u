@@ -565,6 +565,22 @@ POST   /bulk                    Bulk action (check-in / cancel / assign-room)
 GET    /bulk/:jobId             Track BulkActionJob progress
 ```
 
+#### `frontdesk.js` → `/api/pms/frontdesk` (spec W03 — see docs/product/spec-implementation-plan.md)
+```
+GET    /arrivals                       FD-02 rows per stay unit + server readiness reasons (date, q, roomTypeId, assignment, readiness, includeCheckedIn, sort, page)
+GET    /reservations/:id/check-in      FD-03 wizard context (units, guarantee, registration, policy)
+POST   /reservations/:id/registration  FD-05 registration card (no ID number in audit)
+POST   /reservations/:id/check-in      FD-03 complete (unitIds, guarantee, override{enabled,reason}) — full server re-check
+GET    /reservations/:id/room-candidates  INV-02 rooms free for every night
+POST   /reservations/:id/assign-room   INV-02 assign (reason required when replacing; 409 on conflict)
+PATCH  /reservations/:id/eta           expected arrival time
+POST   /reservations/:id/no-show       RSV-07 from arrivals (single-room, arrival day only)
+GET    /staff                          owner picker (name + role only)
+GET|POST /queue, POST /queue/:id/take|prioritize|remove, PATCH /queue/:id   FD-04 waiting queue
+```
+Service: `services/frontDeskService.js`. Model: `models/ArrivalQueueEntry.js`. Policy: `Property.checkInPolicy`.
+QA: `npm run qa:frontdesk` (live server + same DB; cleans up after itself).
+
 #### `rooms.js` → `/api/pms/rooms`
 ```
 GET    /                        List rooms (filters: floor, type, opsStatus, cleanStatus, occStatus)
