@@ -1,66 +1,101 @@
 /** @type {import('tailwindcss').Config} */
+
+// ── Design tokens ────────────────────────────────────────────────────────────
+// All colors resolve to CSS variables defined in src/index.css (:root), stored as
+// "R G B" channels so Tailwind opacity modifiers (bg-accent-500/10) keep working.
+const scale = (name) =>
+  Object.fromEntries(
+    [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((step) => [
+      step,
+      `rgb(var(--${name}-${step}) / <alpha-value>)`,
+    ]),
+  );
+
+const accent = scale('accent');
+const neutral = scale('neutral');
+const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Assistant', 'Segoe UI', 'Tahoma', 'Arial', 'sans-serif'],
-        mono: ['Consolas', 'Monaco', 'Courier New', 'monospace'],
+        sans: ['Inter', 'Heebo', 'Segoe UI', 'Tahoma', 'Arial', 'sans-serif'],
+        mono: ['ui-monospace', 'Consolas', 'Monaco', 'monospace'],
       },
       colors: {
-        sidebar: {
-          DEFAULT: '#0c111d',
-          hover: '#161d2e',
-          active: '#1e2840',
-          border: 'rgba(255,255,255,0.06)',
-          text: '#9ca3af',
-          'text-active': '#e2e8f0',
-        },
+        // Single system: one accent + one neutral scale.
+        accent,
+        neutral,
+        // Legacy palettes used ad-hoc across ~160 files are folded into the system,
+        // so stray `indigo-500` / `slate-600` render on-brand without touching every file.
+        indigo: accent,
+        violet: accent,
+        purple: accent,
+        slate: neutral,
+        gray: neutral,
+        zinc: neutral,
+        stone: neutral,
+
+        // Semantic aliases (existing class names kept for compatibility)
         brand: {
-          DEFAULT: '#6366f1',
-          light: '#818cf8',
-          dark: '#4f46e5',
-          subtle: 'rgba(99,102,241,0.12)',
+          DEFAULT: v('accent-600'),
+          light: v('accent-500'),
+          dark: v('accent-700'),
+          subtle: 'rgb(var(--accent-600) / 0.10)',
         },
         surface: {
-          DEFAULT: '#f8fafc',
-          card: '#ffffff',
-          border: '#e2e8f0',
-          hover: '#f1f5f9',
+          DEFAULT: v('bg'),
+          card: v('bg-elevated'),
+          border: v('border'),
+          hover: v('bg-hover'),
         },
         ink: {
-          DEFAULT: '#0f172a',
-          secondary: '#334155',
-          muted: '#64748b',
-          faint: '#94a3b8',
+          DEFAULT: v('fg'),
+          secondary: v('fg-secondary'),
+          muted: v('fg-muted'),
+          faint: v('fg-faint'),
         },
+        sidebar: {
+          DEFAULT: v('bg-sidebar'),
+          hover: v('bg-hover'),
+          active: v('bg-active'),
+          border: v('border'),
+          text: v('fg-muted'),
+          'text-active': v('fg'),
+        },
+        // Status colors carry meaning only — never decoration.
         status: {
-          clean: '#10b981',
-          'clean-bg': 'rgba(16,185,129,0.1)',
-          dirty: '#f59e0b',
-          'dirty-bg': 'rgba(245,158,11,0.1)',
-          ooo: '#ef4444',
-          'ooo-bg': 'rgba(239,68,68,0.1)',
-          occupied: '#3b82f6',
-          'occupied-bg': 'rgba(59,130,246,0.1)',
-          arrival: '#8b5cf6',
-          'arrival-bg': 'rgba(139,92,246,0.1)',
-          departure: '#f97316',
-          'departure-bg': 'rgba(249,115,22,0.1)',
-          confirmed: '#06b6d4',
-          'confirmed-bg': 'rgba(6,182,212,0.1)',
-          pending: '#eab308',
-          'pending-bg': 'rgba(234,179,8,0.1)',
+          clean: v('success'),
+          'clean-bg': 'rgb(var(--success) / 0.10)',
+          dirty: v('warning'),
+          'dirty-bg': 'rgb(var(--warning) / 0.12)',
+          ooo: v('danger'),
+          'ooo-bg': 'rgb(var(--danger) / 0.10)',
+          occupied: v('info'),
+          'occupied-bg': 'rgb(var(--info) / 0.10)',
+          arrival: v('accent-600'),
+          'arrival-bg': 'rgb(var(--accent-600) / 0.10)',
+          departure: v('departure'),
+          'departure-bg': 'rgb(var(--departure) / 0.10)',
+          confirmed: v('accent-600'),
+          'confirmed-bg': 'rgb(var(--accent-600) / 0.10)',
+          pending: v('warning'),
+          'pending-bg': 'rgb(var(--warning) / 0.12)',
         },
+      },
+      borderRadius: {
+        DEFAULT: '6px',
       },
       boxShadow: {
-        card: '0 1px 3px rgba(15,23,42,0.08), 0 1px 2px rgba(15,23,42,0.04)',
-        'card-hover': '0 4px 16px rgba(15,23,42,0.1), 0 2px 4px rgba(15,23,42,0.06)',
-        sidebar: '2px 0 16px rgba(0,0,0,0.24)',
+        card: '0 1px 2px rgb(var(--neutral-900) / 0.04)',
+        'card-hover': '0 4px 12px rgb(var(--neutral-900) / 0.08)',
+        popover: '0 8px 24px rgb(var(--neutral-900) / 0.12), 0 2px 6px rgb(var(--neutral-900) / 0.06)',
+        sidebar: 'none',
       },
       animation: {
-        'slide-in': 'slideIn 0.2s ease-out',
-        'fade-in': 'fadeIn 0.15s ease-out',
+        'slide-in': 'slideIn 0.18s ease-out',
+        'fade-in': 'fadeIn 0.12s ease-out',
         pulse2: 'pulse2 2s ease-in-out infinite',
       },
       keyframes: {

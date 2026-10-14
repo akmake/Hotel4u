@@ -1,0 +1,161 @@
+// /api/pms/frontdesk — arrivals (FD-02), check-in wizard (FD-03/FD-05), room assignment (INV-02)
+// and the waiting-for-room queue (FD-04). Business rules live in services/frontDeskService.js.
+import { Router } from 'express';
+import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
+import User from '../models/User.js';
+import {
+  listArrivals, getCheckInContext, saveRegistration, completeCheckIn,
+  roomCandidates, assignRoom, setEta, noShowFromArrivals,
+  listQueue, addToQueue, takeQueueOwnership, updateQueueEntry, removeFromQueue, prioritizeHousekeeping,
+} from '../services/frontDeskService.js';
+
+const router = Router();
+
+const FRONT_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist'];
+const ARRIVALS_READ_ROLES = [...FRONT_ROLES, 'housekeeping_manager', 'auditor', 'owner_readonly'];
+const QUEUE_READ_ROLES = [...FRONT_ROLES, 'housekeeping_manager', 'housekeeper'];
+const QUEUE_WORK_ROLES = [...FRONT_ROLES, 'housekeeping_manager'];
+
+// Errors from the service carry field-level messages (`fields`) and per-unit reasons (`details`);
+// the shared error handler drops those, so this router answers them itself.
+const handle = (fn) => async (req, res) => {
+  try {
+    const data = await fn(req, res);
+    if (!res.headersSent) res.json({ success: true, data });
+  } catch (err) {
+    const status = Number(err?.status || err?.statusCode || 500);
+    const safe = status >= 400 && status < 600 ? status : 500;
+    if (safe >= 500) console.error('[frontdesk]', err);
+    res.status(safe).json({
+      success: false,
+      error: safe >= 500 ? 'שגיאת שרת — הפעולה לא הושלמה' : err.message,
+      ...(err.fields ? { fields: err.fields } : {}),
+      ...(err.details ? { details: err.details } : {}),
+      ...(err.code && typeof err.code === 'string' ? { code: err.code } : {}),
+    });
+  }
+};
+
+function scope(req) {
+  const propertyId = req.query.propertyId || req.body?.propertyId || req.actor?.propertyId;
+  assertPropertyScope(req, propertyId);
+  return String(propertyId);
+}
+
+function actorOf(req) {
+  const a = actorOrSystem(req);
+  return { id: a.id, name: a.name, role: a.role };
+}
+
+// ── FD-02 ───────────────────────────────────────────────────────────────────
+router.get('/arrivals', handle(async (req) => {
+  requireRoles(req, ARRIVALS_READ_ROLES);
+  const q = req.query;
+  return listArrivals({
+    propertyId: scope(req),
+    date: q.date,
+    q: q.q,
+    roomTypeId: q.roomTypeId,
+    assignment: q.assignment,
+    readiness: q.readiness,
+    includeCheckedIn: q.includeCheckedIn === '1' || q.includeCheckedIn === 'true',
+    sort: q.sort,
+    dir: q.dir,
+    page: q.page,
+    pageSize: q.pageSize,
+  });
+}));
+
+router.patch('/reservations/:id/eta', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return setEta({ propertyId: scope(req), reservationId: req.params.id, eta: req.body?.eta, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/reservations/:id/no-show', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return noShowFromArrivals({ propertyId: scope(req), reservationId: req.params.id, actor: actorOf(req), ip: req.ip });
+}));
+
+// ── FD-03 / FD-05 ───────────────────────────────────────────────────────────
+router.get('/reservations/:id/check-in', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return getCheckInContext({ propertyId: scope(req), reservationId: req.params.id });
+}));
+
+router.post('/reservations/:id/registration', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return saveRegistration({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/reservations/:id/check-in', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  const b = req.body || {};
+  return completeCheckIn({
+    propertyId: scope(req),
+    reservationId: req.params.id,
+    unitIds: b.unitIds,
+    guarantee: b.guarantee,
+    override: b.override,
+    actor: actorOf(req),
+    ip: req.ip,
+  });
+}));
+
+// ── INV-02 ──────────────────────────────────────────────────────────────────
+router.get('/reservations/:id/room-candidates', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return roomCandidates({
+    propertyId: scope(req),
+    reservationId: req.params.id,
+    unitId: req.query.unitId || null,
+    allTypes: req.query.allTypes === '1',
+  });
+}));
+
+router.post('/reservations/:id/assign-room', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  const b = req.body || {};
+  return assignRoom({ propertyId: scope(req), reservationId: req.params.id, unitId: b.unitId, roomId: b.roomId, reason: b.reason, actor: actorOf(req), ip: req.ip });
+}));
+
+// ── FD-04 ───────────────────────────────────────────────────────────────────
+// Owner picker: names and roles only — no contact or security fields.
+router.get('/staff', handle(async (req) => {
+  requireRoles(req, QUEUE_WORK_ROLES);
+  const users = await User.find({ property: scope(req), active: { $ne: false }, role: { $in: [...QUEUE_READ_ROLES] } })
+    .select('firstName lastName role').sort({ firstName: 1 }).lean();
+  return users.map((u) => ({ id: String(u._id), name: `${u.firstName || ''} ${u.lastName || ''}`.trim(), role: u.role }));
+}));
+
+router.get('/queue', handle(async (req) => {
+  requireRoles(req, QUEUE_READ_ROLES);
+  return listQueue({ propertyId: scope(req), status: req.query.status === 'resolved' ? 'resolved' : 'active' });
+}));
+
+router.post('/queue', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  const b = req.body || {};
+  return addToQueue({ propertyId: scope(req), reservationId: b.reservationId, unitId: b.unitId, input: b, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/queue/:id/take', handle(async (req) => {
+  requireRoles(req, QUEUE_WORK_ROLES);
+  return takeQueueOwnership({ propertyId: scope(req), id: req.params.id, version: req.body?.version, actor: actorOf(req), ip: req.ip });
+}));
+
+router.patch('/queue/:id', handle(async (req) => {
+  requireRoles(req, QUEUE_WORK_ROLES);
+  return updateQueueEntry({ propertyId: scope(req), id: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/queue/:id/prioritize', handle(async (req) => {
+  requireRoles(req, QUEUE_WORK_ROLES);
+  return prioritizeHousekeeping({ propertyId: scope(req), id: req.params.id, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/queue/:id/remove', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return removeFromQueue({ propertyId: scope(req), id: req.params.id, reason: req.body?.reason, version: req.body?.version, actor: actorOf(req), ip: req.ip });
+}));
+
+export default router;

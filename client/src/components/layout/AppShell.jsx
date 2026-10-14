@@ -1,40 +1,75 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
-import TopBar from './TopBar';
+import { formatLong, todayYmd } from '../../utils/date';
 
 const PAGE_TITLES = {
-  '/':              'לוח בקרה — Front Desk',
-  '/tape-chart':    'Tape Chart',
-  '/room-rack':     'Room Rack',
-  '/reservations':  'הזמנות',
-  '/check-in':      'צ׳ק-אין',
-  '/check-out':     'צ׳ק-אאוט',
-  '/housekeeping':  'חדרנות',
-  '/maintenance':   'תחזוקה',
-  '/guests':        'אורחים',
-  '/companies':     'חברות וסוכנים',
-  '/crm/leads':     'Lead Inbox',
-  '/crm/opportunities': 'Opportunity Board',
-  '/folio':         'Folio ותשלומים',
-  '/reports':       'דוחות',
-  '/bulk-jobs':     'עבודות Bulk',
-  '/automation':       'כללי אוטומציה',
-  '/channel-manager':  'Channel Manager',
-  '/settings':         'הגדרות',
+  '/pms':                 'היום',
+  '/pms/tape-chart':      'לוח חדרים',
+  '/pms/room-rack':       'Room Rack',
+  '/pms/reservations':    'הזמנות',
+  '/pms/reservations/new':'הזמנה חדשה',
+  '/pms/arrivals':        'הגעות',
+  '/pms/arrival-queue':   'תור המתנה לחדר',
+  '/pms/check-out':       "צ'ק-אאוט",
+  '/pms/housekeeping':    'חדרנות',
+  '/pms/maintenance':     'תחזוקה',
+  '/pms/rooms':           'חדרים',
+  '/pms/guests':          'אורחים',
+  '/pms/companies':       'חברות וסוכנים',
+  '/pms/leads':           'לידים',
+  '/pms/opportunities':   'הזדמנויות',
+  '/pms/folio':           'חשבונות אורח',
+  '/pms/invoices':        'חשבוניות',
+  '/pms/reports':         'דוחות',
+  '/pms/night-audit':     'סגירת יום',
+  '/pms/bulk-jobs':       'פעולות מרוכזות',
+  '/pms/rates':           'מחירים',
+  '/pms/automation':      'אוטומציה',
+  '/pms/channel-manager': 'ערוצי הפצה',
+  '/pms/settings':        'הגדרות',
 };
 
+// Screens that lay out their own toolbar edge-to-edge inside the content panel (Linear list views).
+const FLUSH_ROUTES = new Set(['/pms']);
+
 export default function AppShell() {
-  const [collapsed, setCollapsed] = useState(false);
   const { pathname } = useLocation();
-  const title = PAGE_TITLES[pathname] || '';
+  const path = pathname.replace(/\/$/, '') || '/';
+  const title = PAGE_TITLES[path] || '';
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Close the off-canvas nav after navigating (small screens).
+  useEffect(() => { setNavOpen(false); }, [pathname]);
 
   return (
     <div className="app-shell">
-      <Sidebar collapsed={collapsed} />
-      <div className={`main-content ${collapsed ? 'main-content-collapsed' : ''}`}>
-        <TopBar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} title={title} />
-        <main className="page-content animate-fade-in">
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      {navOpen && <div className="sidebar-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />}
+      <div className="main-content">
+        <header className="content-header">
+          <button
+            type="button"
+            className="side-icon-btn lg:hidden"
+            onClick={() => setNavOpen(true)}
+            aria-label="פתיחת תפריט"
+          >
+            <Menu size={16} />
+          </button>
+          {title && (
+            <h1 className="content-title">
+              <span className="truncate">{title}</span>
+              {path === '/pms' && (
+                <>
+                  <span className="content-crumb-sep" aria-hidden="true">‹</span>
+                  <span className="content-crumb truncate">{formatLong(todayYmd())}</span>
+                </>
+              )}
+            </h1>
+          )}
+        </header>
+        <main className={`page-content ${FLUSH_ROUTES.has(path) ? 'is-flush' : ''}`}>
           <Outlet />
         </main>
       </div>

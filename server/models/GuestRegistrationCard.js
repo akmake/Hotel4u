@@ -43,6 +43,11 @@ const GuestRegistrationCardSchema = new Schema({
   signatureUrl:  { type: String },                      // URL לחתימה דיגיטלית
   signedAt:      { type: Date },
   signedBy:      { type: Schema.Types.ObjectId, ref: 'User' }, // הפקיד שאישר
+  signatureHash: { type: String },                      // sha256 של תמונת החתימה (U06)
+  idVerified:    { type: Boolean, default: false },     // הפקיד ראה מסמך מזהה — לא צילום (FD-05-F04)
+  termsVersion:  { type: String },                      // גרסת נוסח התנאים שהוצג (FD-05-F05)
+  digitalDocConsent: { type: Boolean, default: false }, // הסכמה למסמך דיגיטלי — נפרדת משיווק (FD-05-F08)
+  reservationRoom: { type: Schema.Types.ObjectId, ref: 'ReservationRoom' },
 
   // ── מיקום ───────────────────────────────────────────────────────────
   assignedRoom:  { type: String },                      // מס' חדר בעת הצ'ק-אין
@@ -60,10 +65,10 @@ GuestRegistrationCardSchema.index({ guest: 1 });
 GuestRegistrationCardSchema.index({ idDocNumber: 1 });
 
 // ── מניעת מחיקה — שמירה לצמיתות לפי חוק ────────────────────────────────
-GuestRegistrationCardSchema.pre(['deleteOne', 'deleteMany', 'findOneAndDelete'], function (next) {
+GuestRegistrationCardSchema.pre(['deleteOne', 'deleteMany', 'findOneAndDelete'], function () {
   const err = new Error('כרטיסי רישום אורחים אינם ניתנים למחיקה לפי חוק בתי מלון');
   err.status = 422;
-  return next(err);
+  throw err;
 });
 
 export default model('GuestRegistrationCard', GuestRegistrationCardSchema);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, Plus, Crown, ChevronLeft, ChevronRight,
   LogIn, LogOut, Users, X, SlidersHorizontal,
@@ -8,13 +8,14 @@ import {
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { reservations as resApi } from '../utils/api';
+import { todayYmd } from '../utils/date';
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import ReservationDrawer from '../components/reservations/ReservationDrawer';
 
 const PAGE_SIZE = 30;
 
 /* ─── helpers ──────────────────────────────────────────────────────────────── */
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+function todayStr() { return todayYmd(); }
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -152,7 +153,11 @@ export default function ReservationsPage() {
 
   /* filter state */
   const [statusTab,    setStatusTab]    = useState('all');
-  const [search,       setSearch]       = useState('');
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get('q') || '';
+  const [search,       setSearch]       = useState(urlQuery);
+  // global search in the top bar navigates here with ?q=
+  useEffect(() => { if (urlQuery) setSearch(urlQuery); }, [urlQuery]);
   const [payFilter,    setPayFilter]    = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [dateFrom,     setDateFrom]     = useState('');

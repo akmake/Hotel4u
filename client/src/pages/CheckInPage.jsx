@@ -10,7 +10,7 @@ import { useToast } from '../hooks/useToast';
 import { dashboard, reservations as resApi, guests as guestsApi, folio as folioApi, properties as propApi } from '../utils/api';
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
-import { TODAY } from '../utils/date';
+import { TODAY, toYmd } from '../utils/date';
 
 // ── Signature Canvas ───────────────────────────────────────────────────────────
 function SignatureCanvas({ onSigned }) {
@@ -305,7 +305,7 @@ function WalkInModal({ propertyId, onClose, onDone }) {
 
   useEffect(() => {
     const t = new Date(); t.setDate(t.getDate() + 1);
-    setDeparture(t.toISOString().split('T')[0]);
+    setDeparture(toYmd(t));
   }, []);
 
   useEffect(() => {

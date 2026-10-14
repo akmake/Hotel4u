@@ -88,7 +88,8 @@ UserSchema.virtual('isLocked').get(function () {
 });
 
 // ─── Pre-save ─────────────────────────────────────────────────────────────────
-UserSchema.pre('save', async function (next) {
+// Mongoose 9: async hooks must not take/call `next` (calling it throws "next is not a function")
+UserSchema.pre('save', async function () {
   // Auto-fill `name` from firstName+lastName for PMS users
   if (!this.name && (this.firstName || this.lastName)) {
     this.name = `${this.firstName || ''} ${this.lastName || ''}`.trim();
@@ -98,8 +99,6 @@ UserSchema.pre('save', async function (next) {
   if (this.isModified('passwordHash') && !this.passwordHash.startsWith('$2')) {
     this.passwordHash = await bcrypt.hash(this.passwordHash, 12);
   }
-
-  next();
 });
 
 // ─── Methods ──────────────────────────────────────────────────────────────────

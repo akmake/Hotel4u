@@ -99,13 +99,12 @@ GuestProfileSchema.virtual('fullName').get(function () {
 
 // עדכון אוטומטי של retentionDeleteAfter כאשר lastStay משתנה
 // 7 שנים לפי פקודת מס הכנסה + חוק מע"מ
-GuestProfileSchema.pre('save', function (next) {
+GuestProfileSchema.pre('save', function () {
   if (this.isModified('lastStay') && this.lastStay) {
     const d = new Date(this.lastStay);
     d.setFullYear(d.getFullYear() + 7);
     this.retentionDeleteAfter = d;
   }
-  next();
 });
 
 export default model('GuestProfile', GuestProfileSchema);

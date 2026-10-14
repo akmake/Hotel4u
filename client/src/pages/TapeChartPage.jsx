@@ -281,7 +281,7 @@ function monthGroups(days) {
 
 const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 
-/* Calculate left offset + width for a reservation block within visible days */
+/* Offset from the grid's inline-start (right edge in RTL) + width for a reservation block */
 function resLayout(res, days) {
   const first = days[0].date;
   const last  = days[days.length - 1].date;
@@ -404,17 +404,17 @@ function ResBlock({
       onPointerDown={onPointerDown}
       style={{
         position:   'absolute',
-        left:       layout.left + 2,
+        // Logical properties: day 0 sits at the inline-start (right edge in RTL)
+        insetInlineStart: layout.left + 2,
         top:        6,
         width:      layout.width - 2,
         height:     ROW_H - 12,
         background: stripedBg,
-        borderRadius: layout.clippedLeft || layout.clippedRight ? undefined : 8,
-        borderTopLeftRadius:     layout.clippedLeft  ? 0 : 8,
-        borderBottomLeftRadius:  layout.clippedLeft  ? 0 : 8,
-        borderTopRightRadius:    layout.clippedRight ? 0 : 8,
-        borderBottomRightRadius: layout.clippedRight ? 0 : 8,
-        borderLeft:  layout.clippedLeft  ? 'none' : `3px solid ${cfg.border}`,
+        borderStartStartRadius: layout.clippedLeft  ? 0 : 8,
+        borderEndStartRadius:   layout.clippedLeft  ? 0 : 8,
+        borderStartEndRadius:   layout.clippedRight ? 0 : 8,
+        borderEndEndRadius:     layout.clippedRight ? 0 : 8,
+        borderInlineStart: layout.clippedLeft ? 'none' : `3px solid ${cfg.border}`,
         cursor: isResizing ? 'ew-resize' : 'grab',
         overflow: 'hidden',
         display: 'flex',
@@ -472,13 +472,13 @@ function ResBlock({
           title="גרור לשינוי יציאה"
           style={{
             position: 'absolute',
-            right: 0,
+            insetInlineEnd: 0,
             top: 0,
             width: RESIZE_HANDLE_W,
             height: '100%',
             cursor: 'ew-resize',
             background: 'rgba(255,255,255,0.18)',
-            borderLeft: '1px dashed rgba(255,255,255,0.5)',
+            borderInlineStart: '1px dashed rgba(255,255,255,0.5)',
           }}
         />
       )}
@@ -578,7 +578,8 @@ export default function TapeChartPage() {
   const resolveResizeDeparture = useCallback((clientX, _clientY, res) => {
     if (!containerRef.current || !days.length) return null;
     const viewport = containerRef.current.getBoundingClientRect();
-    const contentX = clientX - viewport.left + containerRef.current.scrollLeft - LABEL_W;
+    // RTL: columns grow leftwards from the right edge; scrollLeft is <= 0 in RTL
+    const contentX = viewport.right - clientX + Math.abs(containerRef.current.scrollLeft) - LABEL_W;
     const col = Math.floor(contentX / COL_W);
     const clampedCol = Math.max(0, Math.min(days.length - 1, col));
     const visualDeparture = addDays(days[clampedCol].date, 1);
@@ -681,7 +682,8 @@ export default function TapeChartPage() {
   /* ── scroll today into view on mount ──────────────────────────────────── */
   useEffect(() => {
     if (todayIdx > 0 && containerRef.current) {
-      containerRef.current.scrollLeft = Math.max(0, todayIdx * COL_W - 80);
+      // RTL scroll offsets are negative (moving towards the left)
+      containerRef.current.scrollLeft = -Math.max(0, todayIdx * COL_W - 80);
     }
   }, []);
 
@@ -849,7 +851,7 @@ export default function TapeChartPage() {
             {/* Corner cell */}
             <div style={{
               width: LABEL_W, flexShrink: 0,
-              position: 'sticky', left: 0, zIndex: 40,
+              position: 'sticky', insetInlineStart: 0, zIndex: 40,
               background: '#2A1A0E',
               display: 'flex', alignItems: 'center', paddingInline: 14,
               borderBottom: '2px solid #1A0E06',
@@ -928,7 +930,7 @@ export default function TapeChartPage() {
               {/* Floor separator — slim elegant divider */}
               <div style={{
                 display: 'flex',
-                position: 'sticky', left: 0,
+                position: 'sticky', insetInlineStart: 0,
                 height: 32,
                 alignItems: 'center',
                 zIndex: 20,
@@ -938,7 +940,7 @@ export default function TapeChartPage() {
                 borderBottom: '1px solid #DDD0BC',
               }}>
                 <div style={{
-                  position: 'sticky', left: 0,
+                  position: 'sticky', insetInlineStart: 0,
                   paddingInline: 16,
                   display: 'flex', alignItems: 'center', gap: 8,
                 }}>
@@ -977,7 +979,7 @@ export default function TapeChartPage() {
                   >
                     {/* Room label — sticky left */}
                     <div style={{
-                      position: 'sticky', left: 0, zIndex: 10,
+                      position: 'sticky', insetInlineStart: 0, zIndex: 10,
                       width: LABEL_W, flexShrink: 0,
                       display: 'flex', alignItems: 'center', gap: 10,
                       paddingInline: '14px 10px',
@@ -1030,7 +1032,7 @@ export default function TapeChartPage() {
                           onClick={() => !isOOO && handleCellClick(room, d.date)}
                           style={{
                             position: 'absolute',
-                            left: i * COL_W, top: 0,
+                            insetInlineStart: i * COL_W, top: 0,
                             width: COL_W, height: ROW_H,
                             borderLeft: '1px solid #EAE0D0',
                             background: d.isToday
@@ -1048,7 +1050,7 @@ export default function TapeChartPage() {
                       {todayIdx >= 0 && (
                         <div style={{
                           position: 'absolute',
-                          left: todayIdx * COL_W + COL_W / 2 - 0.5,
+                          insetInlineStart: todayIdx * COL_W + COL_W / 2 - 0.5,
                           top: 0, bottom: 0,
                           width: 1,
                           background: 'rgba(184,133,26,0.35)',
@@ -1090,13 +1092,13 @@ export default function TapeChartPage() {
           {unassignedRes.length > 0 && (
             <div>
               <div style={{
-                display:'flex', position:'sticky', left:0,
+                display:'flex', position:'sticky', insetInlineStart:0,
                 background:'rgba(196,147,64,0.10)',
                 height:28, alignItems:'center', zIndex:20,
                 minWidth: totalWidth,
                 borderTop:'2px solid rgba(196,147,64,0.25)',
               }}>
-                <div style={{ position:'sticky', left:0, paddingInline:14, display:'flex', alignItems:'center', gap:6 }}>
+                <div style={{ position:'sticky', insetInlineStart:0, paddingInline:14, display:'flex', alignItems:'center', gap:6 }}>
                   <AlertCircle size={11} style={{ color:'#9A6B1A' }} />
                   <span style={{ color:'#7A5C42', fontSize:11, fontWeight:700 }}>
                     ללא חדר ({unassignedRes.length})
@@ -1105,7 +1107,7 @@ export default function TapeChartPage() {
               </div>
               <div style={{ display:'flex', height: ROW_H, borderBottom:'1px solid #DDD0BC' }}>
                 <div style={{
-                  position:'sticky', left:0, zIndex:10, width: LABEL_W, flexShrink:0,
+                  position:'sticky', insetInlineStart:0, zIndex:10, width: LABEL_W, flexShrink:0,
                   display:'flex', alignItems:'center', gap:8, paddingInline:12,
                   background:'rgba(247,239,224,0.5)', borderLeft:'3px solid #C49340', borderRight:'1px solid #E8DFCF',
                 }}>
@@ -1114,7 +1116,7 @@ export default function TapeChartPage() {
                 <div style={{ position:'relative', flex:1, background:'rgba(247,239,224,0.3)' }}>
                   {days.map((d,i) => (
                     <div key={d.date} style={{
-                      position:'absolute', left:i*COL_W, top:0, width:COL_W, height:ROW_H,
+                      position:'absolute', insetInlineStart:i*COL_W, top:0, width:COL_W, height:ROW_H,
                       borderLeft:'1px solid #DDD0BC',
                       background: d.isToday ? 'rgba(196,147,64,0.06)' : 'transparent',
                     }} />

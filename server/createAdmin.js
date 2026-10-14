@@ -1,41 +1,66 @@
+// Create or update a PMS administrator (idempotent — safe to re-run, e.g. after `npm run seed:big`).
+//
+// Usage (from server/):
+//   ADMIN_PASSWORD='...' node createAdmin.js --email you@example.com [--first Yosef --last Dahan]
+//                                            [--role property_admin] [--property <propertyId>]
+//
+// The password is read from ADMIN_PASSWORD so it never lives in source control.
+// Without --property the user is attached to the first property in the database.
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import bcrypt from 'bcrypt';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import User from './models/User.js';
+import Property from './models/Property.js';
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-const createAdmin = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('✅ מחובר ל־MongoDB');
+function arg(name, fallback) {
+  const i = process.argv.indexOf(`--${name}`);
+  return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+}
 
-    const email = 'yosefdaean@gmail.com';
-    const password = '0546205955'; // שנה לסיסמה חזקה
-    const name = 'Yosef Admin';   // ✨ הוספנו את שם המנהל
+const email = arg('email')?.trim().toLowerCase();
+const password = process.env.ADMIN_PASSWORD;
+const firstName = arg('first', 'Admin');
+const lastName = arg('last', '');
+const role = arg('role', 'property_admin');
 
-    const existing = await User.findOne({ email });
+if (!email || !password) {
+  console.error('Usage: ADMIN_PASSWORD=... node createAdmin.js --email <email> [--first <name>] [--last <name>] [--role <role>] [--property <id>]');
+  process.exit(1);
+}
 
-    if (existing) {
-      console.log('⚠️ משתמש מנהל כבר קיים');
-      return process.exit(0);
-    }
+try {
+  await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/hotel4u');
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+  const property = arg('property')
+    ? await Property.findById(arg('property'))
+    : await Property.findOne().sort({ createdAt: 1 });
+  if (!property && role !== 'super_admin') throw new Error('No property found — run a seed or pass --property');
 
-    await User.create({
-      name, // ✨ השדה החדש והנדרש
-      email,
-      passwordHash: hashedPassword, // ✨ תיקנו את שם השדה ל-passwordHash
-      role: 'admin',
-    });
+  let user = await User.findOne({ email });
+  const created = !user;
+  if (!user) user = new User({ email });
 
-    console.log(`🎉 נוצר משתמש מנהל: ${email}`);
-    process.exit(0);
-  } catch (err) {
-    console.error('❌ שגיאה ביצירת מנהל:', err);
-    process.exit(1);
-  }
-};
+  Object.assign(user, {
+    firstName,
+    lastName,
+    name: `${firstName} ${lastName}`.trim(),
+    role,
+    property: property?._id,
+    active: true,
+    passwordHash: password, // hashed by the User pre-save hook
+    failedLoginAttempts: 0,
+    lockUntil: undefined,
+  });
+  await user.save();
 
-createAdmin();
+  console.log(`${created ? 'Created' : 'Updated'} ${role}: ${email}${property ? ` → ${property.name}` : ''}`);
+} catch (err) {
+  console.error('Failed to create admin:', err.message);
+  process.exitCode = 1;
+} finally {
+  await mongoose.disconnect();
+}

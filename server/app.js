@@ -75,6 +75,7 @@ import pmsGroupsRouter          from './routes/groups.js';
 import pmsInvoiceRouter          from './routes/invoice.js';
 import pmsGuestRequestsRouter    from './routes/guest-requests.js';
 import pmsFolioRoutingRouter      from './routes/folio-routing.js';
+import pmsFrontDeskRouter         from './routes/frontdesk.js';
 // --- חיבור למסד הנתונים ---
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -216,6 +217,7 @@ pmsRouter.use('/groups',         pmsGroupsRouter);
 pmsRouter.use('/invoices',       pmsInvoiceRouter);
 pmsRouter.use('/guest-requests', pmsGuestRequestsRouter);
 pmsRouter.use('/folio-routing',  pmsFolioRoutingRouter);
+pmsRouter.use('/frontdesk',      pmsFrontDeskRouter);
 
 // =========================================================================
 // ✨ הפתרון הכפול: חיבור ה-Router לשני הנתיבים

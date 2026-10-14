@@ -49,9 +49,32 @@ async function request(method, path, body) {
   };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(`${PMS_BASE}${path}`, opts);
-  const data = await res.json();
-  if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+  if (res.status === 401) {
+    endSessionAndRedirect();
+    throw new Error('פג תוקף ההתחברות — יש להתחבר מחדש');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    if (data.fields) err.fields = data.fields;   // field-level validation messages
+    if (data.details) err.details = data.details; // per-record reasons (e.g. per stay unit)
+    if (data.code) err.code = data.code;
+    throw err;
+  }
   return data.data;
+}
+
+// Expired/invalid PMS session: clear local auth state and send the user to login,
+// remembering the page they were on.
+let redirecting = false;
+function endSessionAndRedirect() {
+  if (redirecting || window.location.pathname.startsWith('/login')) return;
+  redirecting = true;
+  localStorage.removeItem('hotel4u_token');
+  localStorage.removeItem('user');
+  const next = window.location.pathname + window.location.search;
+  window.location.assign(`/login?next=${encodeURIComponent(next)}`);
 }
 
 async function authRequest(method, path, body) {
@@ -92,6 +115,25 @@ export const dashboard = {
   departures: (propertyId) => api.get(`/dashboard/departures?propertyId=${propertyId}`),
   inhouse:    (propertyId) => api.get(`/dashboard/inhouse?propertyId=${propertyId}`),
   alerts:     (propertyId) => api.get(`/dashboard/alerts?propertyId=${propertyId}`),
+};
+
+// ── Front desk: arrivals, check-in, room assignment, waiting queue ───────────
+export const frontdesk = {
+  arrivals:        (propertyId, params = {}) => api.get(`/frontdesk/arrivals?propertyId=${propertyId}${qs(params)}`),
+  setEta:          (propertyId, resId, eta)  => api.patch(`/frontdesk/reservations/${resId}/eta`, { propertyId, eta }),
+  noShow:          (propertyId, resId)       => api.post(`/frontdesk/reservations/${resId}/no-show`, { propertyId }),
+  checkInContext:  (propertyId, resId)       => api.get(`/frontdesk/reservations/${resId}/check-in?propertyId=${propertyId}`),
+  saveRegistration:(propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/registration`, { ...body, propertyId }),
+  checkIn:         (propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/check-in`, { ...body, propertyId }),
+  roomCandidates:  (propertyId, resId, params = {}) => api.get(`/frontdesk/reservations/${resId}/room-candidates?propertyId=${propertyId}${qs(params)}`),
+  assignRoom:      (propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/assign-room`, { ...body, propertyId }),
+  staff:           (propertyId)              => api.get(`/frontdesk/staff?propertyId=${propertyId}`),
+  queue:           (propertyId, status)      => api.get(`/frontdesk/queue?propertyId=${propertyId}${qs({ status })}`),
+  addToQueue:      (propertyId, body)        => api.post('/frontdesk/queue', { ...body, propertyId }),
+  takeQueue:       (propertyId, id, version) => api.post(`/frontdesk/queue/${id}/take`, { propertyId, version }),
+  updateQueue:     (propertyId, id, body)    => api.patch(`/frontdesk/queue/${id}`, { ...body, propertyId }),
+  prioritizeQueue: (propertyId, id)          => api.post(`/frontdesk/queue/${id}/prioritize`, { propertyId }),
+  removeFromQueue: (propertyId, id, reason, version) => api.post(`/frontdesk/queue/${id}/remove`, { propertyId, reason, version }),
 };
 
 // ── Rooms ─────────────────────────────────────────────────────────────────────

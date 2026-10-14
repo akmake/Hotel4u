@@ -81,7 +81,7 @@ const GroupBlockSchema = new Schema({
   createdBy:     { type: Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
-GroupBlockSchema.pre('save', function (next) {
+GroupBlockSchema.pre('save', function () {
   if (this.arrivalDate && this.departureDate) {
     this.nights = Math.round(
       (new Date(this.departureDate) - new Date(this.arrivalDate)) / 86400000
@@ -89,7 +89,6 @@ GroupBlockSchema.pre('save', function (next) {
   }
   this.totalRoomsBlocked = (this.allotments || []).reduce((s, a) => s + a.blocked, 0);
   this.totalRoomsPicked  = (this.allotments || []).reduce((s, a) => s + a.picked, 0);
-  next();
 });
 
 GroupBlockSchema.index({ property: 1, arrivalDate: 1, status: 1 });

@@ -10,6 +10,17 @@ function getPmsJwtSecret() {
   return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
 }
 
+/** Bearer token for /api/pms (the PMS router authenticates only with this token). */
+export function signPmsToken(user) {
+  const propertyId = user.property ? String(user.property) : null;
+  return jwt.sign(
+    { id: String(user._id), firstName: user.firstName, lastName: user.lastName,
+      email: user.email, role: user.role, propertyId },
+    getPmsJwtSecret(),
+    { expiresIn: '8h' }
+  );
+}
+
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
 
@@ -89,12 +100,7 @@ export const loginUser = async (req, res) => {
   };
 
   // Bearer token for PMS pages (stored in localStorage by client)
-  const bearerToken = jwt.sign(
-    { id: String(user._id), firstName: user.firstName, lastName: user.lastName,
-      email: user.email, role: user.role, propertyId },
-    getPmsJwtSecret(),
-    { expiresIn: '8h' }
-  );
+  const bearerToken = signPmsToken(user);
 
   createAndSendTokens(user, res); // sets HttpOnly cookies for Ziporiclass routes
 

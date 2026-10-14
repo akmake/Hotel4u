@@ -1,13 +1,17 @@
-﻿import { useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Users, MessageSquare, Phone,
   Wrench, BarChart3, Settings, Hotel, ClipboardList, CalendarDays,
   BedDouble, UserCheck, Megaphone, GitBranch, Bot, FileText,
   BadgeDollarSign, Search, TrendingUp, Building2, Star, PackagePlus,
   LogOut, Calendar, Sparkles, Tag, BookOpen, Funnel, CreditCard,
-  LogIn, Moon, ReceiptText, ListChecks, Zap, Radio,
+  LogIn, Hourglass, Moon, ReceiptText, ListChecks, Zap, Radio,
+  ChevronDown, SquarePen, ArrowLeftRight,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
+import { roleLabel } from '../../lib/labels';
+import { useProperty } from '../../context/PropertyContext';
 
 // ── תפריט מכירות/תפעול ───────────────────────────────────────────────────────
 const SALES_NAV = [
@@ -68,14 +72,15 @@ const PMS_NAV = [
   {
     group: 'קבלה',
     items: [
-      { path: '/pms',              icon: LayoutDashboard, label: 'לוח בקרה' },
-      { path: '/pms/tape-chart',   icon: CalendarDays,    label: 'Tape Chart' },
+      { path: '/pms',              icon: LayoutDashboard, label: 'היום' },
+      { path: '/pms/tape-chart',   icon: CalendarDays,    label: 'לוח חדרים' },
       { path: '/pms/room-rack',    icon: Calendar,        label: 'Room Rack' },
       { path: '/pms/reservations', icon: ClipboardList,   label: 'הזמנות' },
-      { path: '/pms/check-in',     icon: LogIn,           label: "צ'ק-אין" },
+      { path: '/pms/arrivals',     icon: LogIn,           label: 'הגעות' },
+      { path: '/pms/arrival-queue',icon: Hourglass,       label: 'תור המתנה' },
       { path: '/pms/check-out',    icon: LogOut,          label: "צ'ק-אאוט" },
       { path: '/pms/guests',       icon: Users,           label: 'אורחים' },
-      { path: '/pms/folio',        icon: CreditCard,      label: 'Folio' },
+      { path: '/pms/folio',        icon: CreditCard,      label: 'חשבונות אורח' },
       { path: '/pms/invoices',     icon: ReceiptText,     label: 'חשבוניות' },
     ],
   },
@@ -88,16 +93,16 @@ const PMS_NAV = [
     ],
   },
   {
-    group: 'דוחות וניהול',
+    group: 'ניהול',
     items: [
-      { path: '/pms/rates',        icon: Tag,           label: 'מחירים' },
-      { path: '/pms/reports',      icon: BarChart3,     label: 'דוחות' },
-      { path: '/pms/night-audit',  icon: Moon,          label: 'Night Audit' },
-      { path: '/pms/bulk-jobs',    icon: ListChecks,    label: 'עבודות Bulk' },
-      { path: '/pms/automation',       icon: Zap,           label: 'אוטומציה' },
-      { path: '/pms/channel-manager',  icon: Radio,         label: 'Channel Manager' },
-      { path: '/pms/companies',    icon: Building2,     label: 'חברות' },
-      { path: '/pms/settings',     icon: Settings,      label: 'הגדרות' },
+      { path: '/pms/rates',            icon: Tag,        label: 'מחירים' },
+      { path: '/pms/reports',          icon: BarChart3,  label: 'דוחות' },
+      { path: '/pms/night-audit',      icon: Moon,       label: 'סגירת יום' },
+      { path: '/pms/bulk-jobs',        icon: ListChecks, label: 'פעולות מרוכזות' },
+      { path: '/pms/automation',       icon: Zap,        label: 'אוטומציה' },
+      { path: '/pms/channel-manager',  icon: Radio,      label: 'ערוצי הפצה' },
+      { path: '/pms/companies',        icon: Building2,  label: 'חברות וסוכנים' },
+      { path: '/pms/settings',         icon: Settings,   label: 'הגדרות' },
     ],
   },
 ];
@@ -108,114 +113,212 @@ const PMS_ROLE_PATHS = {
   housekeeper: ['/pms/housekeeping'],
 };
 
-export default function Sidebar({ collapsed }) {
+const COLLAPSE_KEY = 'hotel4u_nav_collapsed';
+
+function isActivePath(pathname, path) {
+  if (path === '/' || path === '/pms') return pathname === path;
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function readCollapsed() {
+  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+
+export default function Sidebar({ open, onClose }) {
   const { pathname } = useLocation();
   const nav = useNavigate();
   const { user, logout } = useAuthStore();
+  const { property } = useProperty() || {};
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState(readCollapsed);
+  const searchRef = useRef(null);
+  const menuRef = useRef(null);
 
   const isAdmin = user?.role === 'admin';
   const isPMS = pathname.startsWith('/pms');
   const navGroups = isPMS ? PMS_NAV : SALES_NAV;
   const pmsAllowedPaths = isPMS ? PMS_ROLE_PATHS[user?.role] : undefined;
+  const workspace = isPMS ? (property?.name || 'Hotel4U') : 'Hotel4U מכירות';
+  const wsInitial = workspace.replace(/^מלון\s+/, '').trim().charAt(0);
+
+  // "/" opens search (PMS), like Linear.
+  useEffect(() => {
+    if (!isPMS) return undefined;
+    const onKey = (e) => {
+      const tag = e.target?.tagName;
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && !e.target?.isContentEditable) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isPMS]);
+
+  useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  const toggleGroup = (group) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group); else next.add(group);
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next])); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
+
+  const submitSearch = (e) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    nav(`/pms/reservations?q=${encodeURIComponent(q)}`);
+    setQuery('');
+    setSearchOpen(false);
+    onClose?.();
+  };
+
+  const go = (path) => { setMenuOpen(false); nav(path); onClose?.(); };
 
   return (
-    <aside className={`sidebar sidebar-scroll ${collapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* Logo */}
-      <div
-        className="flex items-center gap-3 px-4 py-4"
-        style={{ borderBottom: '1px solid #DDD0BC', minHeight: 62 }}
-      >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: '#F0E4CC', border: '1px solid #C8A870' }}
+    <aside className={`sidebar ${open ? 'is-open' : ''}`} aria-label="ניווט ראשי">
+      {/* Workspace row: name (account menu) · search · compose */}
+      <div className="ws-row relative" ref={menuRef}>
+        <button
+          type="button"
+          className="ws-button"
+          onClick={() => setMenuOpen(v => !v)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
         >
-          <Hotel size={17} style={{ color: '#9A6B1A' }} />
-        </div>
-        {!collapsed && (
-          <div className="overflow-hidden animate-fade-in">
-            <div className="font-bold leading-tight truncate" style={{ color: '#2A1A0E', fontSize: '0.95rem' }}>
-              {isPMS ? 'קבלה' : 'Hotel4U'}
+          <span className="ws-avatar" aria-hidden="true">{wsInitial}</span>
+          <span className="truncate">{workspace}</span>
+          <ChevronDown size={13} className="text-ink-muted shrink-0" />
+        </button>
+        {isPMS && (
+          <button
+            type="button"
+            className="side-icon-btn"
+            onClick={() => setSearchOpen(v => !v)}
+            aria-label="חיפוש הזמנה"
+            aria-expanded={searchOpen}
+            title="חיפוש ( / )"
+          >
+            <Search size={15} />
+          </button>
+        )}
+        <button
+          type="button"
+          className="side-icon-btn is-raised"
+          onClick={() => go(isPMS ? '/pms/reservations/new' : '/new-order')}
+          aria-label="הזמנה חדשה"
+          title="הזמנה חדשה"
+        >
+          <SquarePen size={14} />
+        </button>
+
+        {menuOpen && (
+          <div role="menu" className="menu top-[34px] right-[10px]">
+            <div className="px-2 py-1.5">
+              <div className="text-[13px] font-medium text-ink truncate">{user?.name || 'משתמש'}</div>
+              <div className="text-[12px] text-ink-muted truncate">{roleLabel(user?.role)}</div>
             </div>
-            <div style={{ color: '#9A7A50', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em' }}>
-              {isPMS ? 'PMS' : 'v2.0'}
-            </div>
+            <div className="menu-sep" />
+            <button type="button" role="menuitem" className="menu-item" onClick={() => go(isPMS ? '/' : '/pms')}>
+              <ArrowLeftRight size={14} className="text-ink-muted" />
+              {isPMS ? 'מעבר לאזור מכירות' : 'מעבר לאזור קבלה'}
+            </button>
+            <div className="menu-sep" />
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item !text-red-600"
+              onClick={() => { setMenuOpen(false); logout(); }}
+            >
+              <LogOut size={14} />
+              יציאה מהמערכת
+            </button>
           </div>
         )}
       </div>
 
+      {searchOpen && (
+        <form className="side-search relative" onSubmit={submitSearch} role="search">
+          <Search size={13} className="absolute right-[20px] top-[11px] text-ink-faint pointer-events-none" />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') { setSearchOpen(false); setQuery(''); } }}
+            placeholder="הזמנה, אורח או טלפון"
+            aria-label="חיפוש הזמנות"
+          />
+        </form>
+      )}
+
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto sidebar-scroll py-2">
-        {navGroups.map(({ group, adminOnly, items }) => {
+      <nav className="flex-1 overflow-y-auto pb-3">
+        {navGroups.map(({ group, adminOnly, items }, gi) => {
           if (adminOnly && !isAdmin) return null;
           const visibleItems = pmsAllowedPaths
             ? items.filter(item => pmsAllowedPaths.includes(item.path))
             : items;
           if (visibleItems.length === 0) return null;
+          // First group is the unlabeled top block (Linear's Inbox / My issues).
+          const labeled = gi > 0;
+          const collapsed = labeled && collapsedGroups.has(group);
+          const listId = `nav-group-${gi}`;
           return (
-            <div key={group}>
-              {!collapsed && (
-                <div className="nav-group-label">{group}</div>
+            <div key={group} className={labeled ? 'nav-group' : 'mt-2'}>
+              {labeled && (
+                <button
+                  type="button"
+                  className="nav-group-label"
+                  onClick={() => toggleGroup(group)}
+                  aria-expanded={!collapsed}
+                  aria-controls={listId}
+                >
+                  {group}
+                  <ChevronDown size={11} className="caret" />
+                </button>
               )}
-              {visibleItems.map(({ path, icon: Icon, label }) => {
-                const active = pathname === path || (path !== '/' && path !== '/pms' && pathname.startsWith(path))
-                  || (path === '/pms' && pathname === '/pms');
-                return (
-                  <button
-                    key={path}
-                    onClick={() => nav(path)}
-                    className={`nav-item w-full ${active ? 'active' : ''} ${collapsed ? 'justify-center px-0 mx-0 rounded-none' : ''}`}
-                    data-tooltip={collapsed ? label : undefined}
-                    style={collapsed ? { margin: 0, borderRadius: 0, padding: '10px 0', width: '100%' } : {}}
-                  >
-                    <Icon size={16} className="nav-icon flex-shrink-0" />
-                    {!collapsed && (
-                      <span className="flex-1 text-right">{label}</span>
-                    )}
-                  </button>
-                );
-              })}
+              {!collapsed && (
+                <div id={listId}>
+                  {visibleItems.map(({ path, icon: Icon, label }) => {
+                    const active = isActivePath(pathname, path);
+                    return (
+                      <button
+                        key={path}
+                        type="button"
+                        onClick={() => go(path)}
+                        aria-current={active ? 'page' : undefined}
+                        className={`nav-item ${active ? 'active' : ''}`}
+                      >
+                        <Icon size={16} strokeWidth={1.75} className="nav-icon shrink-0" />
+                        <span className="flex-1 text-right truncate">{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
       </nav>
-
-      {/* Footer */}
-      <div className="p-3" style={{ borderTop: '1px solid #DDD0BC', background: '#F5EFE5' }}>
-        <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-          <div
-            className="flex-shrink-0 flex items-center justify-center font-bold rounded-xl"
-            style={{
-              width: 36, height: 36,
-              background: '#F0E4CC',
-              border: '1px solid #C8A870',
-              color: '#9A6B1A',
-              fontSize: '0.875rem',
-            }}
-          >
-            {user?.name?.[0] || 'U'}
-          </div>
-          {!collapsed && (
-            <div className="flex-1 overflow-hidden animate-fade-in">
-              <div className="font-semibold truncate" style={{ color: '#2A1A0E', fontSize: '0.85rem' }}>
-                {user?.name || 'משתמש'}
-              </div>
-              <div style={{ color: '#7A5C42', fontSize: '0.72rem', fontWeight: 600 }}>
-                {user?.role || ''}
-              </div>
-            </div>
-          )}
-          {!collapsed && (
-            <button
-              onClick={logout}
-              style={{ color: '#B8A080' }}
-              className="transition-colors hover:!text-red-600"
-              title="יציאה"
-            >
-              <LogOut size={14} />
-            </button>
-          )}
-        </div>
-      </div>
     </aside>
   );
 }

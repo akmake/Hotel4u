@@ -204,8 +204,8 @@ router.get('/alerts', asyncHandler(async (req, res) => {
         id: `vip-${reservation._id}`,
         type: 'danger',
         category: 'housekeeping',
-        text: `VIP ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName} - room ${reservation.assignedRoom.number} is not clean`,
-        action: 'Dispatch housekeeping',
+        text: `VIP ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName} — חדר ${reservation.assignedRoom.number} לא נקי`,
+        action: 'שליחת חדרנית',
         reservationId: reservation._id,
       });
     }
@@ -217,8 +217,8 @@ router.get('/alerts', asyncHandler(async (req, res) => {
         id: `dirty-${reservation._id}`,
         type: 'warning',
         category: 'housekeeping',
-        text: `${reservation.confirmationNumber} - room ${reservation.assignedRoom.number} is not ready for ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName}`,
-        action: 'Dispatch housekeeping',
+        text: `${reservation.confirmationNumber} — חדר ${reservation.assignedRoom.number} לא מוכן עבור ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName}`,
+        action: 'שליחת חדרנית',
         reservationId: reservation._id,
       });
     }
@@ -229,8 +229,8 @@ router.get('/alerts', asyncHandler(async (req, res) => {
       id: `noroom-${reservation._id}`,
       type: 'danger',
       category: 'rooms',
-      text: `${reservation.confirmationNumber} - no room assigned for ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName}`,
-      action: 'Assign room',
+      text: `${reservation.confirmationNumber} — לא שובץ חדר עבור ${reservation.primaryGuest.firstName} ${reservation.primaryGuest.lastName}`,
+      action: 'שיבוץ חדר',
       reservationId: reservation._id,
     });
   }
@@ -240,8 +240,8 @@ router.get('/alerts', asyncHandler(async (req, res) => {
       id: `pendpay-${reservation._id}`,
       type: 'warning',
       category: 'payments',
-      text: `${reservation.confirmationNumber} - payment pending for arrival today`,
-      action: 'Collect payment',
+      text: `${reservation.confirmationNumber} — תשלום ממתין להגעה היום`,
+      action: 'גביית תשלום',
       reservationId: reservation._id,
     });
   }
@@ -267,8 +267,8 @@ router.get('/alerts', asyncHandler(async (req, res) => {
         id: `balance-${reservation._id}`,
         type: 'warning',
         category: 'payments',
-        text: `${reservation.confirmationNumber} - open balance ₪${balance.toFixed(2)}`,
-        action: 'Open folio',
+        text: `${reservation.confirmationNumber} — יתרה פתוחה ₪${balance.toFixed(2)}`,
+        action: 'פתיחת חשבון',
         reservationId: reservation._id,
       });
     }
@@ -284,8 +284,8 @@ router.get('/alerts', asyncHandler(async (req, res) => {
         id: `maint-${ticket._id}`,
         type: 'danger',
         category: 'maintenance',
-        text: `Room ${ticket.room.number} has critical maintenance: ${ticket.description}`,
-        action: 'Open ticket',
+        text: `תקלה קריטית בחדר ${ticket.room.number}: ${ticket.description}`,
+        action: 'פתיחת קריאה',
         ticketId: ticket._id,
       });
     }
@@ -296,8 +296,8 @@ router.get('/alerts', asyncHandler(async (req, res) => {
       id: `failpay-${payment._id}`,
       type: 'danger',
       category: 'payments',
-      text: `Failed payment - ${payment.reservation?.confirmationNumber || ''} - ₪${payment.amount}`,
-      action: 'Retry payment',
+      text: `תשלום נכשל — ${payment.reservation?.confirmationNumber || ''} — ₪${payment.amount}`,
+      action: 'ניסיון חוזר',
       reservationId: payment.reservation?._id,
     });
   }
@@ -307,8 +307,8 @@ router.get('/alerts', asyncHandler(async (req, res) => {
       id: 'channel-sync',
       type: 'warning',
       category: 'channels',
-      text: `${unsyncedItems.length} channel updates are pending sync`,
-      action: 'Review channel updates',
+      text: `${unsyncedItems.length} עדכוני ערוצים ממתינים לסנכרון`,
+      action: 'בדיקת עדכוני ערוצים',
     });
   }
 

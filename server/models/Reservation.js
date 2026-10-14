@@ -28,6 +28,7 @@ const ReservationSchema = new Schema({
   departureDate:     { type: String, required: true },
   nights:            { type: Number, required: true },
   roomsCount:        { type: Number, default: 1 },
+  eta:               { type: String, match: /^([01]\d|2[0-3]):[0-5]\d$/ }, // expected arrival HH:MM (property local); not actual arrival
 
   // Booking details
   source:            { type: String, enum: SOURCE, default: 'direct' },
@@ -86,6 +87,11 @@ ReservationSchema.index({ property: 1, arrivalDate: 1 });
 ReservationSchema.index({ property: 1, departureDate: 1 });
 ReservationSchema.index({ property: 1, status: 1 });
 ReservationSchema.index({ primaryGuest: 1 });
-ReservationSchema.index({ property: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
+ReservationSchema.index(
+  { property: 1, idempotencyKey: 1 },
+  // partial (not sparse): a compound sparse index still indexes docs that only have `property`,
+  // so every reservation created without a key would collide on null.
+  { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } },
+);
 
 export default model('Reservation', ReservationSchema);

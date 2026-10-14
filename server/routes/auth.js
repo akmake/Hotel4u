@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { loginUser, logout, refresh, registerUser } from '../controllers/authController.js';
+import { loginUser, logout, refresh, registerUser, signPmsToken } from '../controllers/authController.js';
 import requireAuth from '../middlewares/requireAuth.js';
 import requireRefresh from '../middlewares/requireRefresh.js';
 
@@ -53,12 +53,18 @@ router.get('/me', async (req, res, next) => {
   const user = req.user;
   res.json({
     _id: user._id,
-    name: user.name,
+    // PMS users have firstName/lastName and an empty `name`
+    name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    firstName: user.firstName,
+    lastName: user.lastName,
     email: user.email,
     role: user.role,
     propertyId: user.property ? String(user.property) : null,
     canManagePriceLists: user.canManagePriceLists,
     canViewCommissions: user.canViewCommissions,
+    // A valid cookie session also yields a fresh PMS token, so the two auth paths can't drift
+    // apart (otherwise an expired PMS token left the user "logged in" but locked out of /pms).
+    token: user.active === false ? undefined : signPmsToken(user),
   });
 });
 

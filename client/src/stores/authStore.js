@@ -71,6 +71,7 @@ export const useAuthStore = create((set, get) => ({
       const user = data.data || data;
 
       if (user && user._id) {
+        if (data.token) localStorage.setItem('hotel4u_token', data.token);
         saveUser(user);
         set({ isAuthenticated: true, user, isLoading: false });
         return;

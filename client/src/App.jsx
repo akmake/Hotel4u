@@ -56,7 +56,8 @@ const TapeChartPage        = lazy(() => import('./pages/TapeChartPage'));
 const RoomRackPage         = lazy(() => import('./pages/RoomRackPage'));
 const ReservationsPage     = lazy(() => import('./pages/ReservationsPage'));
 const NewReservationPage   = lazy(() => import('./pages/NewReservationPage'));
-const CheckInPage          = lazy(() => import('./pages/CheckInPage'));
+const ArrivalsPage         = lazy(() => import('./pages/ArrivalsPage'));
+const ArrivalQueuePage     = lazy(() => import('./pages/ArrivalQueuePage'));
 const CheckOutPage         = lazy(() => import('./pages/CheckOutPage'));
 const RoomsPage            = lazy(() => import('./pages/RoomsPage'));
 const HousekeepingPage     = lazy(() => import('./pages/HousekeepingPage'));
@@ -85,8 +86,10 @@ function PageLoader() {
 
 function AuthGate({ children }) {
   const { isAuthenticated, isLoading } = useAuthStore();
+  const location = useLocation();
   if (isLoading) return <PageLoader />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  // remember where the user was going so login can return them there
+  if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location }} />;
   return children;
 }
 
@@ -183,7 +186,9 @@ export default function App() {
               <Route path="room-rack"         element={<RoomRackPage />} />
               <Route path="reservations"      element={<ReservationsPage />} />
               <Route path="reservations/new"  element={<NewReservationPage />} />
-              <Route path="check-in"          element={<CheckInPage />} />
+              <Route path="arrivals"          element={<ArrivalsPage />} />
+              <Route path="arrival-queue"     element={<ArrivalQueuePage />} />
+              <Route path="check-in"          element={<Navigate to="/pms/arrivals" replace />} />
               <Route path="check-out"         element={<CheckOutPage />} />
               <Route path="rooms"             element={<RoomsPage />} />
               <Route path="housekeeping"      element={<HousekeepingPage />} />

@@ -162,6 +162,16 @@ const PropertySchema = new Schema({
   requiredCheckInFields: { type: [String], default: ['primaryGuest', 'assignedRoom'] },
   requiredCheckOutFields:{ type: [String], default: ['folioBalanced'] },
 
+  // Front-desk check-in policy (spec FD-03 / ADM-05). Readiness is computed from these on the
+  // server; the UI never decides on its own whether a unit may enter.
+  checkInPolicy: {
+    requireInspection:   { type: Boolean, default: false }, // only 'inspected' counts as ready (else clean|inspected)
+    requireGuarantee:    { type: Boolean, default: true },  // a guarantee method must be recorded before entry
+    requireRegistration: { type: Boolean, default: true },  // a signed/saved registration card for the primary guest
+    requireSignature:    { type: Boolean, default: false },
+    termsVersion:        { type: String, default: 'he-1' }, // version of the registration terms shown to the guest
+  },
+
   active:           { type: Boolean, default: true },
 }, { timestamps: true });
 

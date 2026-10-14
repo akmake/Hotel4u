@@ -1,253 +1,187 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, AlertCircle, Hotel, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { Eye, EyeOff, Lock, Mail, AlertCircle, Hotel } from 'lucide-react';
 
-const DEMO_USERS = [
-  { email: 'admin@galil.co.il', initials: 'א', name: 'אדמין',  role: 'מנהל נכס', color: '#6366f1' },
-  { email: 'dina@galil.co.il',  initials: 'ד', name: 'דינה',   role: 'קבלנ/ית',  color: '#0891b2' },
-  { email: 'ruth@galil.co.il',  initials: 'ר', name: 'רות',    role: 'חדרנות',   color: '#059669' },
-  { email: 'avi@galil.co.il',   initials: 'ב', name: 'אבי',    role: 'טכנאי',    color: '#ea580c' },
-];
+// Legacy sales roles land on the sales home; every PMS role lands on the front-desk "Today" screen.
+const SALES_ROLES = ['admin', 'sales', 'maintenance', 'shift_manager'];
+const homeFor = (role) => (SALES_ROLES.includes(role) ? '/' : '/pms');
+
+// Seeded demo accounts — shown in local development only, never in a production build.
+const DEMO_USERS = import.meta.env.DEV
+  ? [
+      { email: 'admin@galil.co.il', name: 'מנהל נכס' },
+      { email: 'dina@galil.co.il',  name: 'קבלה' },
+      { email: 'ruth@galil.co.il',  name: 'חדרנות' },
+      { email: 'avi@galil.co.il',   name: 'אחזקה' },
+    ]
+  : [];
+const DEMO_PASSWORD = import.meta.env.DEV ? 'hotel4u123' : '';
+
+function errorMessage(err) {
+  const status = err.response?.status;
+  if (status === 423) return 'החשבון ננעל זמנית לאחר ניסיונות כושלים. נסו שוב בעוד מספר דקות.';
+  if (status === 401) return 'האימייל או הסיסמה שגויים.';
+  if (status === 429) return 'יותר מדי ניסיונות התחברות. נסו שוב בעוד מספר דקות.';
+  if (!err.response) return 'אין חיבור לשרת. בדקו את החיבור לאינטרנט ונסו שוב.';
+  return err.response?.data?.message || err.response?.data?.error || 'ההתחברות נכשלה. נסו שוב.';
+}
 
 export default function LoginPage() {
-  const { login } = useAuthStore();
+  const { login, isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
-  const [email,    setEmail]    = useState('');
+  const location = useLocation();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPwd,  setShowPwd]  = useState(false);
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // where to return after login: router state (AuthGate) or ?next= (expired session redirect)
+  const nextParam = new URLSearchParams(location.search).get('next');
+  const from = location.state?.from
+    ? `${location.state.from.pathname}${location.state.from.search || ''}`
+    : (nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null);
+
+  if (isAuthenticated && user) {
+    return <Navigate to={from || homeFor(user.role)} replace />;
+  }
 
   async function doLogin(em, pw) {
     setError('');
     setLoading(true);
     try {
-      await login({ email: em, password: pw });
-      navigate('/', { replace: true });
+      const u = await login({ email: em, password: pw });
+      navigate(from || homeFor(u?.role), { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'שגיאה בהתחברות');
+      setError(errorMessage(err));
+      setPassword('');
     } finally {
       setLoading(false);
     }
   }
 
-  const handleSubmit = (e) => { e.preventDefault(); doLogin(email.trim(), password); };
-  const quickLogin   = (em) => doLogin(em, 'hotel4u123');
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (loading) return;
+    doLogin(email.trim().toLowerCase(), password);
+  };
+
+  const trackCaps = (e) => setCapsLock(e.getModifierState?.('CapsLock') ?? false);
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      width: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      direction: 'rtl',
-      background: '#0c111d',
-      padding: 24,
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      {/* Background dots */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        backgroundImage: 'radial-gradient(circle, rgba(99,102,241,0.12) 1px, transparent 1px)',
-        backgroundSize: '32px 32px',
-      }} />
-      {/* Glow top-right */}
-      <div style={{
-        position: 'absolute', top: -120, right: -120, width: 480, height: 480,
-        borderRadius: '50%', pointerEvents: 'none',
-        background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 65%)',
-      }} />
-      {/* Glow bottom-left */}
-      <div style={{
-        position: 'absolute', bottom: -100, left: -100, width: 360, height: 360,
-        borderRadius: '50%', pointerEvents: 'none',
-        background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 65%)',
-      }} />
-
-      {/* Card */}
-      <div style={{
-        position: 'relative', zIndex: 1,
-        width: '100%', maxWidth: 420,
-        background: 'white',
-        borderRadius: 20,
-        boxShadow: '0 24px 80px rgba(0,0,0,0.45)',
-        overflow: 'hidden',
-      }}>
-        {/* Card top strip */}
-        <div style={{
-          background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 60%, #818cf8 100%)',
-          padding: '28px 32px 24px',
-          display: 'flex', alignItems: 'center', gap: 14,
-        }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14, flexShrink: 0,
-            background: 'rgba(255,255,255,0.15)',
-            border: '1px solid rgba(255,255,255,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Hotel size={24} style={{ color: 'white' }} />
-          </div>
-          <div>
-            <div style={{ color: 'white', fontWeight: 900, fontSize: 20, letterSpacing: '-0.5px' }}>Hotel4U</div>
-            <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 2 }}>Hotel Operating System</div>
-          </div>
-        </div>
-
-        {/* Form body */}
-        <div style={{ padding: '28px 32px' }}>
-          <div style={{ marginBottom: 22 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0 }}>כניסה למערכת</h2>
-            <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>הכנס/י פרטי התחברות להמשך</p>
+    <div className="min-h-screen w-full flex flex-col bg-surface">
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-[360px]">
+          {/* Brand */}
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="w-10 h-10 rounded-lg bg-accent-600 text-white flex items-center justify-center mb-4">
+              <Hotel size={20} strokeWidth={2.25} />
+            </div>
+            <h1 className="text-xl font-semibold text-ink">כניסה ל־<bdi>Hotel4U</bdi></h1>
+            <p className="text-[13px] text-ink-muted mt-1">מערכת ניהול המלון</p>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Email */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>אימייל</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={14} style={{
-                  position: 'absolute', right: 11, top: '50%',
-                  transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none',
-                }} />
+          {/* Form */}
+          <div className="bg-surface-card border border-surface-border rounded-xl p-6 shadow-card">
+            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="login-email" className="text-[13px] font-medium text-ink-secondary">אימייל</label>
                 <input
+                  id="login-email"
                   type="email"
-                  className="input"
-                  style={{ paddingRight: 34 }}
-                  placeholder="admin@galil.co.il"
+                  dir="ltr"
+                  className="input !h-10 text-right"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
+                  onChange={e => { setEmail(e.target.value); setError(''); }}
+                  autoComplete="username"
+                  inputMode="email"
                   autoFocus
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>סיסמה</label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={14} style={{
-                  position: 'absolute', right: 11, top: '50%',
-                  transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none',
-                }} />
-                <input
-                  type={showPwd ? 'text' : 'password'}
-                  className="input"
-                  style={{ paddingRight: 34, paddingLeft: 34 }}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
                   required
-                  autoComplete="current-password"
+                  aria-invalid={!!error}
+                  aria-describedby={error ? 'login-error' : undefined}
                 />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPwd(v => !v)}
-                  style={{
-                    position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
-                    color: '#94a3b8', background: 'none', border: 'none',
-                    cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center',
-                  }}
-                >
-                  {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="login-password" className="text-[13px] font-medium text-ink-secondary">סיסמה</label>
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    type={showPwd ? 'text' : 'password'}
+                    dir="ltr"
+                    className="input !h-10 text-right !pl-10"
+                    value={password}
+                    onChange={e => { setPassword(e.target.value); setError(''); }}
+                    onKeyUp={trackCaps}
+                    onKeyDown={trackCaps}
+                    autoComplete="current-password"
+                    required
+                    aria-invalid={!!error}
+                    aria-describedby={error ? 'login-error' : undefined}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd(v => !v)}
+                    className="absolute left-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-sm btn-icon"
+                    aria-label={showPwd ? 'הסתר סיסמה' : 'הצג סיסמה'}
+                    aria-pressed={showPwd}
+                  >
+                    {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                {capsLock && (
+                  <p className="text-xs text-amber-700">Caps Lock פעיל</p>
+                )}
+              </div>
+
+              {error && (
+                <div id="login-error" role="alert" className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-[13px] text-red-700">
+                  <AlertCircle size={15} className="shrink-0 mt-px" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !email.trim() || !password}
+                className="btn btn-primary !h-10 w-full text-sm mt-1"
+              >
+                {loading ? <><Loader2 size={15} className="animate-spin" /> מתחבר…</> : 'כניסה'}
+              </button>
+            </form>
+          </div>
+
+          <p className="text-center text-xs text-ink-muted mt-5">
+            שכחת סיסמה? מנהל המערכת יכול לאפס אותה עבורך.
+          </p>
+
+          {DEMO_USERS.length > 0 && (
+            <div className="mt-8 border-t border-dashed border-surface-border pt-5">
+              <p className="text-[11px] font-medium text-ink-faint text-center mb-3">סביבת פיתוח · כניסה מהירה</p>
+              <div className="grid grid-cols-2 gap-2">
+                {DEMO_USERS.map(u => (
+                  <button
+                    key={u.email}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => doLogin(u.email, DEMO_PASSWORD)}
+                    className="btn btn-secondary btn-sm justify-start"
+                    title={u.email}
+                  >
+                    {u.name}
+                  </button>
+                ))}
               </div>
             </div>
-
-            {/* Error */}
-            {error && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 12px', borderRadius: 8, fontSize: 12,
-                color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca',
-              }}>
-                <AlertCircle size={13} style={{ flexShrink: 0 }} />
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn btn-primary"
-              style={{ justifyContent: 'center', padding: '11px 20px', fontSize: 14, marginTop: 4 }}
-            >
-              {loading ? (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    width: 15, height: 15, borderRadius: '50%',
-                    border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white',
-                    display: 'inline-block', animation: 'loginSpin 0.65s linear infinite',
-                  }} />
-                  מתחבר...
-                </span>
-              ) : 'כניסה'}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 16px' }}>
-            <div style={{ flex: 1, height: 1, background: '#f1f5f9' }} />
-            <span style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>כניסה מהירה — Demo</span>
-            <div style={{ flex: 1, height: 1, background: '#f1f5f9' }} />
-          </div>
-
-          {/* Demo users — click = immediate login */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {DEMO_USERS.map(u => (
-              <button
-                key={u.email}
-                type="button"
-                disabled={loading}
-                onClick={() => quickLogin(u.email)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
-                  background: '#f8fafc', border: '1.5px solid #e2e8f0',
-                  transition: 'all 0.15s ease', textAlign: 'right',
-                  opacity: loading ? 0.5 : 1,
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = u.color;
-                  e.currentTarget.style.background = `${u.color}0c`;
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${u.color}18`;
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.background = '#f8fafc';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <div style={{
-                  width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                  background: u.color, color: 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13, fontWeight: 900,
-                }}>
-                  {u.initials}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{u.name}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{u.role}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <p style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', marginTop: 14 }}>
-            סיסמה:{' '}
-            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#64748b' }}>hotel4u123</span>
-          </p>
+          )}
         </div>
-      </div>
+      </main>
 
-      <style>{`@keyframes loginSpin { to { transform: rotate(360deg); } }`}</style>
+      <footer className="py-4 text-center text-[11px] text-ink-faint">
+        <span dir="ltr">© {new Date().getFullYear()} Hotel4U</span>
+      </footer>
     </div>
   );
 }

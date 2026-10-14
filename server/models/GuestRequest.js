@@ -61,11 +61,10 @@ const GuestRequestSchema = new Schema({
 }, { timestamps: true });
 
 // Auto-set dueAt from slaMinutes on create
-GuestRequestSchema.pre('save', function (next) {
+GuestRequestSchema.pre('save', function () {
   if (this.isNew && !this.dueAt && this.slaMinutes) {
     this.dueAt = new Date(Date.now() + this.slaMinutes * 60_000);
   }
-  next();
 });
 
 GuestRequestSchema.virtual('isOverdue').get(function () {
