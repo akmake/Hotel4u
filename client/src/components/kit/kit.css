@@ -289,3 +289,64 @@ nav.ui-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .ui-defect { grid-template-columns: 1fr auto; }
   .ui-defect select { grid-column: 1; }
 }
+
+/* ─── Check-in: one screen, three sections, one confirm ───────────────── */
+.ck { display: flex; flex-direction: column; gap: 12px; }
+.ck-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid rgb(var(--border)); border-radius: var(--radius-lg); background: rgb(var(--bg-content)); }
+.ck-tiles > div { padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ck-tiles > div + div { border-inline-start: 1px solid rgb(var(--border)); }
+.ck-tiles span { font-size: 11.5px; color: rgb(var(--fg-muted)); }
+.ck-tiles strong { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ck-tiles .is-due strong { color: rgb(180 83 9); }
+.ck-note { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; border-radius: var(--radius); background: rgb(var(--warning) / .08); border: 1px solid rgb(var(--warning) / .25); color: rgb(120 53 15); font-size: 13px; }
+.ck-note svg { margin-top: 2px; flex-shrink: 0; }
+
+.ck-sec { border: 1px solid rgb(var(--border)); border-radius: var(--radius-lg); background: rgb(var(--bg-elevated)); overflow: hidden; }
+.ck-sec.is-open { border-color: rgb(var(--border-strong)); box-shadow: 0 1px 3px rgb(0 0 0 / .06); }
+.ck-sec-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: none; border: 0; cursor: pointer; text-align: start; font: inherit; color: inherit; }
+.ck-sec-head:hover { background: rgb(var(--bg-hover) / .5); }
+.ck-sec-head:focus-visible { outline: 2px solid rgb(var(--accent-500)); outline-offset: -2px; }
+.ck-sec-n { width: 24px; height: 24px; flex-shrink: 0; border-radius: 999px; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: rgb(var(--bg-active)); color: rgb(var(--fg-secondary)); }
+.ck-sec.is-done .ck-sec-n { background: rgb(var(--success)); color: #fff; }
+.ck-sec-title { font-size: 14px; font-weight: 600; flex-shrink: 0; }
+.ck-sec-sum { flex: 1; min-width: 0; font-size: 12.5px; color: rgb(var(--fg-muted)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: end; }
+.ck-sec-sum.is-todo { color: rgb(180 83 9); font-weight: 500; }
+.ck-sec-chev { color: rgb(var(--fg-faint)); transition: transform .15s; flex-shrink: 0; }
+.ck-sec.is-open .ck-sec-chev { transform: rotate(180deg); }
+.ck-sec-body { padding: 4px 16px 16px; border-top: 1px solid rgb(var(--border)); padding-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+.ck-sec-body .ui-h3 { display: none; }
+.ck-sec-body .ui-step-foot { border-top: 0; padding-top: 0; margin-top: 4px; }
+
+.ck-confirm { position: sticky; bottom: -16px; margin: 4px -18px -16px; padding: 12px 18px 14px; background: rgb(var(--bg-elevated)); border-top: 1px solid rgb(var(--border)); display: flex; flex-direction: column; gap: 10px; }
+.ck-confirm .ui-step-foot { margin: 0; padding: 0; border: 0; justify-content: space-between; }
+.ck-confirm .ui-step-foot .btn-primary { min-width: 180px; height: 40px; font-size: 14px; }
+.ck-confirm .ui-issues ul { display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 640px) { .ck-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ck-sec-sum { display: none; } }
+.ck-confirm .ui-issues .ui-label { display: none; }
+.ck-confirm .ui-issues ul { flex-direction: row; flex-wrap: wrap; gap: 6px; list-style: none; }
+.ck-confirm .ui-issues li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border: 1px solid rgb(var(--border)); border-radius: 999px; font-size: 12.5px; background: rgb(var(--bg-content)); border-inline-start: 3px solid rgb(var(--warning)); }
+.ck-confirm .ui-issues li.is-blocked { border-inline-start-color: rgb(var(--danger)); }
+.ck-confirm .ui-issues li .btn { height: 22px; padding: 0 8px; }
+.ck-sec .ui-unit { border: 0; padding: 0; background: none; }
+.ck-confirm .ui-issues li { border-radius: 6px; border-inline-start-width: 1px; border-inline-start-color: rgb(var(--border)); padding: 2px 4px 2px 8px; }
+.ck-confirm .ui-issues li::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: rgb(var(--warning)); flex-shrink: 0; }
+.ck-confirm .ui-issues li.is-blocked::before { background: rgb(var(--danger)); }
+.ck-units { display: flex; flex-direction: column; gap: 10px; }
+.ck-unit { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid rgb(var(--border)); border-radius: var(--radius-lg); background: rgb(var(--bg-content)); }
+.ck-unit.is-done { opacity: .65; }
+.ck-unit-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ck-unit-top input { width: 16px; height: 16px; accent-color: rgb(var(--accent-600)); }
+.ck-unit-room { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 180px; color: rgb(var(--fg-muted)); }
+.ck-unit-room strong { display: block; font-size: 16px; font-weight: 600; color: rgb(var(--fg)); line-height: 1.2; }
+.ck-unit-room small { font-size: 12.5px; color: rgb(var(--fg-muted)); }
+.ck-unit-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.ck-tag { padding: 2px 9px; border-radius: 999px; font-size: 12px; background: rgb(var(--bg-active)); color: rgb(var(--fg-secondary)); }
+.ck-tag.is-ok { background: rgb(var(--success) / .12); color: rgb(21 101 52); }
+.ck-tag.is-warn { background: rgb(var(--warning) / .14); color: rgb(146 64 14); }
+.ck-unit-issues { list-style: none; display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-radius: var(--radius); background: rgb(var(--danger) / .06); border: 1px solid rgb(var(--danger) / .2); font-size: 13px; color: rgb(153 27 27); }
+.ck-unit-issues li.is-waiting { color: rgb(146 64 14); }
+.ck-unit-issues:has(li.is-waiting):not(:has(li.is-blocked)) { background: rgb(var(--warning) / .08); border-color: rgb(var(--warning) / .3); }
+.ck-unit-actions { display: flex; gap: 8px; }
+.ck-confirm .ui-issues li::before { display: none; }
+.ck-confirm .ui-issues ul { border: 0; margin-top: 0; }
+.ck-confirm .ui-issues li { border-bottom: 1px solid rgb(var(--border)); }

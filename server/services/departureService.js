@@ -241,6 +241,7 @@ export async function listDepartures({ propertyId, date, status = 'all', q }) {
       units: unitRows,
       departureDate: r.departureDate,
       etd: r.etd || null,
+      specialRequests: r.specialRequests || null,
       checkedOutAt: r.checkedOutAt || null,
       folios: f,
       money,

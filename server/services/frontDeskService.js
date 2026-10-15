@@ -315,7 +315,9 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
       },
       company: r.company ? { id: idStr(r.company), name: r.company.name } : null,
       roomType: u.roomTypeBooked?.name ? { id: idStr(u.roomTypeBooked), name: u.roomTypeBooked.name, code: u.roomTypeBooked.code } : (r.roomType ? { id: idStr(r.roomType), name: r.roomType.name, code: r.roomType.code } : null),
-      room: room ? { id: String(room._id), number: room.number, floor: room.floor, cleanStatus: room.cleanStatus, opsStatus: room.opsStatus, occStatus: room.occStatus } : null,
+      // occupiedBy: another stay still physically in the room — cleanliness says nothing about
+      // readiness until that guest checks out (and check-out turns the room dirty).
+      room: room ? { id: String(room._id), number: room.number, floor: room.floor, cleanStatus: room.cleanStatus, opsStatus: room.opsStatus, occStatus: room.occStatus, occupiedBy: occupantOther(occ, room._id, r._id) } : null,
       arrivalDate: u.arrivalDate || r.arrivalDate,
       departureDate: u.departureDate || r.departureDate,
       nights: nightsBetween(u.arrivalDate || r.arrivalDate, u.departureDate || r.departureDate),
@@ -396,6 +398,24 @@ async function unitReadiness(res, unit, property) {
   };
 }
 
+// A document the guest already gave us: the latest registration card from any earlier stay, else the
+// profile. The number never leaves the server in full — the desk confirms "···1234" and the save
+// resolves the real value here (`reuseKnownDoc`).
+async function knownDocFor(guestId, today) {
+  if (!guestId) return null;
+  const notExpired = (d) => !d || Date.parse(d) >= Date.parse(today);
+  const card = await GuestRegistrationCard.findOne({ guest: guestId, idDocNumber: { $exists: true, $ne: '' } })
+    .sort({ createdAt: -1 }).select('idDocType idDocNumber idDocExpiry dateOfBirth nationality').lean();
+  if (card && notExpired(card.idDocExpiry)) {
+    return { idDocType: card.idDocType, number: card.idDocNumber, expiry: card.idDocExpiry || null, dateOfBirth: card.dateOfBirth || null, nationality: card.nationality || null, source: 'previous_stay' };
+  }
+  const g = await GuestProfile.findById(guestId).select('idDocType passportNumber passportExpiry').lean();
+  if (g?.passportNumber && notExpired(g.passportExpiry)) {
+    return { idDocType: g.idDocType || 'passport', number: g.passportNumber, expiry: g.passportExpiry || null, dateOfBirth: null, nationality: null, source: 'profile' };
+  }
+  return null;
+}
+
 // ── FD-03 check-in context ──────────────────────────────────────────────────
 export async function getCheckInContext({ propertyId, reservationId }) {
   const property = await loadProperty(propertyId);
@@ -423,6 +443,8 @@ export async function getCheckInContext({ propertyId, reservationId }) {
     .select('status signedAt idVerified termsVersion idDocType nationality createdAt')
     .lean();
   const g = res.primaryGuest || {};
+  const known = await knownDocFor(g._id, businessDateOf(property));
+  const digits = known ? String(known.number).replace(/\s+/g, '') : '';
   return {
     businessDate: businessDateOf(property),
     policy: policyOf(property),
@@ -450,7 +472,10 @@ export async function getCheckInContext({ propertyId, reservationId }) {
       email: g.email || null,
       phone: g.phone || null,
       country: g.citizenship || g.country || null,
-      dateOfBirth: g.dateOfBirth || null,
+      dateOfBirth: g.dateOfBirth || known?.dateOfBirth || null,
+      nationality: /^[A-Za-z]{2}$/.test(g.citizenship || '') ? g.citizenship.toUpperCase()
+        : /^[A-Za-z]{2}$/.test(g.country || '') ? g.country.toUpperCase() : (known?.nationality || null),
+      knownDoc: known ? { idDocType: known.idDocType, last4: digits.slice(-4), expiry: known.expiry, source: known.source } : null,
       blacklisted: !!g.isBlacklisted,
       marketingConsent: !!g.marketingConsent,
     },
@@ -485,7 +510,13 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
   }
   if (!/^[A-Za-z]{2}$/.test(String(input.nationality || ''))) errors.nationality = 'יש לבחור אזרחות';
   if (!['passport', 'id_card', 'drivers_license', 'other'].includes(input.idDocType)) errors.idDocType = 'יש לבחור סוג מסמך';
-  const idDocNumber = String(input.idDocNumber || '').trim().slice(0, 40);
+  let idDocNumber = String(input.idDocNumber || '').trim().slice(0, 40);
+  let idDocType = input.idDocType;
+  let idDocExpiry = input.idDocExpiry;
+  if (!idDocNumber && input.reuseKnownDoc === true) {
+    const known = await knownDocFor(res.primaryGuest._id, businessDateOf(property));
+    if (known) { idDocNumber = String(known.number).trim().slice(0, 40); idDocType = known.idDocType; idDocExpiry = known.expiry; }
+  }
   if (!idDocNumber) errors.idDocNumber = 'מספר מסמך נדרש';
   if (input.idVerified !== true) errors.idVerified = 'יש לאשר שמסמך הזיהוי נבדק';
   // Only a real PNG data URL is accepted; anything else is an error, never silently dropped.
@@ -517,9 +548,9 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
     lastName,
     dateOfBirth: new Date(input.dateOfBirth),
     nationality: String(input.nationality).toUpperCase(),
-    idDocType: input.idDocType,
+    idDocType,
     idDocNumber,
-    idDocExpiry: input.idDocExpiry && !Number.isNaN(Date.parse(input.idDocExpiry)) ? new Date(input.idDocExpiry) : undefined,
+    idDocExpiry: idDocExpiry && !Number.isNaN(Date.parse(idDocExpiry)) ? new Date(idDocExpiry) : undefined,
     arrivalDate: res.arrivalDate,
     departureDate: res.departureDate,
     status: signedStatus,

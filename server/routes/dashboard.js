@@ -75,10 +75,12 @@ router.get('/stats', asyncHandler(async (req, res) => {
     r.specialRequests && /late.?check.?out|late departure/i.test(r.specialRequests)
   );
 
+  // Vacant = no stay is in the room now (from the stays themselves, not the stored occStatus flag).
+  const occupiedRoomIds = new Set(inHouse.map((r) => String(r.assignedRoom?._id || r.assignedRoom || '')).filter(Boolean));
   const cleanRooms = rooms.filter((r) =>
     ['clean', 'inspected'].includes(r.cleanStatus) &&
     r.opsStatus === 'available' &&
-    r.occStatus === 'vacant'
+    !occupiedRoomIds.has(String(r._id))
   );
   const dirtyRooms = rooms.filter((r) => r.cleanStatus === 'dirty');
   const oooRooms = rooms.filter((r) => r.opsStatus === 'out_of_order');
