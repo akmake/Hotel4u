@@ -5,13 +5,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { stay } from '../../utils/api';
 import { Modal, Field, ErrorBanner, Banner, Spinner, KeyValues, Tag, useAction, useLoader, money } from '../kit';
 import { formatShort, formatLong, addDays } from '../../utils/date';
-import { cleanLabel } from '../../lib/labels';
+import { cleanLabel, TICKET_CATEGORY_LABELS } from '../../lib/labels';
 
 // Fallback only — the server sends the reasons with who initiated them (pricing rule).
 const MOVE_REASONS_FALLBACK = [
-  { value: 'guest_request', label: 'בקשת האורח', guestInitiated: true }, { value: 'upgrade_sold', label: 'שדרוג בתשלום (האורח ביקש)', guestInitiated: true },
+  { value: 'guest_request', label: 'בקשת האורח', guestInitiated: true }, { value: 'upgrade_sold', label: 'שדרוג בתשלום (האורח ביקש)', guestInitiated: true, onlyUp: true },
   { value: 'maintenance', label: 'תקלה בחדר', guestInitiated: false }, { value: 'hotel_need', label: 'צורך של המלון (תפוסה/שיבוץ)', guestInitiated: false },
-  { value: 'upgrade_free', label: 'שדרוג מטעם המלון', guestInitiated: false }, { value: 'other', label: 'אחר', guestInitiated: false },
+  { value: 'upgrade_free', label: 'שדרוג מטעם המלון', guestInitiated: false, onlyUp: true }, { value: 'other', label: 'אחר', guestInitiated: false },
 ];
 const EARLY_REASONS = { guest_request: 'בקשת האורח', service_issue: 'תקלה או שירות', event: 'אירוע אישי', other: 'אחר' };
 const CHANNELS = { phone: 'טלפון', email: 'דוא״ל', web: 'אתר', desk: 'בדלפק', ota: 'ערוץ הזמנות (OTA)', company: 'חברה', other: 'אחר' };
@@ -56,14 +56,18 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
   const [priceTouched, setPriceTouched] = useState(false);
   useEffect(() => {
     if (open) {
-      setF({ roomId: initialRoomId || '', reason: '', note: '', keyRequested: true, priceMode: 'keep', rate: '', rateReason: '', guestConsentRef: '' });
+      setF({ roomId: initialRoomId || '', reason: '', note: '', faultCategory: '', faultBlock: true, keyRequested: true, priceMode: 'keep', rate: '', rateReason: '', guestConsentRef: '' });
       setShowAll(false); setPicking(!initialRoomId); setPriceTouched(false); action.reset();
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
   const rooms = (data?.rooms || []).filter((r) => showAll || r.available || r.id === f.roomId);
-  const reasons = data?.pricing?.reasons || MOVE_REASONS_FALLBACK;
+  const allReasons = data?.pricing?.reasons || MOVE_REASONS_FALLBACK;
+  const target0 = (data?.rooms || []).find((r) => r.id === f.roomId) || null;
+  // "Upgrade" reasons exist only when the target is a higher category than the room left.
+  const reasons = allReasons.filter((r) => !r.onlyUp || target0?.direction === 'up');
   const reason = reasons.find((r) => r.value === f.reason);
+  useEffect(() => { if (f.reason && !reason) setF((p) => ({ ...p, reason: '' })); }, [f.reason, reason]); // eslint-disable-line react-hooks/exhaustive-deps
   const guestInitiated = !!reason?.guestInitiated;
   const target = (data?.rooms || []).find((r) => r.id === f.roomId) || null;
   const pricing = data?.pricing;
@@ -80,6 +84,7 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
   const increase = f.priceMode !== 'keep' && diff > 0.005;
   const targetWhy = targetTotal === null ? (pricing?.ratePlan ? 'אין מחיר בלוח התעריפים לחדר היעד בכל הלילות' : 'להזמנה אין תעריף — אין מחיר להשוואה')
     : !pricier && !cheaper ? 'אותו מחיר כמו שהוסכם'
+      : pricier && target?.direction !== 'up' ? 'החדר אינו בקטגוריה גבוהה יותר — לא מחייבים יותר מהמחיר שהוסכם'
       : pricier && !f.reason ? 'בחרו קודם מי יזם את המעבר'
         : pricier && !guestInitiated ? 'המעבר ביוזמת המלון — לא מחייבים את האורח יותר' : null;
 
@@ -95,29 +100,35 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
   const pickPrice = (mode) => { setPriceTouched(true); set('priceMode')(mode); };
 
   // Hints that describe this move, not the rule in general.
+  const dir = target?.direction || 'same';
   const keepHint = !f.reason ? 'ברירת המחדל — בחרו מי יזם את המעבר'
-    : !guestInitiated && pricier ? 'שדרוג חינם — האורח לא משלם יותר'
-      : !guestInitiated && cheaper ? 'האורח ממשיך לשלם כפי שהוסכם (אפשר להוריד כפיצוי — מחיר ידני)'
-        : guestInitiated && pricier ? 'האורח עובר לחדר יקר יותר בלי תוספת'
-          : guestInitiated && cheaper ? 'האורח ממשיך לשלם את המחיר המקורי למרות שהחדר זול יותר'
-            : 'אין הבדל במחיר בין החדרים';
+    : dir === 'same' ? 'אותה קטגוריה — המחיר לא משתנה'
+      : !guestInitiated && dir === 'up' ? 'שדרוג חינם — האורח לא משלם יותר'
+        : !guestInitiated ? 'האורח ממשיך לשלם כפי שהוסכם (אפשר להוריד כפיצוי — מחיר ידני)'
+          : dir === 'up' ? 'האורח עובר לקטגוריה גבוהה יותר בלי תוספת'
+            : 'האורח ממשיך לשלם את המחיר המקורי למרות הקטגוריה הנמוכה';
   const targetHint = !canChangePrice ? 'שינוי מחיר — מנהל משמרת ומעלה' : targetWhy || (cheaper ? 'האורח משלם פחות על הלילות שנותרו' : 'האורח משלם יותר — נדרש אישור שלו');
   const soldWithoutPrice = f.reason === 'upgrade_sold' && f.priceMode === 'keep';
 
   const noNights = !!data && nights <= 0;
+  const isFault = f.reason === 'maintenance';
   let why = null;
   if (noNights) why = 'אין לילות שנותרו';
   else if (!f.roomId) why = 'יש לבחור חדר יעד';
   else if (target && !target.available) why = 'חדר היעד אינו זמין';
   else if (!f.reason) why = 'יש לבחור מי יזם את המעבר';
   else if (f.reason === 'other' && f.note.trim().length < 3) why = 'יש לפרט';
+  else if (isFault && !f.faultCategory) why = 'יש לבחור סוג תקלה';
+  else if (isFault && f.note.trim().length < 3) why = 'מה התקלה?';
   else if (f.priceMode === 'manual' && !(Number(f.rate) > 0)) why = 'יש להזין מחיר ללילה';
+  else if (increase && target?.direction !== 'up') why = 'בלי שדרוג לא מעלים מחיר';
   else if (increase && !guestInitiated) why = 'במעבר ביוזמת המלון לא מעלים מחיר';
   else if (f.priceMode !== 'keep' && f.rateReason.trim().length < 3) why = 'סיבה לשינוי המחיר';
   else if (increase && f.guestConsentRef.trim().length < 2) why = 'נדרש אישור האורח להעלאת המחיר';
   const submit = () => action.run(async () => {
     const out = await stay.move(propertyId, reservationId, {
       unitId: data.unitId, roomId: f.roomId, reason: f.reason, note: f.note || undefined, keyRequested: f.keyRequested,
+      ...(isFault ? { fault: { category: f.faultCategory, block: f.faultBlock } } : {}),
       priceMode: f.priceMode,
       ...(f.priceMode === 'manual' ? { rate: Number(f.rate) } : {}),
       ...(f.priceMode !== 'keep' ? { rateReason: f.rateReason, guestConsentRef: f.guestConsentRef || undefined } : {}),
@@ -143,7 +154,7 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
             <div className="ui-sum-row">
               <span>לחדר</span>
               <strong>
-                {target ? `${target.number} · ${target.roomType?.name || ''}${target.available ? '' : ` — ${target.why}`}` : 'לא נבחר'}
+                {target ? `${target.number} · ${target.roomType?.name || ''}${target.direction === 'up' ? ' · קטגוריה גבוהה יותר' : target.direction === 'down' ? ' · קטגוריה נמוכה יותר' : ''}${target.available ? '' : ` — ${target.why}`}` : 'לא נבחר'}
                 {target && targetDiff !== null && Math.abs(targetDiff) > 0.005 && <span className="ui-sub"> · לפי לוח התעריפים {signed(targetDiff)}</span>}
               </strong>
             </div>
@@ -163,7 +174,7 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
                   return (
                     <li key={r.id}>
                       <button type="button" disabled={!r.available} aria-pressed={f.roomId === r.id} style={f.roomId === r.id ? { background: 'rgb(var(--accent-50))' } : undefined} onClick={() => { set('roomId')(r.id); setPicking(false); }}>
-                        <span>חדר {r.number} · {r.roomType?.name}{!r.sameType && <Tag tone="warn">סוג אחר</Tag>}</span>
+                        <span>חדר {r.number} · {r.roomType?.name}{r.direction === 'up' ? <Tag>קטגוריה גבוהה יותר</Tag> : r.direction === 'down' ? <Tag tone="warn">קטגוריה נמוכה יותר</Tag> : !r.sameType ? <Tag>סוג אחר</Tag> : null}</span>
                         <span className="ui-sub">{r.available ? `קומה ${r.floor} · ${cleanLabel(r.cleanStatus)}${d !== null && Math.abs(d) > 0.005 ? ` · ${signed(d)}` : ''}` : r.why}</span>
                       </button>
                     </li>
@@ -180,10 +191,25 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
                 <optgroup label="ביוזמת המלון">{reasons.filter((r) => !r.guestInitiated).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</optgroup>
               </select>
             </Field>
-            <Field id="mv-n" label="פירוט" required={f.reason === 'other'} optional={f.reason !== 'other'} error={action.fields.note}>
-              <input id="mv-n" className="input w-full" maxLength={300} value={f.note} onChange={(e) => set('note')(e.target.value)} />
+            <Field id="mv-n" label={isFault ? 'מה התקלה?' : 'פירוט'} required={f.reason === 'other' || isFault} optional={f.reason !== 'other' && !isFault} error={action.fields.note}>
+              <input id="mv-n" className="input w-full" maxLength={300} value={f.note} onChange={(e) => set('note')(e.target.value)} placeholder={isFault ? 'למשל: המזגן לא מקרר' : undefined} />
             </Field>
           </div>
+          {isFault && (
+            <div className="ui-sub-card">
+              <div className="ui-label">תקלה בחדר {data.currentRoom?.number || ''} — תיפתח תקלה בתחזוקה</div>
+              <div className="ui-grid-2">
+                <Field id="mv-fc" label="סוג התקלה" required error={action.fields.faultCategory}>
+                  <select id="mv-fc" className="select w-full" value={f.faultCategory} onChange={(e) => set('faultCategory')(e.target.value)}>
+                    <option value="">בחירה…</option>
+                    {Object.entries(TICKET_CATEGORY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </Field>
+                <label className="ui-check" style={{ alignSelf: 'end' }}><input type="checkbox" checked={f.faultBlock} onChange={(e) => set('faultBlock')(e.target.checked)} /><span>לחסום את החדר למכירה עד התיקון</span></label>
+              </div>
+              <div className="ui-sub">{f.faultBlock ? 'החדר יסומן "לא תקין" ולא יימכר ולא ישובץ עד שמנהל תחזוקה ישחרר אותו.' : 'החדר יישאר זמין למכירה — רק אם התקלה לא מפריעה לאורח הבא.'} אם כבר פתוחה תקלה לחדר — המעבר יירשם בה ולא תיפתח כפולה.</div>
+            </div>
+          )}
 
           {target && agreed !== null && (
             <fieldset className="ui-fieldset" style={{ marginTop: 0 }}>
@@ -201,7 +227,7 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
               </label>
               <label className={`ui-radio ${!canChangePrice ? 'is-disabled' : ''}`}>
                 <input type="radio" name="mv-price" disabled={!canChangePrice} checked={f.priceMode === 'manual'} onChange={() => pickPrice('manual')} />
-                <span>מחיר ידני ללילה<span className="ui-sub" style={{ display: 'block' }}>{canChangePrice ? (guestInitiated ? 'מחיר מוסכם אחר עם האורח' : 'פיצוי — רק מחיר נמוך יותר') : 'מנהל משמרת ומעלה'}</span></span>
+                <span>מחיר ידני ללילה<span className="ui-sub" style={{ display: 'block' }}>{canChangePrice ? (guestInitiated && target?.direction === 'up' ? 'מחיר מוסכם אחר עם האורח' : 'פיצוי — רק מחיר נמוך יותר') : 'מנהל משמרת ומעלה'}</span></span>
               </label>
               {soldWithoutPrice && <Banner tone="warn">נבחר "שדרוג בתשלום" אבל המחיר לא משתנה. אם זה שדרוג חינם — בחרו "שדרוג מטעם המלון".</Banner>}
               {!canChangePrice && guestInitiated && (pricier || cheaper) && <Banner tone="info">שינוי המחיר דורש מנהל משמרת. אפשר להעביר עכשיו במחיר שהוסכם, או לבקש ממנהל לבצע את המעבר.</Banner>}

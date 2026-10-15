@@ -189,10 +189,50 @@ const PropertySchema = new Schema({
   childMaxAge:       { type: Number, default: null },      // business rule of the property, not law
 
   // Money policy (FIN-03/04). Legal thresholds are owner decisions (gate G05) — empty = no check.
+  // G2 — board (meal plan) pricing "by board": a room-only rate plus a supplement per person per
+  // night for the chosen board. Rate plans that include a board are priced "by rate" (calendar).
+  // How the property sells: 'rates' (choose a rate plan) or 'board' (choose a board — each board is
+  // a rate plan with its own price calendar). The manager decides; the booking form shows one choice.
+  pricingMode: { type: String, enum: ['rates', 'board'], default: 'rates' },
+  boardPricing: {
+    supplements: [{
+      _id: false,
+      board:  { type: String, enum: ['breakfast', 'half_board', 'full_board'] },
+      adult:  { type: Number, min: 0 },                  // gross per adult per night
+      child:  { type: Number, min: 0 },                  // gross per child per night (age ≤ childMaxAge)
+      active: { type: Boolean, default: true },
+    }],
+    infantMaxAge: { type: Number, default: 2 },          // children up to this age eat free
+    version:      { type: Number, default: 0 },
+    updatedByName: String,
+  },
+  // EXT-04 / ADM-04 (gate G04) — tourist zero-rating rule. Off until the property's accountant
+  // approves it; when on, eligible charge codes of a reservation that meets the rule post at 0% VAT.
+  taxPolicy: {
+    tourist: {
+      enabled:       { type: Boolean, default: false },
+      visaTypes:     [String],                           // accepted entry visa types (from the accountant)
+      chargeCodes:   { type: [String], default: ['rooms'] }, // services zero-rated for an eligible tourist
+      // net_of_vat: the tourist pays the shelf price without the VAT part (common practice);
+      // same_price: the tourist pays the same amount, only booked without VAT.
+      pricing:       { type: String, enum: ['net_of_vat', 'same_price'], default: 'net_of_vat' },
+      legalRef:      String,                             // law / regulation the rule is based on
+      approvedBy:    String,                             // accountant who approved it
+      approvedAt:    Date,
+      version:       { type: Number, default: 0 },
+      updatedByName: String,
+    },
+  },
   financePolicy: {
     cashLimitPerStay:   { type: Number, default: null },     // cumulative cash per reservation
     refundApprovalOver: { type: Number, default: 0 },         // refunds above this need a manager/finance role
     postStayDays:       { type: Number, default: 30 },        // G6: days after departure a late charge may still be posted
+    // G05 — cash limit rule. 'none' = no legal rule enforced (cashLimitPerStay still applies);
+    // 'il_2024' = Israel cash law (directive 1/2024): up to the threshold any cash; above it the lower
+    // of 10% of the transaction and the threshold; a verified tourist has the higher threshold.
+    cashRule:           { type: String, enum: ['none', 'il_2024'], default: 'none' },
+    cashThreshold:      { type: Number, default: 6000 },
+    touristCashThreshold: { type: Number, default: 40000 },
   },
 
   // Front-desk check-in policy (spec FD-03 / ADM-05). Readiness is computed from these on the

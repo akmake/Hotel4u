@@ -3,7 +3,8 @@
 // server re-checks everything on "השלמת כניסה". Moving between steps never commits anything.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, BedDouble, KeyRound } from 'lucide-react';
-import { frontdesk, finance } from '../../utils/api';
+import { frontdesk, finance, stay as stayApi } from '../../utils/api';
+import { TouristFields, TouristSummary } from '../stay/TouristDialog';
 import { useChargeCodes } from '../../hooks/useChargeCodes';
 import { GUARANTEE_LABELS, ID_DOC_LABELS, cleanLabel, opsLabel } from '../../lib/labels';
 import { countryOptions } from '../../lib/countries';
@@ -226,11 +227,30 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
   const [fields, setFields] = useState({});
   const countries = useMemo(() => countryOptions(), []);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  // EXT-04: a guest from abroad — residency evidence is taken here, from what was already typed
+  // (country = citizenship, last 4 = passport number); only visa type and entry date are asked.
+  const [touristInfo, setTouristInfo] = useState(null);
+  useEffect(() => { stayApi.tourist(propertyId, ctx.reservation.id).then(setTouristInfo).catch(() => setTouristInfo(null)); }, [propertyId, ctx.reservation.id]);
+  const abroad = form.nationality && form.nationality !== 'IL';
+  const tourist = form.tourist || { nonResident: true, visaType: '', entryDate: '' };
+  const last4 = form.idDocType === 'passport' ? String(form.idDocNumber || '').replace(/\D/g, '').slice(-4) : '';
 
   async function save() {
-    setSaving(true); setError(null); setFields({});
+    setError(null); setFields({});
+    if (abroad && tourist.nonResident && (!tourist.visaType?.trim() || !tourist.entryDate)) {
+      setFields({ visaType: !tourist.visaType?.trim() ? 'סוג אשרת הכניסה' : undefined, entryDate: !tourist.entryDate ? 'תאריך הכניסה לישראל' : undefined });
+      setError('אורח מחו״ל: יש להשלים סוג אשרה ותאריך כניסה, או לסמן שהוא תושב ישראל');
+      return;
+    }
+    setSaving(true);
     try {
-      await frontdesk.saveRegistration(propertyId, ctx.reservation.id, { ...form, idDocExpiry: form.idDocExpiry || undefined });
+      const { tourist: _t, ...regBody } = form;
+      await frontdesk.saveRegistration(propertyId, ctx.reservation.id, { ...regBody, idDocExpiry: form.idDocExpiry || undefined });
+      if (abroad) {
+        setTouristInfo(await stayApi.recordTourist(propertyId, ctx.reservation.id, tourist.nonResident
+          ? { nonResident: true, passportCountry: form.nationality, visaType: tourist.visaType.trim(), entryDate: tourist.entryDate, docLast4: last4.length === 4 ? last4 : undefined }
+          : { nonResident: false }));
+      }
       await reload();
       setDraft(null);
       setEditing(false);
@@ -252,6 +272,7 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
           <div className="ui-sum-row"><span>נוסח תנאים</span><strong>{reg.termsVersion || '—'}</strong></div>
           {reg.signedAt && <div className="ui-sum-row"><span>מועד חתימה</span><strong>{new Date(reg.signedAt).toLocaleString('he-IL')}</strong></div>}
         </div>
+        {touristInfo?.recorded && <div className="ui-sub-card"><div className="ui-label">תושבות ומעמד מס</div><TouristSummary data={touristInfo} /></div>}
         <div className="ui-step-foot">
           <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>תיקון רישום</button>
           <button type="button" className="btn btn-primary" onClick={onNext}>הבא</button>
@@ -298,6 +319,21 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
           </Field>
         )}
       </div>
+
+      {abroad && (
+        <div className="ui-sub-card">
+          <div className="ui-label">אורח מחו״ל — תושבות ומעמד מס</div>
+          <TouristFields
+            idPrefix="r-tr"
+            value={{ ...tourist, passportCountry: form.nationality }}
+            onChange={(v) => setForm((f) => ({ ...f, tourist: { nonResident: v.nonResident, visaType: v.visaType || '', entryDate: v.entryDate || '' } }))}
+            errors={fields}
+            countryLocked
+            hideDoc
+          />
+          {tourist.nonResident && <div className="ui-sub">מדינת הדרכון לפי האזרחות{last4.length === 4 ? ` · 4 ספרות אחרונות (${last4}) לפי מספר הדרכון` : ''}. מעמד המס נקבע לפי כלל הנכס — לא לפי הדרכון לבדו.</div>}
+        </div>
+      )}
 
       <label className="ui-check">
         <input type="checkbox" checked={form.idVerified} onChange={set('idVerified')} aria-invalid={!!fields.idVerified} />

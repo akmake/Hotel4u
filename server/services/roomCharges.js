@@ -10,6 +10,9 @@
 import Folio from '../models/Folio.js';
 import Property from '../models/Property.js';
 import ReservationRoom from '../models/ReservationRoom.js';
+import { vatForLine } from './touristService.js';
+
+const BOARD_LABEL = { breakfast: 'ארוחת בוקר', half_board: 'חצי פנסיון', full_board: 'פנסיון מלא' };
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
@@ -48,7 +51,13 @@ export async function lodgingFolio(reservation, { create = true } = {}) {
 // (exclusive). Pure read — nothing is written.
 export async function planNights({ reservation, until, unitFilter, includeStatuses = ['in_house', 'checked_in'] }) {
   const units = await ReservationRoom.find({ reservation: reservation._id }).populate('assignedRoom', 'number').sort({ createdAt: 1, _id: 1 }).lean();
-  const vatRate = (await Property.findById(reservation.property).select('vatRate').lean())?.vatRate;
+  const propertyVat = (await Property.findById(reservation.property).select('vatRate').lean())?.vatRate;
+  // Lodging of an eligible tourist under the property's approved rule is zero-rated (EXT-04).
+  const vat = await vatForLine({ reservation, code: 'rooms', propertyVatRate: propertyVat ?? 18 });
+  const vatRate = vat.rate;
+  const boardVat = await vatForLine({ reservation, code: 'board', propertyVatRate: propertyVat ?? 18 });
+  const boardByDate = reservation.priceSnapshot?.board?.source === 'supplement' ? new Map((reservation.priceSnapshot.board.nightly || []).map((n) => [n.date, Number(n.price)])) : new Map();
+  const split = (gross, v) => (v.rate === 0 ? { net: v.strip ? splitGross(gross, propertyVat ?? 18).net : round2(gross), tax: 0 } : splitGross(gross, v.rate));
   const all = await Folio.find({ reservation: reservation._id }).select('lines').lean();
   const live = all.flatMap((f) => f.lines.filter((l) => l.status !== 'voided'));
   const posted = new Set(live.filter((l) => l.reference).map((l) => l.reference));
@@ -73,17 +82,24 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
     for (const date of nightsOf(from, to)) {
       // The price frozen at booking/extension for that night (per room), else the unit's rate.
       const gross = agreed.has(date) ? agreed.get(date) : flat;
-      const { net, tax } = splitGross(gross, vatRate);
+      const { net, tax } = split(gross, vat);
       const reference = `night:${unitKey}:${date}`;
       if (posted.has(reference)) continue;
       if ((legacyByDate.get(date) || 0) > 0) { legacyByDate.set(date, legacyByDate.get(date) - 1); continue; }
       items.push({
-        reference, date, net, tax, gross: round2(net + tax),
+        reference, date, net, tax, gross: round2(net + tax), vatRate, taxReason: vat.reason || undefined, code: 'rooms',
         description: `לינה ${date}${u?.assignedRoom?.number ? ` · חדר ${u.assignedRoom.number}` : ''}`,
       });
+      // G2: the board of that night, posted on its own line (F&B revenue, own VAT decision).
+      const boardGross = boardByDate.get(date);
+      const boardRef = `board:${unitKey}:${date}`;
+      if (boardGross > 0 && !posted.has(boardRef)) {
+        const b = split(boardGross, boardVat);
+        items.push({ reference: boardRef, date, net: b.net, tax: b.tax, gross: round2(b.net + b.tax), vatRate: boardVat.rate, taxReason: boardVat.reason || undefined, code: 'board', description: `אירוח (${BOARD_LABEL[reservation.priceSnapshot.board.type] || 'ארוחות'}) ${date}` });
+      }
     }
   }
-  return { items, count: items.length, gross: round2(items.reduce((s, i) => s + i.gross, 0)) };
+  return { items, count: items.filter((i) => i.code === 'rooms').length, gross: round2(items.reduce((s, i) => s + i.gross, 0)) };
 }
 
 export async function postPlannedNights({ reservation, items, source = 'night_audit', actorId }) {
@@ -94,7 +110,7 @@ export async function postPlannedNights({ reservation, items, source = 'night_au
   for (const it of items) {
     if (existing.has(it.reference)) continue;
     folio.lines.push({
-      type: 'charge', description: it.description, amount: it.net, taxAmount: it.tax, department: 'rooms',
+      type: 'charge', description: it.description, amount: it.net, taxAmount: it.tax, department: it.code || 'rooms', vatRate: it.vatRate, taxReason: it.taxReason,
       serviceDate: it.date, source, status: 'posted', reference: it.reference, createdBy: actorId || undefined,
     });
     added += 1;

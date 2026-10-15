@@ -155,3 +155,6 @@ export const SOURCE_LABELS = {
   expedia: 'Expedia', agoda: 'Agoda', airbnb: 'Airbnb', gds: 'GDS',
 };
 export const QUOTE_CHANNEL_LABELS = { email: 'דוא״ל', link: 'קישור', print: 'הדפסה' };
+
+// G2 — board / meal plan
+export const BOARD_LABELS = { room_only: 'לינה בלבד', breakfast: 'לינה וארוחת בוקר', half_board: 'חצי פנסיון', full_board: 'פנסיון מלא' };

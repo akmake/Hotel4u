@@ -28,6 +28,7 @@ const DEFAULT_CHARGES = [
   { code: 'late_checkout', name: 'יציאה מאוחרת', revenueGroup: 'rooms', sortOrder: 2 },
   { code: 'no_show_fee', name: 'דמי אי־הגעה', revenueGroup: 'fees', postLevel: 'manager', sortOrder: 3 },
   { code: 'cancellation_fee', name: 'דמי ביטול', revenueGroup: 'fees', postLevel: 'manager', sortOrder: 4 },
+  { code: 'board', name: 'אירוח (ארוחות לפי פנסיון)', revenueGroup: 'f_and_b', postLevel: 'system', sortOrder: 9 },
   { code: 'f_and_b', name: 'מזון ומשקאות', revenueGroup: 'f_and_b', sortOrder: 10 },
   { code: 'minibar', name: 'מיני־בר', revenueGroup: 'f_and_b', sortOrder: 11 },
   { code: 'spa', name: 'ספא', revenueGroup: 'other_operated', sortOrder: 20 },
@@ -185,7 +186,7 @@ export async function updateCode({ propertyId, id, input, actor, ip }) {
     if (data.active === false) throw httpError('קוד הלינה משמש לחיוב הלילות — אי אפשר להשבית', 422);
     if (data.postLevel && data.postLevel !== 'system') throw httpError('לינה נרשמת רק על ידי המערכת (סגירת יום ויציאה)', 422);
   }
-  if (doc.kind === 'charge' && doc.code !== 'rooms' && data.postLevel === 'system') throw httpError('רמת "מערכת בלבד" שמורה לקוד הלינה', 422);
+  if (doc.kind === 'charge' && !['rooms', 'board'].includes(doc.code) && data.postLevel === 'system') throw httpError('רמת "מערכת בלבד" שמורה לקודי הלינה והאירוח', 422);
   if (data.vatClass && data.vatClass !== before.vatClass && String(input.reason || '').trim().length < 3) {
     throw httpError('שינוי סיווג מע״מ מחייב סיבה', 422, { fields: { reason: 'יש לפרט' } });
   }

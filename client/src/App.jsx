@@ -56,7 +56,7 @@ const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
 const TapeChartPage        = lazy(() => import('./pages/TapeChartPage'));
 const RoomRackPage         = lazy(() => import('./pages/RoomRackPage'));
 const ReservationsPage     = lazy(() => import('./pages/rsv/ReservationsListPage'));
-const NewReservationPage   = lazy(() => import('./pages/rsv/BookingWizardPage'));
+const NewReservationPage   = lazy(() => import('./pages/rsv/BookingFormPage'));
 const ReservationPage      = lazy(() => import('./pages/rsv/ReservationPage'));
 const ArrivalsPage         = lazy(() => import('./pages/ArrivalsPage'));
 const ArrivalQueuePage     = lazy(() => import('./pages/ArrivalQueuePage'));
@@ -79,6 +79,8 @@ const InvoicesPage         = lazy(() => import('./pages/InvoicesPage'));
 const DayClosePage         = lazy(() => import('./pages/fin/DayClosePage'));
 const DayReportPage        = lazy(() => import('./pages/fin/DayReportPage'));
 const ChargeCodesPage      = lazy(() => import('./pages/sys/ChargeCodesPage'));
+const TaxPolicyPage        = lazy(() => import('./pages/sys/TaxPolicyPage'));
+const BoardPage            = lazy(() => import('./pages/sys/BoardPage'));
 const BulkJobsPage              = lazy(() => import('./pages/BulkJobsPage'));
 const RatesPage                 = lazy(() => import('./pages/RatesPage'));
 const AutomationRulesPage       = lazy(() => import('./pages/AutomationRulesPage'));
@@ -242,6 +244,8 @@ export default function App() {
               <Route path="admin/policy"      element={<PolicyPage />} />
               <Route path="admin/audit"       element={<AuditPage />} />
               <Route path="admin/charge-codes" element={<ChargeCodesPage />} />
+              <Route path="admin/tax" element={<TaxPolicyPage />} />
+              <Route path="admin/board" element={<BoardPage />} />
               <Route path="me"                element={<ProfilePage />} />
               <Route path="work"              element={<WorkCenterPage />} />
             </Route>

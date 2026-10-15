@@ -11,6 +11,8 @@ import {
   BOOKING_ROLES, searchAvailability, createBooking, listReservations, getStayFile,
   markQuoteSent, closeQuote, convertQuote,
 } from '../services/bookingService.js';
+import { createParty, freeRooms } from '../services/partyBookingService.js';
+import { getBoardConfig, updateBoardConfig, BOARD_ADMIN_ROLES } from '../services/boardService.js';
 
 const router = Router();
 
@@ -64,6 +66,29 @@ router.get('/availability', handle(async (req) => {
 router.post('/reservations', handle(async (req) => {
   requireRoles(req, BOOKING_ROLES, 'אין הרשאה ליצור הזמנה');
   return createBooking({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+// G2: board (meal plan) pricing — supplements per person and which rate plans include a board.
+router.get('/board-config', handle(async (req) => {
+  requireRoles(req, READ_ROLES, 'אין הרשאה');
+  return getBoardConfig({ propertyId: scope(req) });
+}));
+
+router.put('/board-config', handle(async (req) => {
+  requireRoles(req, BOARD_ADMIN_ROLES, 'הגדרת סוגי אירוח מותרת להנהלה, הכנסות וכספים');
+  return updateBoardConfig({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+// Multi-room booking: several rooms (same or different types) in one action, linked as a party.
+router.post('/party', handle(async (req) => {
+  requireRoles(req, BOOKING_ROLES, 'אין הרשאה ליצור הזמנה');
+  return createParty({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+router.get('/free-rooms', handle(async (req) => {
+  requireRoles(req, BOOKING_ROLES, 'אין הרשאה');
+  const q = req.query;
+  return freeRooms({ propertyId: scope(req), roomTypeId: q.roomTypeId, arrival: q.arrival, departure: q.departure });
 }));
 
 // Pickers: minimal fields only (who is it, how to reach them).

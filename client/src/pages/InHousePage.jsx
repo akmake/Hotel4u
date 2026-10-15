@@ -201,7 +201,7 @@ export default function InHousePage() {
         propertyId={propertyId}
         reservationId={dialog?.stay?.reservationId}
         canChangePrice={isManager}
-        onDone={(out) => { setDialog(null); success(`עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.key ? ' · יש להנפיק מפתח' : ''}`); reload(); }}
+        onDone={(out) => { setDialog(null); success(`עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.ticket ? (out.ticket.linked ? ' · נרשם בתקלה הפתוחה' : ' · נפתחה תקלה בתחזוקה') + (out.ticket.blocked ? ' והחדר נחסם' : '') : ''}${out.key ? ' · יש להנפיק מפתח' : ''}`); reload(); }}
       />
       <ExtendDialog
         open={dialog?.kind === 'extend'}

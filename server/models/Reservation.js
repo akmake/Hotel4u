@@ -67,6 +67,13 @@ const ReservationSchema = new Schema({
     refundable:   Boolean,
     computedAt:   Date,
     override:     { by: String, reason: String },      // manual price, manager only
+    // G2: board on top of the room price. source=plan → included in the rate (nothing extra);
+    // source=supplement → per-night meal price for this room, posted as code 'board'.
+    board: {
+      type:    { type: String, enum: ['room_only', 'breakfast', 'half_board', 'full_board'] },
+      source:  { type: String, enum: ['plan', 'supplement', 'none'] },
+      nightly: [{ _id: false, date: String, price: Number }],
+    },
   },
   // RSV-04: a documented offer that is not a booking until converted.
   quote: {
@@ -97,6 +104,29 @@ const ReservationSchema = new Schema({
     note:          String,
     proposal:      Schema.Types.Mixed,                     // what the rules suggested, with sources
     decidedBy:     String,
+  },
+  // EXT-04 / IL09 — guest who is not an Israeli resident: evidence recorded at the desk. The tax
+  // effect (zero-rated lodging) is decided by the property's approved rule (Property.taxPolicy),
+  // never by "foreign passport = no VAT" (gate G04).
+  board:             { type: String, enum: ['room_only', 'breakfast', 'half_board', 'full_board'] },
+  tourist: {
+    nonResident:     Boolean,                            // declared: not a resident of Israel
+    passportCountry: String,                             // ISO-2 of the passport presented
+    visaType:        String,                             // entry visa / permit type as recorded
+    entryDate:       String,                             // YYYY-MM-DD last entry to Israel
+    docLast4:        String,                             // last 4 of the document — never the full number
+    recordedAt:      Date,
+    recordedBy:      { type: Schema.Types.ObjectId, ref: 'User' },
+    recordedByName:  String,
+    note:            String,
+  },
+  // Multi-room booking: every room is its own reservation (own check-in/out, folio, cancel), linked
+  // into one party created in one action. code = confirmation number of the first room.
+  party: {
+    id:    String,
+    code:  String,
+    index: Number,
+    size:  Number,
   },
   // Gap G6: actions that walk a status back (reinstate a cancellation / no-show, reverse a check-in).
   // Kept as history; the money side (refunds, credit notes) is never touched by these actions.
@@ -151,5 +181,7 @@ ReservationSchema.index(
   // so every reservation created without a key would collide on null.
   { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } },
 );
+
+ReservationSchema.index({ property: 1, 'party.id': 1 }, { sparse: true });
 
 export default model('Reservation', ReservationSchema);

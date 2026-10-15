@@ -9,6 +9,8 @@ const TABS = [
   { to: '/pms/admin/policy', label: 'מדיניות', roles: [...ADMIN, 'front_desk_manager', 'finance_manager', 'auditor', 'housekeeping_manager'] },
   { to: '/pms/admin/audit', label: 'יומן ביקורת', roles: [...ADMIN, 'auditor', 'finance_manager'] },
   { to: '/pms/admin/charge-codes', label: 'קודי חיוב ותשלום', roles: [...ADMIN, 'finance_manager', 'front_desk_manager', 'auditor'] },
+  { to: '/pms/admin/board', label: 'שיטת תמחור ופנסיון', roles: [...ADMIN, 'revenue_manager', 'finance_manager', 'front_desk_manager'] },
+  { to: '/pms/admin/tax', label: 'מס ומזומן — אורחים מחו״ל', roles: [...ADMIN, 'finance_manager', 'auditor'] },
   { to: '/pms/settings', label: 'הגדרות נכס וחדרים', roles: ADMIN },
 ];
 

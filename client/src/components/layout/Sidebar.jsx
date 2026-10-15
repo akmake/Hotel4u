@@ -110,6 +110,8 @@ const PMS_NAV = [
       { path: '/pms/admin/policy',     icon: FileText,   label: 'מדיניות' },
       { path: '/pms/admin/audit',      icon: ClipboardList, label: 'יומן ביקורת' },
       { path: '/pms/admin/charge-codes', icon: ListChecks, label: 'קודי חיוב ותשלום' },
+      { path: '/pms/admin/board',      icon: Tag,        label: 'שיטת תמחור ופנסיון' },
+      { path: '/pms/admin/tax',        icon: FileText,   label: 'מס ומזומן — מחו״ל' },
       { path: '/pms/settings',         icon: Settings,   label: 'הגדרות' },
     ],
   },

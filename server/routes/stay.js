@@ -7,6 +7,7 @@ import {
   moveCandidates, moveRoom, extensionPreview, extendStay, earlyDeparturePreview,
   modificationPreview, modifyBooking, cancellationPreview, cancelWithNotice,
 } from '../services/stayChangeService.js';
+import { getTourist, recordTourist } from '../services/touristService.js';
 import { reinstatePreview, reinstateReservation, reverseCheckInPreview, reverseCheckIn, postStayCharge } from '../services/reversalService.js';
 
 const router = Router();
@@ -123,6 +124,17 @@ router.post('/:id/reverse-check-in', handle(async (req) => {
 router.post('/:id/post-stay-charge', handle(async (req) => {
   requireRoles(req, [...FRONT_ROLES, 'finance_manager'], 'חיוב אחרי יציאה מותר למנהל או לכספים');
   return postStayCharge({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+// ── EXT-04: non-resident guest — evidence and the resulting tax decision ────
+router.get('/:id/tourist', handle(async (req) => {
+  requireRoles(req, [...FRONT_ROLES, 'finance_manager', 'auditor'], 'אין הרשאה');
+  return getTourist({ propertyId: scope(req), reservationId: req.params.id });
+}));
+
+router.post('/:id/tourist', handle(async (req) => {
+  requireRoles(req, [...FRONT_ROLES, 'finance_manager'], 'רישום מעמד תייר מתבצע בקבלה');
+  return recordTourist({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
 }));
 
 export default router;

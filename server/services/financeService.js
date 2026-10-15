@@ -29,6 +29,7 @@ import { issueCreditNote } from './invoiceService.js';
 import { raiseWork } from './platformService.js';
 import { resolveChargeCode, resolvePaymentMethod, taxFor } from './chargeCodeService.js';
 import { computeLedger, ledgerChecks, storedFrom } from './ledgerService.js';
+import { vatForLine, cashAllowance } from './touristService.js';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
@@ -232,7 +233,7 @@ export async function postCharge({ propertyId, folioId, input, actor, ip }) {
   const dup = folio.lines.find((l) => l.reference === reference);
   if (dup) return { folioId: String(folio._id), lineId: String(dup._id), duplicate: true, balance: folioBalance(folio) };
   if (folio.status === 'closed') throw httpError('החשבון סגור — חיוב נרשם בחשבון פתוח בלבד', 409);
-  const res = await Reservation.findById(folio.reservation).select('status arrivalDate departureDate').lean();
+  const res = await Reservation.findById(folio.reservation).select('status arrivalDate departureDate tourist property').lean();
   if (!res || !ACTIVE_STAY.includes(res.status)) throw httpError('לא ניתן לחייב הזמנה שבוטלה או לא הגיעה', 409);
   // G6: after departure a charge is a post-stay charge (manager, reason, own window) — not a regular one.
   if (res.status === 'checked_out' && input.auditAction !== 'folio.post_stay_charge') throw httpError('האורח כבר יצא — חיוב מאוחר נרשם דרך "חיוב אחרי יציאה" בתיק ההזמנה', 409, { code: 'post_stay_required' });
@@ -250,9 +251,12 @@ export async function postCharge({ propertyId, folioId, input, actor, ip }) {
   if (serviceDate > today) errors.serviceDate = 'מועד שירות לא יכול להיות אחרי היום העסקי';
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי החיוב', 422, { fields: errors });
   const gross = round2(qty * unit);
-  const { net, tax } = taxFor(gross, code.vatClass, property?.vatRate);
+  // VAT: the code's class first (exempt/zero), then the tourist rule for this stay (EXT-04).
+  const lineVat = code.vatClass !== 'standard' ? { rate: 0, reason: `code_${code.vatClass}` } : await vatForLine({ reservation: res, code: code.code, propertyVatRate: property?.vatRate ?? 18 });
+  const { net, tax } = lineVat.strip ? { net: taxFor(gross, 'standard', lineVat.propertyVatRate).net, tax: 0 } : taxFor(gross, lineVat.rate === 0 ? 'zero' : 'standard', lineVat.rate);
   folio.lines.push({
     type: 'charge', description: qty !== 1 ? `${description} × ${qty}` : description, amount: net, taxAmount: tax,
+    vatRate: lineVat.rate, taxReason: lineVat.reason || undefined,
     department: code.code, serviceDate, source: input.source === 'pos' ? 'pos' : 'manual', status: 'posted', reference,
     quantity: qty, unitPrice: unit, reason: input.reason ? String(input.reason).slice(0, 300) : undefined, createdBy: actor.id || undefined,
   });
@@ -280,7 +284,7 @@ export async function reverseCharge({ propertyId, folioId, lineId, reason, actor
   if (onDocs.has(String(line._id))) throw httpError(`החיוב כלול במסמך ${onDocs.get(String(line._id))} שהונפק — התיקון במסמך זיכוי (T18)`, 409, { code: 'on_document' });
   const property = await Property.findById(propertyId).select('timezone').lean();
   folio.lines.push({
-    type: 'adjustment', description: `היפוך: ${line.description}`, amount: -round2(line.amount), taxAmount: -round2(line.taxAmount || 0),
+    type: 'adjustment', description: `היפוך: ${line.description}`, amount: -round2(line.amount), taxAmount: -round2(line.taxAmount || 0), vatRate: line.vatRate, taxReason: line.taxReason,
     department: line.department, serviceDate: businessDateOf(property), source: 'manual', status: 'posted', reference,
     reversalOf: line._id, reason: why, createdBy: actor.id || undefined,
   });
@@ -302,7 +306,7 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   const dup = folio.lines.find((l) => l.reference === reference);
   if (dup) return { folioId: String(folio._id), lineId: String(dup._id), duplicate: true, balance: folioBalance(folio) };
   if (folio.status === 'closed') throw httpError('החשבון סגור', 409);
-  const res = await Reservation.findById(folio.reservation).select('status totalAmount').lean();
+  const res = await Reservation.findById(folio.reservation).select('status totalAmount tourist').lean();
   if (!res || ['cancelled', 'no_show'].includes(res.status)) throw httpError('לא ניתן לרשום תשלום להזמנה שבוטלה', 409);
   const property = await Property.findById(propertyId).select('timezone financePolicy').lean();
   const amount = round2(input.amount);
@@ -333,6 +337,18 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
     const cash = round2(all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && ['payment', 'deposit'].includes(l.type) && l.method === 'cash').reduce((s, l) => s - Number(l.amount || 0), 0));
     const limit = Number(property.financePolicy.cashLimitPerStay);
     if (cash + amount - limit > 0.005) throw httpError(`מזומן מצטבר לשהייה מוגבל ל־${limit.toFixed(2)} לפי מדיניות הנכס (כבר התקבלו ${cash.toFixed(2)})`, 422, { fields: { amount: 'מעל מגבלת מזומן' }, code: 'cash_limit' });
+  }
+  if (input.method === 'cash' && property?.financePolicy?.cashRule === 'il_2024') {
+    // IL11: the legal cash limit on the whole stay (the transaction) — cumulative; tourist threshold when verified.
+    const all = await Folio.find({ reservation: folio.reservation }).select('lines').lean();
+    const flat = all.flatMap((f) => f.lines).filter((l) => l.status === 'posted');
+    const charges = round2(flat.filter((l) => !['payment', 'deposit', 'refund'].includes(l.type)).reduce((s2, l) => s2 + Number(l.amount || 0) + Number(l.taxAmount || 0), 0));
+    const price = Math.max(Number(res.totalAmount || 0), charges);
+    const allow = await cashAllowance({ reservation: res, propertyFinance: property.financePolicy, transactionPrice: price });
+    const cashSoFar = round2(flat.filter((l) => ['payment', 'deposit'].includes(l.type) && l.method === 'cash').reduce((s2, l) => s2 - Number(l.amount || 0), 0));
+    if (allow && cashSoFar + amount - allow.limit > 0.005) {
+      throw httpError(`חוק המזומן: בעסקה של ${price.toFixed(2)} מותר במזומן עד ${allow.limit.toFixed(2)}${allow.tourist ? ' (תייר מאומת)' : ''} — כבר התקבלו ${cashSoFar.toFixed(2)}. את היתרה באמצעי אחר`, 422, { fields: { amount: 'מעל מגבלת המזומן' }, code: 'cash_law' });
+    }
   }
   folio.lines.push({
     type: kind,

@@ -27,6 +27,8 @@ import { priceNights } from './bookingService.js';
 import { cancelReservation } from './reservationService.js';
 import { folioBalance } from './departureService.js';
 import { raiseWork } from './platformService.js';
+import { createTicket } from './operationsService.js';
+import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import {
   httpError, loadProperty, businessDateOf, ensureUnits, conflictingRoomIds, policyOf, MANAGER_ROLES, IN_HOUSE_STATUSES,
 } from './frontDeskService.js';
@@ -48,6 +50,10 @@ export const MOVE_REASONS = {
   maintenance: 'תקלה בחדר', hotel_need: 'צורך של המלון (תפוסה/שיבוץ)', upgrade_free: 'שדרוג מטעם המלון', other: 'אחר',
 };
 const GUEST_INITIATED = ['guest_request', 'upgrade_sold'];
+// "Upgrade" means a higher category than the room left — never offered or accepted otherwise.
+const UPGRADE_REASONS = ['upgrade_sold', 'upgrade_free'];
+const FAULT_CATEGORIES = ['electricity', 'water', 'hvac', 'furniture', 'cleaning', 'safety', 'lock', 'internet', 'tv', 'noise', 'other'];
+const OPEN_TICKET = ['new', 'assigned', 'in_progress', 'waiting_parts', 'waiting_vendor', 'reopened'];
 const REASON_ALIASES = { upgrade: 'upgrade_free' };
 export const EARLY_REASONS = { guest_request: 'בקשת האורח', service_issue: 'תקלה או שירות', event: 'אירוע אישי', other: 'אחר' };
 
@@ -92,15 +98,12 @@ export async function moveCandidates({ propertyId, reservationId, unitId, fromRo
   const to = unit.departureDate || res.departureDate;
   const conflicts = await conflictingRoomIds({ propertyId, from: today, to, excludeReservationId: res._id });
   for (const s of units) if (s.assignedRoom && String(s._id) !== String(unit._id)) conflicts.set(String(s.assignedRoom), 'יחידה אחרת בהזמנה זו');
-  const rooms = await Room.find({ property: propertyId, active: { $ne: false } }).populate('roomType', 'name code').sort({ floor: 1, number: 1 }).lean();
+  const rooms = await Room.find({ property: propertyId, active: { $ne: false } }).populate('roomType', 'name code baseRate').sort({ floor: 1, number: 1 }).lean();
   const ready = policy.requireInspection ? ['inspected'] : ['clean', 'inspected'];
   // Price of the remaining nights: as agreed, and per room type from the rate calendar (same rate plan).
   const remaining = remainingNightsOf(res, unit, today, to);
-  const byType = {};
-  for (const t of [...new Set(rooms.map((r) => String(r.roomType?._id || '')).filter(Boolean))]) {
-    const q = await priceNights({ roomTypeId: t, ratePlanId: res.ratePlan, dates: remaining.map((n) => n.date), adults: res.adults || 2, children: res.children || 0, rooms: res.roomsCount || 1 });
-    byType[t] = { total: q.missing.length ? null : q.perRoom, nightly: q.nightly, missing: q.missing };
-  }
+  const byType = await typePrices({ res, typeIds: rooms.map((r) => r.roomType?._id), dates: remaining.map((n) => n.date) });
+  const currentTypeId = String(unit.roomTypeBooked || res.roomType || '');
   return {
     unitId: String(unit._id), from: today, to,
     current: unit.assignedRoom ? String(unit.assignedRoom) : null,
@@ -110,7 +113,7 @@ export async function moveCandidates({ propertyId, reservationId, unitId, fromRo
       agreed: { total: round2(remaining.reduce((a, n) => a + n.price, 0)), nightly: remaining },
       byType,
       ratePlan: !!res.ratePlan,
-      reasons: Object.entries(MOVE_REASONS).map(([value, label]) => ({ value, label, guestInitiated: GUEST_INITIATED.includes(value) })),
+      reasons: Object.entries(MOVE_REASONS).map(([value, label]) => ({ value, label, guestInitiated: GUEST_INITIATED.includes(value), onlyUp: UPGRADE_REASONS.includes(value) })),
     },
     rooms: rooms.filter((r) => String(r._id) !== String(unit.assignedRoom)).map((r) => {
       const conflict = conflicts.get(String(r._id)) || null;
@@ -119,11 +122,34 @@ export async function moveCandidates({ propertyId, reservationId, unitId, fromRo
       return {
         id: String(r._id), number: r.number, floor: r.floor, roomType: r.roomType ? { id: String(r.roomType._id), name: r.roomType.name } : null,
         sameType: String(r.roomType?._id) === String(unit.roomTypeBooked || res.roomType), cleanStatus: r.cleanStatus, opsStatus: r.opsStatus,
+        direction: moveDirection(byType, currentTypeId, String(r.roomType?._id || '')),
         available: !conflict && !blocked && !notReady,
         why: conflict ? `תפוס (${conflict})` : blocked ? 'חסום תפעולית' : notReady ? 'לא מוכן (ניקיון)' : null,
       };
     }),
   };
+}
+
+// Calendar price of each room type for the same nights and rate plan (base rate when the calendar
+// has no price) — the yardstick for "upgrade" vs "downgrade", independent of any discount the guest got.
+async function typePrices({ res, typeIds, dates }) {
+  const ids = [...new Set((typeIds || []).filter(Boolean).map(String))];
+  const types = new Map((await RoomType.find({ _id: { $in: ids } }).select('baseRate').lean()).map((t) => [String(t._id), t]));
+  const out = {};
+  for (const t of ids) {
+    const q = await priceNights({ roomTypeId: t, ratePlanId: res.ratePlan, dates, adults: res.adults || 2, children: res.children || 0, rooms: res.roomsCount || 1 });
+    const total = q.missing.length || !res.ratePlan ? null : q.perRoom;
+    out[t] = { total, nightly: q.nightly, missing: q.missing, value: total ?? round2(Number(types.get(t)?.baseRate || 0) * dates.length) };
+  }
+  return out;
+}
+
+// up = a higher category (worth more for the same nights), down = lower, same = same type or same value.
+function moveDirection(byType, fromType, toType) {
+  if (!toType || fromType === toType) return 'same';
+  const a = byType[fromType]?.value; const b = byType[toType]?.value;
+  if (!(a > 0) || !(b > 0) || Math.abs(a - b) < 0.005) return 'same';
+  return b > a ? 'up' : 'down';
 }
 
 // Remaining nights of the unit with the price agreed for each (snapshot first, unit rate as fallback).
@@ -141,6 +167,16 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
   if (!reason) fields.reason = 'יש לבחור סיבה';
   if (reason === 'other' && note.length < 3) fields.note = 'יש לפרט';
   if (!isId(String(input.roomId || ''))) fields.roomId = 'יש לבחור חדר יעד';
+  // A fault in the room is not only a reason: the room gets a maintenance ticket and (by default) is
+  // blocked from sale until fixed — otherwise it is cleaned and sold again with the fault.
+  const fault = reason === 'maintenance' ? {
+    category: FAULT_CATEGORIES.includes(input.fault?.category) ? input.fault.category : null,
+    block: input.fault?.block !== false,
+  } : null;
+  if (fault) {
+    if (!fault.category) fields.faultCategory = 'יש לבחור סוג תקלה';
+    if (note.length < 3) fields.note = 'מה התקלה?';
+  }
   // Price: keep (default) | target (new room's calendar rate for the remaining nights) | manual (flat per night).
   // Legacy callers sent only `rate` → manual.
   const priceMode = ['keep', 'target', 'manual'].includes(input.priceMode) ? input.priceMode : (input.rate !== undefined && input.rate !== null && input.rate !== '' ? 'manual' : 'keep');
@@ -174,6 +210,10 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
     const oldRoomId = unit.assignedRoom;
     const oldType = unit.roomTypeBooked || res.roomType;
     const newType = target.roomType;
+    const dir = moveDirection(await typePrices({ res, typeIds: [oldType, newType], dates: getStayDates(today, to) }), String(oldType || ''), String(newType || ''));
+    if (UPGRADE_REASONS.includes(reason)) {
+      if (dir !== 'up') throw httpError(dir === 'down' ? `חדר ${target.number} בקטגוריה נמוכה יותר — זה לא שדרוג. בחרו סיבה אחרת` : `חדר ${target.number} באותה קטגוריה — זה לא שדרוג`, 422, { fields: { reason: 'לא שדרוג' }, code: 'not_an_upgrade' });
+    }
     // New price of the remaining nights, then the initiator rule on the total.
     const remaining = remainingNightsOf(res, unit, today, to);
     const agreedTotal = round2(remaining.reduce((a, n) => a + n.price, 0));
@@ -187,6 +227,7 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
     }
     const newTotal = newNightly ? round2(newNightly.reduce((a, n) => a + n.price, 0)) : agreedTotal;
     if (newNightly && newTotal - agreedTotal > 0.005) {
+      if (dir !== 'up') throw httpError('המעבר אינו לקטגוריה גבוהה יותר — לא מחייבים יותר מהמחיר שהוסכם', 422, { fields: { priceMode: 'לא בהורדה' }, code: 'not_up_increase' });
       if (!GUEST_INITIATED.includes(reason)) throw httpError('המעבר ביוזמת המלון — אי אפשר לחייב את האורח יותר מהמחיר שהוסכם', 422, { fields: { priceMode: 'לא בהעברה ביוזמת המלון' }, code: 'hotel_initiated_increase' });
       if (String(input.guestConsentRef || '').trim().length < 2) throw httpError('העלאת מחיר מחייבת אישור של האורח (איך ומתי אישר)', 422, { fields: { guestConsentRef: 'נדרש אישור האורח' } });
     }
@@ -237,6 +278,28 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
       await incrementInventory(propertyId, newType, today, to, 1, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.room_move_in', reason: res.confirmationNumber });
     }
     const oldRoom = oldRoomId ? await Room.findById(oldRoomId).select('number').lean() : null;
+    // Fault → maintenance ticket on the room the guest left (an open one is reused, not duplicated).
+    let ticket = null;
+    if (fault && oldRoomId) {
+      const what = `${note} — אורח ${res.confirmationNumber} הועבר לחדר ${target.number}`;
+      const open = await MaintenanceTicket.findOne({ property: propertyId, room: oldRoomId, status: { $in: OPEN_TICKET } }).sort({ createdAt: -1 });
+      if (open) {
+        open.internalNotes.push({ text: `אורח הועבר מהחדר בגלל התקלה: ${what}`, author: actor.id, authorName: actor.name });
+        if (fault.block && !open.blocksRoom) { open.blocksRoom = true; open.guestImpact = 'block'; }
+        await open.save();
+        if (fault.block) {
+          const rm = await Room.findById(oldRoomId);
+          if (rm && rm.opsStatus === 'available') {
+            rm.opsStatus = 'out_of_order'; await rm.save();
+            await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'room.ops_status.out_of_order', entityType: 'Room', entityId: rm._id, before: { opsStatus: 'available' }, after: { opsStatus: 'out_of_order' }, reason: `תקלה: ${note.slice(0, 80)}`, ip });
+          }
+        }
+        ticket = { id: String(open._id), linked: true, blocked: fault.block };
+      } else {
+        const created = await createTicket({ propertyId, input: { roomId: String(oldRoomId), category: fault.category, description: what, priority: fault.block ? 'high' : 'medium', guestImpact: fault.block ? 'block' : 'move' }, actor, ip });
+        ticket = { id: created.id, linked: false, blocked: fault.block };
+      }
+    }
     await audit({
       property: propertyId, actor: actor.id, actorName: actor.name, action: 'stay.room_moved', entityType: 'Reservation', entityId: res._id,
       before: { room: oldRoom?.number || null, remainingTotal: agreedTotal }, after: { room: target.number, priceMode: newNightly ? priceMode : 'keep', remainingTotal: newTotal, keyRequested: !!input.keyRequested, guestConsentRef: input.guestConsentRef || undefined },
@@ -245,6 +308,7 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
     return {
       reservationId: String(res._id), unitId: String(unit._id), from: oldRoom?.number || null, to: target.number, rate,
       price: { nights: remaining.length, before: agreedTotal, after: newTotal, difference: round2(newTotal - agreedTotal), changed: !!newNightly },
+      ticket,
       // INT-04 is not connected: the new key is a separate task, never assumed done.
       key: input.keyRequested ? { status: 'not_connected', message: 'אין ספק מפתחות מחובר — יש להנפיק מפתח לחדר החדש ולבטל את הישן ידנית' } : null,
     };

@@ -30,6 +30,8 @@ import { createReservation } from './reservationService.js';
 import { withLocks } from './locks.js';
 import { httpError, businessDateOf, MANAGER_ROLES, IN_HOUSE_STATUSES } from './frontDeskService.js';
 import { folioBalance } from './departureService.js';
+import { partyMembers } from './partyBookingService.js';
+import { boardOfPlan, supplementPerNight, BOARD_LABELS, BOARDS } from './boardService.js';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
@@ -86,7 +88,7 @@ function nightPrice(rd, perRoomAdults, perRoomChildren) {
   return round2(price);
 }
 
-async function offersFor({ propertyId, property, roomType, plans, arrival, departure, adults, children, rooms, nights }) {
+async function offersFor({ propertyId, property, roomType, plans, arrival, departure, adults, children, rooms, nights, board, childAges }) {
   const dates = getStayDates(arrival, departure);
   const perRoomAdults = Math.ceil(adults / rooms);
   const perRoomChildren = Math.ceil(children / rooms);
@@ -134,27 +136,40 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
       const maxLos = Number(first?.maxLos || nightsAvail[0]?.maxLos || 0);
       if (nights < minLos) reasons.push({ code: 'min_los', label: `מינימום ${minLos} לילות` });
       if (maxLos && nights > maxLos) reasons.push({ code: 'max_los', label: `מקסימום ${maxLos} לילות` });
-      const perRoom = round2(nightly.reduce((s, n) => s + n.price, 0));
+      // G2 board: included in the plan ("by rate") or a per-person supplement on a room-only plan ("by board").
+      const planBoard = boardOfPlan(plan);
+      const wanted = BOARDS.includes(board) ? board : planBoard;
+      let supp = 0;
+      if (planBoard !== 'room_only' && wanted !== planBoard) reasons.push({ code: 'board_in_plan', label: `התעריף כולל ${BOARD_LABELS[planBoard]} — לאירוח אחר בחרו תעריף "לינה בלבד"` });
+      if (planBoard === 'room_only' && wanted !== 'room_only') {
+        supp = supplementPerNight({ property, board: wanted, adults: perRoomAdults, children: perRoomChildren, childAges: rooms === 1 ? childAges : undefined });
+        if (supp === null) { reasons.push({ code: 'board_unpriced', label: `לא הוגדר מחיר ל${BOARD_LABELS[wanted]} (הגדרות ← סוגי אירוח)` }); supp = 0; }
+      }
+      const boardNightly = supp > 0 ? nightly.map((n) => ({ date: n.date, price: supp })) : [];
+      const roomPerRoom = round2(nightly.reduce((s, n) => s + n.price, 0));
+      const perRoom = round2(roomPerRoom + supp * nightly.length);
       const total = round2(perRoom * rooms);
       const seen = new Set();
       const uniq = reasons.filter((r) => (seen.has(r.label) ? false : seen.add(r.label)));
       return {
         roomType: { id: String(roomType._id), code: roomType.code, name: roomType.name, capacityMax: roomType.capacityMax, bedType: roomType.bedType || null, view: roomType.view || null },
-        ratePlan: { id: String(plan._id), code: plan.code, name: plan.name, type: plan.type, refundable: plan.isRefundable !== false, breakfast: !!(plan.includesBreakfast || plan.halfBoard || plan.fullBoard || plan.allInclusive) },
+        ratePlan: { id: String(plan._id), code: plan.code, name: plan.name, type: plan.type, refundable: plan.isRefundable !== false, breakfast: planBoard !== 'room_only', board: planBoard },
+        board: { type: wanted, source: planBoard !== 'room_only' ? 'plan' : (supp > 0 ? 'supplement' : 'none'), perNight: supp, total: round2(supp * nightly.length), nightly: boardNightly },
+        roomPerRoom,
         nightly, perRoom, total, averageNight: nightly.length ? round2(perRoom / nightly.length) : 0,
         available: Math.max(0, minAvail), availability: nightsAvail.map((n) => ({ date: n.date, available: n.missing ? null : n.available })),
         bookable: uniq.length === 0 && nightly.length === dates.length,
         reasons: uniq,
         vatIncluded: true, vatRate: property?.vatRate ?? 18,
         cancellation: policyText(property, plan), deposit: depositText(plan),
-        priceSignature: signature(nightly),
+        priceSignature: signature(nightly.map((n) => ({ date: n.date, price: n.price + supp }))),
       };
     });
 }
 
 // ── INV-03 ──────────────────────────────────────────────────────────────────
 export async function searchAvailability({ propertyId, query }) {
-  const property = await Property.findById(propertyId).select('timezone vatRate defaultCancellationHours defaultCancellationFee defaultCurrency').lean();
+  const property = await Property.findById(propertyId).select('timezone vatRate defaultCancellationHours defaultCancellationFee defaultCurrency boardPricing childMaxAge').lean();
   if (!property) throw httpError('הנכס לא נמצא', 404);
   const today = businessDateOf(property);
   const stay = validateStay({ arrival: query.arrival, departure: query.departure, adults: Number(query.adults ?? 2), children: Number(query.children ?? 0), rooms: Number(query.rooms ?? 1), today });
@@ -168,7 +183,8 @@ export async function searchAvailability({ propertyId, query }) {
     RatePlan.find(planFilter).sort({ sortOrder: 1, code: 1 }).lean(),
   ]);
   const offers = [];
-  for (const rt of roomTypes) offers.push(...await offersFor({ propertyId, property, roomType: rt, plans, arrival: query.arrival, departure: query.departure, ...stay }));
+  const childAges = Array.isArray(query.childAges) ? query.childAges.map(Number) : String(query.childAges || '').split(',').filter((x) => x !== '').map(Number);
+  for (const rt of roomTypes) offers.push(...await offersFor({ propertyId, property, roomType: rt, plans, arrival: query.arrival, departure: query.departure, ...stay, board: query.board, childAges }));
   return {
     arrival: query.arrival, departure: query.departure, nights: stay.nights, adults: stay.adults, children: stay.children, rooms: stay.rooms,
     currency: property.defaultCurrency || 'ILS', businessDate: today,
@@ -186,7 +202,7 @@ async function resolveOffer({ propertyId, input }) {
 }
 
 // Guest: an existing profile in scope, or a new one — possible duplicates are surfaced first.
-async function resolveGuest({ propertyId, input, actor, ip }) {
+export async function resolveGuest({ propertyId, input, actor, ip }) {
   if (input.guestId) {
     if (!isId(String(input.guestId))) throw httpError('אורח לא תקין', 422);
     const g = await GuestProfile.findOne({ _id: input.guestId, property: propertyId }).lean();
@@ -261,7 +277,7 @@ export async function createBooking({ propertyId, input, actor, ip }) {
   if (Object.keys(fields).length) throw httpError('יש לתקן את פרטי ההזמנה', 422, { fields });
 
   // Price: the server's, unless a permitted manager overrides it with a reason.
-  let nightly = offer.nightly;
+  let nightly = offer.nightly; // lodging per night (room only); the board is kept apart
   let override = null;
   if (input.override?.ratePerNight !== undefined && input.override?.ratePerNight !== null && input.override?.ratePerNight !== '') {
     if (!PRICE_OVERRIDE_ROLES.includes(actor.role)) throw httpError('שינוי מחיר ידני מותר למנהל או להכנסות', 403);
@@ -281,9 +297,10 @@ export async function createBooking({ propertyId, input, actor, ip }) {
   }
 
   const guest = await resolveGuest({ propertyId, input, actor, ip });
-  const perRoom = round2(nightly.reduce((s, n) => s + n.price, 0));
+  const roomPerRoom = round2(nightly.reduce((s, n) => s + n.price, 0));
+  const perRoom = round2(roomPerRoom + Number(offer.board?.total || 0));
   const total = round2(perRoom * search.rooms);
-  const avgRate = round2(perRoom / search.nights);
+  const avgRate = round2(roomPerRoom / search.nights);
   const status = { confirm: 'confirmed', hold: 'hold', draft: 'draft', quote: input.holdInventory ? 'hold' : 'quote' }[mode];
   let res;
   try {
@@ -311,7 +328,9 @@ export async function createBooking({ propertyId, input, actor, ip }) {
   await Reservation.updateOne({ _id: res._id }, {
     $set: {
       totalAmount: total,
-      priceSnapshot: { ratePlanCode: offer.ratePlan.code, ratePlanName: offer.ratePlan.name, nightly, total, vatRate: property?.vatRate ?? 18, refundable: offer.ratePlan.refundable, computedAt: new Date(), ...(override ? { override } : {}) },
+      priceSnapshot: { ratePlanCode: offer.ratePlan.code, ratePlanName: offer.ratePlan.name, nightly, total, vatRate: property?.vatRate ?? 18, refundable: offer.ratePlan.refundable, computedAt: new Date(), ...(override ? { override } : {}), board: { type: offer.board.type, source: offer.board.source, nightly: offer.board.nightly } },
+      board: offer.board.type,
+      ...(input.residency === 'tourist' ? { tourist: { nonResident: true } } : {}),
       booker: input.booker && (input.booker.name || input.booker.phone || input.booker.email) ? { name: String(input.booker.name || '').slice(0, 120), phone: String(input.booker.phone || '').slice(0, 30), email: String(input.booker.email || '').slice(0, 120) } : undefined,
       payerType: ['guest', 'company', 'booker'].includes(input.payerType) ? input.payerType : 'guest',
       childAges: search.children ? input.childAges.map(Number) : [],
@@ -368,7 +387,7 @@ export async function convertQuote({ propertyId, id, priceSignature, actor, ip }
   if (!['quote', 'hold'].includes(r.status) || (r.status === 'quote' && !r.quote?.version)) throw httpError('ההצעה כבר הומרה או נסגרה', 409);
   if (r.quote?.validUntil && r.quote.validUntil < new Date()) throw httpError('תוקף ההצעה עבר — יש לחשב מחיר מחדש', 409, { code: 'expired' });
   if (!r.quote?.version && r.holdExpiresAt && r.holdExpiresAt < new Date()) throw httpError('ההחזקה פגה — יש לבדוק זמינות מחדש', 409, { code: 'expired' });
-  const { offer } = await resolveOffer({ propertyId, input: { arrival: r.arrivalDate, departure: r.departureDate, adults: r.adults, children: r.children || 0, rooms: r.roomsCount || 1, roomTypeId: String(r.roomType), ratePlanId: String(r.ratePlan) } });
+  const { offer } = await resolveOffer({ propertyId, input: { arrival: r.arrivalDate, departure: r.departureDate, adults: r.adults, children: r.children || 0, rooms: r.roomsCount || 1, roomTypeId: String(r.roomType), ratePlanId: String(r.ratePlan), board: r.board || undefined, childAges: r.childAges || [] } });
   const agreed = r.priceSnapshot?.override?.reason ? null : signature(r.priceSnapshot?.nightly || []);
   if (agreed && agreed !== offer.priceSignature && priceSignature !== offer.priceSignature) {
     throw httpError('המחיר השתנה מאז ההצעה — יש לאשר את המחיר החדש', 409, { code: 'price_changed', details: [{ total: offer.total, priceSignature: offer.priceSignature, nightly: offer.nightly }] });
@@ -546,6 +565,7 @@ export async function getStayFile({ propertyId, id, role }) {
       postStay: r.status === 'checked_out' ? { ok: true } : { ok: false, why: 'רק אחרי יציאה' },
     },
     reversals: (r.reversals || []).map((x) => ({ kind: x.kind, from: x.from, at: x.at, by: x.byName || '—', reason: x.reason || null })),
+    party: r.party?.id ? { id: r.party.id, code: r.party.code, index: r.party.index, size: r.party.size, members: await partyMembers({ propertyId, partyId: r.party.id }) } : null,
   };
 }
 

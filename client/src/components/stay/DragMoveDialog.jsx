@@ -29,7 +29,7 @@ export default function DragMoveDialog({ pending, rooms, propertyId, onClose, on
         fromRoomId={sourceRoomId || undefined}
         initialRoomId={String(targetRoomId)}
         canChangePrice={PRICE_ROLES.includes(role)}
-        onDone={(out) => onDone(`${guest || 'האורח'} עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.price?.changed ? ` · מחיר הלילות שנותרו עודכן (${out.price.difference > 0 ? '+' : ''}${out.price.difference})` : ''}${out.key ? ' · יש להנפיק מפתח' : ''}`)}
+        onDone={(out) => onDone(`${guest || 'האורח'} עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.price?.changed ? ` · מחיר הלילות שנותרו עודכן (${out.price.difference > 0 ? '+' : ''}${out.price.difference})` : ''}${out.ticket ? (out.ticket.linked ? ' · נרשם בתקלה הפתוחה של החדר' : ' · נפתחה תקלה בתחזוקה') + (out.ticket.blocked ? ' והחדר נחסם' : '') : ''}${out.key ? ' · יש להנפיק מפתח' : ''}`)}
       />
     );
   }

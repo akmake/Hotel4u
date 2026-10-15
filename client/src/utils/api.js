@@ -198,12 +198,18 @@ export const finance = {
   codes:       (propertyId, params = {}) => api.get(`/finance/charge-codes?propertyId=${propertyId}${qs(params)}`),
   createCode:  (propertyId, body)        => api.post('/finance/charge-codes', { ...body, propertyId }),
   updateCode:  (propertyId, id, body)    => api.patch(`/finance/charge-codes/${id}`, { ...body, propertyId }),
+  taxPolicy:   (propertyId)              => api.get(`/finance/tax-policy?propertyId=${propertyId}`),
+  setTaxPolicy:(propertyId, body)        => api.put('/finance/tax-policy', { ...body, propertyId }),
 };
 
 // ── Booking: availability & price, create booking/quote, list, stay file (INV-03, RSV-01…04) ──
 export const booking = {
   availability: (propertyId, params)       => api.get(`/booking/availability?propertyId=${propertyId}${qs(params)}`),
   create:       (propertyId, body)         => api.post('/booking/reservations', { ...body, propertyId }),
+  party:        (propertyId, body)         => api.post('/booking/party', { ...body, propertyId }),
+  freeRooms:    (propertyId, params)       => api.get(`/booking/free-rooms?propertyId=${propertyId}${qs(params)}`),
+  boardConfig:  (propertyId)               => api.get(`/booking/board-config?propertyId=${propertyId}`),
+  setBoardConfig: (propertyId, body)       => api.put('/booking/board-config', { ...body, propertyId }),
   list:         (propertyId, params = {})  => api.get(`/booking/reservations?propertyId=${propertyId}${qs(params)}`),
   get:          (propertyId, id)           => api.get(`/booking/reservations/${id}?propertyId=${propertyId}`),
   cancel:       (propertyId, id, reason)   => api.post(`/booking/reservations/${id}/cancel`, { propertyId, reason }),
@@ -239,6 +245,9 @@ export const stay = {
   reverseCheckInPreview: (propertyId, id)  => api.get(`/stay/${id}/reverse-check-in?propertyId=${propertyId}`),
   reverseCheckIn: (propertyId, id, body)   => api.post(`/stay/${id}/reverse-check-in`, { ...body, propertyId }),
   postStayCharge: (propertyId, id, body)   => api.post(`/stay/${id}/post-stay-charge`, { ...body, propertyId }),
+  // EXT-04 non-resident guest
+  tourist:        (propertyId, id)         => api.get(`/stay/${id}/tourist?propertyId=${propertyId}`),
+  recordTourist:  (propertyId, id, body)   => api.post(`/stay/${id}/tourist`, { ...body, propertyId }),
 };
 
 // ── Identity (ADM-06, SYS-04) ────────────────────────────────────────────────

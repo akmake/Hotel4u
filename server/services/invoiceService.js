@@ -128,14 +128,18 @@ function calcLineAmounts(unitPrice, quantity, discountPct, vatRate, pricesInclud
  * בנה שורות חשבונית משורות Folio.
  */
 function buildLinesFromFolio(folioLines, vatRate, pricesIncludeVat) {
-  const chargeLines = folioLines.filter(l => l.status === 'posted' && l.amount > 0);
+  // A reversed charge is not invoiced (nor its reversal line); each line keeps the VAT rate it was
+  // posted with (0 for exempt codes / zero-rated tourist lodging) — older lines use the property rate.
+  const reversed = new Set(folioLines.filter(l => l.reversalOf && l.status === 'posted').map(l => String(l.reversalOf)));
+  const chargeLines = folioLines.filter(l => l.status === 'posted' && l.amount > 0 && !reversed.has(String(l._id)));
 
   return chargeLines.map(line => {
+    const lineRate = Number.isFinite(line.vatRate) ? line.vatRate : vatRate;
     const { netAmount, vatAmount, grossAmount } = calcLineAmounts(
       line.amount + (line.taxAmount || 0), // מחיר ברוטו (כפי שנשמר בfolio)
       1,
       0,
-      vatRate,
+      lineRate,
       true, // folio תמיד שומר ברוטו
     );
 
@@ -145,7 +149,7 @@ function buildLinesFromFolio(folioLines, vatRate, pricesIncludeVat) {
       unitPrice:   netAmount,
       discountPct: 0,
       netAmount,
-      vatRate,
+      vatRate: lineRate,
       vatAmount,
       grossAmount,
       serviceDate: line.serviceDate,

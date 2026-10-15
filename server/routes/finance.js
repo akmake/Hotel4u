@@ -10,6 +10,7 @@ import {
 import { listCodes, createCode, updateCode, CATALOG_ROLES } from '../services/chargeCodeService.js';
 import { dayReport } from '../services/ledgerService.js';
 import { closeSettledFolio } from '../services/reversalService.js';
+import { getTaxPolicy, updateTaxPolicy, TAX_ADMIN_ROLES } from '../services/touristService.js';
 
 const router = Router();
 
@@ -111,6 +112,17 @@ router.post('/charge-codes', handle(async (req) => {
 router.patch('/charge-codes/:id', handle(async (req) => {
   requireRoles(req, CATALOG_ROLES, 'ניהול קודי חיוב מותר להנהלה ולכספים');
   return updateCode({ propertyId: scope(req), id: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+// ── ADM-04 (gate G04/G05): tourist zero-rating rule and cash-law rule ───────
+router.get('/tax-policy', handle(async (req) => {
+  requireRoles(req, MONEY_READ, 'אין הרשאה');
+  return getTaxPolicy({ propertyId: scope(req) });
+}));
+
+router.put('/tax-policy', handle(async (req) => {
+  requireRoles(req, TAX_ADMIN_ROLES, 'כלל המס מוגדר על ידי הנהלה או כספים');
+  return updateTaxPolicy({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
 }));
 
 // ── FIN-12 ──────────────────────────────────────────────────────────────────

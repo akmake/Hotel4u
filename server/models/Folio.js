@@ -28,6 +28,10 @@ const FolioLineSchema = new Schema({
   method:      String,                                     // payment/refund method
   methodRef:   String,                                     // transfer / cheque / voucher reference
   reason:      String,
+  // VAT rate actually applied to this line (0 = zero-rated / exempt). Invoices use it instead of
+  // recomputing every line at the property rate. taxReason says why (e.g. tourist rule version).
+  vatRate:     Number,
+  taxReason:   String,
 }, { _id: true });
 
 const FolioSchema = new Schema({

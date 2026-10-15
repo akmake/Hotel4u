@@ -19,6 +19,8 @@ import {
 } from '../../components/kit';
 import { MoveRoomDialog, ExtendDialog, EarlyDepartureDialog, ModifyBookingDialog, CancelBookingDialog } from '../../components/stay/StayChangeDialogs';
 import { ReinstateDialog, ReverseCheckInDialog, PostStayChargeDialog } from '../../components/stay/ReversalDialogs';
+import TouristDialog, { DECISION_TONE } from '../../components/stay/TouristDialog';
+import { stay as stayApi } from '../../utils/api';
 
 const STATUS_TONE = {
   confirmed: 'ok', modified: 'ok', in_house: 'ok', checked_in: 'ok', partially_checked_in: 'ok', partially_checked_out: 'warn',
@@ -49,6 +51,7 @@ export default function ReservationPage() {
   const { data: r, loading, error, reload } = useLoader(async () => (propertyId ? booking.get(propertyId, id) : null), [propertyId, id]);
   const types = useLoader(async () => (propertyId && dialog?.kind === 'modify' ? roomTypesApi.list(propertyId) : null), [propertyId, dialog?.kind]);
   const [cancelled, setCancelled] = useState(null);
+  const tourist = useLoader(async () => (propertyId && FRONT_ROLES.concat(['finance_manager', 'auditor']).includes(role) ? stayApi.tourist(propertyId, id) : null), [propertyId, id]);
 
   if (loading && !r) return <Page><div className="ui-empty"><Spinner /> טוען…</div></Page>;
   if (error) return <Page><ErrorBanner error={error} onRetry={reload} /></Page>;
@@ -157,6 +160,23 @@ export default function ReservationPage() {
           </div>
         </Banner>
       )}
+      {params.get('assignWarn') && <Banner tone="warn">{params.get('assignWarn')} מהחדרים שנבחרו נתפסו בינתיים — ההזמנות נשמרו בלי שיבוץ. יש לשבץ מחדש.</Banner>}
+      {r.party && r.party.size > 1 && (
+        <Card title={`הזמנה מרובת חדרים · ${r.party.code} · ${r.party.members.length} חדרים`}>
+          <ul className="ui-staff">
+            {r.party.members.map((m) => (
+              <li key={m.id}>
+                <div>
+                  <div className="font-medium">חדר {m.index} · {m.roomType || '—'}{m.room ? ` · חדר ${m.room}` : ''}{m.id === r.id ? ' · ההזמנה הזו' : ''}</div>
+                  <div className="ui-sub"><bdi>{m.confirmationNumber}</bdi> · {RES_STATUS_LABELS[m.status] || m.status} · {m.adults} מבוגרים{m.children ? ` · ${m.children} ילדים` : ''}{m.total != null ? ` · ${money(m.total)}` : ''}</div>
+                </div>
+                {m.id !== r.id && <button type="button" className="btn btn-ghost btn-sm" onClick={() => nav(`/pms/reservations/${m.id}`)}>פתיחה</button>}
+              </li>
+            ))}
+          </ul>
+          <div className="ui-sub">כל חדר מנוהל בנפרד: כניסה, יציאה, חשבון וביטול.</div>
+        </Card>
+      )}
       {r.guest?.blacklisted && <Banner tone="error">האורח ברשימה השחורה — כל פעולה דורשת אישור מנהל.</Banner>}
       {(r.reversals || []).length > 0 && (
         <Banner tone="info">
@@ -229,6 +249,13 @@ export default function ReservationPage() {
               {!r.price.snapshot && <div className="ui-sub">הזמנה ישנה — לא נשמר פירוט מחיר ללילה.</div>}
             </Card>
           )}
+          {tourist.data && (
+            <Card title="תושבות ומעמד מס" actions={canFront && !['cancelled', 'no_show'].includes(r.status) ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDialog({ kind: 'tourist' })}>{tourist.data.recorded ? 'עדכון' : 'רישום'}</button> : null}>
+              {tourist.data.recorded
+                ? <div className="ui-stack" style={{ gap: 4 }}><Pill tone={DECISION_TONE[tourist.data.decision]}>{tourist.data.decisionLabel}</Pill>{tourist.data.evidence.nonResident && <div className="ui-sub">דרכון {tourist.data.evidence.passportCountry} · אשרה {tourist.data.evidence.visaType} · כניסה {tourist.data.evidence.entryDate}</div>}</div>
+                : <div className="ui-sub">לא נרשם. לאורח מחו״ל — רישום בכניסה או כאן.</div>}
+            </Card>
+          )}
           <Card title="תנאים">
             <KeyValues rows={[
               ['ביטול', r.terms.cancellation || 'לא נשמר בהזמנה'],
@@ -255,12 +282,13 @@ export default function ReservationPage() {
         </div>
       </div>
 
+      <TouristDialog open={dialog?.kind === 'tourist'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} onDone={() => { setDialog(null); success('נשמר'); tourist.reload(); }} />
       <ReinstateDialog open={dialog?.kind === 'reinstate'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success(out.roomReleased ? 'ההזמנה שוחזרה · החדר ששובץ נתפס — יש לשבץ מחדש' : 'ההזמנה שוחזרה'); reload(); }} />
       <ReverseCheckInDialog open={dialog?.kind === 'reverse'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('הכניסה בוטלה — ההזמנה מאושרת וממתינה לכניסה'); reload(); }} />
       <PostStayChargeDialog open={dialog?.kind === 'poststay'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success('החיוב נרשם בחשבון "אחרי יציאה"'); nav(`/pms/folio?reservation=${r.id}&folio=${out.folioId}`); }} />
       <CancelBookingDialog open={dialog?.kind === 'cancel'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); setCancelled(out); success('הביטול נרשם'); reload(); }} />
       <ModifyBookingDialog open={dialog?.kind === 'modify'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} roomTypes={(types.data || []).map((t) => ({ id: t._id, name: t.name }))} onDone={(out) => { setDialog(null); success(out.unassignedRooms ? `ההזמנה עודכנה · ${out.unassignedRooms} חדרים שוחררו משיבוץ` : 'ההזמנה עודכנה'); reload(); }} />
-      <MoveRoomDialog open={dialog?.kind === 'move'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} unitId={dialog?.unitId} canChangePrice={PRICE_ROLES.includes(role)} onDone={(out) => { setDialog(null); success(`עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.key ? ' · יש להנפיק מפתח' : ''}`); reload(); }} />
+      <MoveRoomDialog open={dialog?.kind === 'move'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} unitId={dialog?.unitId} canChangePrice={PRICE_ROLES.includes(role)} onDone={(out) => { setDialog(null); success(`עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.ticket ? (out.ticket.linked ? ' · נרשם בתקלה הפתוחה' : ' · נפתחה תקלה בתחזוקה') + (out.ticket.blocked ? ' והחדר נחסם' : '') : ''}${out.key ? ' · יש להנפיק מפתח' : ''}`); reload(); }} />
       <ExtendDialog open={dialog?.kind === 'extend'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} departureDate={r.departureDate} canManualPrice={PRICE_ROLES.includes(role)} onMoveInstead={liveUnits.length === 1 ? () => setDialog({ kind: 'move', unitId: liveUnits[0].id }) : undefined} onDone={(out) => { setDialog(null); success(`השהייה הוארכה עד ${formatShort(out.departureDate)}`); reload(); }} />
       <EarlyDepartureDialog open={dialog?.kind === 'early'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} onContinue={(reasonLabel) => nav(`/pms/departures?checkout=${r.id}&early=${encodeURIComponent(reasonLabel)}`)} />
       <ConfirmDialog open={dialog?.kind === 'noshow'} onClose={() => setDialog(null)} title='סימון "לא הגיע"' subtitle={r.confirmationNumber} confirmLabel="סימון" danger onConfirm={async () => { await frontdesk.noShow(propertyId, r.id); setDialog(null); success('סומן "לא הגיע"'); reload(); }}>

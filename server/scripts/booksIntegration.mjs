@@ -29,6 +29,8 @@ import WorkItem from '../models/WorkItem.js';
 import OperationLock from '../models/OperationLock.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { signPmsToken } from '../controllers/authController.js';
+import { postNightsUntil } from '../services/roomCharges.js';
+import { issueInvoiceFromFolio } from '../services/invoiceService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -310,6 +312,65 @@ async function main() {
     const rReopen = await call('POST', `/folio/${co.folio._id}/reopen`, DM, { reason: 'x' });
     check('G6 legacy reopen / post-checkout charge are closed (410)', r.status === 410 && rReopen.status === 410, `${r.status}/${rReopen.status}`);
     check('G6 actions are audited', await AuditLog.countDocuments({ property: D.P, action: { $in: ['reservation.reinstated', 'reservation.check_in_reversed', 'folio.post_stay_charge', 'folio.closed'] } }) >= 5);
+
+    // ════════════════ EXT-04 tourist + IL11 cash law ════════════════
+    const E = await mkProperty('E');
+    const EM = E.t.property_admin; const ER = E.t.receptionist; const EF = E.t.finance_manager;
+    const tour = await mkStay(E, { arrival: addDays(today, -1), departure: addDays(today, 2), rate: 590 });
+    r = await call('POST', `/stay/${tour.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true });
+    check('EXT-04 a non-resident record needs passport country, visa type and entry date', r.status === 422 && r.fields?.passportCountry && r.fields?.visaType && r.fields?.entryDate, r.status);
+    r = await call('POST', `/stay/${tour.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'IL', visaType: 'B2', entryDate: addDays(today, -1) });
+    check('EXT-04 an Israeli passport is not a tourist', r.status === 422 && r.fields?.passportCountry, r.status);
+    r = await call('POST', `/stay/${tour.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'us', visaType: 'B2', entryDate: addDays(today, -1), docLast4: '1234' });
+    check('EXT-04 evidence recorded; without an approved property rule the decision is "pending rule" (regular VAT)', r.status === 200 && r.data.decision === 'pending_rule' && r.data.evidence.passportCountry === 'US', JSON.stringify(r.data || r).slice(0, 200));
+    await postNightsUntil({ reservation: await Reservation.findById(tour.r._id), until: today, source: 'night_audit' });
+    let tf = await Folio.findById(tour.folio._id).lean();
+    check('EXT-04 no rule → the night is charged with VAT (no "foreign passport = 0%")', tf.lines.length === 1 && tf.lines[0].taxAmount > 0 && tf.lines[0].vatRate === 18, JSON.stringify(tf.lines.map((l) => [l.taxAmount, l.vatRate])));
+    r = await call('PUT', '/finance/tax-policy', ER, { propertyId: E.P, tourist: { enabled: true }, reason: 'x' });
+    check('ADM-04 receptionist cannot set the tax rule', r.status === 403, r.status);
+    r = await call('PUT', '/finance/tax-policy', EF, { propertyId: E.P, tourist: { enabled: true, visaTypes: ['B2'] }, reason: 'הפעלה' });
+    check('ADM-04 enabling the tourist rule needs the approving accountant and the legal basis', r.status === 422 && r.fields?.approvedBy && r.fields?.legalRef, r.status);
+    r = await call('PUT', '/finance/tax-policy', EF, { propertyId: E.P, tourist: { enabled: true, visaTypes: ['b/2'], chargeCodes: ['rooms'], approvedBy: 'רו״ח בדיקה', legalRef: 'חוק מע״מ סעיף 30(א)(8)' }, reason: 'אושר ע״י רו״ח' });
+    check('ADM-04 rule enabled with approver, legal basis and version', r.status === 200 && r.data.tourist.enabled && r.data.tourist.version === 1 && r.data.tourist.visaTypes[0] === 'B/2', JSON.stringify(r.data || r).slice(0, 200));
+    r = await call('GET', `/stay/${tour.r._id}/tourist?propertyId=${E.P}`, ER);
+    check('EXT-04 with the approved rule the tourist is eligible; nights already posted with VAT are reported', r.data?.decision === 'eligible' && r.data.postedWithVat === 1, JSON.stringify(r.data).slice(0, 200));
+    await postNightsUntil({ reservation: await Reservation.findById(tour.r._id), until: addDays(today, 1), source: 'night_audit' });
+    tf = await Folio.findById(tour.folio._id).lean();
+    const zeroNight = tf.lines.find((l) => l.serviceDate === today && l.department === 'rooms');
+    check('EXT-04 eligible tourist: lodging posts at 0% VAT, without the VAT part of the price (590 → 500), tagged with the rule version', zeroNight && zeroNight.taxAmount === 0 && zeroNight.vatRate === 0 && zeroNight.taxReason === 'tourist_rule_v1' && zeroNight.amount === 500, JSON.stringify(zeroNight));
+    await call('POST', `/finance/folios/${tour.folio._id}/charges`, ER, { propertyId: E.P, department: 'minibar', quantity: 1, unitPrice: 118, idempotencyKey: key() });
+    tf = await Folio.findById(tour.folio._id).lean();
+    const mb = tf.lines.find((l) => l.department === 'minibar');
+    check('EXT-04 a service outside the rule (minibar) keeps VAT', mb && Math.abs(mb.taxAmount - 18) < 0.01 && mb.vatRate === 18, JSON.stringify(mb));
+    const inv = await issueInvoiceFromFolio({ folioId: tour.folio._id, type: 'tax_invoice', issuedBy: E.users.finance_manager._id, propertyId: E.P });
+    const ivNight = inv.lines.find((l) => String(l.folioLineId) === String(zeroNight._id));
+    const ivMb = inv.lines.find((l) => String(l.folioLineId) === String(mb._id));
+    check('Invoice: each line keeps its posted VAT rate (zero-rated night 0%, minibar 18%)', ivNight?.vatRate === 0 && ivNight?.vatAmount === 0 && ivMb?.vatRate === 18 && Math.abs(ivMb.vatAmount - 18) < 0.01, JSON.stringify(inv.lines.map((l) => [l.vatRate, l.vatAmount])));
+    const tour2 = await mkStay(E, { arrival: addDays(today, -1), departure: addDays(today, 2), room: E.rooms[1], rate: 590 });
+    await call('POST', `/stay/${tour2.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'FR', visaType: 'A1', entryDate: addDays(today, -2) });
+    r = await call('GET', `/stay/${tour2.r._id}/tourist?propertyId=${E.P}`, ER);
+    await postNightsUntil({ reservation: await Reservation.findById(tour2.r._id), until: today, source: 'night_audit' });
+    const t2 = (await Folio.findById(tour2.folio._id).lean()).lines[0];
+    check('EXT-04 a visa type outside the approved list → not eligible, VAT charged', r.data?.decision === 'ineligible' && t2.taxAmount > 0, JSON.stringify({ d: r.data?.decision, t: t2?.taxAmount }));
+    // reversed charge is not invoiced
+    const tour3 = await mkStay(E, { arrival: addDays(today, -1), departure: addDays(today, 2), room: E.rooms[2] });
+    await call('POST', `/finance/folios/${tour3.folio._id}/charges`, ER, { propertyId: E.P, department: 'spa', quantity: 1, unitPrice: 300, idempotencyKey: key() });
+    await call('POST', `/finance/folios/${tour3.folio._id}/charges`, ER, { propertyId: E.P, department: 'parking', quantity: 1, unitPrice: 50, idempotencyKey: key() });
+    const spa = (await Folio.findById(tour3.folio._id).lean()).lines.find((l) => l.department === 'spa');
+    await call('POST', `/finance/folios/${tour3.folio._id}/lines/${spa._id}/reverse`, EM, { propertyId: E.P, reason: 'נרשם בטעות' });
+    const inv3 = await issueInvoiceFromFolio({ folioId: tour3.folio._id, type: 'tax_invoice', issuedBy: E.users.finance_manager._id, propertyId: E.P });
+    check('Invoice: a reversed charge is not invoiced', inv3.lines.length === 1 && Math.abs(inv3.totalGross - 50) < 0.01, JSON.stringify(inv3.lines.map((l) => [l.description, l.grossAmount])));
+    // cash law
+    r = await call('PUT', '/finance/tax-policy', EF, { propertyId: E.P, tourist: { enabled: true, visaTypes: ['B/2'], chargeCodes: ['rooms'], approvedBy: 'רו״ח בדיקה', legalRef: 'חוק מע״מ סעיף 30(א)(8)' }, cash: { rule: 'il_2024', threshold: 6000, touristThreshold: 40000 }, reason: 'חוק המזומן', version: 1 });
+    check('IL11 cash-law rule can be switched on (gate G05 decision of the owner)', r.status === 200 && r.data.cash.rule === 'il_2024', JSON.stringify(r).slice(0, 160));
+    const big = await mkStay(E, { status: 'confirmed', arrival: addDays(today, 5), departure: addDays(today, 9), room: E.rooms[3], rate: 2000 });
+    r = await call('POST', `/finance/folios/${big.folio._id}/payments`, ER, { propertyId: E.P, kind: 'deposit', amount: 900, method: 'cash', idempotencyKey: key() });
+    const ok800 = await call('POST', `/finance/folios/${big.folio._id}/payments`, ER, { propertyId: E.P, kind: 'deposit', amount: 800, method: 'cash', idempotencyKey: key() });
+    check('IL11 resident, 8,000 transaction: cash up to the lower of 10% and 6,000 (800) — 900 refused, 800 accepted', r.status === 422 && r.code === 'cash_law' && ok800.status === 200, `${r.status} ${r.error || ''} / ${ok800.status}`);
+    await call('POST', `/stay/${big.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'DE', visaType: 'B/2', entryDate: addDays(today, -1) });
+    r = await call('POST', `/finance/folios/${big.folio._id}/payments`, ER, { propertyId: E.P, kind: 'deposit', amount: 5000, method: 'cash', idempotencyKey: key() });
+    check('IL11 verified tourist: the 40,000 threshold applies (8,000 in cash allowed)', r.status === 200, `${r.status} ${r.error || ''}`);
+    check('EXT-04 tourist record and rule changes are audited', await AuditLog.countDocuments({ property: E.P, action: { $in: ['reservation.tourist_recorded', 'tax_policy.tourist_updated'] } }) >= 5);
   } finally {
     const resIds = (await Reservation.find({ property: { $in: props } }).select('_id').lean()).map((x) => x._id);
     await AuditLog.deleteMany({ $or: [{ property: { $in: props } }, { entityId: { $in: [...props, ...resIds] } }] });

@@ -13,6 +13,7 @@ import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import Room from '../models/Room.js';
 import { resolveChargeCode, taxFor } from './chargeCodeService.js';
+import { vatForLine } from './touristService.js';
 import Folio from '../models/Folio.js';
 import Company from '../models/Company.js';
 import Invoice from '../models/Invoice.js';
@@ -423,9 +424,10 @@ export async function postServiceCharge({ propertyId, reservationId, input, acto
   const reference = idemRef(input.idempotencyKey);
   const existing = folio.lines.find((l) => l.reference === reference);
   if (existing) return { folioId: String(folio._id), lineId: String(existing._id), duplicate: true };
-  const { net } = taxFor(gross, code.vatClass, property?.vatRate);
+  const lineVat = code.vatClass !== 'standard' ? { rate: 0, reason: `code_${code.vatClass}` } : await vatForLine({ reservation: res, code: code.code, propertyVatRate: property?.vatRate ?? 18 });
+  const { net } = lineVat.strip ? { net: taxFor(gross, 'standard', lineVat.propertyVatRate).net } : taxFor(gross, lineVat.rate === 0 ? 'zero' : 'standard', lineVat.rate);
   folio.lines.push({
-    type: 'charge', description, amount: net, taxAmount: round2(gross - net), department: code.code,
+    type: 'charge', description, amount: net, taxAmount: lineVat.rate === 0 ? 0 : round2(gross - net), department: code.code, vatRate: lineVat.rate, taxReason: lineVat.reason || undefined,
     serviceDate: businessDateOf(property), source: 'manual', status: 'posted', reference, createdBy: actor.id || undefined,
   });
   await folio.save();
