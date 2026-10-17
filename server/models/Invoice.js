@@ -89,6 +89,9 @@ const InvoiceLineSchema = new Schema({
   serviceDate:  { type: String },                    // תאריך ביצוע השירות YYYY-MM-DD
   department:   { type: String },                    // rooms / f&b / parking וכו'
   folioLineId:  { type: Schema.Types.ObjectId },     // קישור לשורת folio המקורית
+  sourceInvoiceLineId: { type: Schema.Types.ObjectId },
+  taxCode: String,
+  taxRuleVersion: String,
 }, { _id: true });
 
 // ─── פרטי צד לחשבונית (מוכר / קונה) ────────────────────────────────────
@@ -138,6 +141,12 @@ const InvoiceSchema = new Schema({
   invoiceNumber:  { type: String },          // מספר רץ בסדרה של סוג המסמך בנכס (מוקצה בהנפקה)
   seq:            { type: Number },          // המספר הרץ כמספר
   requestKey:     { type: String },          // מפתח פעולה — אותה בקשה לא מנפיקה שני מסמכים
+  requestPayloadHash: { type: String },
+  legalEntity: { type: Schema.Types.ObjectId, ref: 'LegalEntity' },
+  series: { type: Schema.Types.ObjectId, ref: 'DocumentSeries' },
+  issuerProfileVersion: Number,
+  moneyPolicy: String,
+  documentHash: String,
   status:         { type: String, enum: INVOICE_STATUSES, default: 'draft' },
 
   // ── תאריכים ──────────────────────────────────────────────────────────
@@ -214,6 +223,7 @@ const InvoiceSchema = new Schema({
 // (האינדקס הישן invoiceNumber_1 מוסר ב-scripts/migrateInvoiceNumberIndex.js)
 InvoiceSchema.index({ property: 1, type: 1, invoiceNumber: 1 }, { unique: true, partialFilterExpression: { invoiceNumber: { $type: 'string' } } });
 InvoiceSchema.index({ property: 1, requestKey: 1 }, { unique: true, partialFilterExpression: { requestKey: { $type: 'string' } } });
+InvoiceSchema.index({ legalEntity: 1, series: 1, seq: 1 }, { unique: true, partialFilterExpression: { legalEntity: { $type: 'objectId' }, series: { $type: 'objectId' }, seq: { $type: 'number' } } });
 InvoiceSchema.index({ property: 1, allocationStatus: 1 });
 InvoiceSchema.index({ property: 1, issueDate: -1 });
 InvoiceSchema.index({ property: 1, type: 1, status: 1 });
@@ -221,18 +231,38 @@ InvoiceSchema.index({ folio: 1 });
 InvoiceSchema.index({ reservation: 1 });
 
 // ── נעילת שינוי לחשבוניות שהונפקו ─────────────────────────────────────────
-InvoiceSchema.pre('save', function () {
-  if (!this.isNew && this.isModified() && this.status === 'issued') {
-    const allowedFields = ['creditedBy', 'allocationNumber', 'allocationReceivedAt', 'status', 'allocationStatus', 'allocationRejectReason', 'allocationBy', 'allocationRequestedAt', 'printCount',
-      'allocationFullNumber', 'allocationSource', 'allocationAttempts', 'allocationLastError', 'allocationRetry', 'allocationNextTryAt', 'allocationDecision', 'allocationDecidedAt', 'allocationDecisionSent', 'sentLog'];
-    const modifiedPaths = this.modifiedPaths();
-    const illegalChange = modifiedPaths.find(p => !allowedFields.includes(p));
-    if (illegalChange) {
-      const err = new Error(`חשבונית שהונפקה אינה ניתנת לשינוי (שדה: ${illegalChange}). הנפק הודעת זיכוי.`);
-      err.status = 422;
-      throw err;
+const MUTABLE_METADATA = new Set(['creditedBy', 'allocationNumber', 'allocationReceivedAt', 'allocationStatus', 'allocationRejectReason', 'allocationBy', 'allocationRequestedAt', 'printCount',
+  'allocationFullNumber', 'allocationSource', 'allocationAttempts', 'allocationLastError', 'allocationRetry', 'allocationNextTryAt', 'allocationDecision', 'allocationDecidedAt', 'allocationDecisionSent', 'sentLog', 'updatedAt', '__v']);
+const immutableError = () => Object.assign(new Error('מסמך סופי אינו ניתן לשינוי או למחיקה. יש להנפיק מסמך תיקון.'), { status: 422 });
+export function assertInvoiceMetadataUpdate(update) {
+  if (!update || Array.isArray(update)) throw immutableError();
+  for (const [operator, fields] of Object.entries(update)) {
+    if (!['$set', '$unset', '$inc', '$push', '$addToSet', '$setOnInsert'].includes(operator) || !fields || typeof fields !== 'object') throw immutableError();
+    for (const [path, value] of Object.entries(fields)) {
+      if (operator === '$setOnInsert' && path === 'createdAt') continue;
+      if (path === 'status' && operator === '$set' && value === 'issued') continue;
+      if (!MUTABLE_METADATA.has(path.split('.')[0])) throw immutableError();
     }
   }
+}
+InvoiceSchema.pre('save', async function () {
+  if (this.isNew || !this.isModified()) return;
+  const original = await this.constructor.findById(this._id).select('status').session(this.$session()).lean();
+  if (!original || original.status === 'draft') return;
+  for (const path of this.modifiedPaths()) {
+    if (path === 'status' && this.status === 'issued' && original.status === 'pending_allocation') continue;
+    if (!MUTABLE_METADATA.has(path.split('.')[0])) throw immutableError();
+  }
 });
+for (const operation of ['updateOne', 'updateMany', 'findOneAndUpdate']) {
+  InvoiceSchema.pre(operation, function () { if (this.getOptions().upsert) throw immutableError(); assertInvoiceMetadataUpdate(this.getUpdate()); });
+}
+for (const operation of ['replaceOne', 'findOneAndReplace', 'bulkWrite']) InvoiceSchema.pre(operation, function () { throw immutableError(); });
+for (const operation of ['deleteOne', 'deleteMany', 'findOneAndDelete']) {
+  InvoiceSchema.pre(operation, { query: true, document: false }, async function () {
+    if (await this.model.exists({ $and: [this.getFilter(), { status: { $ne: 'draft' } }] }).session(this.getOptions().session || null)) throw immutableError();
+  });
+}
+InvoiceSchema.pre('deleteOne', { document: true, query: false }, function () { if (this.status !== 'draft') throw immutableError(); });
 
 export default model('Invoice', InvoiceSchema);

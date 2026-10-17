@@ -186,9 +186,10 @@ export function RefundDialog({ open, onClose, propertyId, folio, payment, canApp
 // ── FIN-07 ──────────────────────────────────────────────────────────────────
 export function CreditNoteDialog({ open, onClose, propertyId, doc, onSaved }) {
   const action = useAction();
+  const [idempotencyKey, setIdempotencyKey] = useState(newOpKey);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
-  useEffect(() => { if (open) { setAmount(''); setReason(''); action.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setAmount(''); setReason(''); setIdempotencyKey(newOpKey()); action.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const remaining = doc?.creditable || 0;
   const amt = amount === '' ? remaining : Number(amount);
   const why = useMemo(() => {
@@ -198,7 +199,7 @@ export function CreditNoteDialog({ open, onClose, propertyId, doc, onSaved }) {
     if (reason.trim().length < 3) return 'נדרשת סיבה';
     return null;
   }, [remaining, amt, reason]);
-  const submit = () => action.run(async () => { const out = await finance.creditNote(propertyId, doc.id, { amount: amount === '' ? undefined : Number(amount), reason: reason.trim() }); onSaved?.(out); });
+  const submit = () => action.run(async () => { const out = await finance.creditNote(propertyId, doc.id, { amount: amount === '' ? undefined : amount, reason: reason.trim(), idempotencyKey }); onSaved?.(out); });
   return (
     <Modal open={open} onClose={onClose} busy={action.busy} width={480} title="מסמך זיכוי" subtitle={doc ? `${DOC_TYPE_LABELS[doc.type] || doc.type} ${doc.number}` : ''} footer={<Footer action={action} onClose={onClose} label="הפקת מסמך זיכוי" blockedWhy={why} danger />}>
       <form id="fin-form" className="ui-stack" onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }} noValidate>

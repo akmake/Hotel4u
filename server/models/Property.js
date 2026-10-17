@@ -104,6 +104,7 @@ const CrmSlaSchema = new Schema({
 }, { _id: false });
 
 const PropertySchema = new Schema({
+  legalEntity:      { type: Schema.Types.ObjectId, ref: 'LegalEntity' },
   name:             { type: String, required: true },
   propertyCode:     String,
   legalName:        String,

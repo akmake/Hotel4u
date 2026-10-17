@@ -12,6 +12,7 @@ const TABS = [
   { to: '/pms/admin/board', label: 'שיטת תמחור ופנסיון', roles: [...ADMIN, 'revenue_manager', 'finance_manager', 'front_desk_manager'] },
   { to: '/pms/admin/tax', label: 'מס ומזומן — אורחים מחו״ל', roles: [...ADMIN, 'finance_manager', 'auditor'] },
   { to: '/pms/admin/fiscal', label: 'מסמכים ורשות המסים', roles: [...ADMIN, 'finance_manager', 'auditor'] },
+  { to: '/pms/fin/accounting', label: 'הנהלת חשבונות', roles: [...ADMIN, 'finance_manager', 'auditor'] },
   { to: '/pms/settings', label: 'הגדרות נכס וחדרים', roles: ADMIN },
 ];
 

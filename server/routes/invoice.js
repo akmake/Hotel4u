@@ -78,6 +78,7 @@ router.post('/manual', asyncHandler(async (req, res) => {
   if (!propertyId) {
     return res.status(400).json({ success: false, error: 'propertyId נדרש' });
   }
+  assertPropertyScope(req, propertyId);
 
   const invoice = await issueManualInvoice({
     propertyId,
@@ -87,6 +88,7 @@ router.post('/manual', asyncHandler(async (req, res) => {
     payments:         payments || [],
     notes:            notes || '',
     issuedBy:         req.actor?.id,
+    idempotencyKey: req.body.idempotencyKey,
     pricesIncludeVat: pricesIncludeVat ?? false,
   });
 
@@ -101,6 +103,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (!propertyId) {
     return res.status(400).json({ success: false, error: 'propertyId נדרש' });
   }
+  assertPropertyScope(req, propertyId);
 
   const {
     type, status,
@@ -176,6 +179,8 @@ router.post('/:id/credit-note', asyncHandler(async (req, res) => {
   const creditNote = await issueCreditNote({
     originalInvoiceId: req.params.id,
     creditAmount:      creditAmount != null ? Number(creditAmount) : undefined,
+    selections: req.body.selections,
+    idempotencyKey: req.body.idempotencyKey,
     reason,
     issuedBy:          req.actor?.id,
   });

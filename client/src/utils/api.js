@@ -30,6 +30,20 @@ axiosApi.interceptors.request.use(async (config) => {
 
 export default axiosApi;
 
+export const accounting = {
+  overview: (propertyId) => request('GET', `/accounting?propertyId=${encodeURIComponent(propertyId)}`),
+  setup: (propertyId, body) => request('POST', '/accounting/legal-entity', { ...body, propertyId }),
+  initializeAccounts: (propertyId) => request('POST', '/accounting/accounts/initialize', { propertyId }),
+  openPeriod: (propertyId, month) => request('POST', '/accounting/periods', { propertyId, month }),
+  closePeriod: (propertyId, id, reason) => request('POST', `/accounting/periods/${id}/close`, { propertyId, reason }),
+  postJournal: (propertyId, body) => request('POST', '/accounting/journals', { ...body, propertyId }),
+  reverseJournal: (propertyId, id, body) => request('POST', `/accounting/journals/${id}/reverse`, { ...body, propertyId }),
+  trialBalance: (propertyId, from, to) => request('GET', `/accounting/trial-balance?${new URLSearchParams({ propertyId, from, to })}`),
+  createSeries: (propertyId, body) => request('POST', '/accounting/series', { ...body, propertyId }),
+  recordCompliance: (propertyId, body) => request('POST', '/accounting/compliance', { ...body, propertyId }),
+  recover: (propertyId) => request('POST', '/accounting/recovery/run', { propertyId }),
+};
+
 // ── Legacy fetch-based helpers (named exports) — used by hotel4u PMS pages ───
 const PMS_BASE  = '/api/pms'; // PMS routes (hotel4u) — ראוטר נפרד ב-app.js
 const AUTH_BASE = '/api';     // Auth routes (זהה לשני הצדדים)

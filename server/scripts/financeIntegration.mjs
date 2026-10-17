@@ -20,6 +20,7 @@ import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import Folio from '../models/Folio.js';
 import Invoice from '../models/Invoice.js';
+import { removeFiscalTestFixtures } from './fiscalTestCleanup.mjs';
 import DayCloseRun from '../models/DayCloseRun.js';
 import InventoryDate from '../models/InventoryDate.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
@@ -126,12 +127,12 @@ async function main() {
     check('FIN-02 a charge on an issued document cannot be reversed (T18)', r.status === 409 && r.code === 'on_document', r.status);
 
     // ── FIN-07 credit note ──────────────────────────────────────────────────
-    r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, R, { propertyId: P, amount: 100, reason: 'החזר' });
+    r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, R, { propertyId: P, idempotencyKey: key(), amount: 100, reason: 'החזר' });
     check('FIN-07 receptionist cannot issue a credit note', r.status === 403, r.status);
-    r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, amount: 100 });
+    r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, idempotencyKey: key(), amount: 100 });
     check('FIN-07 credit note requires a reason', r.status === 422, r.status);
-    r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, amount: 700, reason: 'שירות חלקי' });
-    const r2b = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, amount: 700, reason: 'שוב' });
+    r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, idempotencyKey: key(), amount: 700, reason: 'שירות חלקי' });
+    const r2b = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, idempotencyKey: key(), amount: 700, reason: 'שוב' });
     const invAfter = await Invoice.findById(inv._id).lean();
     check('FIN-07 partial credits are capped cumulatively', r.status === 200 && r2b.status === 422, `${r.status}/${r2b.status} ${r2b.error || ''}`);
     check('FIN-07 the original document is not changed (still issued, linked)', invAfter.status === 'issued' && invAfter.totalGross === 1180 && invAfter.creditedBy.length === 1);
@@ -224,7 +225,7 @@ async function main() {
   } finally {
     const resIds = (await Reservation.find({ property: { $in: props } }).select('_id').lean()).map((x) => x._id);
     await AuditLog.deleteMany({ $or: [{ property: { $in: props } }, { entityId: { $in: [...props, ...resIds] } }] });
-    await Invoice.deleteMany({ property: { $in: props } });
+    await removeFiscalTestFixtures(props, TAG);
     await Folio.deleteMany({ property: { $in: props } });
     await ReservationRoom.deleteMany({ property: { $in: props } });
     await Reservation.deleteMany({ property: { $in: props } });

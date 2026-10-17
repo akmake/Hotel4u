@@ -10,22 +10,29 @@
  *  5. הנפקת הודעת זיכוי
  */
 
-import mongoose from 'mongoose';
+import { runFiscalTransaction } from './fiscalTransaction.js';
 import Invoice from '../models/Invoice.js';
 import Property from '../models/Property.js';
 import { nextDocumentNumber, allocationRule, validVatNumber } from './documentService.js';
-const TXN_UNSUPPORTED_CODE = 20;
-const TXN_UNSUPPORTED_MSG = 'Transaction numbers are only allowed on a replica set member or mongos';
+import { calculateLine, sumMoney, minor, amount, legacyNumber, ROUNDING_POLICY } from '../domain/money.js';
+import { creditLines } from '../domain/credit.js';
+import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { emitAccountingEvent, fiscalAudit } from './accountingService.js';
+import { payloadHash } from '../domain/accounting.js';
+
+function identity(kind, key, payload) {
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(String(key || ''))) throw Object.assign(new Error('נדרש מזהה פעולה להנפקה'), { status: 422 });
+  return { requestKey: `${kind}:${key}`, requestPayloadHash: payloadHash(payload) };
+}
+function checkDuplicate(existing, hash) {
+  if (existing.requestPayloadHash !== hash) throw Object.assign(new Error('מזהה הפעולה כבר שימש לתוכן אחר'), { status: 409 });
+  return existing;
+}
 
 // ─── עזרים ────────────────────────────────────────────────────────────────
 
-function todayYmd() {
-  return new Date().toISOString().split('T')[0];
-}
+const todayYmd = (property) => todayYmdInTimezone(property.timezone || 'Asia/Jerusalem');
 
-function isTransactionUnsupportedError(err) {
-  return err?.code === TXN_UNSUPPORTED_CODE || String(err?.message || '').includes(TXN_UNSUPPORTED_MSG);
-}
 
 function withOptionalSession(query, session) {
   return session ? query.session(session) : query;
@@ -36,27 +43,10 @@ async function saveWithOptionalSession(doc, session) {
   return doc.save();
 }
 
-async function runWithOptionalTransaction(work) {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const result = await work(session);
-    await session.commitTransaction();
-    return result;
-  } catch (err) {
-    try { await session.abortTransaction(); } catch (_) {}
-    if (isTransactionUnsupportedError(err)) {
-      return work(null);
-    }
-    throw err;
-  } finally {
-    session.endSession();
-  }
-}
 
 // מספור: סדרה רצה לכל סוג מסמך בנכס (documentService.nextDocumentNumber).
-async function allocateInvoiceNumber(propertyId, _session, type = 'tax_invoice') {
-  return nextDocumentNumber(propertyId, type);
+async function allocateInvoiceNumber(propertyId, session, type = 'tax_invoice') {
+  return nextDocumentNumber(propertyId, type, session);
 }
 
 /**
@@ -80,28 +70,9 @@ function buildSellerParty(property) {
  * עסקאות מלונאות: המחיר בד"כ כולל מע"מ — מפרקים לאחור.
  */
 function calcLineAmounts(unitPrice, quantity, discountPct, vatRate, pricesIncludeVat = true) {
-  const qty = quantity || 1;
-  const disc = discountPct || 0;
-  const rawTotal = unitPrice * qty;
-  const discountAmount = rawTotal * (disc / 100);
-  const afterDiscount = rawTotal - discountAmount;
-
-  let netAmount, vatAmount, grossAmount;
-  if (pricesIncludeVat) {
-    grossAmount = afterDiscount;
-    netAmount   = grossAmount / (1 + vatRate / 100);
-    vatAmount   = grossAmount - netAmount;
-  } else {
-    netAmount   = afterDiscount;
-    vatAmount   = netAmount * (vatRate / 100);
-    grossAmount = netAmount + vatAmount;
-  }
-
+  const result = calculateLine({ unitPrice, quantity, discountPct, vatRate, pricesIncludeVat });
   return {
-    netAmount:   Math.round(netAmount   * 100) / 100,
-    vatAmount:   Math.round(vatAmount   * 100) / 100,
-    grossAmount: Math.round(grossAmount * 100) / 100,
-    discountAmount: Math.round(discountAmount * 100) / 100,
+    netAmount: legacyNumber(result.net), vatAmount: legacyNumber(result.tax), grossAmount: legacyNumber(result.gross), discountAmount: legacyNumber(result.discount),
   };
 }
 
@@ -109,15 +80,8 @@ function calcLineAmounts(unitPrice, quantity, discountPct, vatRate, pricesInclud
  * חשב סיכומים כלליים מרשימת שורות חשבונית.
  */
 function calcTotals(lines) {
-  return lines.reduce(
-    (acc, l) => ({
-      totalNet:      acc.totalNet      + l.netAmount,
-      totalVat:      acc.totalVat      + l.vatAmount,
-      totalGross:    acc.totalGross    + l.grossAmount,
-      totalDiscount: acc.totalDiscount + (l.discountPct > 0 ? l.unitPrice * l.quantity * (l.discountPct / 100) : 0),
-    }),
-    { totalNet: 0, totalVat: 0, totalGross: 0, totalDiscount: 0 },
-  );
+  const total = (key) => legacyNumber(sumMoney(lines.map((l) => l[key] || 0)));
+  return { totalNet: total('netAmount'), totalVat: total('vatAmount'), totalGross: total('grossAmount'), totalDiscount: total('discountAmount') };
 }
 
 // ─── API ציבורי ─────────────────────────────────────────────────────────────
@@ -135,28 +99,34 @@ export async function issueManualInvoice({
   payments = [],
   notes,
   issuedBy,
+  idempotencyKey,
   pricesIncludeVat = false,
 }) {
-  return runWithOptionalTransaction(async (session) => {
+  const operation = identity('manual', idempotencyKey, { type, buyer, rawLines, payments, notes, pricesIncludeVat });
+  return runFiscalTransaction(async (session) => {
     const property = await withOptionalSession(Property.findById(propertyId), session);
     if (!property) throw Object.assign(new Error('נכס לא נמצא'), { status: 404 });
+    const existing = await Invoice.findOne({ property: propertyId, requestKey: operation.requestKey }).session(session);
+    if (existing) return checkDuplicate(existing, operation.requestPayloadHash);
 
-    const vatRate = property.vatRate || 18;
+    if (property.vatRate == null) throw Object.assign(new Error('יש להגדיר מדיניות מע״מ לנכס'), { status: 422 });
+    const vatRate = property.vatRate;
 
     const lines = rawLines.map(l => {
       const { netAmount, vatAmount, grossAmount, discountAmount } = calcLineAmounts(
-        l.unitPrice, l.quantity || 1, l.discountPct || 0, vatRate, pricesIncludeVat,
+        l.unitPrice, l.quantity ?? 1, l.discountPct ?? 0, vatRate, pricesIncludeVat,
       );
       return {
         description: l.description,
-        quantity:    l.quantity || 1,
+        quantity:    l.quantity ?? 1,
         unitPrice:   l.unitPrice,
         discountPct: l.discountPct || 0,
         netAmount,
         vatRate,
         vatAmount,
         grossAmount,
-        serviceDate: l.serviceDate || todayYmd(),
+        discountAmount,
+        serviceDate: l.serviceDate || todayYmd(property),
         department:  l.department || '',
       };
     });
@@ -164,15 +134,17 @@ export async function issueManualInvoice({
     if (!lines.length) throw Object.assign(new Error('חובה לספק לפחות פריט אחד'), { status: 400 });
 
     const totals      = calcTotals(lines);
-    const today       = todayYmd();
+    const today       = todayYmd(property);
     const { seq, number: invoiceNumber } = await allocateInvoiceNumber(propertyId, session, type);
-    const amountPaid  = payments.reduce((s, p) => s + (p.amount || 0), 0);
-    const balance     = Math.round((totals.totalGross - amountPaid) * 100) / 100;
+    const amountPaid  = legacyNumber(sumMoney(payments.map((p) => p.amount || 0)));
+    const balance     = legacyNumber(amount(minor(totals.totalGross) - minor(amountPaid)));
     const alloc = allocationRule({ type, buyer: buyer ? { kind: validVatNumber(buyer.vatNumber) ? 'business' : 'private', vatNumber: buyer.vatNumber } : null, totalNet: totals.totalNet, totalVat: totals.totalVat, issueDate: today });
     const requiresAllocation = alloc.required;
 
     const invoice = new Invoice({
       property: propertyId,
+      ...operation,
+      moneyPolicy: ROUNDING_POLICY,
       type,
       invoiceNumber,
       seq,
@@ -199,6 +171,8 @@ export async function issueManualInvoice({
     });
 
     await saveWithOptionalSession(invoice, session);
+    await emitAccountingEvent({ propertyId, eventKey: `document:${invoice._id}`, type: 'document.issued', sourceId: invoice._id, payload: { documentId: String(invoice._id), gross: String(invoice.totalGross) }, topics: ['document.archive'] }, session);
+    await fiscalAudit({ propertyId, actor: { id: issuedBy }, action: 'invoice.manual_issued', entityId: invoice._id, after: { number: invoice.invoiceNumber } }, session);
     return invoice;
   });
 }
@@ -211,13 +185,17 @@ export async function issueManualInvoice({
  * @param {string} reason            - סיבת הזיכוי
  * @param {string} issuedBy          - מזהה המשתמש
  */
-export async function issueCreditNote({ originalInvoiceId, creditAmount, reason, issuedBy }) {
-  return runWithOptionalTransaction(async (session) => {
+export async function issueCreditNote({ originalInvoiceId, creditAmount, selections, reason, issuedBy, idempotencyKey }) {
+  const operation = identity('credit', idempotencyKey, { originalInvoiceId: String(originalInvoiceId), creditAmount, selections, reason });
+  return runFiscalTransaction(async (session) => {
     const original = await withOptionalSession(Invoice.findById(originalInvoiceId), session);
     if (!original) throw Object.assign(new Error('חשבונית מקורית לא נמצאה'), { status: 404 });
+    const existing = await Invoice.findOne({ property: original.property, requestKey: operation.requestKey }).session(session);
+    if (existing) return checkDuplicate(existing, operation.requestPayloadHash);
     if (original.status !== 'issued') {
       throw Object.assign(new Error('ניתן להנפיק הודעת זיכוי רק לחשבונית שהונפקה'), { status: 400 });
     }
+    if (!['tax_invoice', 'tax_invoice_receipt', 'debit_note'].includes(original.type)) throw Object.assign(new Error('זיכוי מחייב חשבונית מקור'), { status: 422 });
 
     const property = await withOptionalSession(Property.findById(original.property), session);
     if (!property) throw Object.assign(new Error('נכס לא נמצא'), { status: 404 });
@@ -226,39 +204,17 @@ export async function issueCreditNote({ originalInvoiceId, creditAmount, reason,
     // (cumulative — two partial credits can never exceed the original).
     const why = String(reason || '').trim();
     if (why.length < 3) throw Object.assign(new Error('מסמך זיכוי מחייב סיבה'), { status: 422 });
-    const prior = await withOptionalSession(Invoice.find({ relatedInvoiceId: original._id, type: 'credit_note', status: { $ne: 'cancelled' } }).select('totalGross'), session);
-    const alreadyCredited = Math.round(prior.reduce((sum, c) => sum + Math.abs(c.totalGross || 0), 0) * 100) / 100;
-    const remaining = Math.round((original.totalGross - alreadyCredited) * 100) / 100;
-    if (remaining <= 0.005) throw Object.assign(new Error('החשבונית כבר זוכתה במלואה'), { status: 409 });
+    const prior = await withOptionalSession(Invoice.find({ relatedInvoiceId: original._id, type: 'credit_note', status: { $ne: 'cancelled' } }).select('lines'), session);
     const vatRate = original.vatRate;
-    const isFullCredit = creditAmount === undefined || creditAmount === null;
-    if (!isFullCredit && !(Number(creditAmount) > 0)) throw Object.assign(new Error('סכום הזיכוי חייב להיות חיובי'), { status: 422 });
-    if (!isFullCredit && Number(creditAmount) - remaining > 0.005) throw Object.assign(new Error(`ניתן לזכות עד ${remaining.toFixed(2)}`), { status: 422 });
-    const grossToCredit = isFullCredit ? remaining : Number(creditAmount);
-
-    // שורות הודעת הזיכוי — ערכים שליליים
-    const ratio = grossToCredit / original.totalGross;
-    const lines = original.lines.map(l => ({
-      description: l.description,
-      quantity:    l.quantity,
-      unitPrice:   -(l.unitPrice * ratio),
-      discountPct: l.discountPct,
-      netAmount:   Math.round(-l.netAmount  * ratio * 100) / 100,
-      vatRate:     l.vatRate,
-      vatAmount:   Math.round(-l.vatAmount  * ratio * 100) / 100,
-      grossAmount: Math.round(-l.grossAmount * ratio * 100) / 100,
-      serviceDate: l.serviceDate,
-      department:  l.department,
-    }));
-
-    const today           = todayYmd();
+    const lines = creditLines(original, prior, { creditAmount, selections });
+    const today           = todayYmd(property);
     const { seq, number: invoiceNumber } = await allocateInvoiceNumber(String(original.property), session, 'credit_note');
-    const totalNet        = lines.reduce((s, l) => s + l.netAmount, 0);
-    const totalVat        = lines.reduce((s, l) => s + l.vatAmount, 0);
-    const totalGross      = lines.reduce((s, l) => s + l.grossAmount, 0);
+    const { totalNet, totalVat, totalGross } = calcTotals(lines);
 
     const creditNote = new Invoice({
       property:         original.property,
+      ...operation,
+      moneyPolicy: ROUNDING_POLICY,
       folio:            original.folio,
       reservation:      original.reservation,
       type:             'credit_note',
@@ -284,6 +240,8 @@ export async function issueCreditNote({ originalInvoiceId, creditAmount, reason,
     });
 
     await saveWithOptionalSession(creditNote, session);
+    await emitAccountingEvent({ propertyId: original.property, eventKey: `document:${creditNote._id}`, type: 'document.credited', sourceId: creditNote._id, payload: { originalId: String(original._id), documentId: String(creditNote._id), gross: String(totalGross) }, topics: ['document.archive'] }, session);
+    await fiscalAudit({ propertyId: original.property, actor: { id: issuedBy }, action: 'invoice.credit_issued', entityId: creditNote._id, reason: why, after: { originalId: String(original._id), number: creditNote.invoiceNumber } }, session);
 
     // The original stays as issued (a final document is never changed); only the link is added.
     await Invoice.findByIdAndUpdate(

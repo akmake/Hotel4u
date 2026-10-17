@@ -14,6 +14,7 @@ import GuestProfile      from '../models/GuestProfile.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import { fireEvent }     from './automationEngine.js';
 import { sendEmail, buildCheckInReminderEmail } from './emailService.js';
+import { processFiscalOutbox } from './fiscalOutboxService.js';
 
 async function getActivePropertyIds() {
   try {
@@ -144,6 +145,7 @@ async function checkMaintenanceSla() {
 // ── Scheduler init ────────────────────────────────────────────────────────────
 
 export function initPmsScheduler() {
+  cron.schedule('* * * * *', () => processFiscalOutbox().catch((err) => console.error('[fiscalOutbox]', err.message)));
   // Hourly — fires at minute 0 of every hour
   cron.schedule('0 * * * *', async () => {
     const now = new Date();

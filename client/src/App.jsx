@@ -82,6 +82,7 @@ const ChargeCodesPage      = lazy(() => import('./pages/sys/ChargeCodesPage'));
 const TaxPolicyPage        = lazy(() => import('./pages/sys/TaxPolicyPage'));
 const FiscalSettingsPage   = lazy(() => import('./pages/sys/FiscalSettingsPage'));
 const FinanceReportsPage   = lazy(() => import('./pages/fin/FinanceReportsPage'));
+const AccountingPage       = lazy(() => import('./pages/fin/AccountingPage'));
 const BoardPage            = lazy(() => import('./pages/sys/BoardPage'));
 const BulkJobsPage              = lazy(() => import('./pages/BulkJobsPage'));
 const RatesPage                 = lazy(() => import('./pages/RatesPage'));
@@ -249,6 +250,7 @@ export default function App() {
               <Route path="admin/tax" element={<TaxPolicyPage />} />
               <Route path="admin/fiscal" element={<FiscalSettingsPage />} />
               <Route path="fin/reports" element={<FinanceReportsPage />} />
+              <Route path="fin/accounting" element={<AccountingPage />} />
               <Route path="admin/board" element={<BoardPage />} />
               <Route path="me"                element={<ProfilePage />} />
               <Route path="work"              element={<WorkCenterPage />} />

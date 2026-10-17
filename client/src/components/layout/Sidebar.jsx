@@ -103,6 +103,7 @@ const PMS_NAV = [
       { path: '/pms/night-audit',      icon: Moon,       label: 'סגירת יום' },
       { path: '/pms/night-audit/report', icon: BarChart3, label: 'מאזן בוחן וספרים' },
       { path: '/pms/fin/reports',      icon: ReceiptText, label: 'דוחות כספיים ומע״מ' },
+      { path: '/pms/fin/accounting',   icon: ReceiptText, label: 'הנהלת חשבונות' },
       { path: '/pms/bulk-jobs',        icon: ListChecks, label: 'פעולות מרוכזות' },
       { path: '/pms/automation',       icon: Zap,        label: 'אוטומציה' },
       { path: '/pms/channel-manager',  icon: Radio,      label: 'ערוצי הפצה' },

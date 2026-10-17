@@ -19,6 +19,7 @@ import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import Folio from '../models/Folio.js';
 import Invoice from '../models/Invoice.js';
+import { removeFiscalTestFixtures } from './fiscalTestCleanup.mjs';
 import Company from '../models/Company.js';
 import AuditLog from '../models/AuditLog.js';
 import ChargeCode from '../models/ChargeCode.js';
@@ -149,7 +150,7 @@ async function main() {
     r = await issue(A, s2.folio, { type: 'receipt', buyer: privateBuyer });
     const rc = await Invoice.findById(r.data?.id).lean();
     check('FIN-06 receipt: own series (number 1), no VAT, cheque details on it', r.status === 200 && rc.invoiceNumber === '1' && rc.totalVat === 0 && rc.amountPaid === 500 && rc.payments[0].bank === '10' && rc.payments[0].branch === '912' && rc.payments[0].dueDate === addDays(today, 10), JSON.stringify(rc?.payments?.[0]));
-    r = await call('POST', `/finance/invoices/${rc._id}/credit-note`, F, { propertyId: P, amount: 100, reason: 'בדיקה' });
+    r = await call('POST', `/finance/invoices/${rc._id}/credit-note`, F, { propertyId: P, idempotencyKey: key(), amount: 100, reason: 'בדיקה' });
     check('FIN-07 a receipt cannot be credited', r.status === 422, r.status);
 
     // ── buyer validation ────────────────────────────────────────────────────
@@ -193,7 +194,7 @@ async function main() {
     r = await call('PATCH', `/finance/documents/${rej}/allocation?propertyId=${P}`, F, { rejected: true, reason: 'מספר עוסק שגוי' });
     check('FIN-10 a refusal is recorded with its reason (no number invented)', r.status === 200 && r.data.allocation.status === 'rejected' && !r.data.allocation.number, JSON.stringify(r.data?.allocation));
     // full credit frees the charges for a corrected invoice
-    r = await call('POST', `/finance/invoices/${rej}/credit-note`, F, { propertyId: P, reason: 'מספר עוסק שגוי — הנפקה מחדש' });
+    r = await call('POST', `/finance/invoices/${rej}/credit-note`, F, { propertyId: P, idempotencyKey: key(), reason: 'מספר עוסק שגוי — הנפקה מחדש' });
     const cn = await Invoice.findById(r.data?.id).lean();
     r = await issue(A, s5.folio, { type: 'tax_invoice', buyer: { ...companyBuyer(A), vatNumber: '516666662' } });
     check('FIN-07 after a full credit note the charges can be invoiced again (corrected buyer); credit note has its own series', cn?.type === 'credit_note' && cn.invoiceNumber === '1' && r.status === 200 && r.data.allocation.status === 'pending', `${cn?.invoiceNumber} ${r.status} ${r.error || ''}`);
@@ -239,7 +240,7 @@ async function main() {
   } finally {
     const resIds = (await Reservation.find({ property: { $in: props } }).select('_id').lean()).map((x) => x._id);
     await AuditLog.deleteMany({ $or: [{ property: { $in: props } }, { entityId: { $in: [...props, ...resIds] } }] });
-    await Invoice.deleteMany({ property: { $in: props } });
+    await removeFiscalTestFixtures(props, TAG);
     await Folio.deleteMany({ property: { $in: props } });
     await ReservationRoom.deleteMany({ property: { $in: props } });
     await Reservation.deleteMany({ property: { $in: props } });

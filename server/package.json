@@ -23,7 +23,12 @@
     "qa:books": "node scripts/booksIntegration.mjs",
     "qa:groups": "node scripts/groupBillingIntegration.mjs",
     "qa:documents": "node scripts/documentsIntegration.mjs",
-    "qa:fiscal": "node scripts/fiscalIntegration.mjs"
+    "qa:fiscal": "node scripts/fiscalIntegration.mjs",
+    "qa:fiscal:unit": "node --test scripts/fiscalTransaction.test.mjs scripts/accountingDomain.test.mjs",
+    "qa:accounting": "node --test scripts/accountingIntegration.test.mjs",
+    "qa:accounting:regression": "node scripts/accountingRegression.mjs",
+    "qa:accounting:preview": "node scripts/accountingPreviewServer.mjs",
+    "qa:accounting:inventory": "node scripts/accountingInventory.mjs"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
@@ -61,7 +66,11 @@
     "xlsx": "^0.18.5",
     "zod": "^4.4.2"
   },
+  "config": {
+    "mongodbMemoryServer": { "disablePostinstall": true, "version": "7.0.14" }
+  },
   "devDependencies": {
+    "mongodb-memory-server": "^11.3.0",
     "nodemon": "^3.1.11"
   }
 }

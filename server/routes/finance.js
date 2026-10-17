@@ -105,7 +105,7 @@ router.post('/folios/:id/payments/:lineId/refund', handle(async (req) => {
 // ── FIN-07 ──────────────────────────────────────────────────────────────────
 router.post('/invoices/:id/credit-note', handle(async (req) => {
   requireRoles(req, MONEY_WORK, 'אין הרשאה למסמך זיכוי');
-  return creditNote({ propertyId: scope(req), invoiceId: req.params.id, amount: req.body?.amount, reason: req.body?.reason, actor: actorOf(req), ip: req.ip });
+  return creditNote({ propertyId: scope(req), invoiceId: req.params.id, amount: req.body?.amount, selections: req.body?.selections, reason: req.body?.reason, idempotencyKey: req.body?.idempotencyKey, actor: actorOf(req), ip: req.ip });
 }));
 
 // ── FIN-06 documents from a folio · FIN-10 allocation centre ────────────────

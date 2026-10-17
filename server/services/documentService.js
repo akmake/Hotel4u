@@ -25,6 +25,11 @@ import { withLocks } from './locks.js';
 import { renderInvoiceHtml } from '../utils/invoiceTemplate.js';
 import { requestAllocation, sendDecision } from './taxAuthorityService.js';
 import { sendEmail } from './emailService.js';
+import { runFiscalTransaction } from './fiscalTransaction.js';
+import { payloadHash } from '../domain/accounting.js';
+import { emitAccountingEvent, fiscalAudit } from './accountingService.js';
+import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { sumMoney, legacyNumber, ROUNDING_POLICY } from '../domain/money.js';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
@@ -85,10 +90,10 @@ function sellerOf(property) {
 
 // Which folio lines are already on a live document: charges on a tax invoice that is not fully
 // credited, payments on a receipt / tax invoice-receipt.
-export async function docCoverage(folioIds) {
+export async function docCoverage(folioIds, session) {
   const ids = (Array.isArray(folioIds) ? folioIds : [folioIds]).map(String);
   const docs = await Invoice.find({ folio: { $in: ids }, status: { $in: ['issued', 'pending_allocation'] } })
-    .select('type invoiceNumber totalGross relatedInvoiceId lines.folioLineId payments.folioLineId payments.nettedLineIds').lean();
+    .select('type invoiceNumber totalGross relatedInvoiceId lines.folioLineId payments.folioLineId payments.nettedLineIds').session(session || null).lean();
   const credited = new Map();
   for (const d of docs.filter((x) => x.type === 'credit_note' && x.relatedInvoiceId)) {
     const k = String(d.relatedInvoiceId);
@@ -149,7 +154,7 @@ function eligibleLines(folio, coverage, propertyVat) {
   return { charges, payments };
 }
 
-const sum = (rows, k) => round2(rows.reduce((s, r) => s + Number(r[k] || 0), 0));
+const sum = (rows, k) => legacyNumber(sumMoney(rows.map((r) => r[k] || 0)));
 
 // What in each folio has no document yet (checkout reminder: charges without a tax invoice,
 // payments without a receipt). folios may be lean.
@@ -183,9 +188,9 @@ function typeAvailability(charges, payments) {
   return { types: out, recommended };
 }
 
-async function loadFolio(folioId, propertyId) {
+async function loadFolio(folioId, propertyId, session) {
   if (!isId(String(folioId || ''))) throw httpError('מזהה חשבון לא תקין', 400);
-  const folio = await Folio.findById(folioId);
+  const folio = await Folio.findById(folioId).session(session || null);
   if (!folio || String(folio.property) !== String(propertyId)) throw httpError('החשבון לא נמצא', 404);
   return folio;
 }
@@ -257,8 +262,8 @@ function cleanBuyer(input) {
   return party;
 }
 
-async function nextNumber(propertyId, type) {
-  const p = await Property.findByIdAndUpdate(propertyId, { $inc: { [`docSequences.${type}`]: 1 } }, { returnDocument: 'after' }).select('docSequences').lean();
+async function nextNumber(propertyId, type, session) {
+  const p = await Property.findByIdAndUpdate(propertyId, { $inc: { [`docSequences.${type}`]: 1 } }, { returnDocument: 'after', ...(session ? { session } : {}) }).select('docSequences').lean();
   if (!p) throw httpError('הנכס לא נמצא', 404);
   const seq = p.docSequences?.[type] || 1;
   return { seq, number: String(seq) };
@@ -295,16 +300,22 @@ export async function issueDocument({ propertyId, folioId, input, actor, ip }) {
   const type = input.type;
   if (!ISSUE_TYPES.includes(type)) throw httpError('יש לבחור סוג מסמך', 422, { fields: { type: 'סוג מסמך' } });
   const requestKey = opKey(input.idempotencyKey);
+  const requestPayloadHash = payloadHash({ propertyId: String(propertyId), folioId: String(folioId), input });
+  const duplicate = (d) => {
+    if (d.requestPayloadHash && d.requestPayloadHash !== requestPayloadHash) throw httpError('מזהה הפעולה כבר שימש לבקשה עם תוכן אחר', 409);
+    if (String(d.folio) !== String(folioId)) throw httpError('מזהה הפעולה שייך לחשבון אחר', 409);
+    return { ...docDto(d), duplicate: true };
+  };
   const dup = await Invoice.findOne({ property: propertyId, requestKey }).lean();
-  if (dup) return { ...docDto(dup), duplicate: true };
-  return withLocks([`docs:${folioId}`], async () => {
-    const again = await Invoice.findOne({ property: propertyId, requestKey }).lean();
-    if (again) return { ...docDto(again), duplicate: true };
-    const folio = await loadFolio(folioId, propertyId);
-    const property = await Property.findById(propertyId).lean();
+  if (dup) return duplicate(dup);
+  const issued = await withLocks([`docs:${folioId}`], () => runFiscalTransaction(async (session) => {
+    const again = await Invoice.findOne({ property: propertyId, requestKey }).session(session).lean();
+    if (again) return duplicate(again);
+    const folio = await loadFolio(folioId, propertyId, session);
+    const property = await Property.findById(propertyId).session(session).lean();
     const seller = sellerOf(property || {});
     if (!seller.ok) throw httpError(`חסרים פרטי העסק להנפקת מסמך: ${seller.missing.join(', ')} — הגדרות › פרטי הנכס`, 422, { code: 'seller_incomplete', details: seller.missing });
-    const coverage = await docCoverage(folio._id);
+    const coverage = await docCoverage(folio._id, session);
     const { charges, payments } = eligibleLines(folio, coverage, property.vatRate ?? 18);
     const { types } = typeAvailability(charges, payments);
     if (!types[type].ok) throw httpError(types[type].why, 409, { code: 'nothing_to_document' });
@@ -327,12 +338,14 @@ export async function issueDocument({ propertyId, folioId, input, actor, ip }) {
     const totalVat = withCharges ? sum(lines, 'vatAmount') : 0;
     const amountPaid = sum(pays, 'amount');
     const totalGross = withCharges ? sum(lines, 'grossAmount') : amountPaid;
-    const issueDate = businessDateOf(property);
+    const issueDate = todayYmdInTimezone(property.timezone || 'Asia/Jerusalem');
     const alloc = allocationRule({ type, buyer, totalNet, totalVat, issueDate, requested });
     const serviceDates = lines.map((l) => l.serviceDate).filter(Boolean).sort();
-    const { seq, number } = await nextNumber(propertyId, type);
-    const doc = await Invoice.create({
+    const { seq, number } = await nextNumber(propertyId, type, session);
+    const snapshot = { seller: seller.party, buyer, lines, pays, totalNet, totalVat, totalGross, issueDate, currency: folio.currency || 'ILS', type, number };
+    const [doc] = await Invoice.create([{
       property: propertyId, folio: folio._id, reservation: folio.reservation, type, invoiceNumber: number, seq, requestKey,
+      requestPayloadHash, moneyPolicy: ROUNDING_POLICY, documentHash: payloadHash(snapshot),
       status: 'issued', issueDate, taxDate: issueDate, serviceDate: serviceDates[serviceDates.length - 1] || issueDate,
       seller: seller.party, buyer: { ...buyer, kind: undefined }, lines, currency: folio.currency || 'ILS',
       totalNet, totalVat, totalGross, totalDiscount: 0, vatRate: property.vatRate ?? 18,
@@ -340,19 +353,21 @@ export async function issueDocument({ propertyId, folioId, input, actor, ip }) {
       requiresAllocation: alloc.required, allocationStatus: alloc.required ? 'pending' : 'not_required', requestedByCustomer: requested,
       allocationReason: alloc.reason, allocationThreshold: alloc.threshold ?? undefined,
       issuedBy: actor.id || undefined, issuedAt: new Date(), notes: clip(input.notes, 500) || undefined,
-    });
-    await audit({
-      property: propertyId, actor: actor.id, actorName: actor.name, action: 'invoice.issued', entityType: 'Invoice', entityId: doc._id,
+    }], { session });
+    await fiscalAudit({
+      propertyId, actor, action: 'invoice.issued', entityId: doc._id,
       after: { type, number, folioId: String(folio._id), net: totalNet, vat: totalVat, gross: totalGross, paid: amountPaid, charges: lines.length, payments: pays.length, buyerKind: buyer.kind, allocation: alloc.required ? 'pending' : 'not_required' },
-      ip,
-    });
-    // Connected to the Tax Authority: ask for the number now (before the document is handed over).
-    if (alloc.required && property.fiscal?.allocationMode === 'api') {
-      await requestAllocation({ invoiceId: doc._id, actor }).catch(() => null);
-      return { ...docDto(await Invoice.findById(doc._id).lean()), duplicate: false };
-    }
-    return { ...docDto(doc.toObject()), duplicate: false };
-  }, { waitMs: 3000 });
+    }, session);
+    await emitAccountingEvent({ propertyId, eventKey: `document:${doc._id}`, type: 'document.issued', sourceId: doc._id, payload: { documentId: String(doc._id), hash: doc.documentHash, type, net: String(totalNet), tax: String(totalVat), gross: String(totalGross) }, topics: ['document.archive'] }, session);
+    return { ...docDto(doc.toObject()), duplicate: false, requestAutomaticAllocation: alloc.required && property.fiscal?.allocationMode === 'api' };
+  }), { waitMs: 3000 });
+  // Network effects run after commit and after releasing the lock.
+  if (issued.requestAutomaticAllocation) {
+    await requestAllocation({ invoiceId: issued.id, actor }).catch(() => null);
+    return { ...docDto(await Invoice.findById(issued.id).lean()), duplicate: false };
+  }
+  delete issued.requestAutomaticAllocation;
+  return issued;
 }
 
 async function loadDoc(propertyId, id) {

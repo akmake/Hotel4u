@@ -487,14 +487,14 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
 }
 
 // ── FIN-07 credit note (scope + role here; caps and immutability in invoiceService) ──
-export async function creditNote({ propertyId, invoiceId, amount, reason, actor, ip }) {
+export async function creditNote({ propertyId, invoiceId, amount, selections, reason, idempotencyKey, actor, ip }) {
   if (!CREDIT_ROLES.includes(actor.role)) throw httpError('מסמך זיכוי מופק על ידי כספים או הנהלה', 403);
   if (!isId(String(invoiceId || ''))) throw httpError('מזהה מסמך לא תקין', 400);
   const inv = await Invoice.findOne({ _id: invoiceId, property: propertyId }).select('_id type').lean();
   if (!inv) throw httpError('המסמך לא נמצא', 404);
   if (inv.type === 'credit_note') throw httpError('לא מזכים מסמך זיכוי', 422);
   if (!CHARGE_DOC_TYPES.includes(inv.type)) throw httpError('מסמך זיכוי מופק רק לחשבונית מס — לא לקבלה או לחשבון עסקה', 422);
-  const cn = await issueCreditNote({ originalInvoiceId: invoiceId, creditAmount: amount === undefined || amount === null || amount === '' ? undefined : Number(amount), reason, issuedBy: actor.id });
+  const cn = await issueCreditNote({ originalInvoiceId: invoiceId, creditAmount: amount === undefined || amount === null || amount === '' ? undefined : amount, selections, reason, issuedBy: actor.id, idempotencyKey });
   await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'invoice.credit_note', entityType: 'Invoice', entityId: invoiceId, reason, after: { creditNote: String(cn._id), number: cn.invoiceNumber, gross: cn.totalGross }, ip });
   return { id: String(cn._id), number: cn.invoiceNumber, gross: round2(cn.totalGross) };
 }

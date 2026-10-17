@@ -20,6 +20,7 @@ import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import Folio from '../models/Folio.js';
 import Invoice from '../models/Invoice.js';
+import { removeFiscalTestFixtures } from './fiscalTestCleanup.mjs';
 import DayCloseRun from '../models/DayCloseRun.js';
 import InventoryDate from '../models/InventoryDate.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
@@ -375,7 +376,7 @@ async function main() {
   } finally {
     const resIds = (await Reservation.find({ property: { $in: props } }).select('_id').lean()).map((x) => x._id);
     await AuditLog.deleteMany({ $or: [{ property: { $in: props } }, { entityId: { $in: [...props, ...resIds] } }] });
-    await Invoice.deleteMany({ property: { $in: props } });
+    await removeFiscalTestFixtures(props, TAG);
     await Folio.deleteMany({ property: { $in: props } });
     await ReservationRoom.deleteMany({ property: { $in: props } });
     await Reservation.deleteMany({ property: { $in: props } });
