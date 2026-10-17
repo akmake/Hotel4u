@@ -34,7 +34,7 @@ const TAG = `DPT${Date.now().toString(36).toUpperCase()}`;
 
 const results = [];
 const check = (name, ok, info = '') => { results.push(!!ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${!ok && info !== '' ? `  → ${info}` : ''}`); };
-const tok = (u) => jwt.sign({ id: String(u._id), firstName: u.firstName, lastName: u.lastName, email: u.email, role: u.role, propertyId: String(u.property) }, SECRET, { expiresIn: '1h' });
+const tok = (u) => jwt.sign({ id: String(u._id), firstName: u.firstName, lastName: u.lastName, email: u.email, role: u.role, propertyId: String(u.property), tv: Number(u.tokenVersion || 0) }, SECRET, { expiresIn: '1h' });
 async function call(method, url, t, body) {
   const res = await fetch(`${BASE}${url}`, { method, headers: { Accept: 'application/json', Authorization: `Bearer ${t}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20000) });
   let json = {}; try { json = await res.json(); } catch { /* empty */ }
@@ -128,7 +128,7 @@ async function main() {
     check('Receptionist cannot leave a balance open', co.status === 409, co.status);
     const legacy = await call('POST', `/reservations/${s1.r._id}/check-out`, R, {});
     check('Legacy /reservations/:id/check-out obeys the same rules', legacy.status === 409, legacy.status);
-    await call('POST', `/frontdesk/folios/${s1.guestFolio._id}/payments`, R, { propertyId: P, amount: 600, method: 'credit_card', idempotencyKey: key() });
+    await call('POST', `/frontdesk/folios/${s1.guestFolio._id}/payments`, R, { propertyId: P, amount: 600, method: 'credit_card', details: { last4: '4242', approval: 'AB9876' }, idempotencyKey: key() });
     co = await call('POST', `/frontdesk/reservations/${s1.r._id}/check-out`, R, { propertyId: P });
     const s1r = await Reservation.findById(s1.r._id).lean();
     const s1f = await Folio.findById(s1.guestFolio._id).lean();

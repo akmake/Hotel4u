@@ -34,6 +34,13 @@ export default axiosApi;
 const PMS_BASE  = '/api/pms'; // PMS routes (hotel4u) — ראוטר נפרד ב-app.js
 const AUTH_BASE = '/api';     // Auth routes (זהה לשני הצדדים)
 
+export function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
 function getToken() {
   return localStorage.getItem('hotel4u_token');
 }
@@ -137,6 +144,8 @@ export const frontdesk = {
   inHouse:         (propertyId, params = {}) => api.get(`/frontdesk/in-house?propertyId=${propertyId}${qs(params)}`),
   departures:      (propertyId, params = {}) => api.get(`/frontdesk/departures?propertyId=${propertyId}${qs(params)}`),
   setEtd:          (propertyId, resId, etd)  => api.patch(`/frontdesk/reservations/${resId}/etd`, { propertyId, etd }),
+  roomBilling:     (propertyId, resId, unitIndex, body) => api.patch(`/frontdesk/reservations/${resId}/units/${unitIndex}/billing`, { ...body, propertyId }),
+  groupBilling:    (propertyId, resId, mode)  => api.post(`/frontdesk/reservations/${resId}/billing`, { propertyId, mode }),
   checkOutContext: (propertyId, resId)       => api.get(`/frontdesk/reservations/${resId}/check-out?propertyId=${propertyId}`),
   checkOut:        (propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/check-out`, { ...body, propertyId }),
   postCharge:      (propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/charges`, { ...body, propertyId }),
@@ -187,6 +196,7 @@ export const finance = {
   stay:        (propertyId, resId)       => api.get(`/finance/stays/${resId}?propertyId=${propertyId}`),
   charge:      (propertyId, folioId, body) => api.post(`/finance/folios/${folioId}/charges`, { ...body, propertyId }),
   reverse:     (propertyId, folioId, lineId, reason) => api.post(`/finance/folios/${folioId}/lines/${lineId}/reverse`, { propertyId, reason }),
+  ensureFolio: (propertyId, resId)       => api.post(`/finance/stays/${resId}/folio`, { propertyId }),
   pay:         (propertyId, folioId, body) => api.post(`/finance/folios/${folioId}/payments`, { ...body, propertyId }),
   refund:      (propertyId, folioId, lineId, body) => api.post(`/finance/folios/${folioId}/payments/${lineId}/refund`, { ...body, propertyId }),
   creditNote:  (propertyId, invoiceId, body) => api.post(`/finance/invoices/${invoiceId}/credit-note`, { ...body, propertyId }),
@@ -194,6 +204,46 @@ export const finance = {
   runDayClose: (propertyId, body)        => api.post('/finance/day-close/run', { ...body, propertyId }),
   dayReport:   (propertyId, date)        => api.get(`/finance/day-close/report?propertyId=${propertyId}${qs({ date })}`),
   closeFolio:  (propertyId, folioId)     => api.post(`/finance/folios/${folioId}/close`, { propertyId }),
+  // FIN-06 / FIN-10 documents from a folio and the allocation centre
+  docContext:  (propertyId, folioId)     => api.get(`/finance/folios/${folioId}/documents/context?propertyId=${propertyId}`),
+  issueDoc:    (propertyId, folioId, body) => api.post(`/finance/folios/${folioId}/documents`, { ...body, propertyId }),
+  documents:   (propertyId, params = {}) => api.get(`/finance/documents?propertyId=${propertyId}${qs(params)}`),
+  setAllocation: (propertyId, docId, body) => api.patch(`/finance/documents/${docId}/allocation?propertyId=${propertyId}`, body),
+  sendDoc:     (propertyId, docId, to)   => api.post(`/finance/documents/${docId}/send?propertyId=${propertyId}`, { to }),
+  // FIN-11 reports / exports, FIN-12 cash drawer, fiscal set-up
+  report:      (propertyId, name, params = {}) => api.get(`/finance/reports/${name}?propertyId=${propertyId}${qs(params)}`),
+  openFormat:  (propertyId, body)        => api.post(`/finance/open-format?propertyId=${propertyId}`, body),
+  cash:        (propertyId, date)        => api.get(`/finance/cash?propertyId=${propertyId}${qs({ date })}`),
+  closeCash:   (propertyId, body)        => api.post(`/finance/cash/close?propertyId=${propertyId}`, body),
+  fiscal:      (propertyId)              => api.get(`/finance/fiscal?propertyId=${propertyId}`),
+  setFiscal:   (propertyId, body)        => api.put(`/finance/fiscal?propertyId=${propertyId}`, body),
+  setSeries:   (propertyId, type, next)  => api.put(`/finance/fiscal/series/${type}?propertyId=${propertyId}`, { next }),
+  itaConnect:  (propertyId, env)         => api.post(`/finance/fiscal/ita/connect?propertyId=${propertyId}`, { env }),
+  itaDisconnect: (propertyId)            => api.post(`/finance/fiscal/ita/disconnect?propertyId=${propertyId}`, {}),
+  itaRetry:    (propertyId)              => api.post(`/finance/fiscal/ita/retry?propertyId=${propertyId}`, {}),
+  // Binary download (Excel workbook) with the bearer token; saves under the server's file name.
+  downloadWorkbook: async (propertyId, params = {}) => {
+    const token = getToken();
+    const res = await fetch(`${PMS_BASE}/finance/reports/workbook?propertyId=${propertyId}${qs(params)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, credentials: 'include' });
+    if (!res.ok) { let msg = 'שגיאה בהפקת הקובץ'; try { msg = (await res.json()).error || msg; } catch { /* binary */ } throw new Error(msg); }
+    const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'accounting.xlsx';
+    saveBlob(await res.blob(), name);
+  },
+  // Opens the printable document in a new tab (the first print of a final document is the original).
+  printDoc: async (propertyId, docId) => {
+    const win = window.open('', '_blank');
+    const token = getToken();
+    const res = await fetch(`${PMS_BASE}/finance/documents/${docId}/print?propertyId=${propertyId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, credentials: 'include' });
+    if (!res.ok) {
+      if (win) win.close();
+      let msg = 'שגיאה בפתיחת המסמך';
+      try { msg = (await res.json()).error || msg; } catch { /* not json */ }
+      throw new Error(msg);
+    }
+    const html = await res.text();
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html; charset=utf-8' }));
+    if (win) { win.location.href = url; setTimeout(() => URL.revokeObjectURL(url), 60000); } else window.location.href = url;
+  },
   // ADM-13 (G1) charge codes & payment methods
   codes:       (propertyId, params = {}) => api.get(`/finance/charge-codes?propertyId=${propertyId}${qs(params)}`),
   createCode:  (propertyId, body)        => api.post('/finance/charge-codes', { ...body, propertyId }),

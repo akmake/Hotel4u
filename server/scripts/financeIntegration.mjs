@@ -38,7 +38,7 @@ const TAG = `FIN${Date.now().toString(36).toUpperCase()}`;
 
 const results = [];
 const check = (name, ok, info = '') => { results.push(!!ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${!ok && info !== '' ? `  → ${info}` : ''}`); };
-const tok = (u) => jwt.sign({ id: String(u._id), firstName: u.firstName, lastName: u.lastName, email: u.email, role: u.role, propertyId: String(u.property) }, SECRET, { expiresIn: '1h' });
+const tok = (u) => jwt.sign({ id: String(u._id), firstName: u.firstName, lastName: u.lastName, email: u.email, role: u.role, propertyId: String(u.property), tv: Number(u.tokenVersion || 0) }, SECRET, { expiresIn: '1h' });
 async function call(method, url, t, body) {
   const res = await fetch(`${BASE}${url}`, { method, headers: { Accept: 'application/json', Authorization: `Bearer ${t}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000) });
   let json = {}; try { json = await res.json(); } catch { /* empty */ }
@@ -55,7 +55,7 @@ async function main() {
 
   // A self-contained property: room type, rooms, users and a guest.
   async function mkProperty(n) {
-    const p = await Property.create({ name: `בדיקה ${TAG}-${n}`, timezone: 'Asia/Jerusalem', vatRate: 18, invoicePrefix: `${TAG}${n}`, invoiceSequence: 0 });
+    const p = await Property.create({ name: `בדיקה ${TAG}-${n}`, legalName: 'בדיקה בע"מ', taxNumber: '514443210', address: 'רחוב הבדיקה 1', city: 'טבריה', timezone: 'Asia/Jerusalem', vatRate: 18, invoicePrefix: `${TAG}${n}`, invoiceSequence: 0 });
     props.push(p._id);
     const P = String(p._id);
     const rt = await RoomType.create({ property: P, code: `${TAG}${n}`, name: 'סטנדרט', baseRate: 500, capacityBase: 2, capacityMax: 3 });
@@ -142,14 +142,14 @@ async function main() {
     r = await call('POST', `/finance/folios/${s2.folio._id}/payments`, R, { propertyId: P, amount: 600, method: 'cash', idempotencyKey: key() });
     check('FIN-03 payment above the balance is refused', r.status === 422, r.status);
     r = await call('POST', `/finance/folios/${s2.folio._id}/payments`, R, { propertyId: P, amount: 200, method: 'bank_transfer', idempotencyKey: key() });
-    check('FIN-03 bank transfer requires a reference', r.status === 422 && r.fields?.methodRef, r.status);
+    check('FIN-03 bank transfer requires a reference and a transfer date', r.status === 422 && r.fields?.reference && r.fields?.payDate, JSON.stringify(r.fields));
     const pk = key();
     r = await call('POST', `/finance/folios/${s2.folio._id}/payments`, R, { propertyId: P, amount: 500, method: 'cash', idempotencyKey: pk });
     const rDup = await call('POST', `/finance/folios/${s2.folio._id}/payments`, R, { propertyId: P, amount: 500, method: 'cash', idempotencyKey: pk });
     check('FIN-03 payment recorded once for the same key', r.status === 200 && rDup.data?.duplicate === true && Math.abs(rDup.data.balance) < 0.01, r.error);
     const s3 = await mkStay(A, { status: 'confirmed', arrival: addDays(today, 5), departure: addDays(today, 7), room: A.rooms[2], rate: 400 });
-    r = await call('POST', `/finance/folios/${s3.folio._id}/payments`, R, { propertyId: P, amount: 300, method: 'credit_card', kind: 'deposit', idempotencyKey: key() });
-    const rOver = await call('POST', `/finance/folios/${s3.folio._id}/payments`, R, { propertyId: P, amount: 600, method: 'credit_card', kind: 'deposit', idempotencyKey: key() });
+    r = await call('POST', `/finance/folios/${s3.folio._id}/payments`, R, { propertyId: P, amount: 300, method: 'credit_card', details: { last4: '4242', approval: 'AB1234' }, kind: 'deposit', idempotencyKey: key() });
+    const rOver = await call('POST', `/finance/folios/${s3.folio._id}/payments`, R, { propertyId: P, amount: 600, method: 'credit_card', details: { last4: '4242', approval: 'AB1235' }, kind: 'deposit', idempotencyKey: key() });
     check('FIN-03 deposit before arrival is allowed up to the stay total', r.status === 200 && rOver.status === 422, `${r.status}/${rOver.status}`);
     await Property.updateOne({ _id: P }, { $set: { 'financePolicy.cashLimitPerStay': 1000 } });
     const s4 = await mkStay(A, { room: A.rooms[3] });

@@ -104,6 +104,13 @@ export const DOC_TYPE_LABELS = {
   credit_note: 'מסמך זיכוי', debit_note: 'מסמך חיוב',
 };
 export const DOC_STATUS_LABELS = { draft: 'טיוטה', issued: 'הונפק', cancelled: 'בוטל', pending_allocation: 'ממתין למספר הקצאה' };
+export const ALLOCATION_LABELS = { not_required: 'לא נדרש מספר הקצאה', pending: 'ממתין למספר הקצאה', approved: 'מספר הקצאה', rejected: 'מספר הקצאה סורב' };
+export const DOC_TYPE_HINTS = {
+  tax_invoice_receipt: 'חיובים ששולמו במלואם — מסמך אחד',
+  tax_invoice: 'חיובים — התשלום בנפרד או בהמשך',
+  receipt: 'תקבולים (מקדמה / תשלום על חשבונית קודמת)',
+  proforma: 'דרישת תשלום — אינה חשבונית מס',
+};
 export const DAY_STEP_LABELS = { post_nights: 'רישום חיובי לינה', no_shows: 'טיפול בהגעות שלא הגיעו', snapshot: 'דוח יום', ledgers: 'מאזן בוחן וספרי חשבונות', advance: 'סימון היום כסגור' };
 export const RUN_STATUS_LABELS = { pending: 'ממתין', running: 'רץ', failed: 'נכשל', done: 'הושלם', skipped: 'דולג' };
 

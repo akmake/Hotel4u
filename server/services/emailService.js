@@ -49,7 +49,7 @@ export const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'Hotel4U';
 /**
  * @param {{ to: string|string[], subject: string, html?: string, text?: string, replyTo?: string }} params
  */
-export async function sendEmail({ to, subject, html, text, replyTo }) {
+export async function sendEmail({ to, subject, html, text, replyTo, attachments }) {
   const transport = getTransporter();
   if (!transport) {
     console.warn(`[emailService] Skipped email to ${to}: no transport configured`);
@@ -63,6 +63,7 @@ export async function sendEmail({ to, subject, html, text, replyTo }) {
     html:    html || undefined,
     text:    text || (html ? undefined : subject),
     replyTo: replyTo || undefined,
+    attachments: Array.isArray(attachments) && attachments.length ? attachments : undefined,
   });
 
   return info;

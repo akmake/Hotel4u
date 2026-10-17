@@ -175,6 +175,16 @@ export function initPmsScheduler() {
     }
   });
 
+  // Allocation numbers that are still pending (technical failure, no connection yet) — every 10 min.
+  cron.schedule('*/10 * * * *', async () => {
+    try {
+      const { retryPending } = await import('./taxAuthorityService.js');
+      await retryPending();
+    } catch (err) {
+      console.error('[pmsScheduler] allocation retry failed:', err.message);
+    }
+  });
+
   // Check-in reminders — fires at 09:00 every morning
   cron.schedule('0 9 * * *', async () => {
     await sendCheckInReminders().catch(err =>

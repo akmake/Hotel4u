@@ -7,9 +7,9 @@ import { Modal, Field, ErrorBanner, Banner, Spinner, KeyValues, useAction, money
 import { PAY_METHOD_LABELS, REFUND_REASON_LABELS, DOC_TYPE_LABELS } from '../../lib/labels';
 import ChargeCodeSelect, { vatPreview } from './ChargeCodeSelect';
 import { useChargeCodes } from '../../hooks/useChargeCodes';
+import PaymentMethodFields, { emptyDetails, detailsMissing, detailsPayload } from './PaymentMethodFields';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
-const REF_REQUIRED = ['bank_transfer', 'cheque', 'voucher'];
 
 function Footer({ action, onClose, label, blockedWhy, danger }) {
   return (
@@ -80,32 +80,36 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
 export function PaymentDialog({ open, onClose, propertyId, folio, onSaved }) {
   const action = useAction();
   const [f, setF] = useState({});
+  const [details, setDetails] = useState({});
   const [opKey, setOpKey] = useState('');
   const balance = folio?.balance || 0;
   useEffect(() => {
     if (open) {
       setF({ kind: balance > 0.005 ? 'payment' : 'deposit', amount: balance > 0.005 ? balance.toFixed(2) : '', method: 'cash', methodRef: '', note: '' });
+      setDetails(emptyDetails('cash'));
       setOpKey(newOpKey()); action.reset();
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  const setMethod = (m) => { set('method')(m); setDetails(emptyDetails(m)); };
   const { payments: methods } = useChargeCodes(propertyId);
   const active = methods.filter((m) => m.active);
   const options = active.length ? active.map((m) => [m.code, m.name]) : Object.entries(PAY_METHOD_LABELS);
-  const needRef = REF_REQUIRED.includes(f.method) || !!methods.find((m) => m.code === f.method)?.requireReference;
+  // A catalogue may ask for a reference on cash too (e.g. a cash-register slip number).
+  const cashRef = f.method === 'cash' && !!methods.find((m) => m.code === 'cash')?.requireReference;
   const amt = Number(f.amount || 0);
   const e = action.fields;
   let why = null;
   if (!(amt > 0)) why = 'נדרש סכום';
   else if (f.kind === 'payment' && amt - balance > 0.005) why = balance > 0.005 ? 'גבוה מהיתרה' : 'אין יתרה — בחרו מקדמה';
   else if (!options.some(([v]) => v === f.method)) why = 'יש לבחור אמצעי תשלום פעיל';
-  else if (needRef && (f.methodRef || '').trim().length < 2) why = 'נדרשת אסמכתה';
+  else why = detailsMissing(f.method, details, amt) || (cashRef && (f.methodRef || '').trim().length < 2 ? 'נדרשת אסמכתה' : null);
   const submit = () => action.run(async () => {
-    const out = await finance.pay(propertyId, folio.id, { kind: f.kind, amount: amt, method: f.method, methodRef: f.methodRef?.trim() || undefined, note: f.note?.trim() || undefined, idempotencyKey: opKey });
+    const out = await finance.pay(propertyId, folio.id, { kind: f.kind, amount: amt, method: f.method, details: detailsPayload(f.method, details), methodRef: cashRef ? f.methodRef?.trim() : undefined, note: f.note?.trim() || undefined, idempotencyKey: opKey });
     onSaved?.(out);
   });
   return (
-    <Modal open={open} onClose={onClose} busy={action.busy} width={500} title="רישום תשלום" subtitle={folio ? `חשבון ${folio.owner} · יתרה ${money(balance)}` : ''} footer={<Footer action={action} onClose={onClose} label={f.kind === 'deposit' ? 'רישום מקדמה' : 'רישום תשלום'} blockedWhy={why} />}>
+    <Modal open={open} onClose={onClose} busy={action.busy} width={560} title="רישום תשלום" subtitle={folio ? `חשבון ${folio.owner} · יתרה ${money(balance)}` : ''} footer={<Footer action={action} onClose={onClose} label={f.kind === 'deposit' ? 'רישום מקדמה' : 'רישום תשלום'} blockedWhy={why} />}>
       <form id="fin-form" className="ui-stack" onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }} noValidate>
         <ErrorBanner error={action.error} />
         <fieldset className="ui-fieldset" style={{ marginTop: 0 }}>
@@ -118,11 +122,14 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved }) {
             <input id="pm-amt" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" value={f.amount || ''} onChange={(ev) => set('amount')(ev.target.value)} />
           </Field>
           <Field id="pm-m" label="אמצעי" required error={e.method}>
-            <select id="pm-m" className="select w-full" value={f.method} onChange={(ev) => set('method')(ev.target.value)}>
+            <select id="pm-m" className="select w-full" value={f.method} onChange={(ev) => setMethod(ev.target.value)}>
               {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Field>
-          {needRef && (
+        </div>
+        <PaymentMethodFields idPrefix="pmd" method={f.method} amount={amt} value={details} onChange={setDetails} errors={e} />
+        <div className="ui-grid-2">
+          {cashRef && (
             <Field id="pm-ref" label="אסמכתה" required error={e.methodRef}>
               <input id="pm-ref" className="input w-full" maxLength={80} value={f.methodRef || ''} onChange={(ev) => set('methodRef')(ev.target.value)} />
             </Field>
@@ -131,7 +138,6 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved }) {
             <input id="pm-note" className="input w-full" maxLength={200} value={f.note || ''} onChange={(ev) => set('note')(ev.target.value)} />
           </Field>
         </div>
-        {f.method === 'credit_card' && <Banner tone="info">אין חיבור לסולק: רושמים כאן עסקה שכבר אושרה במסוף החיצוני. אין להקליד מספר כרטיס או CVV.</Banner>}
       </form>
     </Modal>
   );

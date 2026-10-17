@@ -1109,8 +1109,8 @@ router.get('/vat-report', asyncHandler(async (req, res) => {
   const invoices = await Invoice.find({
     property: propertyId,
     status: 'issued',
-    // לא כולל פרופורמה — אינה עסקה חייבת במע"מ
-    type: { $in: ['tax_invoice', 'tax_invoice_receipt', 'receipt', 'credit_note', 'debit_note'] },
+    // לא כולל חשבון עסקה וקבלה — אינם מסמכי מע"מ (קבלה מתעדת תקבול, לא עסקה)
+    type: { $in: ['tax_invoice', 'tax_invoice_receipt', 'credit_note', 'debit_note'] },
     issuedAt: {
       $gte: new Date(from + 'T00:00:00Z'),
       $lte: new Date(to   + 'T23:59:59Z'),

@@ -136,6 +136,38 @@ export function guaranteeState(res, folio) {
   return { type, ok, label, paid, total: Number(res.totalAmount || 0), paymentStatus: res.paymentStatus };
 }
 
+// ── Group billing (per room) ────────────────────────────────────────────────
+// A room in a group is paid by the booker unless its guest pays for themselves (the room nights,
+// the extras, or both). A room that pays for anything itself needs its own guarantee; the booker's
+// guarantee covers only the rooms the booker pays for.
+export function unitPaysSelf(u) {
+  return u?.roomPayer === 'guest' || u?.extrasPayer === 'guest';
+}
+
+export function unitGuaranteeState(unit, folio) {
+  const paid = folioPaid(folio);
+  const type = unit?.guaranteeType || 'none';
+  let ok = false;
+  let label = 'לחדר זה לא נרשמה ערבות (האורח משלם בעצמו)';
+  if (type === 'credit_card') { ok = true; label = 'כרטיס אשראי של החדר (נרשם ידנית)'; }
+  else if (type === 'voucher') { ok = true; label = 'שובר לחדר'; }
+  else if (paid > 0) { ok = true; label = 'התקבל תשלום/מקדמה לחדר'; }
+  else if (type === 'deposit') label = 'מקדמה לחדר לא התקבלה';
+  const nights = nightsBetween(unit?.arrivalDate, unit?.departureDate);
+  const total = unit?.roomPayer === 'guest' ? Math.round(Number(unit?.nightlyRate || 0) * nights * 100) / 100 : 0;
+  return { type, ok, label, paid, total, own: true };
+}
+
+export function unitBilling(u) {
+  return {
+    roomPayer: u?.roomPayer || 'booker',
+    extrasPayer: u?.extrasPayer || 'booker',
+    occupantName: u?.occupantName || null,
+    occupantPhone: u?.occupantPhone || null,
+    guaranteeType: u?.guaranteeType || 'none',
+  };
+}
+
 // ── Readiness ───────────────────────────────────────────────────────────────
 // severity: 'blocked' needs a different action (assign/unblock/manager), 'waiting' clears on its own
 // once housekeeping/the previous guest finishes, 'info' never blocks.
@@ -269,7 +301,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   const resIds = reservations.map((r) => r._id);
   const [units, folios, queue] = await Promise.all([
     ReservationRoom.find({ reservation: { $in: resIds } }).populate('roomTypeBooked', 'name code').sort({ createdAt: 1, _id: 1 }).lean(),
-    Folio.find({ reservation: { $in: resIds } }).select('reservation lines status').lean(),
+    Folio.find({ reservation: { $in: resIds } }).select('reservation ownerType ownerRef lines status').lean(),
     ArrivalQueueEntry.find({ reservation: { $in: resIds }, status: 'active' }).lean(),
   ]);
   const unitsByRes = new Map();
@@ -278,7 +310,8 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
     if (!unitsByRes.has(k)) unitsByRes.set(k, []);
     unitsByRes.get(k).push(u);
   }
-  const folioByRes = new Map(folios.map((f) => [String(f.reservation), f]));
+  const folioByRes = new Map(folios.filter((f) => f.ownerType !== 'room').map((f) => [String(f.reservation), f]));
+  const roomFolioByUnit = new Map(folios.filter((f) => f.ownerType === 'room' && f.status !== 'closed').map((f) => [String(f.ownerRef), f]));
   const queueByUnit = new Map(queue.map((e) => [String(e.reservationRoom), e]));
   const queueByRes = new Map(queue.map((e) => [String(e.reservation), e]));
 
@@ -291,7 +324,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   let rows = allUnits.map(({ r, u }, idx) => {
     const list = unitsByRes.get(String(r._id)) || allUnits.filter((x) => x.r === r).map((x) => x.u);
     const room = roomById.get(idStr(u.assignedRoom)) || null;
-    const guarantee = guaranteeState(r, folioByRes.get(String(r._id)));
+    const guarantee = unitPaysSelf(u) ? unitGuaranteeState(u, roomFolioByUnit.get(String(u._id))) : guaranteeState(r, folioByRes.get(String(r._id)));
     const q2 = u._id ? queueByUnit.get(String(u._id)) : queueByRes.get(String(r._id));
     const readinessResult = computeReadiness({
       res: r, unit: u, room, guest: r.primaryGuest, policy, businessDate,
@@ -327,6 +360,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
       source: r.source,
       specialRequests: r.specialRequests || null,
       guarantee,
+      billing: unitBilling(u),
       readiness: readinessResult,
       queue: q2 ? { id: String(q2._id), arrivedAt: q2.arrivedAt, reason: q2.reason, ownerName: q2.ownerName, priority: q2.priority } : null,
     };
@@ -381,12 +415,13 @@ export async function loadReservationInScope(reservationId, propertyId) {
 async function unitReadiness(res, unit, property) {
   const policy = policyOf(property);
   const room = unit.assignedRoom ? await Room.findById(unit.assignedRoom).lean() : null;
-  const [occ, folio, queue] = await Promise.all([
+  const [occ, folio, queue, ownFolio] = await Promise.all([
     room ? occupancyMap(res.property, [room._id]) : new Map(),
-    Folio.findOne({ reservation: res._id }).select('lines').lean(),
+    Folio.findOne({ reservation: res._id, ownerType: { $ne: 'room' } }).select('lines').lean(),
     unit._id ? ArrivalQueueEntry.findOne({ reservationRoom: unit._id, status: 'active' }).lean() : null,
+    unit._id && unitPaysSelf(unit) ? Folio.findOne({ reservation: res._id, ownerType: 'room', ownerRef: String(unit._id), status: { $ne: 'closed' } }).select('lines').lean() : null,
   ]);
-  const guarantee = guaranteeState(res, folio);
+  const guarantee = unitPaysSelf(unit) ? unitGuaranteeState(unit, ownFolio) : guaranteeState(res, folio);
   return {
     room,
     guarantee,
@@ -424,7 +459,8 @@ export async function getCheckInContext({ propertyId, reservationId }) {
   const list = units.length ? units : implicitUnits(res.toObject());
   const out = [];
   for (const [i, u] of list.entries()) {
-    const { room, readiness, queue } = await unitReadiness(res, u, property);
+    const { room, readiness, queue, guarantee: unitGuarantee } = await unitReadiness(res, u, property);
+    const own = u._id && unitPaysSelf(u) ? await Folio.findOne({ reservation: res._id, ownerType: 'room', ownerRef: String(u._id), status: { $ne: 'closed' } }).select('_id').lean() : null;
     out.push({
       unitId: u._id ? String(u._id) : null,
       index: i + 1,
@@ -434,10 +470,13 @@ export async function getCheckInContext({ propertyId, reservationId }) {
       arrivalDate: u.arrivalDate,
       departureDate: u.departureDate,
       readiness,
+      billing: unitBilling(u),
+      guarantee: unitPaysSelf(u) ? unitGuarantee : null,
+      folioId: own?._id ? String(own._id) : null,
       queue: queue ? { id: String(queue._id), reason: queue.reason, arrivedAt: queue.arrivedAt } : null,
     });
   }
-  const folio = await Folio.findOne({ reservation: res._id }).select('lines status').lean();
+  const folio = await Folio.findOne({ reservation: res._id, ownerType: { $ne: 'room' } }).select('lines status').lean();
   const card = await GuestRegistrationCard.findOne({ reservation: res._id, guest: res.primaryGuest?._id })
     .sort({ createdAt: -1 })
     .select('status signedAt idVerified termsVersion idDocType nationality createdAt')
@@ -604,7 +643,7 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
 }
 
 // ── FD-03 complete check-in ─────────────────────────────────────────────────
-export async function completeCheckIn({ propertyId, reservationId, unitIds, unitIndexes, guarantee, override, actor, ip }) {
+export async function completeCheckIn({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, actor, ip }) {
   const property = await loadProperty(propertyId);
   const policy = policyOf(property);
   const res = await loadReservationInScope(reservationId, propertyId);
@@ -634,16 +673,38 @@ export async function completeCheckIn({ propertyId, reservationId, unitIds, unit
     }
   }
 
-  return withLocks([`res:${res._id}`], () => checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, overrideOn, overrideReason, actor, ip }));
+  // Per-room guarantees (rooms whose guest pays for themselves): validated now, applied in memory
+  // to the units before readiness is re-checked, saved only when the check-in goes through.
+  const roomGuarantees = [];
+  for (const g of Array.isArray(unitGuarantees) ? unitGuarantees : []) {
+    if (!g?.method) continue;
+    if (!['credit_card', 'deposit', 'voucher'].includes(g.method)) throw httpError('שיטת ערבות לחדר לא מוכרת', 422);
+    const ref = String(g.reference || '').trim().slice(0, 80);
+    if (['credit_card', 'voucher'].includes(g.method) && ref.length < 4) {
+      throw httpError(`חדר ${g.unitIndex || ''}: ${g.method === 'credit_card' ? 'יש לרשום 4 ספרות אחרונות או מספר אישור' : 'יש לרשום את מספר השובר'}`, 422, { fields: { unitGuarantee: 'נדרשת אסמכתה' } });
+    }
+    roomGuarantees.push({ unitId: g.unitId ? String(g.unitId) : null, unitIndex: Number(g.unitIndex) || null, method: g.method, reference: ref || undefined });
+  }
+
+  return withLocks([`res:${res._id}`], () => checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees, overrideOn, overrideReason, actor, ip }));
 }
 
-async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, overrideOn, overrideReason, actor, ip }) {
+async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees = [], overrideOn, overrideReason, actor, ip }) {
   const units = await ensureUnits(res);
   let wanted;
   if (Array.isArray(unitIds) && unitIds.filter(Boolean).length) wanted = units.filter((u) => unitIds.map(String).includes(String(u._id)));
   else if (Array.isArray(unitIndexes) && unitIndexes.length) wanted = unitIndexes.map((i) => units[Number(i) - 1]).filter(Boolean);
   else wanted = units.length === 1 ? units : [];
   if (!wanted.length) throw httpError('יש לבחור לפחות יחידת שהייה אחת לכניסה', 422);
+
+  const changedGuarantees = [];
+  for (const g of roomGuarantees) {
+    const u = g.unitId ? units.find((x) => String(x._id) === g.unitId) : units[g.unitIndex - 1];
+    if (!u) continue;
+    u.guaranteeType = g.method;
+    u.guaranteeReference = g.reference;
+    changedGuarantees.push(u);
+  }
 
   // Re-check every selected unit now; a room blocked or taken since the wizard opened fails here.
   const failures = [];
@@ -666,6 +727,14 @@ async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guar
   }
   if (failures.length) {
     throw httpError('הכניסה לא בוצעה — יש סיבות פתוחות', 409, { details: failures });
+  }
+
+  for (const u of changedGuarantees) {
+    await ReservationRoom.updateOne({ _id: u._id }, { $set: { guaranteeType: u.guaranteeType, guaranteeReference: u.guaranteeReference } });
+    await audit({
+      property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.room_guarantee_set',
+      entityType: 'ReservationRoom', entityId: u._id, after: { reservation: String(res._id), guaranteeType: u.guaranteeType, hasReference: !!u.guaranteeReference }, ip,
+    });
   }
 
   if (guaranteeChange) {
@@ -976,7 +1045,7 @@ export async function listQueue({ propertyId, status = 'active' }) {
   const [resDocs, unitDocs, folios] = await Promise.all([
     Reservation.find({ _id: { $in: resIds } }).populate('primaryGuest', 'isBlacklisted').lean(),
     ReservationRoom.find({ _id: { $in: active.map((e) => idStr(e.reservationRoom)) } }).lean(),
-    Folio.find({ reservation: { $in: resIds } }).select('reservation lines').lean(),
+    Folio.find({ reservation: { $in: resIds }, ownerType: { $ne: 'room' } }).select('reservation lines').lean(),
   ]);
   const roomIds = unitDocs.map((u) => u.assignedRoom).filter(Boolean);
   const [roomDocs, occ] = await Promise.all([Room.find({ _id: { $in: roomIds } }).lean(), occupancyMap(propertyId, roomIds)]);

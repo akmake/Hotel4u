@@ -3,20 +3,17 @@
  * שירות הפקת חשבוניות — לפי חוק מע"מ ישראלי
  *
  * אחריות:
- *  1. יצירת חשבוניות מ-Folio קיים
+ *  1. חשבונית ידנית (ללא חשבון אורח) — מחשבון אורח: documentService
  *  2. הקצאת מספר חשבונית סידורי ואטומי
  *  3. חישוב נטו / מע"מ / ברוטו
- *  4. בדיקת תנאי מספר הקצאה (B2B מעל 25,000 ₪)
+ *  4. בדיקת תנאי מספר הקצאה (documentService.allocationRule — סף לפי תאריך, לפני מע״מ)
  *  5. הנפקת הודעת זיכוי
  */
 
 import mongoose from 'mongoose';
-import Invoice, { INVOICE_TYPE_LABELS } from '../models/Invoice.js';
-import Folio from '../models/Folio.js';
+import Invoice from '../models/Invoice.js';
 import Property from '../models/Property.js';
-
-// סף לחובת מספר הקצאה מרשות המסים (ב-₪)
-const ALLOCATION_THRESHOLD_ILS = 25000;
+import { nextDocumentNumber, allocationRule, validVatNumber } from './documentService.js';
 const TXN_UNSUPPORTED_CODE = 20;
 const TXN_UNSUPPORTED_MSG = 'Transaction numbers are only allowed on a replica set member or mongos';
 
@@ -57,25 +54,9 @@ async function runWithOptionalTransaction(work) {
   }
 }
 
-/**
- * מקצה מספר חשבונית סידורי ואטומי — עדכון מונה על גבי Property בפעולה אטומית.
- * @returns {Promise<string>} מספר חשבונית מעוצב (למשל "INV-1001")
- */
-async function allocateInvoiceNumber(propertyId, session) {
-  const updateOptions = session
-    ? { returnDocument: 'after', session }
-    : { returnDocument: 'after' };
-  const property = await Property.findByIdAndUpdate(
-    propertyId,
-    { $inc: { invoiceSequence: 1 } },
-    updateOptions,
-  ).select('invoicePrefix invoiceSequence');
-
-  if (!property) throw Object.assign(new Error('נכס לא נמצא'), { status: 404 });
-
-  const prefix = property.invoicePrefix || 'INV';
-  const seq = property.invoiceSequence;
-  return `${prefix}-${String(seq).padStart(6, '0')}`;
+// מספור: סדרה רצה לכל סוג מסמך בנכס (documentService.nextDocumentNumber).
+async function allocateInvoiceNumber(propertyId, _session, type = 'tax_invoice') {
+  return nextDocumentNumber(propertyId, type);
 }
 
 /**
@@ -125,41 +106,6 @@ function calcLineAmounts(unitPrice, quantity, discountPct, vatRate, pricesInclud
 }
 
 /**
- * בנה שורות חשבונית משורות Folio.
- */
-function buildLinesFromFolio(folioLines, vatRate, pricesIncludeVat) {
-  // A reversed charge is not invoiced (nor its reversal line); each line keeps the VAT rate it was
-  // posted with (0 for exempt codes / zero-rated tourist lodging) — older lines use the property rate.
-  const reversed = new Set(folioLines.filter(l => l.reversalOf && l.status === 'posted').map(l => String(l.reversalOf)));
-  const chargeLines = folioLines.filter(l => l.status === 'posted' && l.amount > 0 && !reversed.has(String(l._id)));
-
-  return chargeLines.map(line => {
-    const lineRate = Number.isFinite(line.vatRate) ? line.vatRate : vatRate;
-    const { netAmount, vatAmount, grossAmount } = calcLineAmounts(
-      line.amount + (line.taxAmount || 0), // מחיר ברוטו (כפי שנשמר בfolio)
-      1,
-      0,
-      lineRate,
-      true, // folio תמיד שומר ברוטו
-    );
-
-    return {
-      description: line.description,
-      quantity:    1,
-      unitPrice:   netAmount,
-      discountPct: 0,
-      netAmount,
-      vatRate: lineRate,
-      vatAmount,
-      grossAmount,
-      serviceDate: line.serviceDate,
-      department:  line.department || '',
-      folioLineId: line._id,
-    };
-  });
-}
-
-/**
  * חשב סיכומים כלליים מרשימת שורות חשבונית.
  */
 function calcTotals(lines) {
@@ -176,85 +122,7 @@ function calcTotals(lines) {
 
 // ─── API ציבורי ─────────────────────────────────────────────────────────────
 
-/**
- * הנפק חשבונית מ-Folio קיים.
- *
- * @param {object} params
- * @param {string} params.folioId      - מזהה ה-Folio
- * @param {string} params.type         - סוג החשבונית (INVOICE_TYPES)
- * @param {object} [params.buyer]      - פרטי הקונה (אם לא מסופק — B2C)
- * @param {string} [params.notes]      - הערות
- * @param {Array}  [params.payments]   - תשלומים (לחשבונית מס קבלה)
- * @param {string} params.issuedBy     - מזהה המשתמש המנפיק
- * @param {string} params.propertyId   - מזהה הנכס
- */
-export async function issueInvoiceFromFolio({
-  folioId,
-  type,
-  buyer,
-  notes,
-  payments = [],
-  issuedBy,
-  propertyId,
-}) {
-  return runWithOptionalTransaction(async (session) => {
-    const [folio, property] = await Promise.all([
-      withOptionalSession(Folio.findById(folioId), session),
-      withOptionalSession(Property.findById(propertyId), session),
-    ]);
-
-    if (!folio) throw Object.assign(new Error('Folio לא נמצא'), { status: 404 });
-    if (!property) throw Object.assign(new Error('נכס לא נמצא'), { status: 404 });
-
-    const vatRate = property.vatRate || 18;
-    const lines   = buildLinesFromFolio(folio.lines, vatRate, true);
-
-    if (!lines.length) {
-      throw Object.assign(new Error('אין חיובים פעילים ב-Folio להפקת חשבונית'), { status: 400 });
-    }
-
-    const totals   = calcTotals(lines);
-    const today    = todayYmd();
-    const invoiceNumber = await allocateInvoiceNumber(propertyId, session);
-
-    // חישוב תשלומים
-    const amountPaid = payments.reduce((s, p) => s + (p.amount || 0), 0);
-    const balance    = Math.round((totals.totalGross - amountPaid) * 100) / 100;
-
-    // בדיקת חובת מספר הקצאה
-    const requiresAllocation = (
-      type === 'tax_invoice' || type === 'tax_invoice_receipt'
-    ) && !!buyer?.vatNumber && totals.totalGross >= ALLOCATION_THRESHOLD_ILS;
-
-    const invoice = new Invoice({
-      property:     propertyId,
-      folio:        folioId,
-      reservation:  folio.reservation,
-      type,
-      invoiceNumber,
-      status:       requiresAllocation ? 'pending_allocation' : 'issued',
-      issueDate:    today,
-      taxDate:      today,
-      serviceDate:  folio.lines[0]?.serviceDate || today,
-      seller:       buildSellerParty(property),
-      buyer:        buyer || null,
-      lines,
-      currency:     folio.currency || 'ILS',
-      ...totals,
-      vatRate,
-      payments,
-      amountPaid,
-      balance,
-      requiresAllocation,
-      issuedBy,
-      issuedAt: new Date(),
-      notes: notes || '',
-    });
-
-    await saveWithOptionalSession(invoice, session);
-    return invoice;
-  });
-}
+// הנפקה מחשבון אורח עברה ל-documentService.issueDocument (FIN-06): בונה מהחשבון, בלי כפל.
 
 /**
  * הנפק חשבונית ידנית (ללא Folio) — למקרים מיוחדים.
@@ -297,17 +165,21 @@ export async function issueManualInvoice({
 
     const totals      = calcTotals(lines);
     const today       = todayYmd();
-    const invoiceNumber = await allocateInvoiceNumber(propertyId, session);
+    const { seq, number: invoiceNumber } = await allocateInvoiceNumber(propertyId, session, type);
     const amountPaid  = payments.reduce((s, p) => s + (p.amount || 0), 0);
     const balance     = Math.round((totals.totalGross - amountPaid) * 100) / 100;
-    const requiresAllocation = (type === 'tax_invoice' || type === 'tax_invoice_receipt')
-      && !!buyer?.vatNumber && totals.totalGross >= ALLOCATION_THRESHOLD_ILS;
+    const alloc = allocationRule({ type, buyer: buyer ? { kind: validVatNumber(buyer.vatNumber) ? 'business' : 'private', vatNumber: buyer.vatNumber } : null, totalNet: totals.totalNet, totalVat: totals.totalVat, issueDate: today });
+    const requiresAllocation = alloc.required;
 
     const invoice = new Invoice({
       property: propertyId,
       type,
       invoiceNumber,
-      status:   requiresAllocation ? 'pending_allocation' : 'issued',
+      seq,
+      status:   'issued',
+      allocationStatus: requiresAllocation ? 'pending' : 'not_required',
+      allocationReason: alloc.reason,
+      allocationThreshold: alloc.threshold ?? undefined,
       issueDate: today,
       taxDate:   today,
       serviceDate: lines[0]?.serviceDate || today,
@@ -380,7 +252,7 @@ export async function issueCreditNote({ originalInvoiceId, creditAmount, reason,
     }));
 
     const today           = todayYmd();
-    const invoiceNumber   = await allocateInvoiceNumber(String(original.property), session);
+    const { seq, number: invoiceNumber } = await allocateInvoiceNumber(String(original.property), session, 'credit_note');
     const totalNet        = lines.reduce((s, l) => s + l.netAmount, 0);
     const totalVat        = lines.reduce((s, l) => s + l.vatAmount, 0);
     const totalGross      = lines.reduce((s, l) => s + l.grossAmount, 0);
@@ -391,6 +263,7 @@ export async function issueCreditNote({ originalInvoiceId, creditAmount, reason,
       reservation:      original.reservation,
       type:             'credit_note',
       invoiceNumber,
+      seq,
       status:           'issued',
       issueDate:        today,
       taxDate:          today,
@@ -423,19 +296,4 @@ export async function issueCreditNote({ originalInvoiceId, creditAmount, reason,
   });
 }
 
-/**
- * עדכן מספר הקצאה על חשבונית ממתינה.
- */
-export async function setAllocationNumber(invoiceId, allocationNumber) {
-  const invoice = await Invoice.findById(invoiceId);
-  if (!invoice) throw Object.assign(new Error('חשבונית לא נמצאה'), { status: 404 });
-  if (invoice.status !== 'pending_allocation') {
-    throw Object.assign(new Error('החשבונית אינה ממתינה למספר הקצאה'), { status: 400 });
-  }
-
-  invoice.allocationNumber      = allocationNumber;
-  invoice.allocationReceivedAt  = new Date();
-  invoice.status                = 'issued';
-  await invoice.save();
-  return invoice;
-}
+// עדכון מספר הקצאה: documentService.setAllocation (9 ספרות, תפקידים, יומן ביקורת).

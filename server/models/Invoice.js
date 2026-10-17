@@ -17,9 +17,10 @@
  *  credit_note        — הודעת זיכוי (ביטול / זיכוי חלקי)
  *  debit_note         — הודעת חיוב (תוספת לחשבונית קיימת)
  *
- * חוק חדש 2024 (מספר הקצאה):
- *  חשבוניות מס B2B מעל 25,000 ₪ מחייבות מספר הקצאה מרשות המסים.
- *  השדה allocationNumber מאוחסן כאשר מתקבל מה-API של רשות המסים.
+ * חשבוניות ישראל (מספר הקצאה):
+ *  חשבונית מס לעוסק מורשה מעל הסף (לפני מע״מ) מחייבת מספר הקצאה בן 9 ספרות מרשות המסים.
+ *  הסף לפי תאריך ההנפקה: 25,000 (2024) → 20,000 (2025) → 10,000 (1.1.2026) → 5,000 (1.6.2026).
+ *  מספר ההקצאה אינו מחליף את מספר המסמך; "ממתין" אינו מספר. allocationStatus מחזיק את המצב.
  *
  * עיקרון אי-שינוי (immutability):
  *  חשבונית שהונפקה (status = 'issued') היא נעולה לצמיתות.
@@ -48,6 +49,14 @@ export const INVOICE_TYPE_LABELS = {
   debit_note:            'הודעת חיוב',
 };
 
+// מסמכים שמכסים חיובים (שורת חיוב שעליהם מתוקנת רק במסמך זיכוי) ומסמכים שמכסים תקבולים.
+// חשבון עסקה אינו מסמך מס ואינו "נועל" שורות.
+export const CHARGE_DOC_TYPES = ['tax_invoice', 'tax_invoice_receipt', 'debit_note'];
+export const PAYMENT_DOC_TYPES = ['receipt', 'tax_invoice_receipt'];
+
+// מצב מספר הקצאה — נפרד מסטטוס המסמך (מסמך שהונפק נשאר סופי גם כשההקצאה ממתינה).
+export const ALLOCATION_STATUSES = ['not_required', 'pending', 'approved', 'rejected'];
+
 // ─── סטטוסים ──────────────────────────────────────────────────────────────
 export const INVOICE_STATUSES = [
   'draft',    // טיוטה — ניתן לעריכה
@@ -61,7 +70,8 @@ export const PAYMENT_MEANS = [
   'cash',           // מזומן
   'credit_card',    // כרטיס אשראי
   'bank_transfer',  // העברה בנקאית
-  'check',          // המחאה
+  'cheque',         // שיק
+  'check',          // המחאה (ערך ישן)
   'voucher',        // שובר
   'other',          // אחר
 ];
@@ -100,6 +110,20 @@ const PaymentDetailSchema = new Schema({
   amount:       { type: Number, required: true },
   reference:    { type: String },                    // מספר אסמכתא (קבלה/שיק/העברה)
   paidAt:       { type: Date },
+  // פרטי האמצעי מועתקים מהתקבול בחשבון (FIN-03): שיק — בנק, סניף, חשבון, פירעון; העברה — תאריך
+  // ומשלם; כרטיס — 4 ספרות אחרונות ותשלומים. לעולם לא מספר כרטיס מלא.
+  paymentDate:  { type: String },                    // YYYY-MM-DD — מועד התקבול / ההעברה
+  folioLineId:  { type: Schema.Types.ObjectId },     // שורת התקבול בחשבון
+  last4:        { type: String },
+  cardBrand:    { type: String },
+  installments: { type: Number },
+  bank:         { type: String },
+  branch:       { type: String },
+  account:      { type: String },
+  dueDate:      { type: String },
+  payerName:    { type: String },
+  nettedLineIds: [{ type: Schema.Types.ObjectId }],  // refunds netted into this payment before it was receipted
+  isRefund:     { type: Boolean },                   // a refund line on a receipt (negative amount)
 }, { _id: true });
 
 // ─── מודל חשבונית ─────────────────────────────────────────────────────────
@@ -111,7 +135,9 @@ const InvoiceSchema = new Schema({
 
   // ── סוג ומספור ───────────────────────────────────────────────────────
   type:           { type: String, enum: INVOICE_TYPES, required: true },
-  invoiceNumber:  { type: String, unique: true, sparse: true }, // INV-1001 (מוקצה בהנפקה)
+  invoiceNumber:  { type: String },          // מספר רץ בסדרה של סוג המסמך בנכס (מוקצה בהנפקה)
+  seq:            { type: Number },          // המספר הרץ כמספר
+  requestKey:     { type: String },          // מפתח פעולה — אותה בקשה לא מנפיקה שני מסמכים
   status:         { type: String, enum: INVOICE_STATUSES, default: 'draft' },
 
   // ── תאריכים ──────────────────────────────────────────────────────────
@@ -141,11 +167,34 @@ const InvoiceSchema = new Schema({
   amountPaid:     { type: Number, default: 0 },
   balance:        { type: Number, default: 0 },                   // יתרה לתשלום
 
-  // ── מספר הקצאה (חוק 2024 — B2B מעל 25,000 ₪) ────────────────────
-  allocationNumber:     { type: String },   // מספר הקצאה מרשות המסים
+  // ── מספר הקצאה (חשבוניות ישראל) ──────────────────────────────────
+  allocationNumber:     { type: String },   // מספר הקצאה מרשות המסים (9 ספרות)
   allocationRequestedAt:{ type: Date },
   allocationReceivedAt: { type: Date },
   requiresAllocation:   { type: Boolean, default: false },
+  allocationStatus:     { type: String, enum: ALLOCATION_STATUSES, default: 'not_required' },
+  allocationReason:     { type: String },   // למה נדרש / לא נדרש (בסיס החישוב והסף)
+  allocationThreshold:  { type: Number },   // הסף שחל בתאריך ההנפקה
+  allocationRejectReason: { type: String },
+  allocationBy:         { type: Schema.Types.ObjectId, ref: 'User' },
+  allocationFullNumber: { type: String },   // the full confirmation number returned by the Tax Authority
+  allocationSource:     { type: String, enum: ['manual', 'api'] },
+  allocationAttempts:   { type: Number, default: 0 },
+  allocationLastError:  { type: String },   // last technical / data error from the service (pending)
+  allocationRetry:      { type: Boolean, default: true },   // false after a data error — a retry would fail the same way
+  allocationNextTryAt:  { type: Date },
+  // When the Tax Authority holds the invoice (code 460/461) the business picks one of the routes it
+  // allows: cancel (credit note), continue without a number (printed "אין לנכות מס תשומות"),
+  // hearing (request through the portal, then ask again with the same invoice_id).
+  allocationDecision:   { type: String, enum: ['cancel', 'continue', 'hearing'] },
+  allocationDecidedAt:  { type: Date },
+  allocationDecisionSent: { type: Boolean },
+  requestedByCustomer:  { type: Boolean, default: false },  // allocation asked by the customer below the threshold
+  // Documents sent by e-mail (copies; the original is the record in the system).
+  sentLog:              [{ to: String, at: Date, by: String, _id: false }],
+
+  // ── הדפסה: הראשונה "מקור", הבאות "העתק נאמן למקור" ───────────────
+  printCount:           { type: Number, default: 0 },
 
   // ── קישורי מסמכים קשורים ─────────────────────────────────────────
   relatedInvoiceId:     { type: Schema.Types.ObjectId, ref: 'Invoice' }, // הודעת זיכוי ← חשבונית מקורית
@@ -161,6 +210,11 @@ const InvoiceSchema = new Schema({
 }, { timestamps: true, toJSON: { virtuals: true } });
 
 // ── אינדקסים ────────────────────────────────────────────────────────────────
+// מספר מסמך ייחודי בתוך סדרה (נכס + סוג) — לא גלובלית: לכל נכס סדרות משלו.
+// (האינדקס הישן invoiceNumber_1 מוסר ב-scripts/migrateInvoiceNumberIndex.js)
+InvoiceSchema.index({ property: 1, type: 1, invoiceNumber: 1 }, { unique: true, partialFilterExpression: { invoiceNumber: { $type: 'string' } } });
+InvoiceSchema.index({ property: 1, requestKey: 1 }, { unique: true, partialFilterExpression: { requestKey: { $type: 'string' } } });
+InvoiceSchema.index({ property: 1, allocationStatus: 1 });
 InvoiceSchema.index({ property: 1, issueDate: -1 });
 InvoiceSchema.index({ property: 1, type: 1, status: 1 });
 InvoiceSchema.index({ folio: 1 });
@@ -169,7 +223,8 @@ InvoiceSchema.index({ reservation: 1 });
 // ── נעילת שינוי לחשבוניות שהונפקו ─────────────────────────────────────────
 InvoiceSchema.pre('save', function () {
   if (!this.isNew && this.isModified() && this.status === 'issued') {
-    const allowedFields = ['creditedBy', 'allocationNumber', 'allocationReceivedAt', 'status'];
+    const allowedFields = ['creditedBy', 'allocationNumber', 'allocationReceivedAt', 'status', 'allocationStatus', 'allocationRejectReason', 'allocationBy', 'allocationRequestedAt', 'printCount',
+      'allocationFullNumber', 'allocationSource', 'allocationAttempts', 'allocationLastError', 'allocationRetry', 'allocationNextTryAt', 'allocationDecision', 'allocationDecidedAt', 'allocationDecisionSent', 'sentLog'];
     const modifiedPaths = this.modifiedPaths();
     const illegalChange = modifiedPaths.find(p => !allowedFields.includes(p));
     if (illegalChange) {

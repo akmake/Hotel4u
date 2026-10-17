@@ -42,7 +42,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        // API_PROXY lets a second dev client talk to a server on another port (e.g. when 4000 is busy).
+        target: process.env.API_PROXY || 'http://localhost:4000',
         changeOrigin: true,
         secure: false,
       },

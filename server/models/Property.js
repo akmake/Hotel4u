@@ -128,6 +128,33 @@ const PropertySchema = new Schema({
   vatRate:          { type: Number, default: 17 },
   invoicePrefix:    { type: String, default: 'INV' },
   invoiceSequence:  { type: Number, default: 1000 },
+  // One running series per document type (FIN-06): the last number issued in each.
+  docSequences: {
+    tax_invoice:         { type: Number, default: 0 },
+    tax_invoice_receipt: { type: Number, default: 0 },
+    receipt:             { type: Number, default: 0 },
+    proforma:            { type: Number, default: 0 },
+    credit_note:         { type: Number, default: 0 },
+    debit_note:          { type: Number, default: 0 },
+  },
+  // FIN-10 / FIN-11: fiscal set-up of the issuing business.
+  fiscal: {
+    softwareRegNumber: String,                 // Tax Authority software registration certificate (8 digits), once registered
+    allocationMode:    { type: String, enum: ['manual', 'api'], default: 'manual' },
+    operatorId:        String,                 // ID number of the person the allocation token is registered to (user_id)
+    ita: {                                     // OAuth connection to the Tax Authority (tokens sealed with utils/secretBox)
+      connected:       { type: Boolean, default: false },
+      env:             { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
+      accessToken:     String,
+      refreshToken:    String,
+      expiresAt:       Date,
+      connectedAt:     Date,
+      connectedBy:     String,
+      lastError:       String,
+      lastErrorAt:     Date,
+    },
+    emailFrom:         String,                 // reply-to for documents sent to guests
+  },
   reservationPrefix:{ type: String, default: 'RES' },
   reservationSequence: { type: Number, default: 1000 },
 

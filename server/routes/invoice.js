@@ -14,13 +14,9 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { requireRoles, assertPropertyScope } from '../middleware/authContext.js';
 import Invoice, { INVOICE_TYPES, INVOICE_TYPE_LABELS } from '../models/Invoice.js';
-import {
-  issueInvoiceFromFolio,
-  issueManualInvoice,
-  issueCreditNote,
-  setAllocationNumber,
-} from '../services/invoiceService.js';
-import { renderInvoiceHtml } from '../utils/invoiceTemplate.js';
+import { issueManualInvoice, issueCreditNote } from '../services/invoiceService.js';
+import { setAllocation, printDocument } from '../services/documentService.js';
+import { actorOrSystem } from '../middleware/authContext.js';
 
 const router = Router();
 
@@ -62,30 +58,10 @@ async function getInvoiceInScope(req, invoiceId) {
   return invoice;
 }
 
-// ── POST /folio/:folioId — הנפק מ-Folio ──────────────────────────────────
-router.post('/folio/:folioId', asyncHandler(async (req, res) => {
-  requireRoles(req, INVOICE_WRITE_ROLES);
-
-  const { type, buyer, notes, payments } = req.body;
-  validateInvoiceType(type);
-
-  const propertyId = getPropertyId(req);
-  if (!propertyId) {
-    return res.status(400).json({ success: false, error: 'propertyId נדרש' });
-  }
-
-  const invoice = await issueInvoiceFromFolio({
-    folioId:    req.params.folioId,
-    type,
-    buyer:      buyer || null,
-    notes:      notes || '',
-    payments:   payments || [],
-    issuedBy:   req.actor?.id,
-    propertyId,
-  });
-
-  res.status(201).json({ success: true, data: invoice });
-}));
+// ── POST /folio/:folioId — הועבר ל-POST /api/pms/finance/folios/:id/documents (FIN-06) ──
+router.post('/folio/:folioId', (req, res) => {
+  res.status(410).json({ success: false, error: 'הנפקה מחשבון אורח עברה למסך החשבון (POST /finance/folios/:id/documents)' });
+});
 
 // ── POST /manual — הנפקה ידנית ────────────────────────────────────────────
 router.post('/manual', asyncHandler(async (req, res) => {
@@ -179,20 +155,13 @@ router.get('/:id', asyncHandler(async (req, res) => {
   res.json({ success: true, data: invoice });
 }));
 
-// ── GET /:id/html — HTML להדפסה / PDF ─────────────────────────────────────
+// ── GET /:id/html — HTML להדפסה (מקור בהדפסה הראשונה, העתק אחריה) ─────
 router.get('/:id/html', asyncHandler(async (req, res) => {
   requireRoles(req, INVOICE_READ_ROLES);
-
-  const invoice = await Invoice.findById(req.params.id)
-    .populate('issuedBy', 'firstName lastName')
-    .populate('relatedInvoiceId', 'invoiceNumber type issueDate')
-    .populate('reservation', 'confirmationNumber arrivalDate departureDate')
-    .lean();
-
+  const invoice = await Invoice.findById(req.params.id).select('property').lean();
   if (!invoice) return res.status(404).json({ success: false, error: 'חשבונית לא נמצאה' });
   assertPropertyScope(req, String(invoice.property));
-
-  const html = renderInvoiceHtml(invoice);
+  const html = await printDocument({ propertyId: String(invoice.property), id: req.params.id });
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
 }));
@@ -214,18 +183,13 @@ router.post('/:id/credit-note', asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: creditNote });
 }));
 
-// ── PATCH /:id/allocation — עדכון מספר הקצאה ─────────────────────────────
+// ── PATCH /:id/allocation — עדכון מספר הקצאה (9 ספרות) ───────────────────
 router.patch('/:id/allocation', asyncHandler(async (req, res) => {
   requireRoles(req, INVOICE_ADMIN_ROLES);
-
-  const { allocationNumber } = req.body;
-  if (!allocationNumber) {
-    return res.status(400).json({ success: false, error: 'allocationNumber נדרש' });
-  }
-
-  await getInvoiceInScope(req, req.params.id);
-  const invoice = await setAllocationNumber(req.params.id, allocationNumber);
-  res.json({ success: true, data: invoice });
+  const invoice = await getInvoiceInScope(req, req.params.id);
+  const a = actorOrSystem(req);
+  const data = await setAllocation({ propertyId: String(invoice.property), id: req.params.id, input: req.body || {}, actor: { id: a.id, name: a.name, role: a.role }, ip: req.ip });
+  res.json({ success: true, data });
 }));
 
 export default router;

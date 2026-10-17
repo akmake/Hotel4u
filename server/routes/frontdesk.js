@@ -12,6 +12,7 @@ import {
   roomCandidates, assignRoom, setEta, noShowFromArrivals,
   listQueue, addToQueue, takeQueueOwnership, updateQueueEntry, removeFromQueue, prioritizeHousekeeping,
 } from '../services/frontDeskService.js';
+import { setRoomBilling, setGroupBilling } from '../services/groupBillingService.js';
 
 const router = Router();
 
@@ -60,7 +61,7 @@ const HK_REASON_CODES = new Set(['no_room', 'room_blocked', 'room_occupied', 'ro
 function forHousekeeping(req, row) {
   if (!HK_ROLES.includes(req.actor?.role)) return row;
   const out = { ...row };
-  delete out.guarantee; delete out.company; delete out.specialRequests; delete out.notes; delete out.guestContact; delete out.source;
+  delete out.guarantee; delete out.billing; delete out.company; delete out.specialRequests; delete out.notes; delete out.guestContact; delete out.source;
   if (out.guest) out.guest = { name: out.guest.name, vip: out.guest.vip };
   if (out.readiness) out.readiness = { ...out.readiness, reasons: (out.readiness.reasons || []).filter((r) => HK_REASON_CODES.has(r.code)) };
   return out;
@@ -122,12 +123,24 @@ router.post('/reservations/:id/check-in', handle(async (req) => {
     unitIds: b.unitIds,
     unitIndexes: b.unitIndexes,
     guarantee: b.guarantee,
+    unitGuarantees: b.unitGuarantees,
     override: b.override,
     actor: actorOf(req),
     ip: req.ip,
   });
   emit(propertyId, 'guest.checked_in', { reservationId: result.reservationId, confirmationNumber: result.confirmationNumber, checkedInAt: new Date() }).catch(() => null);
   return result;
+}));
+
+// ── Group billing: who pays each room (booker / the room's guest) ───────────
+router.patch('/reservations/:id/units/:unitIndex/billing', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return setRoomBilling({ propertyId: scope(req), reservationId: req.params.id, unitIndex: req.params.unitIndex, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/reservations/:id/billing', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return setGroupBilling({ propertyId: scope(req), reservationId: req.params.id, mode: req.body?.mode, actor: actorOf(req), ip: req.ip });
 }));
 
 // ── INV-02 ──────────────────────────────────────────────────────────────────

@@ -592,6 +592,40 @@ Every manual charge/payment goes through services/financeService.js + chargeCode
 (/folio/:id/void-line|adjustment|discount|refund|reopen|..., POST /payments, /folio-routing/apply) return 410.
 QA: `npm run qa:books`.
 
+#### Payment details + fiscal documents (FIN-03 details, FIN-06, FIN-10)
+```
+POST /api/pms/finance/folios/:id/payments   body.details per method (financeService.paymentDetails):
+     cash {tendered}→change · credit_card {last4, approval, installments, cardBrand} (never full PAN)
+     bank_transfer {reference, payDate, payerName} · cheque {number, bank, branch, account, dueDate} · voucher {number, issuer}
+     stored on the folio line as `methodRef` (primary ref) + `payDetails`
+GET  /api/pms/finance/folios/:id/documents/context   what can be documented, buyer defaults, seller check, threshold
+POST /api/pms/finance/folios/:id/documents           issue tax_invoice | tax_invoice_receipt | receipt | proforma (idempotencyKey)
+GET  /api/pms/finance/documents?view=all|pending|rejected   list + allocation centre
+PATCH /api/pms/finance/documents/:id/allocation      {allocationNumber: 9 digits} | {rejected, reason}
+GET  /api/pms/finance/documents/:id/print            HTML; first print = original, then copy; pending allocation = marked copy
+```
+Service: `services/documentService.js` (allocationRule: business buyer + VAT > 0 + net strictly above the threshold of the
+issue date — 5,000 from 2026-06-01). Series per property + type in `Property.docSequences`; `Invoice.allocationStatus`
+(not_required|pending|approved|rejected) — status stays 'issued'. Legacy `POST /invoices/folio/:id` returns 410.
+Migration: `node scripts/migrateInvoiceNumberIndex.js` (drops the old global unique invoiceNumber index). QA: `npm run qa:documents`.
+
+#### Fiscal completeness — Tax Authority, open format, reports, cash (see docs/product/fiscal-compliance.md)
+```
+GET|PUT /api/pms/finance/fiscal                 settings: softwareRegNumber, operatorId, emailFrom, allocationMode; series list
+PUT  /api/pms/finance/fiscal/series/:type       first number of a series (only before its first document)
+POST /api/pms/finance/fiscal/ita/connect|disconnect|retry   OAuth to the Tax Authority; GET /api/ita/callback (public, state-checked)
+PATCH /api/pms/finance/documents/:id/allocation  {allocationNumber} | {rejected,reason} | {retry} | {decision: cancel|continue|hearing}
+POST /api/pms/finance/documents/:id/send        e-mail a marked copy
+GET  /api/pms/finance/reports/journal|vat|receipts|undocumented|allocations   GET /reports/workbook (xlsx)
+POST /api/pms/finance/open-format {from,to}     מבנה אחיד 1.31 → { summary, fileName, zipBase64 }
+GET  /api/pms/finance/cash?date, POST /cash/close   cashier drawer close (models/CashierClose.js)
+```
+Services: `taxAuthorityService.js` (ITA Approval v2, decisions, token refresh, retry every 10 min in pmsScheduler),
+`unifiedFileService.js` (+ `utils/zipWriter.js`, iconv ISO-8859-8), `financeReportsService.js`. Tokens sealed by
+`utils/secretBox.js` (TAX_TOKEN_KEY). Env: ITA_CLIENT_ID/SECRET/REDIRECT_URI/ENV, SOFTWARE_VENDOR_ID/NAME.
+Screens: `/pms/fin/reports`, `/pms/admin/fiscal`. QA: `npm run qa:fiscal` — needs the server started with the mock
+(ITA_AUTH_BASE/ITA_API_BASE=http://localhost:4899, EMAIL_USER empty); the suite starts the mock itself.
+
 #### `rooms.js` → `/api/pms/rooms`
 ```
 GET    /                        List rooms (filters: floor, type, opsStatus, cleanStatus, occStatus)

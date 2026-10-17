@@ -4,11 +4,13 @@
 // closed silently — it is paid, moved to the company's receivables within its limit, or left open
 // by a manager with a reason (and stays visible). The server re-checks everything.
 import { useCallback, useEffect, useState } from 'react';
-import { Check, LogOut } from 'lucide-react';
+import { Check, LogOut, FileText } from 'lucide-react';
 import { frontdesk } from '../../utils/api';
-import { PAY_METHOD_LABELS, SETTLEMENT_LABELS } from '../../lib/labels';
+import { PAY_METHOD_LABELS, SETTLEMENT_LABELS, DOC_TYPE_LABELS } from '../../lib/labels';
 import { formatShort } from '../../utils/date';
 import { Modal, Field, Spinner, ErrorBanner, Banner, KeyValues, Tag, money, newOpKey } from '../kit';
+import PaymentMethodFields, { emptyDetails, detailsMissing, detailsPayload } from '../fin/PaymentMethodFields';
+import { IssueDocumentDialog } from '../fin/DocumentDialogs';
 
 const STEPS = [
   { id: 'units', label: 'יחידות ליציאה' },
@@ -32,6 +34,7 @@ export default function CheckOutWizard({ open, propertyId, reservationId, isMana
   const [earlyReason, setEarlyReason] = useState(initialEarlyReason);
   useEffect(() => { if (open) setEarlyReason(initialEarlyReason || ''); }, [open, initialEarlyReason]);
   const [result, setResult] = useState(null);
+  const [docFolio, setDocFolio] = useState(null);
 
   const load = useCallback(async () => {
     if (!reservationId) return null;
@@ -58,12 +61,15 @@ export default function CheckOutWizard({ open, propertyId, reservationId, isMana
   const final = chosen.length > 0 && chosen.length === inHouse.length;
   const early = !!ctx?.reservation?.early;
   const openFolios = (ctx?.folios || []).filter((f) => f.status !== 'closed');
-  const needsSettlement = final ? openFolios.filter((f) => !isZero(f.balance)) : [];
+  // The final departure settles every account; a room that pays for itself settles its own account
+  // when it leaves, while the rest of the group stays.
+  const settlesNow = (f) => final || (!!f.unitId && chosen.some((u) => u.unitId === f.unitId));
+  const needsSettlement = openFolios.filter((f) => settlesNow(f) && !isZero(f.balance));
   const unsettled = needsSettlement.filter((f) => !settle[f.id]?.mode || (settle[f.id].mode === 'approved_open' && (settle[f.id].reason || '').trim().length < 3));
 
   const stepDone = {
     units: chosen.length > 0 && (!early || earlyReason.trim().length >= 3),
-    folios: final ? unsettled.length === 0 : true,
+    folios: unsettled.length === 0,
     confirm: !!result,
   };
 
@@ -88,6 +94,13 @@ export default function CheckOutWizard({ open, propertyId, reservationId, isMana
             <Banner tone="warn">
               {result.openFolios.length} {result.openFolios.length === 1 ? 'חשבון נשאר פתוח' : 'חשבונות נשארו פתוחים'} — מופיעים ברשימת העזיבות עם הסיבה ומי אישר.
             </Banner>
+          )}
+          {ctx.folios?.length > 0 && (
+            <div className="ui-row" style={{ justifyContent: 'center' }}>
+              {ctx.folios.map((f) => (
+                <button key={f.id} type="button" className="btn btn-secondary btn-sm" onClick={() => setDocFolio(f)}><FileText size={14} />חשבונית / קבלה{ctx.folios.length > 1 ? ` · ${f.ownerLabel}` : ''}</button>
+              ))}
+            </div>
           )}
           <div className="ui-step-foot"><button type="button" className="btn btn-primary" onClick={onDone}>חזרה לעזיבות</button></div>
         </div>
@@ -128,7 +141,7 @@ export default function CheckOutWizard({ open, propertyId, reservationId, isMana
                     );
                   })}
                 </div>
-                {!final && chosen.length > 0 && <Banner tone="info">יציאה חלקית: החשבונות המשותפים נשארים פתוחים עד שהיחידה האחרונה יוצאת. החדרים שיוצאים עוברים לניקיון.</Banner>}
+                {!final && chosen.length > 0 && <Banner tone="info">יציאה חלקית: חשבון המזמין נשאר פתוח עד שהחדר האחרון יוצא. חדר שהאורח בו משלם בעצמו סוגר את החשבון שלו עכשיו. החדרים שיוצאים עוברים לניקיון.</Banner>}
                 {early && (
                   <div className="ui-sub-card">
                     <Banner tone="warn">עזיבה לפני מועד היציאה ({formatShort(ctx.reservation.departureDate)}). הלילות שלא נוצלו יחזרו למלאי. לילות שכבר חויבו נשארים בחשבון — החזר או זיכוי הם פעולה כספית נפרדת.</Banner>
@@ -141,7 +154,7 @@ export default function CheckOutWizard({ open, propertyId, reservationId, isMana
               </div>
             )}
             {step === 'folios' && (
-              <FoliosStep ctx={ctx} propertyId={propertyId} reload={load} final={final} settle={settle} setSettle={setSettle} isManager={isManager} canRefund={canRefund} onNext={() => setStep('confirm')} />
+              <FoliosStep ctx={ctx} propertyId={propertyId} reload={load} final={final} settlesNow={settlesNow} settle={settle} setSettle={setSettle} isManager={isManager} canRefund={canRefund} onIssue={setDocFolio} onNext={() => setStep('confirm')} />
             )}
             {step === 'confirm' && (
               <ConfirmStep
@@ -162,11 +175,12 @@ export default function CheckOutWizard({ open, propertyId, reservationId, isMana
           </section>
         </div>
       )}
+      <IssueDocumentDialog open={!!docFolio} onClose={() => setDocFolio(null)} propertyId={propertyId} folioId={docFolio?.id} subtitle={docFolio ? `${ctx?.reservation?.confirmationNumber || ''} · ${docFolio.ownerLabel}` : ''} onIssued={() => { if (!result) load(); }} />
     </Modal>
   );
 }
 
-function FoliosStep({ ctx, propertyId, reload, final, settle, setSettle, isManager, canRefund, onNext }) {
+function FoliosStep({ ctx, propertyId, reload, final, settlesNow, settle, setSettle, isManager, canRefund, onIssue, onNext }) {
   const folios = ctx.folios;
   return (
     <div className="ui-stack">
@@ -180,18 +194,19 @@ function FoliosStep({ ctx, propertyId, reload, final, settle, setSettle, isManag
           ctx={ctx}
           propertyId={propertyId}
           reload={reload}
-          final={final}
+          final={settlesNow ? settlesNow(f) : final}
           value={settle[f.id]}
           onChange={(v) => setSettle((s) => ({ ...s, [f.id]: v }))}
           isManager={isManager}
           canRefund={canRefund}
+          onIssue={onIssue}
         />
       ))}
       {ctx.documents?.length > 0 && (
         <div>
           <div className="ui-section-title">מסמכים שהופקו</div>
           <div className="ui-row">
-            {ctx.documents.map((d) => <Tag key={d.id} tone={d.status === 'issued' ? undefined : 'warn'}>{d.number || 'טיוטה'} · {d.status === 'issued' ? 'הונפק' : d.status === 'draft' ? 'טיוטה' : 'ממתין להקצאה'}</Tag>)}
+            {ctx.documents.map((d) => <Tag key={d.id} tone={d.allocation === 'pending' || d.allocation === 'rejected' ? 'warn' : undefined}>{DOC_TYPE_LABELS[d.type] || d.type} {d.number || ''}{d.allocation === 'pending' ? ' · ממתין למספר הקצאה' : d.allocation === 'rejected' ? ' · הקצאה סורבה' : ''}</Tag>)}
           </div>
         </div>
       )}
@@ -200,9 +215,10 @@ function FoliosStep({ ctx, propertyId, reload, final, settle, setSettle, isManag
   );
 }
 
-function FolioCard({ folio, ctx, propertyId, reload, final, value, onChange, isManager, canRefund }) {
+function FolioCard({ folio, ctx, propertyId, reload, final, value, onChange, isManager, canRefund, onIssue }) {
   const [pay, setPay] = useState({ amount: '', method: 'cash', ref: '', key: newOpKey() });
-  const needsRef = ['bank_transfer', 'cheque', 'voucher'].includes(pay.method);
+  const [payDetails, setPayDetails] = useState(emptyDetails('cash'));
+  const payMissing = detailsMissing(pay.method, payDetails, Number(pay.amount));
   const [refund, setRefund] = useState({ amount: '', method: 'cash', reason: '', key: newOpKey() });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -214,9 +230,10 @@ function FolioCard({ folio, ctx, propertyId, reload, final, value, onChange, isM
   async function doPay() {
     setBusy(true); setError(null); setNotice(null);
     try {
-      await frontdesk.payFolio(propertyId, folio.id, { amount: Number(pay.amount), method: pay.method, methodRef: pay.ref.trim() || undefined, idempotencyKey: pay.key });
-      setNotice(`נרשם תשלום ${money(pay.amount)}`);
+      const out = await frontdesk.payFolio(propertyId, folio.id, { amount: Number(pay.amount), method: pay.method, details: detailsPayload(pay.method, payDetails), idempotencyKey: pay.key });
+      setNotice(`נרשם תשלום ${money(pay.amount)}${out?.change ? ` · עודף לאורח ${money(out.change)}` : ''}`);
       setPay({ amount: '', method: pay.method, ref: '', key: newOpKey() });
+      setPayDetails(emptyDetails(pay.method));
       await reload();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
@@ -283,17 +300,25 @@ function FolioCard({ folio, ctx, propertyId, reload, final, value, onChange, isM
             <input id={`pay-${folio.id}`} type="number" min={0.01} step={0.01} className="input" style={{ width: 130 }} placeholder={payable.toFixed(2)} value={pay.amount} onChange={(e) => setPay((p) => ({ ...p, amount: e.target.value }))} />
           </Field>
           <Field id={`paym-${folio.id}`} label="אמצעי">
-            <select id={`paym-${folio.id}`} className="select" value={pay.method} onChange={(e) => setPay((p) => ({ ...p, method: e.target.value }))}>
+            <select id={`paym-${folio.id}`} className="select" value={pay.method} onChange={(e) => { setPay((p) => ({ ...p, method: e.target.value })); setPayDetails(emptyDetails(e.target.value)); }}>
               {Object.entries(PAY_METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Field>
-          {needsRef && (
-            <Field id={`payr-${folio.id}`} label="אסמכתה">
-              <input id={`payr-${folio.id}`} className="input" style={{ width: 150 }} maxLength={80} value={pay.ref} onChange={(e) => setPay((p) => ({ ...p, ref: e.target.value }))} placeholder="מספר העברה / שיק / שובר" />
-            </Field>
-          )}
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPay((p) => ({ ...p, amount: payable.toFixed(2) }))}>מלוא היתרה</button>
-          <button type="button" className="btn btn-primary btn-sm" disabled={busy || !(Number(pay.amount) > 0) || (needsRef && pay.ref.trim().length < 2)} title={needsRef && pay.ref.trim().length < 2 ? 'נדרשת אסמכתה' : undefined} onClick={doPay}>{busy ? <Spinner /> : 'רישום תשלום'}</button>
+          <button type="button" className="btn btn-primary btn-sm" disabled={busy || !(Number(pay.amount) > 0) || !!payMissing} title={payMissing || undefined} onClick={doPay}>{busy ? <Spinner /> : 'רישום תשלום'}</button>
+        </div>
+      )}
+      {!closed && payable > 0.005 && (pay.method !== 'cash' || Number(pay.amount) > 0) && (
+        <PaymentMethodFields idPrefix={`payd-${folio.id}`} method={pay.method} amount={Number(pay.amount)} value={payDetails} onChange={setPayDetails} />
+      )}
+
+      {(folio.undocumented?.charges > 0.005 || folio.undocumented?.payments > 0.005) && (
+        <div className="ui-row" style={{ alignItems: 'center' }}>
+          <span className="ui-sub">
+            ללא מסמך:{folio.undocumented.charges > 0.005 ? ` חיובים ${money(folio.undocumented.charges)} בלי חשבונית` : ''}{folio.undocumented.charges > 0.005 && folio.undocumented.payments > 0.005 ? ' ·' : ''}{folio.undocumented.payments > 0.005 ? ` תקבולים ${money(folio.undocumented.payments)} בלי קבלה` : ''}
+            {folio.pendingNights?.count ? ' (לילות שטרם נרשמו ייכנסו לחשבונית אחרי היציאה)' : ''}
+          </span>
+          {onIssue && <button type="button" className="btn btn-secondary btn-sm" onClick={() => onIssue(folio)}><FileText size={14} />הפקת מסמך</button>}
         </div>
       )}
 

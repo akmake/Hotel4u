@@ -350,3 +350,31 @@ nav.ui-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .ck-confirm .ui-issues li::before { display: none; }
 .ck-confirm .ui-issues ul { border: 0; margin-top: 0; }
 .ck-confirm .ui-issues li { border-bottom: 1px solid rgb(var(--border)); }
+
+/* Check-in: guarantees of rooms whose guest pays for themselves */
+.ck-roomg { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.ck-roomg-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid rgb(var(--border)); border-inline-start: 3px solid rgb(var(--warning)); border-radius: var(--radius-lg); background: rgb(var(--bg-content)); }
+.ck-roomg-row.is-ok { border-inline-start-color: rgb(var(--success)); }
+.ck-roomg-head { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.ck-roomg-head span { color: rgb(var(--fg-muted)); }
+.ck-roomg-row.is-ok .ck-roomg-head span { color: rgb(21 128 61); }
+.ck-roomg-fields { display: flex; gap: 8px; flex-wrap: wrap; }
+.ck-roomg-fields .select { width: 220px; } .ck-roomg-fields .input { width: 180px; }
+
+/* FIN-03 payment method details (PaymentMethodFields) */
+.pm-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px 12px; align-items: end; }
+.pm-change { align-self: end; padding: 7px 10px; border-radius: var(--radius); background: rgb(var(--success) / .07); border: 1px solid rgb(var(--success) / .25); color: rgb(21 101 52); font-size: 13px; }
+.pm-change.is-bad { background: rgb(var(--danger) / .06); border-color: rgb(var(--danger) / .25); color: rgb(153 27 27); }
+.pm-note { grid-column: 1 / -1; font-size: 12px; color: rgb(var(--fg-muted)); margin: 0; }
+
+/* FIN-06 documents (DocumentDialogs) */
+.doc-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.doc-type { text-align: start; padding: 10px 12px; border: 1px solid rgb(var(--border)); border-radius: var(--radius); background: rgb(var(--bg-elevated)); cursor: pointer; }
+.doc-type b { display: block; font-size: 13px; }
+.doc-type small { display: block; font-size: 11px; color: rgb(var(--fg-muted)); margin-top: 2px; }
+.doc-type.is-on { border-color: rgb(var(--accent-600)); box-shadow: 0 0 0 1px rgb(var(--accent-600)); background: rgb(var(--accent-50)); }
+.doc-type:disabled { opacity: .55; cursor: not-allowed; }
+.doc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.doc-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgb(var(--border)); }
+.doc-list li:last-child { border-bottom: 0; }
+.doc-acts { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; }

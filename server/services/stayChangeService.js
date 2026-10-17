@@ -17,7 +17,7 @@ import StaySegment from '../models/StaySegment.js';
 import Room from '../models/Room.js';
 import RoomType from '../models/RoomType.js';
 import Folio from '../models/Folio.js';
-import Invoice from '../models/Invoice.js';
+import Invoice, { CHARGE_DOC_TYPES } from '../models/Invoice.js';
 import Property from '../models/Property.js';
 import HousekeepingTask from '../models/HousekeepingTask.js';
 import { audit } from './auditService.js';
@@ -65,7 +65,7 @@ async function loadRes(propertyId, id) {
 }
 
 async function issuedDocs(resId) {
-  return Invoice.find({ reservation: resId, status: 'issued', type: { $ne: 'credit_note' } }).select('invoiceNumber totalGross').lean();
+  return Invoice.find({ reservation: resId, status: 'issued', type: { $in: CHARGE_DOC_TYPES } }).select('invoiceNumber totalGross').lean();
 }
 
 async function inHouseUnit(res, unitId, fromRoomId) {

@@ -10,11 +10,20 @@ import { GUARANTEE_LABELS, ID_DOC_LABELS, cleanLabel, opsLabel } from '../../lib
 import { countryOptions } from '../../lib/countries';
 import { formatShort } from '../../utils/date';
 import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, newOpKey } from '../kit';
+import PaymentMethodFields, { emptyDetails, detailsMissing, detailsPayload } from '../fin/PaymentMethodFields';
 import SignaturePad from './SignaturePad';
+
+// Group billing: a room whose guest pays for anything needs its own guarantee.
+const paysSelf = (u) => u?.billing?.roomPayer === 'guest' || u?.billing?.extrasPayer === 'guest';
+const payerText = (u) => (!u?.billing ? null
+  : u.billing.roomPayer === 'guest' ? `האורח משלם הכל${u.billing.occupantName ? ` (${u.billing.occupantName})` : ''}`
+    : u.billing.extrasPayer === 'guest' ? 'חדר על המזמין, נלוות על האורח' : 'על חשבון המזמין');
+const roomGuaranteeValid = (g) => !!g?.method && (g.method === 'deposit' ? false : String(g.reference || '').trim().length >= 4);
+const roomCovered = (u, g) => !!u?.guarantee?.ok || roomGuaranteeValid(g);
 
 const money = (n, cur = 'ILS') => new Intl.NumberFormat('he-IL', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(Number(n || 0));
 
-export default function CheckInWizard({ open, propertyId, reservationId, isManager, onClose, onDone, onAssign, onQueue }) {
+export default function CheckInWizard({ open, propertyId, reservationId, initialUnits, isManager, onClose, onDone, onAssign, onQueue }) {
   const [ctx, setCtx] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -22,6 +31,8 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
   const [result, setResult] = useState(null);
   const [method, setMethod] = useState(''); // guarantee method; sent with the final confirmation
   const [guaranteeRef, setGuaranteeRef] = useState('');
+  const [roomGuarantees, setRoomGuarantees] = useState({}); // unitIndex → { method, reference }
+  const setRoomGuarantee = (index, patch) => setRoomGuarantees((m) => ({ ...m, [index]: { ...(m[index] || {}), ...patch } }));
   // Registration input lives here so moving between steps never loses what was typed.
   const [regDraft, setRegDraft] = useState(null);
 
@@ -42,17 +53,20 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
 
   useEffect(() => {
     if (!open) return;
-    setCtx(null); setOpenSec(undefined); setResult(null); setMethod(''); setGuaranteeRef(''); setRegDraft(null);
+    setCtx(null); setOpenSec(undefined); setResult(null); setMethod(''); setGuaranteeRef(''); setRoomGuarantees({}); setRegDraft(null);
     load().then((data) => {
       if (!data) return;
       setMethod(data.reservation.guaranteeType && data.reservation.guaranteeType !== 'none' ? data.reservation.guaranteeType : '');
       const open_ = data.units.filter((u) => !['checked_in'].includes(u.readiness.state));
       // Pre-select units that are ready; a single unit is always pre-selected.
-      const pre = open_.length === 1 ? open_ : open_.filter((u) => u.readiness.state === 'ready');
+      const pre = Array.isArray(initialUnits)
+        ? open_.filter((u) => initialUnits.includes(u.index))
+        : open_.length === 1 ? open_ : open_.filter((u) => u.readiness.state === 'ready');
       // Units are selected by their position: stable even before unit records exist on the server.
       setSelected(pre.map((u) => u.index));
     });
-  }, [open, load]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, load, Array.isArray(initialUnits) ? initialUnits.join(',') : '*']);
 
   const units = ctx?.units || [];
   const openUnits = units.filter((u) => u.readiness.state !== 'checked_in');
@@ -68,7 +82,10 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
   // Sections, not pages: everything is on one screen; the first thing that needs the desk is open.
   const unitsOk = chosen.length > 0 && chosen.every((u) => u.readiness.state === 'ready' || u.readiness.reasons.every((r) => r.code === 'guarantee'));
   const regOk = regDone || !ctx?.policy?.requireRegistration;
-  const guaranteeDone = guaranteeOk || !ctx?.policy?.requireGuarantee;
+  const chosenSelf = chosen.filter(paysSelf);
+  const chosenBooker = chosen.filter((u) => !paysSelf(u));
+  const guaranteeDone = (chosenBooker.length === 0 || guaranteeOk || !ctx?.policy?.requireGuarantee)
+    && chosenSelf.every((u) => roomCovered(u, roomGuarantees[u.index]) || !ctx?.policy?.requireGuarantee);
   const stepDone = { units: unitsOk, registration: regOk, guarantee: guaranteeDone };
   const firstOpen = ['units', 'registration', 'guarantee'].find((id) => !stepDone[id]) || null;
   const [openSec, setOpenSec] = useState(undefined); // undefined = not chosen by the user yet
@@ -81,7 +98,9 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
       ? chosen.map((u) => (u.room ? `חדר ${u.room.number}` : `יחידה ${u.index} ללא חדר`)).join(' · ') + (unitsOk ? ' · מוכן' : ' · דורש טיפול')
       : 'לא נבחר חדר',
     registration: regDone ? (ctx.registration.status === 'signed' ? 'נחתם' : 'נשמר') : ctx.policy.requireRegistration ? 'נדרש לפני צ׳ק-אין' : 'לא נדרש',
-    guarantee: `${ctx.guarantee.label} · התקבל ${money(ctx.guarantee.paid, ctx.reservation.currency)} מתוך ${money(ctx.guarantee.total, ctx.reservation.currency)}`,
+    guarantee: chosenBooker.length === 0 && chosenSelf.length
+      ? `${chosenSelf.filter((u) => roomCovered(u, roomGuarantees[u.index])).length}/${chosenSelf.length} חדרים עם ערבות משלהם`
+      : `${ctx.guarantee.label} · התקבל ${money(ctx.guarantee.paid, ctx.reservation.currency)} מתוך ${money(ctx.guarantee.total, ctx.reservation.currency)}${chosenSelf.length ? ` · ${chosenSelf.length} חדרים משלמים בעצמם` : ''}`,
   } : {};
   const SECTIONS = [
     { id: 'units', label: 'חדר' },
@@ -135,7 +154,7 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
                       <RegistrationStep ctx={ctx} propertyId={propertyId} reload={load} draft={regDraft} setDraft={setRegDraft} onNext={() => next('guarantee')} />
                     )}
                     {sec.id === 'guarantee' && (
-                      <GuaranteeStep ctx={ctx} propertyId={propertyId} reload={load} method={method} setMethod={setMethod} reference={guaranteeRef} setReference={setGuaranteeRef} onNext={() => next(null)} />
+                      <GuaranteeStep ctx={ctx} propertyId={propertyId} reload={load} method={method} setMethod={setMethod} reference={guaranteeRef} setReference={setGuaranteeRef} chosenSelf={chosenSelf} chosenBooker={chosenBooker} roomGuarantees={roomGuarantees} setRoomGuarantee={setRoomGuarantee} onNext={() => next(null)} />
                     )}
                   </div>
                 )}
@@ -146,6 +165,9 @@ export default function CheckInWizard({ open, propertyId, reservationId, isManag
           <ConfirmStep
             ctx={ctx}
             chosen={chosen}
+            chosenSelf={chosenSelf}
+            chosenBooker={chosenBooker}
+            roomGuarantees={roomGuarantees}
             method={method}
             guaranteeRef={guaranteeRef}
             isManager={isManager}
@@ -190,6 +212,7 @@ function UnitsStep({ ctx, selected, setSelected, onAssign, onQueue, onNext }) {
                 <div className="ck-unit-tags">
                   {u.room && <span className={`ck-tag ${['clean', 'inspected'].includes(u.room.cleanStatus) ? 'is-ok' : 'is-warn'}`}>{cleanLabel(u.room.cleanStatus)}</span>}
                   {u.room && <span className={`ck-tag ${u.room.opsStatus === 'available' ? 'is-ok' : 'is-warn'}`}>{opsLabel(u.room.opsStatus)}</span>}
+                  {multi && payerText(u) && <span className={`ck-tag ${paysSelf(u) ? 'is-warn' : ''}`}>{payerText(u)}</span>}
                   {u.queue && <span className="ck-tag">בתור מאז {new Date(u.queue.arrivedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>}
                 </div>
               </div>
@@ -427,14 +450,22 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
 }
 
 // ── Step 3: guarantee (FIN-03, manual methods only) ─────────────────────────
-function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, setReference, onNext }) {
+function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, setReference, chosenSelf = [], chosenBooker = [], roomGuarantees = {}, setRoomGuarantee, onNext }) {
   const g = ctx.guarantee;
   const hasCompany = !!ctx.reservation.company;
-  const [dep, setDep] = useState({ amount: '', method: 'cash', methodRef: '' });
+  const [dep, setDep] = useState({ amount: '', method: 'cash', methodRef: '', account: '' });
+  const [depDetails, setDepDetails] = useState(emptyDetails('cash'));
+  // Deposits can go to the booker's account or to a self-paying room's own account.
+  const depAccounts = [
+    ...(chosenBooker.length || !chosenSelf.length ? [{ id: ctx.reservation.folioId || '', label: 'חשבון המזמין' }] : []),
+    ...chosenSelf.map((u) => ({ id: u.folioId || '', label: `חשבון ${u.room ? `חדר ${u.room.number}` : `יחידה ${u.index}`}${u.billing?.occupantName ? ` · ${u.billing.occupantName}` : ''}` })),
+  ];
+  const depTarget = depAccounts.find((a) => a.id === dep.account) || depAccounts[0];
   const [depKey, setDepKey] = useState(newOpKey());
   const { payments: methods } = useChargeCodes(propertyId);
   const depMethods = methods.filter((m) => m.active);
-  const depNeedRef = !!depMethods.find((m) => m.code === dep.method)?.requireReference;
+  const depNeedRef = dep.method === 'cash' && !!depMethods.find((m) => m.code === 'cash')?.requireReference;
+  const depMissing = detailsMissing(dep.method, depDetails, Number(dep.amount));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -442,13 +473,14 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, 
   async function recordDeposit() {
     setSaving(true); setError(null); setNotice(null);
     try {
-      if (!ctx.reservation.folioId) throw new Error('אין חשבון פתוח להזמנה — לא ניתן לרשום מקדמה');
+      const folioId = depTarget?.id || (await finance.ensureFolio(propertyId, ctx.reservation.id)).folioId;
       // FIN-03 gate: deposit up to the stay cost, active method, reference when required, one post per key.
-      await finance.pay(propertyId, ctx.reservation.folioId, { kind: 'deposit', amount: Number(dep.amount), method: dep.method, methodRef: dep.methodRef?.trim() || undefined, idempotencyKey: depKey });
+      const out = await finance.pay(propertyId, folioId, { kind: 'deposit', amount: Number(dep.amount), method: dep.method, details: detailsPayload(dep.method, depDetails), methodRef: depNeedRef ? dep.methodRef?.trim() : undefined, idempotencyKey: depKey });
       setDep((d) => ({ ...d, amount: '', methodRef: '' }));
+      setDepDetails(emptyDetails(dep.method));
       setDepKey(newOpKey());
-      setNotice(`נרשמה מקדמה של ${money(dep.amount, ctx.reservation.currency)}`);
-      setMethod('deposit');
+      setNotice(`נרשמה מקדמה של ${money(dep.amount, ctx.reservation.currency)}${out?.change ? ` · עודף לאורח ${money(out.change, ctx.reservation.currency)}` : ''}`);
+      if (!chosenSelf.some((u) => u.folioId === folioId)) setMethod('deposit');
       await reload();
     } catch (e) {
       setError(e.message);
@@ -460,6 +492,8 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, 
   return (
     <div>
       <h3 className="ui-h3">ערבות ותשלום</h3>
+      {chosenBooker.length > 0 && <>
+      {chosenSelf.length > 0 && <div className="ui-label">ערבות המזמין — לחדרים שעל חשבונו</div>}
       <div className="ui-summary">
         <div className="ui-sum-row"><span>מצב נוכחי</span><strong className={g.ok ? 'text-[rgb(21_128_61)]' : 'text-[rgb(180_83_9)]'}>{g.label}</strong></div>
         <div className="ui-sum-row"><span>סכום ההזמנה</span><strong>{money(g.total, ctx.reservation.currency)}</strong></div>
@@ -494,17 +528,56 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, 
           <input id="g-ref" className="input" dir="ltr" style={{ width: 220 }} maxLength={40} autoComplete="off" value={reference} onChange={(e) => setReference(e.target.value.replace(/\s+/g, ''))} />
         </Field>
       )}
+      </>}
+
+      {chosenSelf.length > 0 && (
+        <div className="ck-roomg">
+          <div className="ui-label">ערבות לחדרים שהאורח משלם בעצמו</div>
+          {chosenSelf.map((u) => {
+            const g = roomGuarantees[u.index] || {};
+            const covered = roomCovered(u, g);
+            return (
+              <div key={u.index} className={`ck-roomg-row ${covered ? 'is-ok' : ''}`}>
+                <div className="ck-roomg-head">
+                  <b>{u.room ? `חדר ${u.room.number}` : `יחידה ${u.index}`}{u.billing?.occupantName ? ` · ${u.billing.occupantName}` : ''}</b>
+                  <span>{u.guarantee?.ok ? u.guarantee.label : covered ? 'ערבות תירשם עם הצ׳ק-אין' : u.guarantee?.label || 'אין ערבות לחדר'}</span>
+                </div>
+                {!u.guarantee?.ok && (
+                  <div className="ck-roomg-fields">
+                    <select className="select" value={g.method || ''} onChange={(e) => setRoomGuarantee(u.index, { method: e.target.value })} aria-label="שיטת ערבות לחדר">
+                      <option value="">בחירת שיטה…</option>
+                      <option value="credit_card">{GUARANTEE_LABELS.credit_card}</option>
+                      <option value="voucher">{GUARANTEE_LABELS.voucher}</option>
+                      <option value="deposit">{GUARANTEE_LABELS.deposit} (לרשום למטה)</option>
+                    </select>
+                    {['credit_card', 'voucher'].includes(g.method) && (
+                      <input className="input" dir="ltr" maxLength={40} autoComplete="off" placeholder={g.method === 'credit_card' ? '4 ספרות / מס׳ אישור' : 'מספר השובר'} value={g.reference || ''} onChange={(e) => setRoomGuarantee(u.index, { reference: e.target.value.replace(/\s+/g, '') })} />
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="ui-sub-card">
         <div className="ui-label">רישום מקדמה שהתקבלה בדלפק</div>
         <ErrorBanner error={error} />
         {notice && <div className="ui-banner is-ok" role="status">{notice}</div>}
         <div className="flex gap-2 items-end flex-wrap">
+          {depAccounts.length > 1 && (
+            <Field id="dep-acc" label="לחשבון">
+              <select id="dep-acc" className="select" style={{ width: 200 }} value={depTarget?.id || ''} onChange={(e) => setDep((d) => ({ ...d, account: e.target.value }))}>
+                {depAccounts.map((a) => <option key={a.label} value={a.id}>{a.label}</option>)}
+              </select>
+            </Field>
+          )}
           <Field id="dep-amount" label="סכום">
             <input id="dep-amount" type="number" min={1} step={1} className="input" style={{ width: 140 }} value={dep.amount} onChange={(e) => setDep((d) => ({ ...d, amount: e.target.value }))} />
           </Field>
           <Field id="dep-method" label="אמצעי">
-            <select id="dep-method" className="select" style={{ width: 160 }} value={dep.method} onChange={(e) => setDep((d) => ({ ...d, method: e.target.value }))}>
+            <select id="dep-method" className="select" style={{ width: 160 }} value={dep.method} onChange={(e) => { setDep((d) => ({ ...d, method: e.target.value })); setDepDetails(emptyDetails(e.target.value)); }}>
               {(depMethods.length ? depMethods.map((m) => [m.code, m.name]) : [['cash', 'מזומן'], ['credit_card', 'כרטיס אשראי (מסוף חיצוני)'], ['bank_transfer', 'העברה בנקאית']]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Field>
@@ -513,10 +586,13 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, 
               <input id="dep-ref" className="input" dir="ltr" style={{ width: 160 }} maxLength={80} value={dep.methodRef} onChange={(e) => setDep((d) => ({ ...d, methodRef: e.target.value }))} />
             </Field>
           )}
-          <button type="button" className="btn btn-secondary mb-[2px]" onClick={recordDeposit} disabled={saving || !(Number(dep.amount) > 0) || (depNeedRef && dep.methodRef.trim().length < 2)}>
+          <button type="button" className="btn btn-secondary mb-[2px]" onClick={recordDeposit} disabled={saving || !(Number(dep.amount) > 0) || !!depMissing || (depNeedRef && dep.methodRef.trim().length < 2)} title={depMissing || undefined}>
             {saving ? <><Spinner /> רושם…</> : 'רישום מקדמה'}
           </button>
         </div>
+        {dep.method !== 'cash' || Number(dep.amount) > 0 ? (
+          <div className="mt-2"><PaymentMethodFields idPrefix="dep" method={dep.method} amount={Number(dep.amount)} value={depDetails} onChange={setDepDetails} /></div>
+        ) : null}
       </div>
 
       <div className="ui-step-foot">
@@ -527,7 +603,7 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, 
 }
 
 // ── Step 4: summary & confirm ───────────────────────────────────────────────
-function ConfirmStep({ ctx, chosen, method, guaranteeRef, isManager, propertyId, reload, goTo, onSuccess }) {
+function ConfirmStep({ ctx, chosen, chosenSelf = [], chosenBooker = [], roomGuarantees = {}, method, guaranteeRef, isManager, propertyId, reload, goTo, onSuccess }) {
   const [override, setOverride] = useState(false);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -548,9 +624,19 @@ function ConfirmStep({ ctx, chosen, method, guaranteeRef, isManager, propertyId,
   // The guest register is a legal record — no override replaces it.
   if (policy.requireRegistration && !ctx.registration) issues.push({ text: 'לא נשמר רישום אורח', step: 'registration', hard: true });
   const refOk = String(guaranteeRef || '').trim().length >= 4;
-  if (['credit_card', 'voucher'].includes(method) && !refOk) issues.push({ text: method === 'voucher' ? 'חסר מספר שובר' : 'חסרה אסמכתת כרטיס', step: 'guarantee', hard: true });
-  const guaranteeWillBeOk = ctx.guarantee.ok || (['credit_card', 'voucher'].includes(method) && refOk) || (method === 'company_guarantee' && ctx.reservation.company);
-  if (policy.requireGuarantee && !guaranteeWillBeOk) issues.push({ text: method === 'deposit' ? 'לא התקבלה מקדמה' : 'לא נבחרה שיטת ערבות', step: 'guarantee' });
+  // The guarantee already on the booking (e.g. a card taken at reservation) needs no new reference.
+  const keepsExisting = ctx.guarantee.ok && method === ctx.reservation.guaranteeType && !refOk;
+  if (chosenBooker.length) {
+    if (['credit_card', 'voucher'].includes(method) && !refOk && !keepsExisting) issues.push({ text: method === 'voucher' ? 'חסר מספר שובר' : 'חסרה אסמכתת כרטיס', step: 'guarantee', hard: true });
+    const guaranteeWillBeOk = ctx.guarantee.ok || (['credit_card', 'voucher'].includes(method) && refOk) || (method === 'company_guarantee' && ctx.reservation.company);
+    if (policy.requireGuarantee && !guaranteeWillBeOk) issues.push({ text: method === 'deposit' ? 'לא התקבלה מקדמה' : 'לא נבחרה שיטת ערבות', step: 'guarantee' });
+  }
+  for (const u of chosenSelf) {
+    const g = roomGuarantees[u.index];
+    const label = u.room ? `חדר ${u.room.number}` : `יחידה ${u.index}`;
+    if (['credit_card', 'voucher'].includes(g?.method) && String(g.reference || '').trim().length < 4) issues.push({ text: `${label}: חסרה אסמכתה לערבות החדר`, step: 'guarantee', hard: true });
+    else if (policy.requireGuarantee && !roomCovered(u, g)) issues.push({ text: `${label}: אין ערבות לחדר (האורח משלם בעצמו)`, step: 'guarantee' });
+  }
 
   const hardIssues = issues.filter((i) => i.hard);
   const softIssues = issues.filter((i) => !i.hard);
@@ -565,7 +651,8 @@ function ConfirmStep({ ctx, chosen, method, guaranteeRef, isManager, propertyId,
       const out = await frontdesk.checkIn(propertyId, ctx.reservation.id, {
         unitIds: chosen.map((u) => u.unitId).filter(Boolean),
         unitIndexes: chosen.map((u) => u.index),
-        guarantee: method ? { method, reference: guaranteeRef || undefined } : undefined,
+        guarantee: method && chosenBooker.length && !keepsExisting ? { method, reference: guaranteeRef || undefined } : undefined,
+        unitGuarantees: chosenSelf.filter((u) => roomGuaranteeValid(roomGuarantees[u.index])).map((u) => ({ unitIndex: u.index, unitId: u.unitId || undefined, method: roomGuarantees[u.index].method, reference: roomGuarantees[u.index].reference })),
         override: override ? { enabled: true, reason } : undefined,
       });
       onSuccess(out);

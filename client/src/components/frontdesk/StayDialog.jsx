@@ -1,12 +1,14 @@
 // Reservation details for the desk, as a proper dialog: the stay, the room (with its state), the
 // money, the guest and every note on one screen — and the next action (check-in / check-out).
 import { useEffect, useState } from 'react';
-import { LogIn, LogOut, Moon, User, Baby, Mail, Phone, Banknote, Check } from 'lucide-react';
+import { LogIn, LogOut, Moon, User, Baby, Mail, Phone, Banknote, Check, FileText } from 'lucide-react';
 import { reservations as resApi, finance } from '../../utils/api';
 import { useChargeCodes } from '../../hooks/useChargeCodes';
 import { cleanLabel, opsLabel } from '../../lib/labels';
 import { formatShort } from '../../utils/date';
 import { Modal, Spinner, ErrorBanner, newOpKey } from '../kit';
+import PaymentMethodFields, { emptyDetails, detailsMissing, detailsPayload } from '../fin/PaymentMethodFields';
+import { IssueDocumentDialog } from '../fin/DocumentDialogs';
 
 const money = (n) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(Number(n || 0));
 const STATUS = {
@@ -29,6 +31,8 @@ function PaymentCard({ res, propertyId, total, onChanged }) {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('cash');
   const [ref, setRef] = useState('');
+  const [details, setDetails] = useState(emptyDetails('cash'));
+  const [docFor, setDocFor] = useState(null);
   const [key, setKey] = useState(newOpKey());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -40,25 +44,33 @@ function PaymentCard({ res, propertyId, total, onChanged }) {
   const load = () => finance.stay(propertyId, res._id).then(setStay).catch(() => setStay(null));
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [res._id]);
 
-  const windows = stay?.windows || [];
-  const target = windows.find((w) => w.status !== 'closed' && w.ownerType === 'guest') || windows.find((w) => w.status !== 'closed');
+  const windows = stay?.folios || [];
+  // A group may have several accounts: the booker's and rooms that pay for themselves.
+  const accounts = windows.filter((w) => w.status !== 'closed');
+  const [accountId, setAccountId] = useState(null);
+  const fallback = accounts.find((w) => w.ownerType === 'guest') || accounts[0];
+  const target = accounts.find((w) => w.id === accountId) || fallback;
   const paid = windows.reduce((a, w) => a + Number(w.totals?.payments || 0), 0);
   const balance = Math.max(0, Number(target?.balance || 0));
   const remaining = Math.max(0, Number(total || 0) - paid);
-  const suggested = Math.round((balance > 0.005 ? balance : remaining) * 100) / 100;
-  const needRef = !!methods.find((m) => m.code === method)?.requireReference;
+  const suggested = Math.round((balance > 0.005 ? balance : accounts.length > 1 ? 0 : remaining) * 100) / 100;
+  // Transfer / card / cheque / voucher details come from PaymentMethodFields; a catalogue may also
+  // ask for a reference on cash (e.g. a cash-register slip).
+  const needRef = method === 'cash' && !!methods.find((m) => m.code === 'cash')?.requireReference;
+  const missing = detailsMissing(method, details, Number(amount));
   const closedStay = ['cancelled', 'no_show', 'checked_out'].includes(res.status) && !target;
 
-  const startOpen = () => { setAmount(String(suggested || '')); setError(null); setFields({}); setDone(null); setOpen(true); };
+  const startOpen = () => { setAmount(String(suggested || '')); setDetails(emptyDetails(method)); setError(null); setFields({}); setDone(null); setOpen(true); };
 
   async function submit() {
     setSaving(true); setError(null); setFields({});
     try {
       const amt = Number(amount);
       const kind = balance > 0.005 && amt <= balance + 0.005 ? 'payment' : 'deposit';
-      await finance.pay(propertyId, target.id, { kind, amount: amt, method, methodRef: ref.trim() || undefined, idempotencyKey: key });
-      setDone(`התקבל תשלום של ${money(amt)}`);
-      setOpen(false); setRef(''); setKey(newOpKey());
+      const folioId = target?.id || (await finance.ensureFolio(propertyId, res._id)).folioId;
+      const out = await finance.pay(propertyId, folioId, { kind, amount: amt, method, details: detailsPayload(method, details), methodRef: needRef ? ref.trim() : undefined, idempotencyKey: key });
+      setDone({ text: `התקבל תשלום של ${money(amt)}${out?.change ? ` · עודף לאורח ${money(out.change)}` : ''}`, folioId });
+      setOpen(false); setRef(''); setDetails(emptyDetails(method)); setKey(newOpKey());
       await load();
       onChanged?.();
     } catch (e) {
@@ -71,29 +83,46 @@ function PaymentCard({ res, propertyId, total, onChanged }) {
   return (
     <section className="sd-card">
       <h3>תשלום</h3>
-      <div className="sd-total"><b>{money(total)}</b><span>{money(res.ratePerNight)} × {nights(res.arrivalDate, res.departureDate)} לילות</span></div>
+      <div className="sd-total"><b>{money(total)}</b><span>{money(res.ratePerNight)} × {nights(res.arrivalDate, res.departureDate)} לילות{Number(res.roomsCount) > 1 ? ` × ${res.roomsCount} חדרים` : ''}</span></div>
       <KV label="שולם עד כה"><b>{money(paid)}</b></KV>
       <KV label="יתרה לתשלום"><b className={remaining > 0.005 ? 'sd-due' : 'sd-okc'}>{money(remaining)}</b></KV>
-      {done && <div className="sd-done"><Check size={14} />{done}</div>}
+      {accounts.length > 1 && (
+        <div className="sd-accounts" role="radiogroup" aria-label="חשבון">
+          {accounts.map((w) => (
+            <button type="button" key={w.id} role="radio" aria-checked={target?.id === w.id} className={`sd-acc ${target?.id === w.id ? 'is-on' : ''}`} onClick={() => { setAccountId(w.id); if (open) setAmount(String(Math.max(0, Math.round(Number(w.balance || 0) * 100) / 100) || '')); }}>
+              <span>{w.ownerType === 'guest' ? 'המזמין' : w.owner}</span>
+              <b className={Number(w.balance) > 0.005 ? 'sd-due' : 'sd-okc'}>{money(Math.max(0, Number(w.balance || 0)))}</b>
+              <small>חויב {money(w.totals?.charges)} · שולם {money(w.totals?.payments)}</small>
+            </button>
+          ))}
+        </div>
+      )}
+      {done && (
+        <div className="sd-done">
+          <Check size={14} />{done.text}
+          <button type="button" className="btn btn-ghost btn-sm" style={{ marginInlineStart: 'auto' }} onClick={() => setDocFor(done.folioId)}><FileText size={14} />הפקת קבלה / חשבונית</button>
+        </div>
+      )}
       {!open && !closedStay && (
         <div className="sd-payact">
-          <button type="button" className="btn btn-primary" onClick={startOpen} disabled={!target || (remaining <= 0.005 && balance <= 0.005)}><Banknote size={15} />קבלת תשלום</button>
-          {!target && stay && <small>אין חשבון פתוח לרישום תשלום</small>}
+          <button type="button" className="btn btn-primary" onClick={startOpen} disabled={remaining <= 0.005 && balance <= 0.005}><Banknote size={15} />קבלת תשלום</button>
         </div>
       )}
       {open && (
         <div className="sd-payform">
           <ErrorBanner error={error} />
+          {accounts.length > 1 && <div className="sd-hint">לחשבון: <b>{target?.ownerType === 'guest' ? 'המזמין' : target?.owner}</b></div>}
           <div className="sd-payrow">
             <label>סכום
               <input type="number" min={1} step="any" className={`input ${fields.amount ? 'is-invalid' : ''}`} value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
             </label>
             <label>אמצעי תשלום
-              <select className="select" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <select className="select" value={method} onChange={(e) => { setMethod(e.target.value); setDetails(emptyDetails(e.target.value)); }}>
                 {(methods.length ? methods.map((m) => [m.code, m.name]) : [['cash', 'מזומן'], ['credit_card', 'כרטיס אשראי (מסוף חיצוני)'], ['bank_transfer', 'העברה בנקאית']]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </label>
           </div>
+          <PaymentMethodFields idPrefix={`sd-${res._id}`} method={method} amount={Number(amount)} value={details} onChange={setDetails} errors={fields} />
           {needRef && (
             <label className="sd-ref">אסמכתה
               <input className="input" dir="ltr" maxLength={80} value={ref} onChange={(e) => setRef(e.target.value)} />
@@ -103,10 +132,16 @@ function PaymentCard({ res, propertyId, total, onChanged }) {
           {balance <= 0.005 && <small className="sd-hint">אין יתרה פתוחה לפי הלילות שחויבו — הסכום יירשם כמקדמה על חשבון הלילות הבאים.</small>}
           <div className="sd-payfoot">
             <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)} disabled={saving}>ביטול</button>
-            <button type="button" className="btn btn-primary" onClick={submit} disabled={saving || !(Number(amount) > 0) || (needRef && ref.trim().length < 2)}>{saving ? <><Spinner /> רושם…</> : 'רישום תשלום'}</button>
+            <button type="button" className="btn btn-primary" onClick={submit} disabled={saving || !(Number(amount) > 0) || !!missing || (needRef && ref.trim().length < 2)} title={missing || undefined}>{saving ? <><Spinner /> רושם…</> : 'רישום תשלום'}</button>
           </div>
         </div>
       )}
+      {!open && accounts.length > 0 && (
+        <div className="sd-payact">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDocFor(target?.id)}><FileText size={14} />מסמכים: חשבונית / קבלה</button>
+        </div>
+      )}
+      <IssueDocumentDialog open={!!docFor} onClose={() => setDocFor(null)} propertyId={propertyId} folioId={docFor} subtitle={`${res.confirmationNumber}`} onIssued={() => load()} />
     </section>
   );
 }

@@ -23,6 +23,8 @@ export default function DashboardPage() {
   // Arrivals open the check-in wizard right here — no side panel in between.
   const [checkinId, setCheckinId] = useState(null);
   const [checkoutId, setCheckoutId] = useState(null);
+  const [checkinUnits, setCheckinUnits] = useState(undefined); // undefined = the ready ones; [n] = only those rooms
+  const openCheckIn = (id, units) => { setCheckinUnits(units); setCheckinId(id); };
   const [assignRow, setAssignRow] = useState(null);
   const [queueRow, setQueueRow] = useState(null);
   const [wizardReload, setWizardReload] = useState(null);
@@ -46,20 +48,21 @@ export default function DashboardPage() {
   if (skip) return <div className="dk-state">יש לבחור נכס כדי להציג את יום העבודה.</div>;
   const isManager = MANAGER_ROLES.includes(user?.role);
   return <>
-    <DailyWorkspace property={property} date={date} stats={stats} arrivals={arrivals} departures={departures} alerts={alerts} work={work} tickets={tickets} inhouse={inhouse} onOpen={setSelected} refresh={refresh} navigate={navigate} onOpen={setSelected} onCheckIn={setCheckinId} onCheckOut={setCheckoutId} onAssign={setAssignRow} onQueue={setQueueRow} onAlert={alertAction}/>
+    <DailyWorkspace propertyId={propertyId} property={property} date={date} stats={stats} arrivals={arrivals} departures={departures} alerts={alerts} work={work} tickets={tickets} inhouse={inhouse} onOpen={setSelected} refresh={refresh} navigate={navigate} onOpen={setSelected} onCheckIn={openCheckIn} onCheckOut={setCheckoutId} onAssign={setAssignRow} onQueue={setQueueRow} onAlert={alertAction}/>
     <StayDialog
       open={!!selected}
       propertyId={propertyId}
       onChanged={refresh}
       reservationId={selected}
       onClose={() => { setSelected(null); refresh(); }}
-      onCheckIn={(id) => { setSelected(null); setCheckinId(String(id)); }}
+      onCheckIn={(id) => { setSelected(null); openCheckIn(String(id), undefined); }}
       onCheckOut={(id) => { setSelected(null); setCheckoutId(String(id)); }}
     />
     <CheckInWizard
       open={!!checkinId}
       propertyId={propertyId}
       reservationId={checkinId}
+      initialUnits={checkinUnits}
       isManager={isManager}
       onClose={() => { setCheckinId(null); refresh(); }}
       onDone={() => { setCheckinId(null); refresh(); }}

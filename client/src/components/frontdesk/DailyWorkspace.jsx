@@ -4,12 +4,25 @@
 // (arrivals / departures / alerts). Each arrival row shows the room, its cleanliness, payment and
 // what is still missing, next to the button that resolves it; a click opens the specific room,
 // payment and the guest's special requests. Readiness is computed by the server.
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { RefreshCw, Plus, CalendarDays, LogIn, LogOut, CheckCircle2, Check, ChevronDown, Crown, MessageSquareText, BedDouble, Moon, User, Baby, AlertTriangle, Wrench, Sparkles, ChevronLeft, Users, Bell } from 'lucide-react';
 import { guestInitials } from '../kit';
+import { frontdesk } from '../../utils/api';
 import { cleanLabel, opsLabel } from '../../lib/labels';
 
 const money = (n) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(Number(n || 0));
+// Who pays a room: the same three routings at group level and per room.
+const BILLING = [
+  { id: 'all', room: 'booker', extras: 'booker', label: 'הכל על המזמין' },
+  { id: 'room_only', room: 'booker', extras: 'guest', label: 'חדר על המזמין, נלוות על האורח' },
+  { id: 'none', room: 'guest', extras: 'guest', label: 'האורח משלם הכל' },
+];
+const billingOf = (b) => BILLING.find((o) => o.room === (b?.roomPayer || 'booker') && o.extras === (b?.extrasPayer || 'booker'))?.id || 'all';
+const groupBillingOf = (units) => {
+  const ids = [...new Set(units.filter((u) => u.readiness.state !== 'checked_in').map((u) => billingOf(u.billing)))];
+  return ids.length === 1 ? ids[0] : ids.length ? 'mixed' : billingOf(units[0]?.billing);
+};
+
 const RANK = { blocked: 0, waiting: 1, queued: 2, ready: 3, checked_in: 4 };
 const STATE_TEXT = { ready: 'מוכן לצ׳ק-אין', waiting: 'ממתין', queued: 'בתור המתנה', blocked: 'חסום', checked_in: 'נכנס' };
 const STATE_TONE = { ready: 'ok', waiting: 'warn', queued: 'warn', blocked: 'bad', checked_in: 'done' };
@@ -134,12 +147,18 @@ function Detail({ cols, items }) {
   );
 }
 
-function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue }) {
-  return (
-    <table className="dk-table">
-      <thead><tr><th>אורח</th><th>חדר</th><th>שהייה</th><th>מצב וחסרים</th><th /></tr></thead>
-      <tbody>
-        {rows.map((r) => {
+function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue, onBilling }) {
+  // One booking with several rooms is a group: a header for the booker, each room its own row.
+  const groups = [];
+  const byRes = new Map();
+  for (const r of rows) {
+    if (r.unitsTotal > 1) {
+      if (!byRes.has(r.reservationId)) { const g = { id: r.reservationId, multi: true, units: [] }; byRes.set(r.reservationId, g); groups.push(g); }
+      byRes.get(r.reservationId).units.push(r);
+    } else groups.push({ id: r.key, multi: false, units: [r] });
+  }
+  const renderRow = (r) => {
+
           const st = r.readiness.state;
           const tone = STATE_TONE[st] || 'warn';
           const done = st === 'checked_in';
@@ -150,8 +169,18 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
           const reasons = all.filter((x) => x.code !== 'guarantee' || all.length === 1);
           const isOpen = openKey === r.key;
           return [
-            <tr key={r.key} className={`${done ? 'is-done' : ''} ${isOpen ? 'is-open' : ''}`} onClick={() => setOpenKey(isOpen ? null : r.key)}>
-              <td><GuestCell name={r.guest.name} vip={r.guest.vip} note={!!r.specialRequests} sub={<><bdi>{r.confirmationNumber}</bdi> · {r.eta ? `הגעה ${r.eta}` : 'שעה לא ידועה'}</>} /></td>
+            <tr key={r.key} className={`${done ? 'is-done' : ''} ${isOpen ? 'is-open' : ''} ${r.unitsTotal > 1 ? 'is-unit' : ''}`} onClick={() => setOpenKey(isOpen ? null : r.key)}>
+              <td>
+                <GuestCell name={r.billing?.occupantName || r.guest.name} vip={r.guest.vip} note={!!r.specialRequests} sub={<><bdi>{r.confirmationNumber}</bdi>{r.unitsTotal > 1 ? ` · חדר ${r.unitIndex} מתוך ${r.unitsTotal}` : ''} · {r.eta ? `הגעה ${r.eta}` : 'שעה לא ידועה'}</>} />
+                {r.unitsTotal > 1 && !done && (
+                  <label className="dk-payer" onClick={(e) => e.stopPropagation()}>
+                    <span>משלם</span>
+                    <select value={billingOf(r.billing)} onChange={(e) => onBilling({ reservationId: r.reservationId, unitIndex: r.unitIndex, mode: e.target.value })}>
+                      {BILLING.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
+                  </label>
+                )}
+              </td>
               <td>
                 <div className="dk-room"><b className={room ? '' : 'is-none'}>{room ? room.number : '—'}</b><span>{r.roomType?.name}</span></div>
               </td>
@@ -177,11 +206,11 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
               </td>
               <td className="dk-act" onClick={(e) => e.stopPropagation()}>
                 {done ? null : st === 'ready'
-                  ? <button type="button" className="dk-btn is-primary" onClick={() => onCheckIn(r.reservationId)}>צ׳ק-אין</button>
+                  ? <button type="button" className="dk-btn is-primary" onClick={() => onCheckIn(r.reservationId, r.unitsTotal > 1 ? [r.unitIndex] : undefined)}>צ׳ק-אין</button>
                   : !room
                     ? <button type="button" className="dk-btn is-primary" onClick={() => onAssign(r)}><BedDouble size={14} />שיבוץ חדר</button>
                     : <div className="dk-btns">
-                      <button type="button" className="dk-btn" onClick={() => onCheckIn(r.reservationId)}>צ׳ק-אין</button>
+                      <button type="button" className="dk-btn" onClick={() => onCheckIn(r.reservationId, r.unitsTotal > 1 ? [r.unitIndex] : undefined)}>צ׳ק-אין</button>
                       <button type="button" className="dk-btn is-ghost" onClick={() => onAssign(r)}>החלפת חדר</button>
                       {st === 'waiting' && !r.queue && <button type="button" className="dk-btn is-ghost" onClick={() => onQueue(r)}>להמתנה</button>}
                     </div>}
@@ -196,6 +225,37 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
               ]} />
             ),
           ];
+  };
+  return (
+    <table className="dk-table">
+      <thead><tr><th>אורח</th><th>חדר</th><th>שהייה</th><th>מצב וחסרים</th><th /></tr></thead>
+      <tbody>
+        {groups.map((g) => {
+          if (!g.multi) return renderRow(g.units[0]);
+          const first = g.units[0];
+          const entered = g.units.filter((u) => u.readiness.state === 'checked_in').length;
+          const readyN = g.units.filter((u) => u.readiness.state === 'ready').length;
+          return (
+            <Fragment key={`g-${g.id}`}>
+              <tr className="dk-group"><td colSpan={5}>
+                <div className="dk-group-bar">
+                  <GuestCell name={first.guest.name} vip={first.guest.vip} sub={<><bdi>{first.confirmationNumber}</bdi> · {first.unitsTotal} חדרים</>} />
+                  <span className="dk-chip">{entered}/{first.unitsTotal} נכנסו</span>
+                  <label className="dk-payer is-group">
+                    <span>חיוב הקבוצה</span>
+                    <select value={groupBillingOf(g.units)} onChange={(e) => e.target.value !== 'mixed' && onBilling({ reservationId: first.reservationId, mode: e.target.value })}>
+                      {groupBillingOf(g.units) === 'mixed' && <option value="mixed">מעורב — לפי חדר</option>}
+                      {BILLING.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
+                  </label>
+                  <span className="dk-grow" />
+                  <button type="button" className="dk-btn" onClick={() => onCheckIn(first.reservationId, [])}>בחירת חדרים</button>
+                  <button type="button" className="dk-btn is-primary" disabled={readyN === 0} onClick={() => onCheckIn(first.reservationId, g.units.filter((u) => u.readiness.state === 'ready').map((u) => u.unitIndex))}>צ׳ק-אין לכל המוכנים ({readyN})</button>
+                </div>
+              </td></tr>
+              {g.units.map(renderRow)}
+            </Fragment>
+          );
         })}
         {!rows.length && <tr><td colSpan={5}><div className="dk-state"><CheckCircle2 size={18} />אין הגעות שדורשות טיפול.</div></td></tr>}
       </tbody>
@@ -309,8 +369,21 @@ function AlertsList({ alerts, notes, onAlert }) {
   );
 }
 
-export default function DailyWorkspace({ property, date, stats, arrivals, departures, alerts, work, tickets, inhouse, refresh, navigate, onOpen, onCheckIn, onCheckOut, onAssign, onQueue, onAlert }) {
+export default function DailyWorkspace({ propertyId, property, date, stats, arrivals, departures, alerts, work, tickets, inhouse, refresh, navigate, onOpen, onCheckIn, onCheckOut, onAssign, onQueue, onAlert }) {
   const [tab, setTab] = useState('arrivals');
+  const [billingError, setBillingError] = useState(null);
+  async function onBilling({ reservationId, unitIndex, mode }) {
+    setBillingError(null);
+    const o = BILLING.find((x) => x.id === mode);
+    if (!o) return;
+    try {
+      if (unitIndex) await frontdesk.roomBilling(propertyId, reservationId, unitIndex, { roomPayer: o.room, extrasPayer: o.extras });
+      else await frontdesk.groupBilling(propertyId, reservationId, mode);
+      refresh();
+    } catch (e) {
+      setBillingError(e.message);
+    }
+  }
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [openKey, setOpenKey] = useState(null);
   const notes = (work.data?.rows || []).filter((w) => w.kind === 'handover');
@@ -358,10 +431,11 @@ export default function DailyWorkspace({ property, date, stats, arrivals, depart
             <span>{summary}</span>
             {(tab === 'arrivals' || tab === 'departures') && <Filter on={onlyIssues} setOn={setOnlyIssues} issues={issuesNow} />}
           </div>
+          {billingError && <div className="dk-state dk-err" role="alert">{billingError}</div>}
           <div className="dk-scroll">
             {tab === 'arrivals' && (
               <Status query={arrivals} empty="אין הגעות היום.">
-                {aAll.length ? <ArrivalsTable rows={aRows} openKey={openKey} setOpenKey={setOpenKey} onCheckIn={onCheckIn} onAssign={onAssign} onQueue={onQueue} /> : null}
+                {aAll.length ? <ArrivalsTable rows={aRows} openKey={openKey} setOpenKey={setOpenKey} onCheckIn={onCheckIn} onAssign={onAssign} onQueue={onQueue} onBilling={onBilling} /> : null}
               </Status>
             )}
             {tab === 'departures' && (

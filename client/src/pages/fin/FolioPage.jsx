@@ -4,13 +4,13 @@
 // documents with their credit notes, and exceptions that need someone's attention.
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Plus } from 'lucide-react';
+import { ArrowRight, Plus, FileText } from 'lucide-react';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuthStore } from '../../stores/authStore';
 import { finance } from '../../utils/api';
 import { useChargeCodes } from '../../hooks/useChargeCodes';
 import {
-  LINE_TYPE_LABELS, LINE_DEPARTMENT_LABELS, GUARANTEE_LABELS, SETTLEMENT_LABELS, DOC_TYPE_LABELS, DOC_STATUS_LABELS,
+  LINE_TYPE_LABELS, LINE_DEPARTMENT_LABELS, GUARANTEE_LABELS, SETTLEMENT_LABELS,
 } from '../../lib/labels';
 import { formatShort } from '../../utils/date';
 import { useToast } from '../../hooks/useToast';
@@ -20,6 +20,7 @@ import {
   ErrorBanner, Spinner, useUrlState, useLoader, useAction, money, formatDateTime,
 } from '../../components/kit';
 import { ChargeDialog, PaymentDialog, RefundDialog, CreditNoteDialog } from '../../components/fin/FinanceDialogs';
+import { IssueDocumentDialog, AllocationDialog, DocumentList } from '../../components/fin/DocumentDialogs';
 
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const REVERSE_ROLES = [...MANAGER_ROLES, 'finance_manager'];
@@ -76,6 +77,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
   const nav = useNavigate();
   const { toasts, success } = useToast();
   const [dialog, setDialog] = useState(null);
+  const [docErr, setDocErr] = useState(null);
   const { data, loading, error, reload } = useLoader(async () => (propertyId ? finance.stay(propertyId, reservationId) : null), [propertyId, reservationId]);
   const folio = useMemo(() => data?.folios.find((f) => f.id === folioParam) || data?.folios[0] || null, [data, folioParam]);
   const departed = data?.reservation?.status === 'checked_out';
@@ -115,7 +117,8 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
         <div className="ui-row" style={{ gap: 4 }}>
           {l.reversed && <Tag>הופך</Tag>}
           {l.reversalOf && <Tag>היפוך</Tag>}
-          {l.onDocument && <Tag tone="warn">במסמך {l.onDocument}</Tag>}
+          {l.onDocument && <Tag tone="warn">בחשבונית {l.onDocument}</Tag>}
+          {l.onReceipt && <Tag>בקבלה {l.onReceipt}</Tag>}
           {l.refundable !== null && l.refundable < Math.abs(l.gross) - 0.005 && <Tag>{l.refundable > 0.005 ? `הוחזר חלקית` : 'הוחזר'}</Tag>}
           {l.status !== 'posted' && <Tag tone="bad">{l.status}</Tag>}
         </div>
@@ -209,28 +212,30 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
             ]} />
             <div className="ui-sub">ערבות אינה תשלום ואינה נכללת ביתרה.</div>
           </Card>
-          <Card title="מסמכים">
-            {docsHere.length === 0 && <div className="ui-sub">טרם הופקו מסמכים. "לא כל חשבון הוא חשבונית" — מסמך מופק במסך החשבוניות.</div>}
-            {docsHere.length > 0 && (
-              <ul className="ui-staff">
-                {docsHere.map((d) => (
-                  <li key={d.id}>
-                    <div className="min-w-0">
-                      <div className="font-medium">{DOC_TYPE_LABELS[d.type] || d.type} <bdi>{d.number}</bdi></div>
-                      <div className="ui-sub">{DOC_STATUS_LABELS[d.status] || d.status} · {money(d.gross)}{d.credited ? ` · זוכה ${money(d.credited)}` : ''}{d.allocationNumber ? ` · הקצאה ${d.allocationNumber}` : ''}</div>
-                    </div>
-                    {d.creditable > 0.005 && <button type="button" className="btn btn-secondary btn-sm" disabled={!canCredit} title={!canCredit ? 'כספים או הנהלה' : undefined} onClick={() => setDialog({ kind: 'credit', doc: d })}>זיכוי</button>}
-                  </li>
-                ))}
-              </ul>
-            )}
+          <Card
+            title="מסמכים"
+            actions={folio && WORK_ROLES.includes(role) && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'issue' })}><FileText size={14} /> הפקת מסמך</button>}
+          >
+            <ErrorBanner error={docErr} />
+            {docsHere.length === 0 && <div className="ui-sub">טרם הופקו מסמכים לחשבון זה. חשבונית מס / קבלה מופקות מהחיובים והתקבולים שבחשבון.</div>}
+            <DocumentList
+              docs={docsHere}
+              propertyId={propertyId}
+              canCredit={canCredit}
+              onCredit={(d) => setDialog({ kind: 'credit', doc: d })}
+              onAllocate={(d) => setDialog({ kind: 'alloc', doc: d })}
+              onError={setDocErr}
+              onChanged={() => { success('המסמך נשלח'); reload(); }}
+            />
           </Card>
         </div>
       </div>
 
       <ChargeDialog open={dialog?.kind === 'charge'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} vatRate={data.vatRate} businessDate={data.businessDate} onSaved={() => { setDialog(null); success('החיוב נרשם'); reload(); }} />
-      <PaymentDialog open={dialog?.kind === 'pay'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} onSaved={(o) => { setDialog(null); success(o?.duplicate ? 'התשלום כבר נרשם' : 'התשלום נרשם'); reload(); }} />
+      <PaymentDialog open={dialog?.kind === 'pay'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} onSaved={(o) => { setDialog(null); success(o?.duplicate ? 'התשלום כבר נרשם' : o?.change ? `התשלום נרשם · עודף ${money(o.change)}` : 'התשלום נרשם'); reload(); }} />
       <RefundDialog open={dialog?.kind === 'refund'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} payment={dialog?.line} canApprove={canApproveRefund} threshold={data.policy.refundApprovalOver} onSaved={() => { setDialog(null); success('ההחזר נרשם'); reload(); }} />
+      <IssueDocumentDialog open={dialog?.kind === 'issue'} onClose={() => setDialog(null)} propertyId={propertyId} folioId={folio?.id} subtitle={folio ? `${r.guest} · חשבון ${folio.owner}` : ''} onIssued={() => reload()} />
+      <AllocationDialog open={dialog?.kind === 'alloc'} onClose={() => setDialog(null)} propertyId={propertyId} doc={dialog?.doc} onSaved={() => { setDialog(null); success('מספר ההקצאה נשמר'); reload(); }} />
       <CreditNoteDialog open={dialog?.kind === 'credit'} onClose={() => setDialog(null)} propertyId={propertyId} doc={dialog?.doc} onSaved={(o) => { setDialog(null); success(`הופק מסמך זיכוי ${o?.number || ''}`); reload(); }} />
       <ConfirmDialog
         open={dialog?.kind === 'reverse'}

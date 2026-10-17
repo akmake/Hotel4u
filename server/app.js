@@ -201,6 +201,18 @@ apiRouter.use('/admin/auto-replies', adminAutoReplyRoutes);
 // =========================================================================
 // 🏨 PMS hotel4u — ראוטר נפרד תחת /pms (עוקף CSRF)
 // =========================================================================
+// Tax Authority OAuth redirect (FIN-10-A03): public — the one-time state proves who started it.
+app.get('/api/ita/callback', async (req, res) => {
+  const client = (process.env.CLIENT_URL || '').replace(/\/+$/, '');
+  try {
+    const { completeConnect } = await import('./services/taxAuthorityService.js');
+    const out = await completeConnect({ state: req.query.state, code: req.query.code, error: req.query.error });
+    res.redirect(`${client}/pms/admin/fiscal?ita=${out.ok ? 'connected' : 'failed'}`);
+  } catch (err) {
+    res.redirect(`${client}/pms/admin/fiscal?ita=failed&reason=${encodeURIComponent(err.message || 'error')}`);
+  }
+});
+
 const pmsRouter = express.Router();
 pmsRouter.use(attachActor);
 pmsRouter.use(requireActor);

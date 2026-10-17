@@ -23,9 +23,10 @@ import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import Property from '../models/Property.js';
 import { audit } from './auditService.js';
 import { incrementInventory } from './availabilityService.js';
-import { planNights, postPlannedNights, lodgingFolio, postNightsUntil } from './roomCharges.js';
+import { planNights, postPlannedNights, lodgingFolio, postNightsUntil, unitFolio, pendingGrossFor } from './roomCharges.js';
 import { fireEvent } from './automationEngine.js';
 import { recordFolioPayment } from './financeService.js';
+import { undocumentedByFolio } from './documentService.js';
 import {
   httpError, loadProperty, businessDateOf, ensureUnits, loadReservationInScope, guaranteeState,
   MANAGER_ROLES, IN_HOUSE_STATUSES, withLocks,
@@ -49,8 +50,9 @@ export function folioBalance(folio) {
     .reduce((s, l) => s + Number(l.amount || 0) + Number(l.taxAmount || 0), 0));
 }
 
-function folioOwnerLabel(f, companiesById) {
+function folioOwnerLabel(f, companiesById, unitLabels) {
   if (f.ownerType === 'company') return companiesById.get(String(f.ownerRef))?.name || 'חברה';
+  if (f.ownerType === 'room' && unitLabels?.has(String(f.ownerRef))) return unitLabels.get(String(f.ownerRef));
   return { guest: 'אורח', room: 'חדר', group: 'קבוצה', house: 'בית' }[f.ownerType] || f.ownerType;
 }
 
@@ -288,7 +290,10 @@ export async function getCheckOutContext({ propertyId, reservationId }) {
   const res = await loadReservationInScope(reservationId, propertyId);
   const units = await ReservationRoom.find({ reservation: res._id }).populate('assignedRoom', 'number').sort({ createdAt: 1, _id: 1 }).lean();
   const unitList = units.length
-    ? units.map((u, i) => ({ unitId: String(u._id), index: i + 1, status: u.status, room: u.assignedRoom ? { id: idStr(u.assignedRoom), number: u.assignedRoom.number } : null }))
+    ? units.map((u, i) => ({
+      unitId: String(u._id), index: i + 1, status: u.status, room: u.assignedRoom ? { id: idStr(u.assignedRoom), number: u.assignedRoom.number } : null,
+      billing: { roomPayer: u.roomPayer || 'booker', extrasPayer: u.extrasPayer || 'booker', occupantName: u.occupantName || null },
+    }))
     : [{ unitId: null, index: 1, status: IN_HOUSE_STATUSES.includes(res.status) && res.status !== 'partially_checked_in' ? 'in_house' : res.status === 'checked_out' ? 'checked_out' : 'reserved', room: res.assignedRoom ? { id: idStr(res.assignedRoom), number: (await Room.findById(res.assignedRoom).select('number').lean())?.number } : null }];
 
   const businessDateEarly = businessDateOf(property);
@@ -296,27 +301,38 @@ export async function getCheckOutContext({ propertyId, reservationId }) {
   // for an in-house stay changes no balance.
   const lodging = IN_HOUSE_STATUSES.includes(res.status) ? await lodgingFolio(res) : await lodgingFolio(res, { create: false });
   const pending = IN_HOUSE_STATUSES.includes(res.status) ? await planNights({ reservation: res, until: businessDateEarly }) : { items: [], count: 0, gross: 0 };
+  // Rooms whose guest pays the nights keep their nights on the room's own account.
+  if (IN_HOUSE_STATUSES.includes(res.status)) {
+    for (const uid of new Set(pending.items.filter((i) => i.toUnit).map((i) => i.unitId))) await unitFolio(res, uid);
+  }
   const folios = await Folio.find({ reservation: res._id }).sort({ createdAt: 1 }).lean();
+  const unitLabels = new Map(units.map((u, i) => [String(u._id), `חדר ${u.assignedRoom?.number || i + 1}${u.occupantName ? ` · ${u.occupantName}` : ''}`]));
   const companyIds = [...new Set(folios.filter((f) => f.ownerType === 'company' && f.ownerRef).map((f) => String(f.ownerRef)))];
   const companies = new Map();
   for (const cid of companyIds) if (isId(cid)) companies.set(cid, await companyExposure(cid, propertyId));
   const businessDate = businessDateOf(property);
+  const undocumented = await undocumentedByFolio(folios, property?.vatRate ?? 18);
 
   const folioDtos = folios.map((f) => {
     const posted = (f.lines || []).filter((l) => l.status === 'posted');
     const company = f.ownerType === 'company' ? companies.get(String(f.ownerRef)) || null : null;
-    const isLodging = lodging && String(lodging._id) === String(f._id);
-    const pendingGross = isLodging ? pending.gross : 0;
+    const pendingGross = pendingGrossFor(f, pending.items, lodging?._id);
+    const pendingCount = f.ownerType === 'room'
+      ? pending.items.filter((i) => i.code === 'rooms' && i.toUnit && String(i.unitId) === String(f.ownerRef)).length
+      : lodging && String(lodging._id) === String(f._id) ? pending.items.filter((i) => i.code === 'rooms' && !i.toUnit).length : 0;
     return {
       id: String(f._id),
       ownerType: f.ownerType,
-      ownerLabel: company?.name || folioOwnerLabel(f, new Map()),
+      ownerLabel: company?.name || folioOwnerLabel(f, new Map(), unitLabels),
+      unitId: f.ownerType === 'room' ? String(f.ownerRef) : null,
       status: f.status,
       currency: f.currency || 'ILS',
       // Balance as it will be at departure: posted lines plus lodging nights not yet posted.
       balance: round2(folioBalance(f) + pendingGross),
       postedBalance: folioBalance(f),
-      pendingNights: isLodging ? { count: pending.count, gross: pending.gross } : null,
+      // FIN-06: posted charges with no tax invoice yet / payments with no receipt yet.
+      undocumented: undocumented.get(String(f._id)) || { charges: 0, payments: 0 },
+      pendingNights: (lodging && String(lodging._id) === String(f._id)) || f.ownerType === 'room' ? { count: pendingCount, gross: pendingGross } : null,
       charges: round2(posted.filter((l) => Number(l.amount) > 0).reduce((s, l) => s + Number(l.amount) + Number(l.taxAmount || 0), 0)),
       payments: round2(-posted.filter((l) => Number(l.amount) < 0).reduce((s, l) => s + Number(l.amount), 0)),
       // Last postings first — late POS/service charges are what the desk must check (FD-08-F03).
@@ -329,7 +345,7 @@ export async function getCheckOutContext({ propertyId, reservationId }) {
       company,
     };
   });
-  const invoices = await Invoice.find({ reservation: res._id }).select('status type invoiceNumber totalGross issuedAt').lean();
+  const invoices = await Invoice.find({ reservation: res._id }).select('status type invoiceNumber totalGross issuedAt allocationStatus allocationNumber folio').lean();
   const openRequests = await GuestRequest.countDocuments({ reservation: res._id, status: { $in: OPEN_REQUEST } });
   const g = res.primaryGuest || {};
   return {
@@ -344,7 +360,7 @@ export async function getCheckOutContext({ propertyId, reservationId }) {
     guest: { id: idStr(g), name: `${g.firstName || ''} ${g.lastName || ''}`.trim() },
     units: unitList,
     folios: folioDtos,
-    documents: invoices.map((i) => ({ id: String(i._id), status: i.status, type: i.type, number: i.invoiceNumber || null, total: i.totalGross })),
+    documents: invoices.map((i) => ({ id: String(i._id), status: i.status, type: i.type, number: i.invoiceNumber || null, total: i.totalGross, folioId: i.folio ? String(i.folio) : null, allocation: i.allocationStatus || 'not_required' })),
     openRequests,
     nextCleaning: 'ניקיון יציאה (checkout_clean) לחדרים שיוצאים — עדיפות גבוהה',
   };
@@ -466,14 +482,18 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
   const nightPlan = await planNights({ reservation: res, until: businessDate, unitFilter: (u) => wantedIds.has(String(u._id)) });
   const lodging = await lodgingFolio(res);
 
-  // Money: only the final departure settles folios. Every folio is checked (T11).
+  // A leaving room whose guest pays for it gets its nights on its own account.
+  for (const uid of new Set(nightPlan.items.filter((i) => i.toUnit).map((i) => i.unitId))) await unitFolio(res, uid);
+  // Money: the final departure settles every folio (T11). A room that pays for itself settles its
+  // own account when it leaves, even while the rest of the group stays.
   const folios = await Folio.find({ reservation: res._id });
+  const settles = (f) => finalDeparture || (f.ownerType === 'room' && wantedIds.has(String(f.ownerRef)));
   const plan = [];
   const problems = [];
-  if (finalDeparture) {
+  {
     for (const f of folios) {
-      if (f.status === 'closed') continue;
-      const balance = round2(folioBalance(f) + (String(f._id) === String(lodging._id) ? nightPlan.gross : 0));
+      if (f.status === 'closed' || !settles(f)) continue;
+      const balance = round2(folioBalance(f) + pendingGrossFor(f, nightPlan.items, lodging?._id));
       const chosen = settlements.find((s) => String(s.folioId) === String(f._id));
       if (isZero(balance)) { plan.push({ folio: f, mode: 'paid', balance }); continue; }
       if (balance < 0) {
@@ -504,7 +524,7 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
         plan.push({ folio: f, mode: 'approved_open', balance, reason: String(chosen.reason).trim().slice(0, 300) });
         continue;
       }
-      problems.push({ folioId: String(f._id), label: `יתרה לתשלום ${balance.toFixed(2)} ב${f.ownerType === 'company' ? 'חשבון החברה' : 'חשבון'} — יש לגבות או לבחור אופן סגירה מורשה` });
+      problems.push({ folioId: String(f._id), label: `יתרה לתשלום ${balance.toFixed(2)} ב${f.ownerType === 'company' ? 'חשבון החברה' : f.ownerType === 'room' ? 'חשבון החדר' : 'חשבון'} — יש לגבות או לבחור אופן סגירה מורשה` });
     }
   }
   // Early departure: unused future nights go back to inventory; nights already charged stay on the

@@ -15,6 +15,15 @@ const ReservationRoomSchema = new Schema({
   guests:            [{ type: Schema.Types.ObjectId, ref: 'GuestProfile' }],
   status:            { type: String, enum: RR_STATUS, default: 'reserved' },
   notes:             String,
+  // Group billing (per room): who pays the room nights and who pays the extras of this room.
+  // 'booker' = the reservation's main account; 'guest' = this room's own account (Folio ownerType
+  // 'room', ownerRef = this unit id). A room with anything on 'guest' needs its own guarantee.
+  roomPayer:         { type: String, enum: ['booker', 'guest'], default: 'booker' },
+  extrasPayer:       { type: String, enum: ['booker', 'guest'], default: 'booker' },
+  occupantName:      { type: String, trim: true, maxlength: 120 },
+  occupantPhone:     { type: String, trim: true, maxlength: 40 },
+  guaranteeType:     { type: String, enum: ['none', 'credit_card', 'deposit', 'voucher'], default: 'none' },
+  guaranteeReference:{ type: String, trim: true, maxlength: 80 },
 }, { timestamps: true });
 
 ReservationRoomSchema.index({ reservation: 1, createdAt: 1 });

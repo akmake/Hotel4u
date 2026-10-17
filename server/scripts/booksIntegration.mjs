@@ -30,7 +30,6 @@ import OperationLock from '../models/OperationLock.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { signPmsToken } from '../controllers/authController.js';
 import { postNightsUntil } from '../services/roomCharges.js';
-import { issueInvoiceFromFolio } from '../services/invoiceService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -55,7 +54,7 @@ async function main() {
   const today = todayYmdInTimezone('Asia/Jerusalem');
 
   async function mkProperty(n) {
-    const p = await Property.create({ name: `בדיקה ${TAG}-${n}`, timezone: 'Asia/Jerusalem', vatRate: 18, invoicePrefix: `${TAG}${n}`, invoiceSequence: 0 });
+    const p = await Property.create({ name: `בדיקה ${TAG}-${n}`, legalName: 'בדיקה בע"מ', taxNumber: '514443210', address: 'רחוב הבדיקה 1', city: 'טבריה', timezone: 'Asia/Jerusalem', vatRate: 18, invoicePrefix: `${TAG}${n}`, invoiceSequence: 0 });
     props.push(p._id);
     const P = String(p._id);
     const rt = await RoomType.create({ property: P, code: `${TAG}${n}`, name: 'סטנדרט', baseRate: 500, capacityBase: 2, capacityMax: 3 });
@@ -149,7 +148,7 @@ async function main() {
     const pm = (await call('GET', `/finance/charge-codes?propertyId=${P}&kind=payment&all=1`, M)).data.codes;
     const cheque = pm.find((c) => c.code === 'cheque');
     await call('PATCH', `/finance/charge-codes/${cheque.id}`, M, { propertyId: P, active: false });
-    r = await call('POST', `/finance/folios/${s1.folio._id}/payments`, R, { propertyId: P, amount: 10, method: 'cheque', methodRef: '1234', idempotencyKey: key() });
+    r = await call('POST', `/finance/folios/${s1.folio._id}/payments`, R, { propertyId: P, amount: 10, method: 'cheque', details: { number: '1234', bank: '12', branch: '345', account: '67890', dueDate: today }, idempotencyKey: key() });
     check('G1 a deactivated payment method is refused', r.status === 422 && r.fields?.method, r.status);
     r = await call('PATCH', `/finance/charge-codes/${pm.find((c) => c.code === 'voucher').id}`, M, { propertyId: P, requireReference: false });
     check('G1 voucher/transfer/cheque always need a reference', r.status === 422, r.status);
@@ -189,7 +188,7 @@ async function main() {
     const fut = await mkStay(B, { status: 'confirmed', arrival: addDays(today, 5), departure: addDays(today, 7), room: B.rooms[1] });
     await call('POST', `/finance/folios/${inh.folio._id}/charges`, BR, { propertyId: B.P, department: 'f_and_b', quantity: 1, unitPrice: 236, idempotencyKey: key() });
     await call('POST', `/finance/folios/${inh.folio._id}/payments`, BR, { propertyId: B.P, amount: 100, method: 'cash', idempotencyKey: key() });
-    await call('POST', `/finance/folios/${fut.folio._id}/payments`, BR, { propertyId: B.P, amount: 300, method: 'credit_card', kind: 'deposit', idempotencyKey: key() });
+    await call('POST', `/finance/folios/${fut.folio._id}/payments`, BR, { propertyId: B.P, amount: 300, method: 'credit_card', details: { last4: '4242', approval: '012345' }, kind: 'deposit', idempotencyKey: key() });
     r = await call('GET', `/finance/day-close/report?propertyId=${B.P}&date=${today}`, BR);
     check('G4 RBAC: receptionist cannot read day-close books', r.status === 403, r.status);
     r = await call('GET', `/finance/day-close/report?propertyId=${B.P}&date=${today}`, BM);
@@ -300,7 +299,7 @@ async function main() {
     check('G6 a regular charge on the post-stay window is refused (post-stay path only)', r.status === 409 && r.code === 'post_stay_required', r.status);
     r = await call('POST', `/finance/folios/${psFolioId}/close`, DR, { propertyId: D.P });
     check('G6 a window with a balance cannot be closed', r.status === 409, r.status);
-    await call('POST', `/finance/folios/${psFolioId}/payments`, DR, { propertyId: D.P, amount: 158, method: 'credit_card', idempotencyKey: key() });
+    await call('POST', `/finance/folios/${psFolioId}/payments`, DR, { propertyId: D.P, amount: 158, method: 'credit_card', details: { last4: '4242', approval: 'A12345' }, idempotencyKey: key() });
     r = await call('POST', `/finance/folios/${psFolioId}/close`, DR, { propertyId: D.P });
     check('G6 a settled post-stay window is closed', r.status === 200 && (await Folio.findById(psFolioId).lean()).status === 'closed', JSON.stringify(r).slice(0, 160));
     r = await call('POST', `/finance/folios/${ci.folio._id}/close`, DR, { propertyId: D.P });
@@ -342,7 +341,8 @@ async function main() {
     tf = await Folio.findById(tour.folio._id).lean();
     const mb = tf.lines.find((l) => l.department === 'minibar');
     check('EXT-04 a service outside the rule (minibar) keeps VAT', mb && Math.abs(mb.taxAmount - 18) < 0.01 && mb.vatRate === 18, JSON.stringify(mb));
-    const inv = await issueInvoiceFromFolio({ folioId: tour.folio._id, type: 'tax_invoice', issuedBy: E.users.finance_manager._id, propertyId: E.P });
+    const issued = await call('POST', `/finance/folios/${tour.folio._id}/documents`, EF, { propertyId: E.P, type: 'tax_invoice', buyer: { kind: 'private', name: 'אורח תייר' }, idempotencyKey: key() });
+    const inv = await Invoice.findById(issued.data?.id).lean();
     const ivNight = inv.lines.find((l) => String(l.folioLineId) === String(zeroNight._id));
     const ivMb = inv.lines.find((l) => String(l.folioLineId) === String(mb._id));
     check('Invoice: each line keeps its posted VAT rate (zero-rated night 0%, minibar 18%)', ivNight?.vatRate === 0 && ivNight?.vatAmount === 0 && ivMb?.vatRate === 18 && Math.abs(ivMb.vatAmount - 18) < 0.01, JSON.stringify(inv.lines.map((l) => [l.vatRate, l.vatAmount])));
@@ -358,7 +358,8 @@ async function main() {
     await call('POST', `/finance/folios/${tour3.folio._id}/charges`, ER, { propertyId: E.P, department: 'parking', quantity: 1, unitPrice: 50, idempotencyKey: key() });
     const spa = (await Folio.findById(tour3.folio._id).lean()).lines.find((l) => l.department === 'spa');
     await call('POST', `/finance/folios/${tour3.folio._id}/lines/${spa._id}/reverse`, EM, { propertyId: E.P, reason: 'נרשם בטעות' });
-    const inv3 = await issueInvoiceFromFolio({ folioId: tour3.folio._id, type: 'tax_invoice', issuedBy: E.users.finance_manager._id, propertyId: E.P });
+    const issued3 = await call('POST', `/finance/folios/${tour3.folio._id}/documents`, EF, { propertyId: E.P, type: 'tax_invoice', buyer: { kind: 'private', name: 'אורח' }, idempotencyKey: key() });
+    const inv3 = await Invoice.findById(issued3.data?.id).lean();
     check('Invoice: a reversed charge is not invoiced', inv3.lines.length === 1 && Math.abs(inv3.totalGross - 50) < 0.01, JSON.stringify(inv3.lines.map((l) => [l.description, l.grossAmount])));
     // cash law
     r = await call('PUT', '/finance/tax-policy', EF, { propertyId: E.P, tourist: { enabled: true, visaTypes: ['B/2'], chargeCodes: ['rooms'], approvedBy: 'רו״ח בדיקה', legalRef: 'חוק מע״מ סעיף 30(א)(8)' }, cash: { rule: 'il_2024', threshold: 6000, touristThreshold: 40000 }, reason: 'חוק המזומן', version: 1 });

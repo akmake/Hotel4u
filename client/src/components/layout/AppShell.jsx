@@ -27,6 +27,8 @@ const PAGE_TITLES = {
   '/pms/opportunities':   'הזדמנויות',
   '/pms/folio':           'חשבונות אורח',
   '/pms/invoices':        'חשבוניות',
+  '/pms/fin/reports':     'דוחות כספיים ומע״מ',
+  '/pms/admin/fiscal':    'מסמכים ורשות המסים',
   '/pms/reports':         'דוחות',
   '/pms/night-audit':     'סגירת יום',
   '/pms/bulk-jobs':       'פעולות מרוכזות',

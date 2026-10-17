@@ -45,7 +45,7 @@ function check(name, ok, info = '') {
 function token(user, overrides = {}) {
   return jwt.sign({
     id: String(user._id), firstName: user.firstName, lastName: user.lastName, email: user.email,
-    role: user.role, propertyId: String(user.property), ...overrides,
+    role: user.role, propertyId: String(user.property), tv: Number(user.tokenVersion || 0), ...overrides,
   }, SECRET, { expiresIn: '1h' });
 }
 

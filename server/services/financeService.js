@@ -13,11 +13,12 @@
 import mongoose from 'mongoose';
 import Folio from '../models/Folio.js';
 import Reservation from '../models/Reservation.js';
-import Invoice from '../models/Invoice.js';
+import Invoice, { CHARGE_DOC_TYPES } from '../models/Invoice.js';
 import Company from '../models/Company.js';
 import GuestProfile from '../models/GuestProfile.js';
 import Property from '../models/Property.js';
 import Room from '../models/Room.js';
+import ReservationRoom from '../models/ReservationRoom.js';
 import ArrivalQueueEntry from '../models/ArrivalQueueEntry.js';
 import DayCloseRun, { DAY_CLOSE_STEPS } from '../models/DayCloseRun.js';
 import { audit } from './auditService.js';
@@ -26,6 +27,7 @@ import { folioBalance } from './departureService.js';
 import { planNights, postNightsUntil } from './roomCharges.js';
 import { markNoShow } from './reservationService.js';
 import { issueCreditNote } from './invoiceService.js';
+import { docCoverage, docDto } from './documentService.js';
 import { raiseWork } from './platformService.js';
 import { resolveChargeCode, resolvePaymentMethod, taxFor } from './chargeCodeService.js';
 import { computeLedger, ledgerChecks, storedFrom } from './ledgerService.js';
@@ -42,11 +44,84 @@ export const REVERSE_ROLES = REFUND_ROLES;
 export const CREDIT_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'finance_manager'];
 export const NIGHT_ROLES = [...new Set([...MANAGER_ROLES, 'finance_manager'])];
 export const PAY_METHODS = ['cash', 'credit_card', 'bank_transfer', 'cheque', 'voucher'];
-const REF_REQUIRED = ['bank_transfer', 'cheque', 'voucher'];
 export const METHOD_LABELS = { cash: 'מזומן', credit_card: 'כרטיס אשראי (מסוף חיצוני)', bank_transfer: 'העברה בנקאית', cheque: 'שיק', voucher: 'שובר' };
 export const CHARGE_DEPARTMENTS = ['minibar', 'f_and_b', 'spa', 'parking', 'laundry', 'telephone', 'damage', 'other'];
 export const REFUND_REASONS = { cancellation: 'ביטול', overpayment: 'תשלום עודף', complaint: 'תלונה', other: 'אחר' };
 const ACTIVE_STAY = [...IN_HOUSE_STATUSES, 'confirmed', 'modified', 'pending_payment', 'checked_out'];
+
+export const CARD_BRANDS = ['visa', 'mastercard', 'isracard', 'amex', 'diners', 'other'];
+const clip = (v, n) => String(v ?? '').trim().slice(0, n);
+const digits = (v) => String(v ?? '').replace(/\D/g, '');
+
+// FIN-03: the details a receipt must carry for each method. Returns { methodRef, payDetails } or
+// throws 422 with per-field errors. `amount` is what is applied to the folio; for cash, `tendered`
+// (optional) is what the guest handed over and the change is computed here.
+// Card is a record of an external-terminal sale: last 4 digits + approval number — a longer digit
+// string is refused so a full card number can never be stored.
+export function paymentDetails({ method, amount, input, today }) {
+  const d = input.details && typeof input.details === 'object' ? input.details : {};
+  const errors = {};
+  const out = {};
+  let methodRef = clip(input.methodRef, 80);
+  if (method === 'cash') {
+    if (d.tendered !== undefined && d.tendered !== null && d.tendered !== '') {
+      const tendered = round2(d.tendered);
+      if (!(tendered > 0) || tendered - amount < -0.005) errors.tendered = 'הסכום שהתקבל קטן מהסכום לרישום';
+      else { out.tendered = tendered; out.change = round2(tendered - amount); }
+    }
+  } else if (method === 'credit_card') {
+    const last4 = digits(d.last4);
+    const approval = clip(d.approval ?? input.methodRef, 20);
+    if (digits(d.last4).length > 4 || /\d{7,}/.test(String(d.approval || ''))) errors.last4 = 'אין להקליד מספר כרטיס מלא — 4 ספרות אחרונות בלבד';
+    else if (last4.length !== 4) errors.last4 = '4 ספרות אחרונות של הכרטיס';
+    if (!/^[A-Za-z0-9-]{2,20}$/.test(approval)) errors.approval = 'מספר אישור מהמסוף';
+    const inst = d.installments === undefined || d.installments === '' ? 1 : Number(d.installments);
+    if (!Number.isInteger(inst) || inst < 1 || inst > 36) errors.installments = '1 עד 36 תשלומים';
+    if (d.cardBrand && !CARD_BRANDS.includes(d.cardBrand)) errors.cardBrand = 'סוג כרטיס לא מוכר';
+    Object.assign(out, { last4, installments: inst, cardBrand: d.cardBrand || undefined });
+    methodRef = approval;
+  } else if (method === 'bank_transfer') {
+    const ref = clip(d.reference ?? input.methodRef, 40);
+    const payDate = clip(d.payDate, 10);
+    if (ref.length < 2) errors.reference = 'מספר אסמכתת ההעברה';
+    if (!YMD.test(payDate)) errors.payDate = 'תאריך ההעברה';
+    else if (today && payDate > today) errors.payDate = 'תאריך העברה לא יכול להיות עתידי';
+    Object.assign(out, { payDate, payerName: clip(d.payerName, 80) || undefined, bank: clip(d.bank, 40) || undefined, account: clip(d.account, 30) || undefined });
+    methodRef = ref;
+  } else if (method === 'cheque') {
+    const number = digits(d.number ?? input.methodRef).slice(0, 12);
+    const bank = digits(d.bank).slice(0, 3);
+    const branch = digits(d.branch).slice(0, 4);
+    const account = digits(d.account).slice(0, 12);
+    const dueDate = clip(d.dueDate, 10);
+    if (number.length < 3) errors.number = 'מספר השיק';
+    if (bank.length < 2) errors.bank = 'קוד בנק';
+    if (branch.length < 3) errors.branch = 'מספר סניף';
+    if (account.length < 4) errors.account = 'מספר חשבון';
+    if (!YMD.test(dueDate)) errors.dueDate = 'תאריך פירעון';
+    Object.assign(out, { bank, branch, account, dueDate, payerName: clip(d.payerName, 80) || undefined });
+    methodRef = number;
+  } else if (method === 'voucher') {
+    const number = clip(d.number ?? input.methodRef, 40);
+    if (number.length < 2) errors.number = 'מספר השובר';
+    out.issuer = clip(d.issuer, 80) || undefined;
+    methodRef = number;
+  }
+  if (Object.keys(errors).length) throw httpError('יש להשלים את פרטי אמצעי התשלום', 422, { fields: errors });
+  Object.keys(out).forEach((k) => out[k] === undefined && delete out[k]);
+  return { methodRef, payDetails: Object.keys(out).length ? out : undefined };
+}
+
+// Short text for the folio line ("· כרטיס 4242 · אישור 12345 · 3 תשלומים").
+export function methodSummary(method, ref, d = {}) {
+  const p = d || {};
+  if (method === 'credit_card') return ` · ****${p.last4 || ''}${ref ? ` · אישור ${ref}` : ''}${p.installments > 1 ? ` · ${p.installments} תשלומים` : ''}`;
+  if (method === 'bank_transfer') return ` · אסמכתה ${ref}${p.payDate ? ` · ${p.payDate.split('-').reverse().join('/')}` : ''}`;
+  if (method === 'cheque') return ` · שיק ${ref} · בנק ${p.bank}/${p.branch}${p.dueDate ? ` · פירעון ${p.dueDate.split('-').reverse().join('/')}` : ''}`;
+  if (method === 'voucher') return ` · שובר ${ref}${p.issuer ? ` (${p.issuer})` : ''}`;
+  if (method === 'cash') return `${ref ? ` · ${ref}` : ''}${p.tendered ? ` · התקבל ${p.tendered.toFixed(2)}, עודף ${Number(p.change || 0).toFixed(2)}` : ''}`;
+  return ref ? ` · ${ref}` : '';
+}
 
 function opRef(key) {
   const k = String(key || '').trim();
@@ -61,12 +136,9 @@ async function loadFolio(folioId, propertyId) {
   return folio;
 }
 
-// Lines that sit on an issued (final) document — they can only be corrected by a credit note.
+// Lines that sit on an issued tax document — they can only be corrected by a credit note.
 async function linesOnIssuedDocs(folioId) {
-  const docs = await Invoice.find({ folio: folioId, status: 'issued', type: { $ne: 'credit_note' } }).select('lines.folioLineId invoiceNumber').lean();
-  const map = new Map();
-  for (const d of docs) for (const l of d.lines || []) if (l.folioLineId) map.set(String(l.folioLineId), d.invoiceNumber);
-  return map;
+  return (await docCoverage(folioId)).charges;
 }
 
 function ownerLabel(f, companies) {
@@ -75,7 +147,7 @@ function ownerLabel(f, companies) {
   return { guest: 'אורח', room: 'חדר', group: 'קבוצה', house: 'בית' }[f.ownerType] || f.ownerType;
 }
 
-function lineDto(l, onDocs, reversedIds, refundedByPayment) {
+function lineDto(l, onDocs, reversedIds, refundedByPayment, onReceipts = new Map()) {
   const gross = round2(Number(l.amount || 0) + Number(l.taxAmount || 0));
   const id = String(l._id);
   const refunded = refundedByPayment.get(id) || 0;
@@ -83,6 +155,7 @@ function lineDto(l, onDocs, reversedIds, refundedByPayment) {
     id, type: l.type, description: l.description, department: l.department || null, serviceDate: l.serviceDate,
     postedAt: l.postedAt, source: l.source, status: l.status, gross, net: round2(l.amount), tax: round2(l.taxAmount || 0),
     quantity: l.quantity ?? null, unitPrice: l.unitPrice ?? null, method: l.method || null, methodRef: l.methodRef || null,
+    payDetails: l.payDetails || null, onReceipt: onReceipts.get(id) || null,
     reason: l.reason || l.voidReason || null,
     reversalOf: l.reversalOf ? String(l.reversalOf) : null,
     refundOf: l.refundOf ? String(l.refundOf) : null,
@@ -158,6 +231,18 @@ export async function listFolios({ propertyId, view = 'open', q, page = 1, pageS
   };
 }
 
+// A stay can reach the desk without a folio window (created lazily elsewhere). Taking money must not
+// depend on that: give a live stay its guest window on demand, never for a cancelled/closed one.
+export async function ensureGuestFolio({ propertyId, reservationId }) {
+  if (!isId(String(reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
+  const res = await Reservation.findOne({ _id: reservationId, property: propertyId }).select('status currency').lean();
+  if (!res) throw httpError('ההזמנה לא נמצאה', 404);
+  if (['cancelled', 'no_show'].includes(res.status)) throw httpError('לא ניתן לרשום תשלום להזמנה שבוטלה', 409);
+  let folio = await Folio.findOne({ reservation: res._id, status: { $ne: 'closed' }, ownerType: 'guest' });
+  if (!folio) folio = await Folio.create({ property: propertyId, reservation: res._id, ownerType: 'guest', currency: res.currency || 'ILS', lines: [] });
+  return { folioId: String(folio._id) };
+}
+
 // ── FIN-01 stay view: every folio window of a reservation ───────────────────
 export async function getStayFolios({ propertyId, reservationId }) {
   if (!isId(String(reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
@@ -166,10 +251,12 @@ export async function getStayFolios({ propertyId, reservationId }) {
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
   const property = await Property.findById(propertyId).select('vatRate defaultCurrency financePolicy timezone').lean();
   const folios = await Folio.find({ reservation: res._id }).sort({ createdAt: 1 }).lean();
+  const stayUnits = await ReservationRoom.find({ reservation: res._id }).populate('assignedRoom', 'number').sort({ createdAt: 1, _id: 1 }).lean();
+  const unitLabels = new Map(stayUnits.map((u, i) => [String(u._id), `חדר ${u.assignedRoom?.number || i + 1}${u.occupantName ? ` · ${u.occupantName}` : ''}`]));
   const companyIds = folios.filter((f) => f.ownerType === 'company' && isId(String(f.ownerRef || ''))).map((f) => f.ownerRef);
   const companies = new Map((await Company.find({ _id: { $in: companyIds } }).select('name').lean()).map((c) => [String(c._id), c]));
   const docs = await Invoice.find({ $or: [{ reservation: res._id }, { folio: { $in: folios.map((f) => f._id) } }] })
-    .select('type invoiceNumber status issueDate totalGross relatedInvoiceId creditedBy allocationNumber folio').sort({ createdAt: 1 }).lean();
+    .select('type invoiceNumber status issueDate totalNet totalVat totalGross amountPaid buyer relatedInvoiceId creditedBy allocationNumber allocationStatus allocationReason allocationThreshold allocationRejectReason printCount folio reservation').sort({ createdAt: 1 }).lean();
   const creditedOf = new Map();
   for (const d of docs.filter((x) => x.type === 'credit_note' && x.relatedInvoiceId)) {
     const k = String(d.relatedInvoiceId);
@@ -178,7 +265,8 @@ export async function getStayFolios({ propertyId, reservationId }) {
   const windows = [];
   const exceptions = [];
   for (const f of folios) {
-    const onDocs = await linesOnIssuedDocs(f._id);
+    const coverage = await docCoverage(f._id);
+    const onDocs = coverage.charges;
     const reversedIds = new Set(f.lines.filter((l) => l.reversalOf).map((l) => String(l.reversalOf)));
     const refundedByPayment = new Map();
     for (const l of f.lines) {
@@ -189,13 +277,13 @@ export async function getStayFolios({ propertyId, reservationId }) {
     }
     const balance = folioBalance(f);
     const lines = [...f.lines].sort((a, b) => String(a.serviceDate).localeCompare(String(b.serviceDate)) || new Date(a.postedAt) - new Date(b.postedAt))
-      .map((l) => lineDto(l, onDocs, reversedIds, refundedByPayment));
-    const label = ownerLabel(f, companies);
+      .map((l) => lineDto(l, onDocs, reversedIds, refundedByPayment, coverage.payments));
+    const label = f.ownerType === 'room' && unitLabels.has(String(f.ownerRef)) ? unitLabels.get(String(f.ownerRef)) : ownerLabel(f, companies);
     if (balance < -0.005) exceptions.push({ code: 'credit', folioId: String(f._id), label: `${label}: יתרת זכות ${Math.abs(balance).toFixed(2)} — יש להחזיר או לאשר` });
     if (f.status === 'closed' && Math.abs(balance) > 0.005) exceptions.push({ code: 'closed_with_balance', folioId: String(f._id), label: `${label}: חשבון סגור עם יתרה` });
     if (f.settlement?.mode && Math.abs(balance) > 0.005) exceptions.push({ code: 'settled_open', folioId: String(f._id), label: `${label}: יתרה פתוחה באישור (${f.settlement.approvedByName || '—'})` });
     windows.push({
-      id: String(f._id), ownerType: f.ownerType, owner: label, status: f.status, currency: f.currency || 'ILS',
+      id: String(f._id), ownerType: f.ownerType, owner: label, unitId: f.ownerType === 'room' ? String(f.ownerRef) : null, status: f.status, currency: f.currency || 'ILS',
       balance, totals: totalsOf(f.lines),
       settlement: f.settlement?.mode ? { mode: f.settlement.mode, reason: f.settlement.reason || null, by: f.settlement.approvedByName || null, at: f.settlement.at || null } : null,
       lines,
@@ -216,10 +304,9 @@ export async function getStayFolios({ propertyId, reservationId }) {
     canPost: ACTIVE_STAY.includes(res.status),
     folios: windows,
     documents: docs.map((d) => ({
-      id: String(d._id), type: d.type, number: d.invoiceNumber, status: d.status, issueDate: d.issueDate, gross: round2(d.totalGross),
-      folioId: d.folio ? String(d.folio) : null, relatedTo: d.relatedInvoiceId ? String(d.relatedInvoiceId) : null,
+      ...docDto(d),
       credited: creditedOf.get(String(d._id)) || 0, allocationNumber: d.allocationNumber || null,
-      creditable: d.type !== 'credit_note' && d.status === 'issued' ? round2(Math.abs(d.totalGross || 0) - (creditedOf.get(String(d._id)) || 0)) : 0,
+      creditable: CHARGE_DOC_TYPES.includes(d.type) && d.status === 'issued' ? round2(Math.abs(d.totalGross || 0) - (creditedOf.get(String(d._id)) || 0)) : 0,
     })),
     exceptions,
     policy: { refundApprovalOver: property?.financePolicy?.refundApprovalOver ?? 0, cashLimitPerStay: property?.financePolicy?.cashLimitPerStay ?? null },
@@ -311,12 +398,11 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   const property = await Property.findById(propertyId).select('timezone financePolicy').lean();
   const amount = round2(input.amount);
   const kind = input.kind === 'deposit' ? 'deposit' : 'payment';
-  const methodRef = String(input.methodRef || '').trim().slice(0, 80);
   const errors = {};
   if (!(amount > 0)) errors.amount = 'סכום חיובי';
   if (!PAY_METHODS.includes(input.method)) errors.method = 'יש לבחור אמצעי';
-  if (REF_REQUIRED.includes(input.method) && methodRef.length < 2) errors.methodRef = 'אסמכתה נדרשת להעברה, שיק או שובר';
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי התשלום', 422, { fields: errors });
+  const { methodRef, payDetails } = paymentDetails({ method: input.method, amount, input, today: businessDateOf(property) });
   const pm = await resolvePaymentMethod({ propertyId, method: input.method, methodRef });
   const balance = folioBalance(folio);
   if (kind === 'payment' && amount - balance > 0.005) {
@@ -352,15 +438,15 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   }
   folio.lines.push({
     type: kind,
-    description: `${kind === 'deposit' ? 'מקדמה' : 'תשלום'} — ${pm.name}${methodRef ? ` · ${methodRef}` : ''}`,
+    description: `${kind === 'deposit' ? 'מקדמה' : 'תשלום'} — ${pm.name}${methodSummary(input.method, methodRef, payDetails)}`,
     amount: -amount, taxAmount: 0, serviceDate: businessDateOf(property), source: 'pms', status: 'posted', reference,
-    method: input.method, methodRef: methodRef || undefined, reason: input.note ? String(input.note).slice(0, 200) : undefined,
+    method: input.method, methodRef: methodRef || undefined, payDetails, reason: input.note ? String(input.note).slice(0, 200) : undefined,
     createdBy: actor.id || undefined,
   });
   await folio.save();
   const line = folio.lines[folio.lines.length - 1];
   await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: `folio.${kind}`, entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), amount, method: input.method, hasReference: !!methodRef }, ip });
-  return { folioId: String(folio._id), lineId: String(line._id), duplicate: false, balance: folioBalance(folio) };
+  return { folioId: String(folio._id), lineId: String(line._id), duplicate: false, balance: folioBalance(folio), change: payDetails?.change ?? null };
 }
 
 // ── FIN-04 refund of a specific payment ─────────────────────────────────────
@@ -407,6 +493,7 @@ export async function creditNote({ propertyId, invoiceId, amount, reason, actor,
   const inv = await Invoice.findOne({ _id: invoiceId, property: propertyId }).select('_id type').lean();
   if (!inv) throw httpError('המסמך לא נמצא', 404);
   if (inv.type === 'credit_note') throw httpError('לא מזכים מסמך זיכוי', 422);
+  if (!CHARGE_DOC_TYPES.includes(inv.type)) throw httpError('מסמך זיכוי מופק רק לחשבונית מס — לא לקבלה או לחשבון עסקה', 422);
   const cn = await issueCreditNote({ originalInvoiceId: invoiceId, creditAmount: amount === undefined || amount === null || amount === '' ? undefined : Number(amount), reason, issuedBy: actor.id });
   await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'invoice.credit_note', entityType: 'Invoice', entityId: invoiceId, reason, after: { creditNote: String(cn._id), number: cn.invoiceNumber, gross: cn.totalGross }, ip });
   return { id: String(cn._id), number: cn.invoiceNumber, gross: round2(cn.totalGross) };

@@ -37,10 +37,23 @@ export function splitGross(gross, vatRatePct) {
 // The guest folio the lodging goes to (routing to a company happens through FIN-05 rules).
 export async function lodgingFolio(reservation, { create = true } = {}) {
   let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'guest', status: { $ne: 'closed' } });
-  if (!folio) folio = await Folio.findOne({ reservation: reservation._id, status: { $ne: 'closed' } });
+  if (!folio) folio = await Folio.findOne({ reservation: reservation._id, ownerType: { $ne: 'room' }, status: { $ne: 'closed' } });
   if (!folio && create) {
     folio = await Folio.create({
       property: reservation.property, reservation: reservation._id, ownerType: 'guest',
+      currency: reservation.currency || 'ILS', lines: [],
+    });
+  }
+  return folio;
+}
+
+// The own account of one room of a group (a room whose guest pays for themselves).
+export async function unitFolio(reservation, unitId, { create = true } = {}) {
+  const ref = String(unitId);
+  let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'room', ownerRef: ref, status: { $ne: 'closed' } });
+  if (!folio && create) {
+    folio = await Folio.create({
+      property: reservation.property, reservation: reservation._id, ownerType: 'room', ownerRef: ref,
       currency: reservation.currency || 'ILS', lines: [],
     });
   }
@@ -78,7 +91,9 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
     const from = u?.arrivalDate || reservation.arrivalDate;
     const to = [u?.departureDate || reservation.departureDate, until].sort()[0];
     const unitKey = u ? String(u._id) : `res-${reservation._id}`;
-    const flat = Number(u?.nightlyRate || reservation.ratePerNight || 0);
+    // A room whose guest pays for the room posts its nights to the room's own account.
+    const route = u?.roomPayer === 'guest' ? { unitId: String(u._id), toUnit: true } : { unitId: u ? String(u._id) : null, toUnit: false };
+    const flat =Number(u?.nightlyRate || reservation.ratePerNight || 0);
     for (const date of nightsOf(from, to)) {
       // The price frozen at booking/extension for that night (per room), else the unit's rate.
       const gross = agreed.has(date) ? agreed.get(date) : flat;
@@ -87,6 +102,7 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
       if (posted.has(reference)) continue;
       if ((legacyByDate.get(date) || 0) > 0) { legacyByDate.set(date, legacyByDate.get(date) - 1); continue; }
       items.push({
+        ...route,
         reference, date, net, tax, gross: round2(net + tax), vatRate, taxReason: vat.reason || undefined, code: 'rooms',
         description: `לינה ${date}${u?.assignedRoom?.number ? ` · חדר ${u.assignedRoom.number}` : ''}`,
       });
@@ -95,27 +111,47 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
       const boardRef = `board:${unitKey}:${date}`;
       if (boardGross > 0 && !posted.has(boardRef)) {
         const b = split(boardGross, boardVat);
-        items.push({ reference: boardRef, date, net: b.net, tax: b.tax, gross: round2(b.net + b.tax), vatRate: boardVat.rate, taxReason: boardVat.reason || undefined, code: 'board', description: `אירוח (${BOARD_LABEL[reservation.priceSnapshot.board.type] || 'ארוחות'}) ${date}` });
+        items.push({ ...route, reference: boardRef, date, net: b.net, tax: b.tax, gross: round2(b.net + b.tax), vatRate: boardVat.rate, taxReason: boardVat.reason || undefined, code: 'board', description: `אירוח (${BOARD_LABEL[reservation.priceSnapshot.board.type] || 'ארוחות'}) ${date}` });
       }
     }
   }
   return { items, count: items.filter((i) => i.code === 'rooms').length, gross: round2(items.reduce((s, i) => s + i.gross, 0)) };
 }
 
+// Which account an unposted night lands on: the room's own account when its guest pays the room,
+// else the reservation's lodging account.
+export function pendingGrossFor(folio, items, lodgingId) {
+  if (!folio) return 0;
+  const mine = folio.ownerType === 'room'
+    ? items.filter((i) => i.toUnit && String(i.unitId) === String(folio.ownerRef))
+    : String(folio._id) === String(lodgingId) ? items.filter((i) => !i.toUnit) : [];
+  return round2(mine.reduce((s, i) => s + i.gross, 0));
+}
+
 export async function postPlannedNights({ reservation, items, source = 'night_audit', actorId }) {
   if (!items.length) return 0;
-  const folio = await lodgingFolio(reservation);
-  const existing = new Set(folio.lines.map((l) => l.reference).filter(Boolean));
-  let added = 0;
+  const groups = new Map();
   for (const it of items) {
-    if (existing.has(it.reference)) continue;
-    folio.lines.push({
-      type: 'charge', description: it.description, amount: it.net, taxAmount: it.tax, department: it.code || 'rooms', vatRate: it.vatRate, taxReason: it.taxReason,
-      serviceDate: it.date, source, status: 'posted', reference: it.reference, createdBy: actorId || undefined,
-    });
-    added += 1;
+    const key = it.toUnit ? `unit:${it.unitId}` : 'lodging';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(it);
   }
-  if (added) await folio.save();
+  let added = 0;
+  for (const [key, list] of groups) {
+    const folio = key === 'lodging' ? await lodgingFolio(reservation) : await unitFolio(reservation, key.slice(5));
+    const existing = new Set(folio.lines.map((l) => l.reference).filter(Boolean));
+    let here = 0;
+    for (const it of list) {
+      if (existing.has(it.reference)) continue;
+      folio.lines.push({
+        type: 'charge', description: it.description, amount: it.net, taxAmount: it.tax, department: it.code || 'rooms', vatRate: it.vatRate, taxReason: it.taxReason,
+        serviceDate: it.date, source, status: 'posted', reference: it.reference, createdBy: actorId || undefined,
+      });
+      here += 1;
+    }
+    if (here) await folio.save();
+    added += here;
+  }
   return added;
 }
 
