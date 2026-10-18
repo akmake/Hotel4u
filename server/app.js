@@ -80,10 +80,15 @@ import pmsFrontDeskRouter         from './routes/frontdesk.js';
 import pmsOperationsRouter        from './routes/operations.js';
 import pmsFinanceRouter           from './routes/finance.js';
 import pmsAccountingRouter        from './routes/accounting.js';
+import invoicerRouter from './routes/invoicer.js';
 import pmsBookingRouter           from './routes/booking.js';
 import pmsStayRouter              from './routes/stay.js';
 import pmsIdentityRouter          from './routes/identity.js';
 import pmsPlatformRouter          from './routes/platform.js';
+import { assertJwtSecretConfigured } from './utils/jwtSecret.js';
+
+try { assertJwtSecretConfigured(); } catch (err) { console.error('✖', err.message); process.exit(1); }
+
 // --- חיבור למסד הנתונים ---
 try {
   await mongoose.connect(process.env.MONGO_URI);
@@ -243,6 +248,7 @@ pmsRouter.use('/frontdesk',      pmsFrontDeskRouter);
 pmsRouter.use('/ops',            pmsOperationsRouter);
 pmsRouter.use('/finance',        pmsFinanceRouter);
 pmsRouter.use('/accounting',     pmsAccountingRouter);
+pmsRouter.use('/invoicer', invoicerRouter);
 pmsRouter.use('/booking',        pmsBookingRouter);
 pmsRouter.use('/stay',           pmsStayRouter);
 pmsRouter.use('/identity',       pmsIdentityRouter);

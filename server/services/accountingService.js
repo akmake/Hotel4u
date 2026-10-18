@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { invoicerConfigured } from './invoicerClient.js';
 import Property from '../models/Property.js';
 import AuditLog from '../models/AuditLog.js';
 import { LegalEntity, IssuerProfile, DocumentSeries, ComplianceDecision, TaxRule, Account, AccountingPeriod, JournalEntry, AccountingEvent, FiscalOutbox } from '../models/Accounting.js';
@@ -36,7 +37,8 @@ export async function fiscalAudit({ propertyId, actor, action, entityId, after, 
 }
 export async function emitAccountingEvent({ propertyId, legalEntity, eventKey, type, sourceId, payload, topics = ['accounting.review'] }, session) {
   const [event] = await AccountingEvent.create([{ property: propertyId, legalEntity, eventKey, type, sourceId: String(sourceId), payloadHash: payloadHash(payload), payload }], { session });
-  await FiscalOutbox.create(topics.map((topic) => ({ property: propertyId, event: event._id, topic })), { session, ordered: true });
+  const deliveryTopics = invoicerConfigured() ? [...new Set([...topics, 'integration.invoicer'])] : topics;
+  await FiscalOutbox.create(deliveryTopics.map((topic) => ({ property: propertyId, event: event._id, topic })), { session, ordered: true });
   return event;
 }
 export async function setupEntity({ propertyId, input, actor }) {

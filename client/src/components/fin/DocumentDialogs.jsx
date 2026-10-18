@@ -67,11 +67,12 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
   const totals = ctx?.totals.charges || { net: 0, vat: 0, gross: 0 };
   const needsAlloc = ctx && type ? allocationPreview({ type, buyer, totals, threshold: ctx.allocation }) : null;
   // Below the threshold a business customer may still ask for an allocation number (ITA §1.2).
-  const canAsk = !!ctx && ['tax_invoice', 'tax_invoice_receipt'].includes(type) && buyer.kind === 'business' && digits(buyer.vatNumber).length === 9 && totals.vat > 0 && !needsAlloc;
+  const external = ctx?.issuer?.system === 'invoicer';
+  const canAsk = !!ctx && !external && ['tax_invoice', 'tax_invoice_receipt'].includes(type) && buyer.kind === 'business' && digits(buyer.vatNumber).length === 9 && totals.vat > 0 && !needsAlloc;
 
   const why = useMemo(() => {
     if (!ctx) return 'טוען…';
-    if (!ctx.seller.ok) return 'חסרים פרטי העסק';
+    if (!ctx.seller.ok) return external ? 'מערכת החשבוניות לא זמינה' : 'חסרים פרטי העסק';
     if (!type) return 'אין מה להפיק';
     if (!ctx.types[type]?.ok) return ctx.types[type]?.why;
     if (String(buyer.name || '').trim().length < 2) return 'נדרש שם הנמען';
@@ -98,7 +99,7 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
     <>
       <button type="button" className="btn btn-secondary" onClick={onClose}>סגירה</button>
       {next && <button type="button" className="btn btn-secondary" onClick={() => { setIssued(null); setOpKey(newOpKey()); action.reset(); load(next); }}>הפקת קבלה על התקבולים</button>}
-      <button type="button" className="btn btn-primary" onClick={() => openPrint(propertyId, issued.id, setPrintErr)}><Printer size={15} />הדפסה</button>
+      <button type="button" className="btn btn-primary" onClick={() => openPrint(propertyId, issued.id, setPrintErr)}><Printer size={15} />{issued.issuer === 'invoicer' ? 'העתק לעיון' : 'הדפסה'}</button>
     </>
   ) : (
     <>
@@ -124,6 +125,11 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
             issued.type === 'receipt' ? ['התקבל', money(issued.paid)] : ['סה״כ כולל מע״מ', money(issued.gross)],
             issued.type !== 'receipt' && ['מתוכו מע״מ', money(issued.vat)],
           ]} />
+          {issued.issuer === 'invoicer' && (
+            <Banner tone={issued.external?.environment === 'live' ? 'ok' : 'warn'}>
+              המסמך הופק במערכת החשבוניות{issued.external?.environment === 'live' ? '' : ' — סביבת בדיקות, ללא תוקף חשבונאי'}. המקור, מספר ההקצאה, הזיכוי והשליחה ללקוח מנוהלים שם; כאן נשמר העתק.
+            </Banner>
+          )}
           {issued.allocation.status === 'approved' && (
             <Banner tone="ok"><Hash size={14} /> מספר הקצאה מרשות המסים: <b className="ui-num">{issued.allocation.number}</b> — מודפס על החשבונית.</Banner>
           )}
@@ -144,8 +150,14 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
       {ctx && !issued && (
         <form id="doc-form" className="ui-stack" onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }} noValidate>
           <ErrorBanner error={action.error} />
-          {!ctx.seller.ok && (
+          {!ctx.seller.ok && !external && (
             <Banner tone="warn">אי אפשר להפיק מסמך לפני שמוגדרים פרטי העסק: {ctx.seller.missing.join(', ')}. מגדירים בהגדרות › פרטי הנכס.</Banner>
+          )}
+          {external && !ctx.issuer.ready && (
+            <Banner tone="bad">אי אפשר להפיק מסמך כרגע: {ctx.issuer.reason}</Banner>
+          )}
+          {external && ctx.issuer.ready && (
+            <Banner tone="info">המסמך יופק במערכת החשבוניות{ctx.issuer.environment === 'live' ? '' : ' (סביבת בדיקות)'} ויקבל שם את מספרו. פרטי העסק ומספר ההקצאה נקבעים שם.</Banner>
           )}
 
           <div>
@@ -369,9 +381,9 @@ export function DocumentList({ docs, propertyId, onAllocate, onCredit, canCredit
             </div>
             <div className="doc-acts">
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPrint(propertyId, d.id, onError)} title={a === 'pending' ? 'יודפס כהעתק לעיון עד הזנת מספר ההקצאה' : 'הדפסה'}><Printer size={14} />הדפסה</button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSending(d)}><Send size={14} />שליחה</button>
-              {['pending', 'rejected'].includes(a) && onAllocate && <button type="button" className="btn btn-secondary btn-sm" disabled={!canAllocate} title={canAllocate ? undefined : 'כספים או הנהלה'} onClick={() => onAllocate(d)}>מספר הקצאה</button>}
-              {onCredit && d.creditable > 0.005 && <button type="button" className="btn btn-secondary btn-sm" disabled={!canCredit} title={!canCredit ? 'כספים או הנהלה' : undefined} onClick={() => onCredit(d)}>זיכוי</button>}
+              {d.issuer !== 'invoicer' && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSending(d)}><Send size={14} />שליחה</button>}
+              {d.issuer !== 'invoicer' && ['pending', 'rejected'].includes(a) && onAllocate && <button type="button" className="btn btn-secondary btn-sm" disabled={!canAllocate} title={canAllocate ? undefined : 'כספים או הנהלה'} onClick={() => onAllocate(d)}>מספר הקצאה</button>}
+              {onCredit && d.issuer !== 'invoicer' && d.creditable > 0.005 && <button type="button" className="btn btn-secondary btn-sm" disabled={!canCredit} title={!canCredit ? 'כספים או הנהלה' : undefined} onClick={() => onCredit(d)}>זיכוי</button>}
             </div>
           </li>
         );

@@ -490,8 +490,9 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
 export async function creditNote({ propertyId, invoiceId, amount, selections, reason, idempotencyKey, actor, ip }) {
   if (!CREDIT_ROLES.includes(actor.role)) throw httpError('מסמך זיכוי מופק על ידי כספים או הנהלה', 403);
   if (!isId(String(invoiceId || ''))) throw httpError('מזהה מסמך לא תקין', 400);
-  const inv = await Invoice.findOne({ _id: invoiceId, property: propertyId }).select('_id type').lean();
+  const inv = await Invoice.findOne({ _id: invoiceId, property: propertyId }).select('_id type issuer').lean();
   if (!inv) throw httpError('המסמך לא נמצא', 404);
+  if (inv.issuer === 'invoicer') throw httpError('זיכוי של מסמך שהופק במערכת החשבוניות נעשה במערכת החשבוניות', 409, { code: 'managed_by_invoicer' });
   if (inv.type === 'credit_note') throw httpError('לא מזכים מסמך זיכוי', 422);
   if (!CHARGE_DOC_TYPES.includes(inv.type)) throw httpError('מסמך זיכוי מופק רק לחשבונית מס — לא לקבלה או לחשבון עסקה', 422);
   const cn = await issueCreditNote({ originalInvoiceId: invoiceId, creditAmount: amount === undefined || amount === null || amount === '' ? undefined : amount, selections, reason, issuedBy: actor.id, idempotencyKey });

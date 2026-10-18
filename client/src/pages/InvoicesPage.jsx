@@ -51,6 +51,7 @@ export default function InvoicesPage() {
     {
       key: 'alloc', label: 'מספר הקצאה', render: (d) => {
         const a = d.allocation?.status;
+        if (d.issuer === 'invoicer' && a !== 'approved') return <span className="ui-sub">במערכת החשבוניות</span>;
         if (a === 'approved') return <span className="ui-num">{d.allocation.number}</span>;
         if (a === 'pending') return <Tag tone="warn">{ALLOCATION_LABELS.pending}</Tag>;
         if (a === 'rejected') {
@@ -65,8 +66,8 @@ export default function InvoicesPage() {
       key: 'act', label: 'פעולות', srOnly: true, nowrap: true, render: (d) => (
         <div className="doc-acts">
           <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); openPrint(propertyId, d.id, setErr); }}><Printer size={14} />{d.printed ? 'העתק' : 'הדפסה'}</button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setSending(d); }}><Send size={14} />שליחה</button>
-          {['pending', 'rejected'].includes(d.allocation?.status) && (
+          {d.issuer !== 'invoicer' && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setSending(d); }}><Send size={14} />שליחה</button>}
+          {d.issuer !== 'invoicer' && ['pending', 'rejected'].includes(d.allocation?.status) && (
             <button type="button" className="btn btn-secondary btn-sm" disabled={!canAllocate} title={canAllocate ? undefined : 'כספים או הנהלה'} onClick={(e) => { e.stopPropagation(); setAlloc(d); }}>מספר הקצאה</button>
           )}
         </div>

@@ -592,7 +592,15 @@ Every manual charge/payment goes through services/financeService.js + chargeCode
 (/folio/:id/void-line|adjustment|discount|refund|reopen|..., POST /payments, /folio-routing/apply) return 410.
 QA: `npm run qa:books`.
 
-#### Payment details + fiscal documents (FIN-03 details, FIN-06, FIN-10)
+#### ⚠ Invoicing lives in a separate system (owner decision, 2026-10-19)
+**All invoices / receipts / credit notes are issued by our standalone invoicing system (`../invoicer`), reached over its
+API only.** Hotel4u does not own fiscal documents: it sends billing events (`services/invoicerClient.js`, outbox topic
+`integration.invoicer`, `routes/invoicer.js` → `/api/pms/invoicer/connect|status|overview`) and shows what comes back.
+No shared DB, models or users. Env: `INVOICER_API_URL`, `INVOICER_API_KEY` (server only, HTTPS outside localhost).
+Details: `docs/specification/16-invoicer-standalone-connection.md`. The in-app document stack below (documentService,
+ITA allocation, open format, accounting engine) is legacy — do not extend it; new invoicing work goes to the invoicer API.
+
+#### Payment details + fiscal documents (FIN-03 details, FIN-06, FIN-10) — legacy, superseded by the invoicer
 ```
 POST /api/pms/finance/folios/:id/payments   body.details per method (financeService.paymentDetails):
      cash {tendered}→change · credit_card {last4, approval, installments, cardBrand} (never full PAN)

@@ -30,6 +30,7 @@ import { payloadHash } from '../domain/accounting.js';
 import { emitAccountingEvent, fiscalAudit } from './accountingService.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { sumMoney, legacyNumber, ROUNDING_POLICY } from '../domain/money.js';
+import { invoicerClient, invoicerConfigured } from './invoicerClient.js';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
@@ -93,7 +94,7 @@ function sellerOf(property) {
 export async function docCoverage(folioIds, session) {
   const ids = (Array.isArray(folioIds) ? folioIds : [folioIds]).map(String);
   const docs = await Invoice.find({ folio: { $in: ids }, status: { $in: ['issued', 'pending_allocation'] } })
-    .select('type invoiceNumber totalGross relatedInvoiceId lines.folioLineId payments.folioLineId payments.nettedLineIds').session(session || null).lean();
+    .select('type invoiceNumber totalGross relatedInvoiceId coveredLineIds lines.folioLineId payments.folioLineId payments.nettedLineIds').session(session || null).lean();
   const credited = new Map();
   for (const d of docs.filter((x) => x.type === 'credit_note' && x.relatedInvoiceId)) {
     const k = String(d.relatedInvoiceId);
@@ -104,7 +105,10 @@ export async function docCoverage(folioIds, session) {
   for (const d of docs) {
     if (CHARGE_DOC_TYPES.includes(d.type)) {
       const fully = (credited.get(String(d._id)) || 0) >= Math.abs(d.totalGross || 0) - 0.005;
-      if (!fully) for (const l of d.lines || []) if (l.folioLineId) charges.set(String(l.folioLineId), d.invoiceNumber);
+      if (!fully) {
+        for (const l of d.lines || []) if (l.folioLineId) charges.set(String(l.folioLineId), d.invoiceNumber);
+        for (const id of d.coveredLineIds || []) charges.set(String(id), d.invoiceNumber);
+      }
     }
     if (PAYMENT_DOC_TYPES.includes(d.type)) {
       for (const p of d.payments || []) {
@@ -223,12 +227,15 @@ export async function documentContext({ propertyId, folioId }) {
   const company = companyParty(payerCompany || res?.company);
   const guest = guestParty(res?.primaryGuest);
   const docs = await Invoice.find({ folio: folio._id }).sort({ createdAt: 1 }).lean();
+  const external = documentIssuer() === 'invoicer' ? await invoicerReadiness(propertyId) : null;
   return {
     folio: { id: String(folio._id), ownerType: folio.ownerType, status: folio.status },
     reservation: res ? { id: String(res._id), confirmationNumber: res.confirmationNumber, arrivalDate: res.arrivalDate, departureDate: res.departureDate } : null,
-    seller: sellerOf(property || {}),
+    // With the invoicing system the seller's identity and the allocation rule live there.
+    issuer: external ? { system: 'invoicer', ...external } : { system: 'hotel4u', ready: true },
+    seller: external ? { ok: external.ready, missing: external.ready ? [] : [external.reason], party: null } : sellerOf(property || {}),
     issueDate,
-    allocation: allocationThreshold(issueDate),
+    allocation: external ? null : allocationThreshold(issueDate),
     buyers: { guest, company },
     buyerDefault: payerCompany ? company : guest,
     charges, payments,
@@ -263,7 +270,9 @@ function cleanBuyer(input) {
 }
 
 async function nextNumber(propertyId, type, session) {
-  const p = await Property.findByIdAndUpdate(propertyId, { $inc: { [`docSequences.${type}`]: 1 } }, { returnDocument: 'after', ...(session ? { session } : {}) }).select('docSequences').lean();
+  // Every in-app numbering path (manual invoice, credit note, folio document) passes here.
+  if (documentIssuer() === 'invoicer') throw httpError('מסמכים פיסקליים מופקים במערכת החשבוניות בלבד — Hotel4u אינו ממספר מסמכים', 409, { code: 'managed_by_invoicer' });
+  const p =await Property.findByIdAndUpdate(propertyId, { $inc: { [`docSequences.${type}`]: 1 } }, { returnDocument: 'after', ...(session ? { session } : {}) }).select('docSequences').lean();
   if (!p) throw httpError('הנכס לא נמצא', 404);
   const seq = p.docSequences?.[type] || 1;
   return { seq, number: String(seq) };
@@ -292,6 +301,8 @@ export function docDto(d) {
     },
     sent: (d.sentLog || []).map((x) => ({ to: x.to, at: x.at, by: x.by })),
     printed: d.printCount || 0,
+    issuer: d.issuer || 'hotel4u',
+    external: d.issuer === 'invoicer' ? { documentId: d.external?.documentId || null, environment: d.external?.environment || null } : null,
   };
 }
 
@@ -308,6 +319,7 @@ export async function issueDocument({ propertyId, folioId, input, actor, ip }) {
   };
   const dup = await Invoice.findOne({ property: propertyId, requestKey }).lean();
   if (dup) return duplicate(dup);
+  if (documentIssuer() === 'invoicer') return issueViaInvoicer({ propertyId, folioId, input, actor, ip, type, requestKey, requestPayloadHash, duplicate });
   const issued = await withLocks([`docs:${folioId}`], () => runFiscalTransaction(async (session) => {
     const again = await Invoice.findOne({ property: propertyId, requestKey }).session(session).lean();
     if (again) return duplicate(again);
@@ -370,6 +382,164 @@ export async function issueDocument({ propertyId, folioId, input, actor, ip }) {
   return issued;
 }
 
+// ── Issuing through the invoicing system (owner decision 2026-10-19) ───────────────────────────
+// Every fiscal document is issued by our standalone invoicing system (../invoicer) over its API.
+// Hotel4u still builds it from the folio (no retyping, no double documents) and keeps a mirror with
+// the number that came back, so the folio, the checkout and the day close know what is documented.
+// LEGACY_LOCAL_DOCUMENTS=1 keeps the old in-app numbering for the legacy QA suites; never in production.
+export function documentIssuer() {
+  if (process.env.LEGACY_LOCAL_DOCUMENTS === '1' && process.env.NODE_ENV !== 'production') return 'hotel4u';
+  return 'invoicer';
+}
+
+async function invoicerReadiness(propertyId) {
+  if (!invoicerConfigured()) return { ready: false, reason: 'מערכת החשבוניות לא חוברה לשרת — יש להגדיר INVOICER_API_URL ו־INVOICER_API_KEY' };
+  try {
+    const w = await invoicerClient().requireWorkspace(propertyId);
+    return { ready: true, workspace: w.name || null, environment: w.environment || 'sandbox' };
+  } catch (err) {
+    return { ready: false, reason: err.message };
+  }
+}
+
+const INVOICER_METHODS = ['cash', 'credit_card', 'bank_transfer', 'cheque', 'voucher'];
+const PAY_LABELS = { cash: 'מזומן', credit_card: 'כרטיס אשראי', bank_transfer: 'העברה בנקאית', cheque: 'שיק', voucher: 'שובר' };
+const fixed2 = (n) => round2(n).toFixed(2);
+
+// Charges at the price the guest paid (VAT included), so the document total equals the folio to the
+// agora. A discount or adjustment (negative) cannot be a line of its own — it is folded into the
+// largest charges with the same VAT rate and named in their description.
+function invoicerLines(charges) {
+  const byRate = new Map();
+  for (const c of charges) byRate.set(c.vatRate, [...(byRate.get(c.vatRate) || []), c]);
+  const out = [];
+  for (const [rate, rows] of byRate) {
+    const pos = rows.filter((r) => r.gross > 0.005).map((r) => ({ ...r, ids: [r.id], folded: [] }));
+    const neg = rows.filter((r) => r.gross < -0.005);
+    for (const n of neg) {
+      let left = round2(-n.gross);
+      for (const p of [...pos].sort((a, b) => b.gross - a.gross)) {
+        if (left <= 0.005) break;
+        const take = round2(Math.min(left, p.gross));
+        if (take <= 0.005) continue;
+        p.gross = round2(p.gross - take);
+        p.folded.push(`${n.description} ${fixed2(take)}`);
+        if (!p.ids.includes(n.id)) p.ids.push(n.id);
+        left = round2(left - take);
+      }
+      if (left > 0.005) throw httpError(`ההנחות והזיכויים בשיעור מע״מ ${rate}% גדולים מהחיובים באותו שיעור — לא ניתן לבנות מהם חשבונית`, 422, { code: 'negative_exceeds_charges' });
+    }
+    out.push(...pos);
+  }
+  return out
+    .sort((a, b) => String(a.serviceDate || '').localeCompare(String(b.serviceDate || '')))
+    .map((p) => ({
+      ids: p.ids, serviceDate: p.serviceDate, department: p.department,
+      body: {
+        description: clip(p.folded.length ? `${p.description} (בניכוי ${p.folded.join(', ')})` : p.description, 300),
+        quantity: '1', unitPrice: fixed2(p.gross), vatRate: String(p.vatRate), pricesIncludeVat: true,
+      },
+    }));
+}
+
+function invoicerPayments(payments) {
+  return payments.map((p) => {
+    if (p.kind === 'refund' || p.amount <= 0) throw httpError('החזר כספי לאורח מתועד בקבלת החזר — מזכים את הקבלה המקורית במערכת החשבוניות', 422, { code: 'refund_in_invoicer' });
+    if (!INVOICER_METHODS.includes(p.method)) throw httpError(`אמצעי התשלום "${p.method}" אינו נתמך בקבלה — ${Object.values(PAY_LABELS).join(' / ')}`, 422, { code: 'unsupported_method' });
+    return { method: p.method, amount: fixed2(p.amount), reference: p.reference || undefined, details: p.details || {} };
+  });
+}
+
+// One customer per payer in the invoicing system, found again on the next stay.
+function invoicerCustomer(buyer, reservationId) {
+  const taxId = buyer.kind === 'business' ? buyer.vatNumber : buyer.idNumber;
+  return {
+    name: buyer.name, kind: buyer.kind, taxId: taxId || undefined,
+    email: buyer.email, phone: buyer.phone, address: buyer.address, city: buyer.city,
+    externalId: buyer.kind === 'business' ? `hotel4u:vat:${taxId}` : taxId ? `hotel4u:id:${taxId}` : `hotel4u:res:${reservationId}`,
+  };
+}
+
+async function issueViaInvoicer({ propertyId, folioId, input, actor, ip, type, requestKey, requestPayloadHash, duplicate }) {
+  const client = invoicerClient();
+  // Network calls run under the folio lock (not inside a DB transaction): a retry of the same request
+  // reuses the same operation keys there, so it can never issue a second document.
+  return withLocks([`docs:${folioId}`], async () => {
+    const again = await Invoice.findOne({ property: propertyId, requestKey }).lean();
+    if (again) return duplicate(again);
+    const folio = await loadFolio(folioId, propertyId);
+    const property = await Property.findById(propertyId).lean();
+    const coverage = await docCoverage(folio._id);
+    const { charges, payments } = eligibleLines(folio, coverage, property?.vatRate ?? 18);
+    const { types } = typeAvailability(charges, payments);
+    if (!types[type].ok) throw httpError(types[type].why, 409, { code: 'nothing_to_document' });
+    const buyer = cleanBuyer(input.buyer);
+    const withCharges = type !== 'receipt';
+    const withPayments = ['receipt', 'tax_invoice_receipt'].includes(type);
+    const lines = withCharges ? invoicerLines(charges) : [];
+    const pays = withPayments ? invoicerPayments(payments) : [];
+    const res = await Reservation.findById(folio.reservation).select('confirmationNumber').lean();
+    const ref = res?.confirmationNumber ? `הזמנה ${res.confirmationNumber}` : '';
+    const docLines = withCharges ? lines.map((l) => l.body)
+      : [{ description: ref ? `תקבול — ${ref}` : 'תקבול', quantity: '1', unitPrice: fixed2(sum(payments, 'amount')), vatRate: '0' }];
+    const notes = [ref, clip(input.notes, 500)].filter(Boolean).join(' · ');
+
+    const workspace = await client.requireWorkspace(propertyId);
+    let issued;
+    try {
+      const customer = await client.ensureCustomer(workspace._id, invoicerCustomer(buyer, folio.reservation));
+      const draft = await client.createDraft(workspace._id, { type, customer: customer._id, lines: docLines, ...(pays.length ? { payments: pays } : {}), ...(notes ? { notes } : {}) }, `hotel4u:draft:${requestKey}`);
+      issued = draft.status === 'issued' ? draft : await client.issue(workspace._id, draft._id, `hotel4u:issue:${requestKey}`);
+    } catch (err) {
+      if (err.status >= 400 && err.status < 500) throw httpError(`מערכת החשבוניות לא הפיקה את המסמך: ${err.message}`, 422, { code: err.code || 'invoicer_rejected' });
+      throw err;
+    }
+
+    const num = (v) => legacyNumber(v ?? '0');
+    const mirrorLines = (issued.lines || []).map((l, i) => ({
+      description: l.description, quantity: Number(l.quantity) || 1, unitPrice: num(l.unitPrice), discountPct: 0,
+      netAmount: num(l.net), vatRate: Number(l.vatRate), vatAmount: num(l.tax), grossAmount: num(l.gross),
+      serviceDate: lines[i]?.serviceDate, department: lines[i]?.department, folioLineId: lines[i]?.ids[0],
+    }));
+    const mirrorPays = withPayments ? payments.map((p) => ({
+      method: p.method, amount: p.amount, reference: p.reference || undefined, paidAt: p.postedAt, paymentDate: p.date, folioLineId: p.id, nettedLineIds: p.netted?.length ? p.netted : undefined,
+      last4: p.details?.last4, cardBrand: p.details?.cardBrand, installments: p.details?.installments,
+      bank: p.details?.bank, branch: p.details?.branch, account: p.details?.account, dueDate: p.details?.dueDate, payerName: p.details?.payerName,
+    })) : [];
+    const totalGross = num(issued.gross);
+    const amountPaid = sum(mirrorPays, 'amount');
+    const issueDate = issued.issueDate || todayYmdInTimezone(property?.timezone || 'Asia/Jerusalem');
+    const serviceDates = lines.map((l) => l.serviceDate).filter(Boolean).sort();
+    let doc;
+    try {
+      [doc] = await Invoice.create([{
+        property: propertyId, folio: folio._id, reservation: folio.reservation, type, invoiceNumber: String(issued.number), requestKey, requestPayloadHash,
+        issuer: 'invoicer', external: { workspace: String(workspace._id), documentId: String(issued._id), environment: issued.environment || 'sandbox' },
+        coveredLineIds: lines.flatMap((l) => l.ids),
+        status: 'issued', issueDate, taxDate: issueDate, serviceDate: serviceDates[serviceDates.length - 1] || issueDate,
+        seller: { name: issued.seller?.name || property?.legalName || property?.name, vatNumber: issued.seller?.taxId || '', address: issued.seller?.address || '', city: issued.seller?.city || '', country: 'IL' },
+        buyer: { ...buyer, kind: undefined }, lines: mirrorLines, currency: folio.currency || 'ILS',
+        totalNet: num(issued.net), totalVat: num(issued.tax), totalGross, totalDiscount: 0, vatRate: property?.vatRate ?? 18,
+        payments: mirrorPays, amountPaid, balance: withCharges ? round2(totalGross - amountPaid) : 0,
+        allocationStatus: issued.allocationNumber ? 'approved' : 'not_required', allocationNumber: issued.allocationNumber || undefined,
+        allocationReason: 'מנוהל במערכת החשבוניות', issuedBy: actor.id || undefined, issuedAt: new Date(), notes: clip(input.notes, 500) || undefined,
+      }]);
+    } catch (err) {
+      if (err?.code === 11000) {
+        const existing = await Invoice.findOne({ property: propertyId, $or: [{ requestKey }, { 'external.documentId': String(issued._id) }] }).lean();
+        if (existing) return duplicate(existing);
+      }
+      throw err;
+    }
+    await audit({
+      property: propertyId, actor: actor.id, actorName: actor.name, action: 'invoice.issued', entityType: 'Invoice', entityId: doc._id,
+      after: { issuer: 'invoicer', externalId: String(issued._id), type, number: doc.invoiceNumber, folioId: String(folio._id), gross: totalGross, paid: amountPaid, lines: mirrorLines.length, buyerKind: buyer.kind },
+      ip,
+    });
+    return { ...docDto(doc.toObject()), duplicate: false };
+  }, { ttlMs: 90_000, waitMs: 3000 });
+}
+
 async function loadDoc(propertyId, id) {
   if (!isId(String(id || ''))) throw httpError('מזהה מסמך לא תקין', 400);
   const doc = await Invoice.findOne({ _id: id, property: propertyId });
@@ -383,6 +553,7 @@ const allocState = (d) => d.allocationStatus && d.allocationStatus !== 'not_requ
 export async function setAllocation({ propertyId, id, input, actor, ip }) {
   if (!ALLOCATION_ROLES.includes(actor.role)) throw httpError('עדכון מספר הקצאה מותר לכספים או להנהלה', 403);
   const doc = await loadDoc(propertyId, id);
+  if (doc.issuer === 'invoicer') throw httpError('מספר ההקצאה של מסמך זה מנוהל במערכת החשבוניות', 409, { code: 'managed_by_invoicer' });
   const state = allocState(doc);
   if (!['pending', 'rejected'].includes(state)) throw httpError(state === 'approved' ? `למסמך כבר יש מספר הקצאה ${doc.allocationNumber}` : 'המסמך אינו דורש מספר הקצאה', 409);
   if (input.retry) {
@@ -457,6 +628,11 @@ export async function listDocuments({ propertyId, view = 'all', q, type, from, t
 // the original.
 export async function printDocument({ propertyId, id }) {
   const doc = await loadDoc(propertyId, id);
+  if (doc.issuer === 'invoicer') {
+    // The original belongs to the invoicing system; here it is only a reference copy.
+    const full = await Invoice.findById(doc._id).populate('reservation', 'confirmationNumber arrivalDate departureDate').lean();
+    return renderInvoiceHtml(full, { mark: doc.external?.environment === 'live' ? 'external' : 'external_sandbox' });
+  }
   const state = allocState(doc);
   // A held invoice the business chose to continue without a number is final — it is printed with
   // the mandated "do not deduct input tax" sentence (template), not as a reference copy.
@@ -479,6 +655,7 @@ export async function sendDocument({ propertyId, id, to, actor, ip }) {
   const email = clip(to, 120);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw httpError('כתובת דוא״ל לא תקינה', 422, { fields: { to: 'דוא״ל' } });
   const doc = await loadDoc(propertyId, id);
+  if (doc.issuer === 'invoicer') throw httpError('שליחת המסמך ללקוח נעשית ממערכת החשבוניות', 409, { code: 'managed_by_invoicer' });
   const full = await Invoice.findById(doc._id).populate('relatedInvoiceId', 'invoiceNumber type issueDate').populate('reservation', 'confirmationNumber arrivalDate departureDate').lean();
   const property = await Property.findById(propertyId).select('name email fiscal').lean();
   const html = renderInvoiceHtml(full, { mark: 'email' });

@@ -33,7 +33,7 @@ const args = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith
   return [k, v ?? '1'];
 }));
 const BASE = (args.baseUrl || process.env.PMS_BASE_URL || 'http://localhost:4000/api/pms').replace(/\/+$/, '');
-const SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+const SECRET = process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET;
 const TAG = `FDT${Date.now().toString(36).toUpperCase()}`;
 
 const results = [];

@@ -3,12 +3,9 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { createAndSendTokens } from '../utils/tokenHandler.js';
 import { logAction } from '../utils/auditLogger.js';
+import { pmsJwtSecret } from '../utils/jwtSecret.js';
 
-const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
-
-function getPmsJwtSecret() {
-  return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
-}
+const getPmsJwtSecret = pmsJwtSecret;
 
 /** Bearer token for /api/pms (the PMS router authenticates only with this token). */
 export function signPmsToken(user) {
@@ -20,48 +17,6 @@ export function signPmsToken(user) {
     { expiresIn: '8h' }
   );
 }
-
-export const registerUser = async (req, res) => {
-  const { name, email, password, role } = req.body;
-
-  if (!name || !email || !password)
-    return res.status(400).json({ message: 'שם, אימייל וסיסמה הם שדות חובה' });
-
-  const exists = await User.findOne({ email });
-  if (exists)
-    return res.status(400).json({ message: 'משתמש עם אימייל זה כבר קיים' });
-
-  const strong = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$/;
-  if (!strong.test(password))
-    return res.status(400).json({ message: 'הסיסמה חלשה מדי. נדרשים 8 תווים, אות גדולה, קטנה, מספר ותו מיוחד.' });
-
-  const hash = await bcrypt.hash(password, 12);
-
-  const user = await User.create({
-    name,
-    email,
-    passwordHash: hash,
-    role: 'sales',
-  });
-
-  // ✨ שליחת ההרשאות החדשות לקליינט
-  const userPayload = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      canManagePriceLists: user.canManagePriceLists,
-      canViewCommissions: user.canViewCommissions
-  };
-
-  createAndSendTokens(user, res);
-  
-  // ✨ תיעוד הרשמה (אופציונלי - נרשם כמשתמש המחובר, שזה המשתמש החדש עצמו כרגע)
-  req.user = user;
-  await logAction(req, 'CREATE', 'User', user._id, `משתמש חדש נרשם: ${user.name}`);
-
-  return res.status(201).json({ message: "ההרשמה הושלמה בהצלחה", user: userPayload });
-};
 
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;

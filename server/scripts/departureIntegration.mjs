@@ -29,7 +29,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const args = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith('--')).map((a) => { const [k, v] = a.slice(2).split('='); return [k, v ?? '1']; }));
 const BASE = (args.baseUrl || process.env.PMS_BASE_URL || 'http://localhost:4000/api/pms').replace(/\/+$/, '');
-const SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+const SECRET = process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET;
 const TAG = `DPT${Date.now().toString(36).toUpperCase()}`;
 
 const results = [];

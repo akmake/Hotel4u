@@ -4,7 +4,7 @@
 import crypto from 'crypto';
 
 function key() {
-  const base = process.env.TAX_TOKEN_KEY || `hotel4u-ita:${process.env.JWT_SECRET || 'dev'}`;
+  const base = process.env.TAX_TOKEN_KEY || `hotel4u-ita:${process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET || 'dev'}`;
   return crypto.createHash('sha256').update(base).digest();
 }
 

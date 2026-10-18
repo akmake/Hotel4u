@@ -73,6 +73,8 @@ const MARKS = {
   pending:  { text: 'העתק לעיון — ממתין למספר הקצאה', cls: 'mark-warn' },
   email:    { text: 'העתק — נשלח בדוא״ל', cls: 'mark-copy' },
   rejected: { text: 'העתק לעיון — מספר הקצאה סורב', cls: 'mark-warn' },
+  external: { text: 'העתק לעיון — המקור במערכת החשבוניות', cls: 'mark-copy' },
+  external_sandbox: { text: 'העתק לעיון — מערכת החשבוניות בסביבת בדיקות, ללא תוקף חשבונאי', cls: 'mark-warn' },
 };
 
 export function renderInvoiceHtml(invoice, { mark = 'copy' } = {}) {

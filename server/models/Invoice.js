@@ -147,6 +147,14 @@ const InvoiceSchema = new Schema({
   issuerProfileVersion: Number,
   moneyPolicy: String,
   documentHash: String,
+  // מי הנפיק: מאז 19.10.2026 כל מסמך מופק במערכת החשבוניות הנפרדת (invoicer); כאן נשמר עותק בלבד.
+  issuer:         { type: String, enum: ['hotel4u', 'invoicer'], default: 'hotel4u' },
+  external: {
+    workspace:   String,                    // סביבת העבודה של הנכס במערכת החשבוניות
+    documentId:  String,                    // מזהה המסמך שם
+    environment: String,                    // sandbox | live — כפי שהמערכת החיצונית החזירה
+  },
+  coveredLineIds: [String],                 // שורות החשבון שהמסמך מכסה (גם הנחה שאוחדה לשורה אחרת)
   status:         { type: String, enum: INVOICE_STATUSES, default: 'draft' },
 
   // ── תאריכים ──────────────────────────────────────────────────────────

@@ -3,13 +3,10 @@ import jwt from 'jsonwebtoken';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { audit, auditCtxFromReq } from '../services/auditService.js';
 import User from '../models/User.js';
+import { pmsJwtSecret } from '../utils/jwtSecret.js';
 
 const router = Router();
-const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
-
-function getJwtSecret() {
-  return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
-}
+const getJwtSecret = pmsJwtSecret;
 
 function signTokens(payload) {
   const secret = getJwtSecret();

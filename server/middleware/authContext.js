@@ -1,12 +1,9 @@
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
+import { pmsJwtSecret } from '../utils/jwtSecret.js';
 
-const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
-
-function getJwtSecret() {
-  return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
-}
+const getJwtSecret = pmsJwtSecret;
 
 function safeVerifyToken(token) {
   const secret = getJwtSecret();

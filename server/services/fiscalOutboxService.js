@@ -1,3 +1,4 @@
+import { invoicerClient } from './invoicerClient.js';
 import { randomUUID, createHash } from 'node:crypto';
 import Invoice from '../models/Invoice.js';
 import { FiscalOutbox, AccountingEvent, DocumentArtifact } from '../models/Accounting.js';
@@ -21,7 +22,7 @@ export async function archiveDocument(event) {
     await DocumentArtifact.create({ property: doc.property, document: doc._id, version, mime: 'application/json', content, sha256: createHash('sha256').update(content).digest('hex') });
   } catch (err) { if (err.code !== 11000) throw err; }
 }
-const HANDLERS = { 'document.archive': archiveDocument, 'accounting.journal_posted': async () => {} };
+const HANDLERS = { 'integration.invoicer': event => invoicerClient().forwardEvent(event), 'document.archive': archiveDocument, 'accounting.journal_posted': async () => {} };
 export async function processFiscalOutbox({ limit = 50, propertyId, handlers = HANDLERS } = {}) {
   let done = 0, failed = 0;
   // A lease token fences completion: an expired worker cannot complete another worker's claim.

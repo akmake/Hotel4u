@@ -99,7 +99,7 @@ function assertFailureEnvelope(result) {
 
 async function buildContext(env) {
   const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/hotel4u';
-  const jwtSecret = env.jwtSecret || process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+  const jwtSecret = env.jwtSecret || process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET;
   if (!jwtSecret) throw new Error('Missing JWT secret');
 
   await mongoose.connect(mongoUri);

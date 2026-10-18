@@ -1,16 +1,13 @@
 ﻿import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { loginUser, logout, refresh, registerUser, signPmsToken } from '../controllers/authController.js';
+import { loginUser, logout, refresh, signPmsToken } from '../controllers/authController.js';
 import requireAuth from '../middlewares/requireAuth.js';
 import requireRefresh from '../middlewares/requireRefresh.js';
 import { requestPasswordReset, resetPassword } from '../services/identityService.js';
+import { pmsJwtSecret } from '../utils/jwtSecret.js';
 
-const FALLBACK_JWT_SECRET = 'hotel4u_dev_secret_change_in_prod';
-
-function getPmsJwtSecret() {
-  return process.env.JWT_SECRET || FALLBACK_JWT_SECRET;
-}
+const getPmsJwtSecret = pmsJwtSecret;
 
 const router = Router();
 
@@ -29,8 +26,8 @@ const respond = (fn) => async (req, res) => {
 router.post('/password/request', respond((req) => requestPasswordReset({ email: req.body?.email, origin: process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`, ip: req.ip })));
 router.post('/password/reset', respond((req) => resetPassword({ token: req.body?.token, password: req.body?.password, ip: req.ip })));
 
-// POST /api/auth/register
-router.post('/register', registerUser);
+// POST /api/auth/register — closed. Accounts are created only by an administrator (ADM-06, /pms/admin/users).
+router.post('/register', (req, res) => res.status(410).json({ success: false, message: 'ההרשמה העצמית סגורה. משתמש חדש נוצר על ידי מנהל המערכת.' }));
 
 // POST /api/auth/logout
 router.post('/logout', logout);

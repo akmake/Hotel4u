@@ -42,7 +42,7 @@ const args = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith
 const BASE = (args.baseUrl || 'http://localhost:4001/api/pms').replace(/\/+$/, '');
 const ROOT = BASE.replace(/\/api\/pms$/, '');
 const MOCK_PORT = Number(args.mockPort || 4899);
-const SECRET = process.env.JWT_SECRET || 'hotel4u_dev_secret_change_in_prod';
+const SECRET = process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET;
 const TAG = `FSC${Date.now().toString(36).toUpperCase()}`;
 
 const results = [];
