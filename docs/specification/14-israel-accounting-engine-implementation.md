@@ -1,6 +1,7 @@
 # Hotel4u ↔ INVOISER — מפרט אינטגרציה פיננסית בין שתי מערכות עצמאיות
 
 > **גרסה:** 2.0 · **עדכון:** 18.10.2026 · **סטטוס:** מסמך אינטגרציה, מפת אחריות ומבחני קבלה.  
+> **מחקר UX ומוצרים משלימים במערכת המנפיקה:** [INVOISER — PRODUCT_UX_RESEARCH_AND_ROADMAP.md](https://github.com/akmake/invoicer/blob/main/docs/PRODUCT_UX_RESEARCH_AND_ROADMAP.md), ובפרט פרק 9 לאוטומציות PMS ומקרי OTA/Paymaster ופרק 10 למסכי יעד. אין ליישם פיצ'ר הנפקה ב־Hotel4u על בסיס מסמך UX בלבד.
 > **ארכיטקטורה מאושרת כמטרת מוצר:** Hotel4u היא PMS ומערכת מקור; INVOISER היא מערכת חשבונות/הנפקה עצמאית המחוברת ב־API.  
 > **מצב בפועל:** לפי README ו־API במאגר INVOISER, החיבור עדיין לא הופעל ומערכת INVOISER היא **sandbox בלבד**, עם מסמכי TEST ללא תוקף פיסקלי. אין להסיק מכאן שיש הפקת מסמכים חיה.  
 > **מקור האמת הרגולטורי והחשבונאי:** [INVOISER — ISRAEL_ACCOUNTING_SPECIFICATION.md](https://github.com/akmake/invoicer/blob/main/docs/ISRAEL_ACCOUNTING_SPECIFICATION.md).  
