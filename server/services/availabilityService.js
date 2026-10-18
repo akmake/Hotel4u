@@ -3,6 +3,8 @@ import Room from '../models/Room.js';
 import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import InventoryLock from '../models/InventoryLock.js';
+import RoomBlock from '../models/RoomBlock.js';
+import RoomType from '../models/RoomType.js';
 import { audit } from './auditService.js';
 
 function toIsoDate(dateObj) {
@@ -73,22 +75,6 @@ export async function getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, 
   return ids;
 }
 
-function isRoomSellableForArrival(room, arrivalDate) {
-  if (!room?.active) return false;
-  if (room.opsStatus === 'available') return true;
-  if (room.opsStatus === 'out_of_service') {
-    // Future sale is allowed only if a return-to-service date is configured.
-    return !!room.outOfServiceUntil && room.outOfServiceUntil < arrivalDate;
-  }
-  return false;
-}
-
-function computeAvailableCount(inv, lockedCountForDate) {
-  const sellable = inv.physicalCount - inv.blockedCount - inv.oooCount;
-  const effectiveAllotment = Math.max(0, (inv.allotmentCount || 0) - (inv.releasedAllotmentCount || 0));
-  return sellable - inv.bookedCount - inv.tentativeCount - effectiveAllotment - lockedCountForDate + inv.overbookingLimit;
-}
-
 export async function checkAvailability({
   propertyId,
   roomTypeId,
@@ -98,64 +84,16 @@ export async function checkAvailability({
   requiredRooms = 1,
   ignoreIdempotencyKey = null,
 }) {
-  const dates = getStayDates(arrivalDate, departureDate);
-  if (dates.length === 0) {
-    return { available: false, availableRooms: [], reason: 'Invalid stay dates' };
-  }
-
-  const invDocs = await InventoryDate.find({
-    property: propertyId,
-    roomType: roomTypeId,
-    date: { $in: dates },
-  }).lean();
-  const invByDate = new Map(invDocs.map((d) => [d.date, d]));
-
-  const activeLocksByDate = await getActiveLocksCountByDate({
-    propertyId,
-    roomTypeId,
-    dates,
-    ignoreIdempotencyKey,
-  });
-
-  for (const date of dates) {
-    const inv = invByDate.get(date);
-    if (!inv) {
-      return { available: false, availableRooms: [], reason: `Missing inventory row for ${date}` };
-    }
-    if (inv.stopSell) {
-      return { available: false, availableRooms: [], reason: `Stop-sell on ${date}` };
-    }
-
-    const available = computeAvailableCount(inv, activeLocksByDate.get(date) || 0);
-    if (available < requiredRooms) {
-      return { available: false, availableRooms: [], reason: `Not enough availability on ${date}` };
-    }
-  }
-
-  const occupiedRoomIds = await getOccupiedRoomIds({
-    propertyId,
-    roomTypeId,
-    arrivalDate,
-    departureDate,
-    excludeReservationId,
-  });
-
-  const candidateRooms = await Room.find({
-    property: propertyId,
-    roomType: roomTypeId,
-    active: true,
-    opsStatus: { $in: ['available', 'out_of_service'] },
-  }).lean();
-
-  const freeRooms = candidateRooms.filter((room) => {
-    if (occupiedRoomIds.has(String(room._id))) return false;
-    return isRoomSellableForArrival(room, arrivalDate);
-  });
-
+  const a = await assessAvailability({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId, ignoreIdempotencyKey });
+  if (!a.dates.length) return { available: false, availableRooms: [], reason: 'Invalid stay dates' };
+  const closed = a.nights.find((n) => n.stopSell);
+  if (closed) return { available: false, availableRooms: [], reason: `Stop-sell on ${closed.date}` };
+  const short = a.nights.find((n) => n.available < requiredRooms);
+  if (short) return { available: false, availableRooms: [], reason: `Not enough availability on ${short.date}` };
   return {
-    available: freeRooms.length >= requiredRooms,
-    availableRooms: freeRooms,
-    reason: freeRooms.length < requiredRooms ? 'No physical rooms available for this stay' : null,
+    available: a.freeRoomDocs.length >= requiredRooms,
+    availableRooms: a.freeRoomDocs,
+    reason: a.freeRoomDocs.length < requiredRooms ? 'No physical rooms available for this stay' : null,
   };
 }
 
@@ -296,28 +234,128 @@ export async function incrementInventory(propertyId, roomTypeId, arrivalDate, de
   }
 }
 
-// INV-03: availability per night (never an average) plus the physical rooms free for the whole
-// stay. A night without an inventory row is reported as missing — it is not sellable.
-export async function nightlyAvailability({ propertyId, roomTypeId, arrivalDate, departureDate, ignoreIdempotencyKey = null, excludeReservationId = null }) {
+// ── Availability from what is really there (2026-10-19) ─────────────────────────────────────────
+// Per night and room type: rooms of the type that are not out of sale that night, minus stays sold
+// as the type, minus rooms of the type held by stays sold as another type (upgrades, moves), minus
+// short booking locks and manual holds. No pre-made inventory rows are needed: an InventoryDate row,
+// when present, only adds restrictions (stop sell, CTA/CTD, min/max stay) and the overbooking allowance.
+const LIVE_RES_STATUSES = ['cancelled', 'no_show', 'checked_out', 'quote', 'draft', 'waitlisted'];
+const LIVE_UNIT_STATUSES = ['reserved', 'tentative', 'checked_in', 'in_house'];
+const HELD_NOW = ['out_of_order', 'out_of_service', 'maintenance_hold', 'owner_hold', 'internal_use'];
+const nextDay = (ymd) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return toIsoDate(d); };
+
+// Is the room out of sale on night d? Its current status (until outOfServiceUntil, or until released)
+// or a dated block (INV-04).
+export function roomBlockedOn(room, d, blocksByRoom) {
+  if (room.active === false) return true;
+  if (HELD_NOW.includes(room.opsStatus) && (!room.outOfServiceUntil || d <= room.outOfServiceUntil)) return true;
+  return (blocksByRoom?.get(String(room._id)) || []).some((b) => b.from <= d && d < b.to);
+}
+
+export async function activeBlocks({ propertyId, from, to, roomTypeId, roomId }) {
+  const q = { property: propertyId, status: 'active', from: { $lt: to }, to: { $gt: from } };
+  if (roomTypeId) q.roomType = roomTypeId;
+  if (roomId) q.room = roomId;
+  const rows = await RoomBlock.find(q).lean();
+  const byRoom = new Map();
+  for (const b of rows) byRoom.set(String(b.room), [...(byRoom.get(String(b.room)) || []), b]);
+  return byRoom;
+}
+
+// Stays (stay units where they exist) overlapping [from, to), with the room type they were sold as.
+async function liveStays({ propertyId, from, to, excludeReservationId }) {
+  const rq = { property: propertyId, status: { $nin: LIVE_RES_STATUSES }, arrivalDate: { $lt: to }, departureDate: { $gt: from } };
+  if (excludeReservationId) rq._id = { $ne: excludeReservationId };
+  const reservations = await Reservation.find(rq).select('_id roomType roomsCount arrivalDate departureDate assignedRoom').lean();
+  if (!reservations.length) return [];
+  const units = await ReservationRoom.find({ reservation: { $in: reservations.map((r) => r._id) } }).select('reservation roomTypeBooked assignedRoom arrivalDate departureDate status').lean();
+  const byRes = new Map();
+  for (const u of units) byRes.set(String(u.reservation), [...(byRes.get(String(u.reservation)) || []), u]);
+  const out = [];
+  for (const r of reservations) {
+    const us = byRes.get(String(r._id));
+    if (us?.length) {
+      for (const u of us) if (LIVE_UNIT_STATUSES.includes(u.status)) out.push({ type: String(u.roomTypeBooked), room: (u.assignedRoom || (us.length === 1 ? r.assignedRoom : null)) ? String(u.assignedRoom || r.assignedRoom) : null, arrival: u.arrivalDate, departure: u.departureDate, count: 1 });
+    } else if (r.roomType) {
+      const n = Math.max(1, Number(r.roomsCount) || 1);
+      out.push({ type: String(r.roomType), room: n === 1 && r.assignedRoom ? String(r.assignedRoom) : null, arrival: r.arrivalDate, departure: r.departureDate, count: n });
+    }
+  }
+  return out;
+}
+
+export async function assessAvailability({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId = null, ignoreIdempotencyKey = null, stays = null, roomsOfType = null }) {
   const dates = getStayDates(arrivalDate, departureDate);
-  const invDocs = await InventoryDate.find({ property: propertyId, roomType: roomTypeId, date: { $in: dates } }).lean();
+  if (!dates.length) return { dates, nights: [], freeRoomDocs: [] };
+  const from = dates[0]; const to = nextDay(dates[dates.length - 1]);
+  const [rooms, blocksByRoom, allStays, invDocs, locks] = await Promise.all([
+    roomsOfType || Room.find({ property: propertyId, roomType: roomTypeId, active: { $ne: false } }).lean(),
+    activeBlocks({ propertyId, from, to, roomTypeId }),
+    stays || liveStays({ propertyId, from, to, excludeReservationId }),
+    InventoryDate.find({ property: propertyId, roomType: roomTypeId, date: { $in: dates } }).lean(),
+    getActiveLocksCountByDate({ propertyId, roomTypeId, dates, ignoreIdempotencyKey }),
+  ]);
+  const type = String(roomTypeId);
+  const roomIds = new Set(rooms.map((r) => String(r._id)));
   const invByDate = new Map(invDocs.map((d) => [d.date, d]));
-  const locks = await getActiveLocksCountByDate({ propertyId, roomTypeId, dates, ignoreIdempotencyKey });
   const nights = dates.map((date) => {
+    const covering = allStays.filter((s) => s.arrival <= date && date < s.departure);
+    const sold = covering.filter((s) => s.type === type).reduce((a, s) => a + s.count, 0);
+    const heldByOther = covering.filter((s) => s.type !== type && s.room && roomIds.has(s.room)).length;
+    const sellable = rooms.filter((r) => !roomBlockedOn(r, date, blocksByRoom)).length;
     const inv = invByDate.get(date);
-    if (!inv) return { date, available: null, missing: true };
+    const allotment = inv ? Math.max(0, (inv.allotmentCount || 0) - (inv.releasedAllotmentCount || 0)) : 0;
+    const available = sellable - sold - heldByOther - (locks.get(date) || 0) - (inv?.blockedCount || 0) - allotment + (inv?.overbookingLimit || 0);
     return {
-      date,
-      available: Math.max(0, computeAvailableCount(inv, locks.get(date) || 0)),
-      stopSell: !!inv.stopSell,
-      closedToArrival: !!inv.closedToArrival,
-      closedToDeparture: !!inv.closedToDeparture,
-      minLos: inv.minLos || null,
-      maxLos: inv.maxLos || null,
+      date, available: Math.max(0, available), total: rooms.length, outOfSale: rooms.length - sellable, sold: sold + heldByOther,
+      stopSell: !!inv?.stopSell, closedToArrival: !!inv?.closedToArrival, closedToDeparture: !!inv?.closedToDeparture,
+      minLos: inv?.minLos || null, maxLos: inv?.maxLos || null,
     };
   });
   const occupied = await getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId });
-  const candidates = await Room.find({ property: propertyId, roomType: roomTypeId, active: true, opsStatus: { $in: ['available', 'out_of_service'] } }).lean();
-  const freeRooms = candidates.filter((r) => !occupied.has(String(r._id)) && isRoomSellableForArrival(r, arrivalDate)).length;
-  return { nights, freeRooms };
+  const freeRoomDocs = rooms.filter((r) => !occupied.has(String(r._id)) && dates.every((d) => !roomBlockedOn(r, d, blocksByRoom)));
+  return { dates, nights, freeRoomDocs };
+}
+
+// Rooms of a type free for every night of a range (choosing a specific room).
+export async function roomsFreeForStay({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId = null }) {
+  const dates = getStayDates(arrivalDate, departureDate);
+  if (!dates.length) return [];
+  const rooms = await Room.find({ property: propertyId, roomType: roomTypeId, active: { $ne: false } }).lean();
+  const blocksByRoom = await activeBlocks({ propertyId, from: dates[0], to: nextDay(dates[dates.length - 1]), roomTypeId });
+  const occupied = await getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, departureDate, excludeReservationId });
+  return rooms.filter((r) => !occupied.has(String(r._id)) && dates.every((d) => !roomBlockedOn(r, d, blocksByRoom)));
+}
+
+// INV-01 grid: every room type × every night of a range in one pass.
+export async function availabilityGrid({ propertyId, from, days = 14 }) {
+  const n = Math.min(62, Math.max(1, Number(days) || 14));
+  const dates = [from]; while (dates.length < n) dates.push(nextDay(dates[dates.length - 1]));
+  const to = nextDay(dates[dates.length - 1]);
+  const [types, allRooms, stays] = await Promise.all([
+    RoomType.find({ property: propertyId, active: { $ne: false } }).sort({ sortOrder: 1, name: 1 }).lean(),
+    Room.find({ property: propertyId, active: { $ne: false } }).lean(),
+    liveStays({ propertyId, from, to }),
+  ]);
+  const rows = [];
+  for (const t of types) {
+    const roomsOfType = allRooms.filter((r) => String(r.roomType) === String(t._id));
+    const a = await assessAvailability({ propertyId, roomTypeId: t._id, arrivalDate: from, departureDate: to, stays, roomsOfType });
+    rows.push({ roomType: { id: String(t._id), code: t.code, name: t.name }, rooms: roomsOfType.length, nights: a.nights });
+  }
+  const totals = dates.map((date, i) => {
+    const total = rows.reduce((s, r) => s + r.rooms, 0);
+    const available = rows.reduce((s, r) => s + (r.nights[i]?.available || 0), 0);
+    const sold = rows.reduce((s, r) => s + (r.nights[i]?.sold || 0), 0);
+    const outOfSale = rows.reduce((s, r) => s + (r.nights[i]?.outOfSale || 0), 0);
+    const sellable = total - outOfSale;
+    return { date, total, available, sold, outOfSale, occupancyPct: sellable > 0 ? Math.round((Math.min(sold, sellable) / sellable) * 100) : 0 };
+  });
+  return { from, dates, rows, totals };
+}
+
+// INV-03: availability per night (never an average) plus the physical rooms free for the whole stay.
+export async function nightlyAvailability({ propertyId, roomTypeId, arrivalDate, departureDate, ignoreIdempotencyKey = null, excludeReservationId = null }) {
+  const a = await assessAvailability({ propertyId, roomTypeId, arrivalDate, departureDate, ignoreIdempotencyKey, excludeReservationId });
+  return { nights: a.nights, freeRooms: a.freeRoomDocs.length };
 }

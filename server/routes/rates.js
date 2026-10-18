@@ -1,4 +1,5 @@
 ﻿import { Router } from 'express';
+import { matchesRule, applyRuleToPrice } from '../services/ratePricing.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { RatePlan, RateDate, RateOverrideLog } from '../models/RatePlan.js';
 import RoomType from '../models/RoomType.js';
@@ -29,37 +30,7 @@ function daysBetween(fromDate, toDate) {
   return Math.round((to - from) / 86400000);
 }
 
-function matchesRule(rule, ctx) {
-  if (!rule.active) return false;
-
-  if (rule.weekdays?.length && !rule.weekdays.includes(ctx.weekday)) return false;
-  if (rule.seasonFrom && ctx.date < rule.seasonFrom) return false;
-  if (rule.seasonTo && ctx.date > rule.seasonTo) return false;
-
-  if (rule.minGuests != null && ctx.adults < rule.minGuests) return false;
-  if (rule.maxGuests != null && ctx.adults > rule.maxGuests) return false;
-  if (rule.minChildren != null && ctx.children < rule.minChildren) return false;
-  if (rule.maxChildren != null && ctx.children > rule.maxChildren) return false;
-
-  if (rule.minLos != null && ctx.los < rule.minLos) return false;
-  if (rule.maxLos != null && ctx.los > rule.maxLos) return false;
-  if (rule.minLeadDays != null && ctx.leadDays < rule.minLeadDays) return false;
-  if (rule.maxLeadDays != null && ctx.leadDays > rule.maxLeadDays) return false;
-
-  if (rule.channels?.length && !rule.channels.includes(ctx.channel)) return false;
-  if (rule.companies?.length && (!ctx.companyId || !rule.companies.map(String).includes(String(ctx.companyId)))) return false;
-  if (rule.agents?.length && (!ctx.agentId || !rule.agents.map(String).includes(String(ctx.agentId)))) return false;
-  if (rule.promoCodes?.length && (!ctx.promoCode || !rule.promoCodes.includes(ctx.promoCode))) return false;
-  if (rule.loyaltyTiers?.length && (!ctx.loyaltyTier || !rule.loyaltyTiers.includes(ctx.loyaltyTier))) return false;
-
-  return true;
-}
-
-function applyRuleToPrice(basePrice, rule) {
-  if (rule.adjustmentType === 'set') return Math.max(0, Number(rule.adjustmentValue) || 0);
-  if (rule.adjustmentType === 'fixed') return Math.max(0, basePrice + (Number(rule.adjustmentValue) || 0));
-  return Math.max(0, basePrice * (1 + (Number(rule.adjustmentValue) || 0) / 100));
-}
+// Rule matching lives in services/ratePricing.js — one price engine for booking and this quote.
 
 // GET /api/rates/plans?propertyId=&all=1
 router.get('/plans', asyncHandler(async (req, res) => {
@@ -140,10 +111,26 @@ router.patch('/plans/:id', asyncHandler(async (req, res) => {
     }
   });
 
-  const plan = await RatePlan.findByIdAndUpdate(req.params.id, update, { new: true }).lean();
-  if (!plan) return res.status(404).json({ success: false, error: 'Rate plan not found' });
-  assertPropertyScope(req, plan.property);
+  const existing = await RatePlan.findById(req.params.id).select('property').lean();
+  if (!existing) return res.status(404).json({ success: false, error: 'Rate plan not found' });
+  assertPropertyScope(req, String(existing.property));
 
+  // Derived rate: parent in the same property, not itself, and not derived itself (no chains / loops).
+  if (req.body.derived !== undefined) {
+    const d = req.body.derived;
+    if (!d || !d.from) update.derived = { from: null, pct: null };
+    else {
+      const pct = Number(d.pct);
+      if (!Number.isFinite(pct) || pct < -100 || pct > 500) return res.status(422).json({ success: false, error: 'אחוז מול תעריף האב: ‎-100 עד 500' });
+      if (String(d.from) === String(req.params.id)) return res.status(422).json({ success: false, error: 'תעריף לא נגזר מעצמו' });
+      const parent = await RatePlan.findOne({ _id: d.from, property: existing.property }).select('derived').lean();
+      if (!parent) return res.status(422).json({ success: false, error: 'תעריף האב לא נמצא בנכס' });
+      if (parent.derived?.from) return res.status(422).json({ success: false, error: 'תעריף האב בעצמו נגזר — בוחרים תעריף בסיס' });
+      update.derived = { from: d.from, pct: Math.round(pct * 100) / 100 };
+    }
+  }
+
+  const plan = await RatePlan.findByIdAndUpdate(req.params.id, update, { new: true }).lean();
   res.json({ success: true, data: plan });
 }));
 

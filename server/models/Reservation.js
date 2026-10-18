@@ -51,6 +51,8 @@ const ReservationSchema = new Schema({
   currency:          { type: String, default: 'ILS' },
   guaranteeType:     { type: String, enum: ['none', 'credit_card', 'deposit', 'voucher', 'company_guarantee'], default: 'none' },
   confirmationSent:  { type: Boolean, default: false },
+  confirmationSentAt: Date,
+  confirmationSentTo: String,
   cancellationPolicy:String,
   depositPolicy:     String,
   quoteExpiresAt:    Date,

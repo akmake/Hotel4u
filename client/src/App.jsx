@@ -53,8 +53,6 @@ const SalesPerformancePage     = lazy(() => import('./pages/admin/SalesPerforman
 
 // ── hotel4u PMS (future) ──────────────────────────────────────────────────────
 const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
-const TapeChartPage        = lazy(() => import('./pages/TapeChartPage'));
-const RoomRackPage         = lazy(() => import('./pages/RoomRackPage'));
 const ReservationsPage     = lazy(() => import('./pages/rsv/ReservationsListPage'));
 const NewReservationPage   = lazy(() => import('./pages/rsv/BookingFormPage'));
 const ReservationPage      = lazy(() => import('./pages/rsv/ReservationPage'));
@@ -67,6 +65,9 @@ const HousekeepingBoardPage = lazy(() => import('./pages/ops/HousekeepingBoardPa
 const MyTasksPage          = lazy(() => import('./pages/ops/MyTasksPage'));
 const InspectionPage       = lazy(() => import('./pages/ops/InspectionPage'));
 const OpsRoomStatusPage    = lazy(() => import('./pages/ops/RoomStatusPage'));
+const AvailabilityPage     = lazy(() => import('./pages/inv/AvailabilityPage'));
+const RoomChartPage        = lazy(() => import('./pages/inv/RoomChartPage'));
+const HotelSetupPage       = lazy(() => import('./pages/sys/HotelSetupPage'));
 const LostFoundPage        = lazy(() => import('./pages/ops/LostFoundPage'));
 const MaintenancePage      = lazy(() => import('./pages/ops/MaintenancePage'));
 const GuestsPage           = lazy(() => import('./pages/GuestsPage'));
@@ -211,8 +212,8 @@ export default function App() {
             {/* ── hotel4u PMS (future) ── */}
             <Route path="pms" element={<PmsRoleGuard />}>
               <Route index                    element={<DashboardPage />} />
-              <Route path="tape-chart"        element={<TapeChartPage />} />
-              <Route path="room-rack"         element={<RoomRackPage />} />
+              <Route path="tape-chart"        element={<RoomChartPage />} />
+              <Route path="room-rack"         element={<Navigate to="/pms/housekeeping/rooms" replace />} />
               <Route path="reservations"      element={<ReservationsPage />} />
               <Route path="reservations/new"  element={<NewReservationPage />} />
               <Route path="reservations/:id"  element={<ReservationPage />} />
@@ -227,6 +228,7 @@ export default function App() {
               <Route path="housekeeping/my"   element={<MyTasksPage />} />
               <Route path="housekeeping/inspection" element={<InspectionPage />} />
               <Route path="housekeeping/rooms" element={<OpsRoomStatusPage />} />
+              <Route path="availability"      element={<AvailabilityPage />} />
               <Route path="housekeeping/lost-found" element={<LostFoundPage />} />
               <Route path="maintenance"       element={<MaintenancePage />} />
               <Route path="guests"            element={<GuestsPage />} />
@@ -252,6 +254,7 @@ export default function App() {
               <Route path="fin/reports" element={<FinanceReportsPage />} />
               <Route path="fin/accounting" element={<AccountingPage />} />
               <Route path="admin/board" element={<BoardPage />} />
+              <Route path="admin/setup" element={<HotelSetupPage />} />
               <Route path="me"                element={<ProfilePage />} />
               <Route path="work"              element={<WorkCenterPage />} />
             </Route>

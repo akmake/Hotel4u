@@ -16,7 +16,7 @@ import ReservationRoom from '../models/ReservationRoom.js';
 import Folio from '../models/Folio.js';
 import Room from '../models/Room.js';
 import { audit } from './auditService.js';
-import { nightlyAvailability, getOccupiedRoomIds } from './availabilityService.js';
+import { nightlyAvailability, getOccupiedRoomIds, roomsFreeForStay } from './availabilityService.js';
 import { createBooking, resolveGuest } from './bookingService.js';
 import { cancelReservation } from './reservationService.js';
 import { assignRoom, httpError } from './frontDeskService.js';
@@ -137,9 +137,9 @@ async function rollback({ propertyId, created, actor, ip, why }) {
 export async function freeRooms({ propertyId, roomTypeId, arrival, departure }) {
   if (!isId(String(roomTypeId || ''))) throw httpError('יש לבחור סוג חדר', 422);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(arrival || '') || !/^\d{4}-\d{2}-\d{2}$/.test(departure || '') || departure <= arrival) throw httpError('תאריכים לא תקינים', 422);
-  const occupied = await getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate: arrival, departureDate: departure });
-  const rooms = await Room.find({ property: propertyId, roomType: roomTypeId, active: { $ne: false }, opsStatus: 'available' }).select('number floor cleanStatus isAccessible isSmoking').sort({ floor: 1, number: 1 }).lean();
-  return rooms.filter((r) => !occupied.has(String(r._id))).map((r) => ({ id: String(r._id), number: r.number, floor: r.floor, cleanStatus: r.cleanStatus, accessible: !!r.isAccessible }));
+  const rooms = (await roomsFreeForStay({ propertyId, roomTypeId, arrivalDate: arrival, departureDate: departure }))
+    .sort((a, b) => (a.floor || 0) - (b.floor || 0) || String(a.number).localeCompare(String(b.number), undefined, { numeric: true }));
+  return rooms.map((r) => ({ id: String(r._id), number: r.number, floor: r.floor, cleanStatus: r.cleanStatus, accessible: !!r.isAccessible }));
 }
 
 // Members of a party, for the stay file.

@@ -6,6 +6,7 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
+import RoomBlock from '../models/RoomBlock.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import Room from '../models/Room.js';
 import Folio from '../models/Folio.js';
@@ -857,6 +858,9 @@ export async function conflictingRoomIds({ propertyId, from, to, excludeReservat
     if (!u.reservation || !HOLDING_STATUSES.includes(u.reservation.status)) continue;
     if (!map.has(String(u.assignedRoom))) map.set(String(u.assignedRoom), u.reservation.confirmationNumber || 'יחידה אחרת');
   }
+  // INV-04: a room taken out of sale for dates inside the range is not a candidate either.
+  const blocks = await RoomBlock.find({ property: propertyId, status: 'active', from: { $lt: to }, to: { $gt: from } }).select('room from to reason').lean();
+  for (const b of blocks) if (!map.has(String(b.room))) map.set(String(b.room), `חסום ${b.from.split('-').reverse().join('.')}–${b.to.split('-').reverse().join('.')}: ${b.reason}`);
   return map;
 }
 

@@ -13,6 +13,8 @@ import {
   listTickets, getTicket, createTicket, takeTicket, updateTicket, resolveTicket, closeTicket, reopenTicket, unblockRoom,
   opsStaff, roomsLite,
 } from '../services/operationsService.js';
+import { listBlocks, createBlock, releaseBlock, availabilityGrid } from '../services/roomBlockService.js';
+import { roomChart } from '../services/roomChartService.js';
 
 const router = Router();
 
@@ -150,6 +152,24 @@ router.post('/rooms/:id/clean-status', handle(async (req) => {
 router.post('/rooms/:id/unblock', handle(async (req) => {
   requireRoles(req, UNBLOCK_ROLES, 'שחרור חסימת חדר מותר למנהל');
   return unblockRoom({ propertyId: scope(req), roomId: req.params.id, reason: req.body?.reason, actor: actorOf(req), ip: req.ip });
+}));
+
+// INV-04 room blocks by dates, INV-01 availability grid.
+router.get('/room-blocks', handle(async (req) => {
+  requireRoles(req, ROOM_STATUS_READ, 'אין הרשאה');
+  const q = req.query;
+  return listBlocks({ propertyId: scope(req), from: q.from, to: q.to, roomId: q.roomId, includeReleased: q.includeReleased === '1' });
+}));
+router.post('/rooms/:id/blocks', handle(async (req) => createBlock({ propertyId: scope(req), roomId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip })));
+router.post('/room-blocks/:id/release', handle(async (req) => releaseBlock({ propertyId: scope(req), blockId: req.params.id, reason: req.body?.reason, actor: actorOf(req), ip: req.ip })));
+router.get('/availability', handle(async (req) => {
+  requireRoles(req, ROOM_STATUS_READ, 'אין הרשאה');
+  return availabilityGrid({ propertyId: scope(req), from: req.query.from, days: req.query.days });
+}));
+
+router.get('/room-chart', handle(async (req) => {
+  requireRoles(req, ROOM_STATUS_READ, 'אין הרשאה');
+  return roomChart({ propertyId: scope(req), from: req.query.from, days: req.query.days });
 }));
 
 router.get('/rooms-lite', handle(async (req) => {

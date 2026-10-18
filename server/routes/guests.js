@@ -1,11 +1,15 @@
 ﻿import { Router } from 'express';
+import ReservationRoom from '../models/ReservationRoom.js';
+import GuestRegistrationCard from '../models/GuestRegistrationCard.js';
+import GuestRequest from '../models/GuestRequest.js';
+import GuestMessage from '../models/GuestMessage.js';
+import LostItem from '../models/LostItem.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import GuestProfile from '../models/GuestProfile.js';
 import Reservation from '../models/Reservation.js';
 import Folio from '../models/Folio.js';
 import Invoice from '../models/Invoice.js';
-import GuestRegistrationCard from '../models/GuestRegistrationCard.js';
 import { audit } from '../services/auditService.js';
 
 const router = Router();
@@ -88,8 +92,8 @@ router.get('/:id', asyncHandler(async (req, res) => {
   assertPropertyScope(req, String(guest.property));
 
   const reservations = await Reservation.find({
-    primaryGuest: guest._id,
     property: guest.property,
+    $or: [{ primaryGuest: guest._id }, { additionalGuests: guest._id }],
   })
     .populate('roomType', 'name')
     .populate('assignedRoom', 'number')
@@ -204,9 +208,21 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     Object.entries(req.body).filter(([key]) => allowed.includes(key))
   );
   if (updates.email) updates.email = updates.email.toLowerCase().trim();
+  if (guest.isAnonymized) return res.status(409).json({ success: false, error: 'פרופיל מותמם — אין לשנות אותו' });
+  if (updates.isBlacklisted === true && String(updates.blacklistReason ?? guest.blacklistReason ?? '').trim().length < 3) {
+    return res.status(422).json({ success: false, error: 'סימון ברשימה שחורה מחייב סיבה', fields: { blacklistReason: 'סיבה' } });
+  }
 
+  const changed = Object.keys(updates).filter((k) => JSON.stringify(guest[k] ?? null) !== JSON.stringify(updates[k] ?? null));
   Object.assign(guest, updates);
   await guest.save();
+  if (changed.length) {
+    const SENSITIVE = ['passportNumber', 'passportExpiry', 'dateOfBirth', 'idDocType'];
+    await audit({
+      property: guest.property, actor: req.actor?.id, actorName: req.actor?.name, action: 'guest.updated', entityType: 'GuestProfile', entityId: guest._id,
+      after: Object.fromEntries(changed.map((k) => [k, SENSITIVE.includes(k) ? '(עודכן)' : updates[k]])), ip: req.ip,
+    }).catch(() => null);
+  }
 
   res.json({ success: true, data: guest });
 }));
@@ -288,6 +304,8 @@ router.post('/:id/merge', asyncHandler(async (req, res) => {
   if (String(target.property) !== String(source.property)) {
     return res.status(400).json({ success: false, error: 'Guests must belong to the same property' });
   }
+  if (source.mergedInto || target.mergedInto) return res.status(409).json({ success: false, error: 'אחד הפרופילים כבר מוזג לפרופיל אחר' });
+  if (source.isAnonymized || target.isAnonymized) return res.status(409).json({ success: false, error: 'אי אפשר למזג פרופיל מותמם' });
 
   target.totalStays = (target.totalStays || 0) + (source.totalStays || 0);
   target.totalRevenue = (target.totalRevenue || 0) + (source.totalRevenue || 0);
@@ -300,20 +318,32 @@ router.post('/:id/merge', asyncHandler(async (req, res) => {
 
   await target.save();
 
-  await Reservation.updateMany(
-    { primaryGuest: source._id, property: target.property },
-    { primaryGuest: target._id }
-  );
+  // Every record that points at the duplicate now points at the profile that stays.
+  const P = target.property; const S = source._id; const T = target._id;
+  await Reservation.updateMany({ property: P, primaryGuest: S }, { $set: { primaryGuest: T } });
+  await Reservation.updateMany({ property: P, additionalGuests: S }, { $addToSet: { additionalGuests: T } });
+  await Reservation.updateMany({ property: P, additionalGuests: S }, { $pull: { additionalGuests: S } });
+  await ReservationRoom.updateMany({ property: P, guests: S }, { $addToSet: { guests: T } });
+  await ReservationRoom.updateMany({ property: P, guests: S }, { $pull: { guests: S } });
+  for (const M of [GuestRegistrationCard, GuestRequest, GuestMessage]) await M.updateMany({ guest: S }, { $set: { guest: T } });
+  await LostItem.updateMany({ claimant: S }, { $set: { claimant: T } });
+  await Folio.updateMany({ property: P, ownerType: 'guest', ownerRef: String(S) }, { $set: { ownerRef: String(T) } });
+  if (!target.email && source.email) target.email = source.email;
+  if (!target.phone && source.phone) target.phone = source.phone;
+  await target.save();
 
   source.mergedInto = target._id;
   await source.save();
 
   await audit({
     property: target.property,
+    actor: req.actor?.id,
+    actorName: req.actor?.name,
     action: 'guest.merged',
     entityType: 'GuestProfile',
     entityId: target._id,
-    after: { mergedFrom: sourceId },
+    after: { mergedFrom: sourceId, sourceName: `${source.firstName || ''} ${source.lastName || ''}`.trim() },
+    reason: req.body.reason || undefined,
     ip: req.ip,
   });
 
@@ -335,8 +365,8 @@ router.post('/:id/anonymize', asyncHandler(async (req, res) => {
 
   const active = await Reservation.countDocuments({
     property: guest.property,
-    primaryGuest: guest._id,
-    status: { $in: ['confirmed', 'in_house', 'checked_in'] },
+    $or: [{ primaryGuest: guest._id }, { additionalGuests: guest._id }],
+    status: { $nin: ['cancelled', 'no_show', 'checked_out', 'quote', 'draft'] },
   });
 
   if (active > 0) {
@@ -359,16 +389,22 @@ router.post('/:id/anonymize', asyncHandler(async (req, res) => {
   guest.preferences = null;
   guest.allergies = null;
   guest.notes = [];
+  for (const k of ['phones', 'emails', 'addresses', 'tags']) guest[k] = [];
+  for (const k of ['company', 'jobTitle', 'title', 'blacklistReason', 'specialRequests', 'marketingConsentIp', 'privacyConsentIp', 'idDocType', 'citizenship']) guest[k] = undefined;
+  guest.marketingConsent = false;
   guest.isAnonymized = true;
 
   await guest.save();
 
   await audit({
     property: guest.property,
+    actor: req.actor?.id,
+    actorName: req.actor?.name,
     action: 'guest.anonymized',
     entityType: 'GuestProfile',
     entityId: guest._id,
-    after: { reason },
+    reason: reason || undefined,
+    after: { anonymized: true },
     ip: req.ip,
   });
 

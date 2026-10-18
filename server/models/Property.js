@@ -205,6 +205,15 @@ const PropertySchema = new Schema({
   dayClose: {
     lastClosedDate: String,                                  // YYYY-MM-DD
     lastRunId:      { type: Schema.Types.ObjectId, ref: 'DayCloseRun' },
+    // Automatic close (off by default): at `time` (property local) the previous business day is closed.
+    // Open arrivals follow `arrivals`; open departures always stop it and open a work item for a manager.
+    auto: {
+      enabled:  { type: Boolean, default: false },
+      time:     { type: String, default: '03:00' },          // HH:MM local
+      arrivals: { type: String, enum: ['no_show', 'keep'], default: 'keep' },
+      by:       String, at: Date,
+      triedOn:  String,                                      // YYYY-MM-DD of the last blocked attempt
+    },
   },
 
   // ADM-05 policy publication: every publish bumps the version; bookings keep their own snapshot.

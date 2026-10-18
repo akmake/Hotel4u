@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 ﻿import { useState, useMemo, useRef, useCallback } from 'react';
 import {
   BedDouble, Plus, Search, X, Sparkles, Wrench, Users, Crown,
@@ -46,209 +47,7 @@ const OPS_ACTIONS = [
 
 const isBlocked = s => ['out_of_order','maintenance_hold','out_of_service','internal_use','ooo','hold'].includes(s);
 
-/* ── create/edit room modal ──────────────────────────────────────────────── */
-function RoomModal({ propertyId, room, roomTypes, onClose, onSaved }) {
-  const isEdit = !!room;
-  const [form, setForm] = useState({
-    number:          room?.number || '',
-    floor:           room?.floor ?? '',
-    roomTypeId:      room?.roomType?._id ? String(room.roomType._id) : (roomTypes[0]?._id ? String(roomTypes[0]._id) : ''),
-    building:        room?.building || '',
-    wing:            room?.wing || '',
-    housekeepingZone:room?.housekeepingZone || '',
-    isVip:           room?.isVip || false,
-    isSmoking:       room?.isSmoking || false,
-    isAccessible:           room?.isAccessible || false,
-    accessibilityFeatures:  room?.accessibilityFeatures || [],
-    internalNotes:   room?.internalNotes || '',
-    lastRenovatedAt: room?.lastRenovatedAt ? room.lastRenovatedAt.slice(0, 10) : '',
-  });
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  async function submit(e) {
-    e.preventDefault();
-    if (!form.number || form.floor === '') { setError('מספר חדר וקומה חובה'); return; }
-    setError('');
-    setLoading(true);
-    try {
-      const payload = {
-        ...form,
-        floor: Number(form.floor),
-        lastRenovatedAt: form.lastRenovatedAt || undefined,
-      };
-      if (isEdit) {
-        const { roomTypeId, ...rest } = payload;
-        await roomsApi.update(room._id, { ...rest, roomType: roomTypeId });
-      } else {
-        await roomsApi.create({ propertyId, ...payload });
-      }
-      onSaved();
-    } catch (err) {
-      setError(err.message || 'שגיאה');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in" style={{ direction:'rtl' }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border">
-          <div>
-            <div className="font-bold text-ink">{isEdit ? `עריכת חדר ${room.number}` : 'חדר חדש'}</div>
-            <div className="text-xs text-ink-muted">{isEdit ? 'עדכון פרטי חדר' : 'הוספת חדר למלון'}</div>
-          </div>
-          <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={18} /></button>
-        </div>
-
-        <form onSubmit={submit}>
-          <div className="px-6 py-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
-            {/* basic */}
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">מספר חדר *</label>
-                <input className="input w-full text-num font-bold" value={form.number}
-                  onChange={e => set('number', e.target.value)} required placeholder="101" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">קומה *</label>
-                <input type="number" className="input w-full text-num" value={form.floor}
-                  onChange={e => set('floor', e.target.value)} required min={0} max={99} placeholder="1" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">אגף / כנף</label>
-                <input className="input w-full" value={form.wing}
-                  onChange={e => set('wing', e.target.value)} placeholder="A" />
-              </div>
-            </div>
-
-            {/* room type */}
-            <div>
-              <label className="text-xs font-semibold text-ink-secondary block mb-1">סוג חדר *</label>
-              <div className="grid grid-cols-2 gap-2">
-                {roomTypes.map(rt => (
-                  <button key={String(rt._id)} type="button"
-                    onClick={() => set('roomTypeId', String(rt._id))}
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all text-sm
-                      ${form.roomTypeId === String(rt._id) ? 'border-brand bg-brand/5 shadow-sm' : 'border-surface-border hover:border-brand/30'}`}>
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${form.roomTypeId === String(rt._id) ? 'bg-brand' : 'bg-surface-border'}`} />
-                    <div>
-                      <div className="font-semibold text-ink text-xs">{rt.name}</div>
-                      <div className="text-xs text-ink-muted">₪{rt.baseRate}/לילה</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* extra */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">בניין</label>
-                <input className="input w-full" value={form.building}
-                  onChange={e => set('building', e.target.value)} placeholder="Main" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">אזור חדרנות</label>
-                <input className="input w-full" value={form.housekeepingZone}
-                  onChange={e => set('housekeepingZone', e.target.value)} placeholder="North" />
-              </div>
-            </div>
-
-            {/* flags */}
-            <div>
-              <label className="text-xs font-semibold text-ink-secondary block mb-2">תכונות</label>
-              <div className="flex gap-3 flex-wrap">
-                {[
-                  { key:'isVip',       Icon: Star,          label:'VIP',      color:'text-amber-500' },
-                  { key:'isSmoking',   Icon: Cigarette,     label:'מעשנים',   color:'text-gray-500'  },
-                  { key:'isAccessible',Icon: Accessibility, label:'נגיש',     color:'text-blue-500'  },
-                ].map(({ key, Icon, label, color }) => (
-                  <label key={key} className={`flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-all
-                    ${form[key] ? 'border-brand bg-brand/5' : 'border-surface-border hover:border-brand/20'}`}>
-                    <input type="checkbox" checked={form[key]} onChange={e => set(key, e.target.checked)} className="hidden" />
-                    <Icon size={14} className={form[key] ? 'text-brand' : color} />
-                    <span className="text-xs font-medium text-ink-secondary">{label}</span>
-                    {form[key] && <CheckCircle2 size={12} className="text-brand" />}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* accessibility detail — shown only when isAccessible is checked */}
-            {form.isAccessible && (
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-2">תכונות נגישות מפורטות</label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {[
-                    { key:'wheelchair_accessible', label:'נגיש לכיסא גלגלים' },
-                    { key:'roll_in_shower',         label:'מקלחת נגישה' },
-                    { key:'grab_bars',              label:'מוטות אחיזה' },
-                    { key:'lowered_bed',            label:'מיטה נמוכה' },
-                    { key:'lowered_switches',       label:'מתגים בגובה נגיש' },
-                    { key:'visual_fire_alarm',      label:'אזעקת אש חזותית' },
-                    { key:'hearing_loop',           label:'לולאת השראה' },
-                    { key:'wide_doorway',           label:'פתח רחב' },
-                    { key:'elevator_access',        label:'גישה במעלית' },
-                    { key:'accessible_bathroom',    label:'שירותים נגישים' },
-                    { key:'braille_signage',        label:'שלטים בברייל' },
-                    { key:'pool_lift',              label:'מעלית לבריכה' },
-                  ].map(({ key, label }) => {
-                    const checked = form.accessibilityFeatures.includes(key);
-                    return (
-                      <label key={key} className={`flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-lg border text-xs transition-all
-                        ${checked ? 'border-blue-400 bg-blue-50' : 'border-surface-border hover:border-blue-300'}`}>
-                        <input type="checkbox" checked={checked}
-                          onChange={e => {
-                            const arr = form.accessibilityFeatures;
-                            set('accessibilityFeatures', e.target.checked ? [...arr, key] : arr.filter(k => k !== key));
-                          }}
-                          className="hidden" />
-                        <span className={`font-medium ${checked ? 'text-blue-700' : 'text-ink-secondary'}`}>{label}</span>
-                        {checked && <CheckCircle2 size={11} className="text-blue-500 mr-auto" />}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* renovation + notes */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">שיפוץ אחרון</label>
-                <input type="date" className="input w-full text-sm" value={form.lastRenovatedAt}
-                  onChange={e => set('lastRenovatedAt', e.target.value)} />
-              </div>
-              <div className="col-span-1 row-span-1">
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">הערות פנימיות</label>
-                <textarea className="input w-full resize-none text-sm" rows={2}
-                  value={form.internalNotes} onChange={e => set('internalNotes', e.target.value)}
-                  placeholder="הערות לצוות..." />
-              </div>
-            </div>
-
-            {error && (
-              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>
-            )}
-          </div>
-
-          <div className="flex gap-2 px-6 py-4 border-t border-surface-border bg-surface-hover">
-            <button type="button" className="btn btn-secondary flex-1 justify-center" onClick={onClose}>ביטול</button>
-            <button type="submit" disabled={loading} className="btn btn-primary flex-1 justify-center gap-2">
-              {loading && <Spinner size={14} />}
-              {isEdit ? 'שמור שינויים' : 'צור חדר'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+// Adding, editing and deactivating rooms: /pms/admin/setup (one place, validated and audited).
 
 /* ── room popup (status + actions) ──────────────────────────────────────── */
 function RoomPopup({ room, propertyId, onClose, onEdit, onDeactivate, onChanged, toastFn }) {
@@ -485,8 +284,8 @@ export default function RoomsPage() {
 
   /* modal state */
   const [popup,     setPopup]     = useState(null); // room id → popup
-  const [editRoom,  setEditRoom]  = useState(null); // room obj → modal
-  const [showNew,   setShowNew]   = useState(false);
+  const navigate = useNavigate();
+  const toSetup = () => navigate('/pms/admin/setup?tab=rooms');
 
   /* bulk select */
   const [selected, setSelected] = useState(new Set());
@@ -545,15 +344,6 @@ export default function RoomsPage() {
     return Object.entries(map).sort(([a],[b]) => Number(a)-Number(b));
   }, [filtered]);
 
-  /* deactivate */
-  async function deactivate(room) {
-    try {
-      await roomsApi.update(room._id, { active: false });
-      toastSuccess(`חדר ${room.number} הושבת`);
-      setPopup(null); refetch();
-    } catch (e) { toastError(e.message); }
-  }
-
   const hasFilters = filterClean !== 'all' || filterType !== 'all' || filterFloor !== 'all' || filterOps !== 'all' || search;
   const clearFilters = () => { setFilterClean('all'); setFilterType('all'); setFilterFloor('all'); setFilterOps('all'); setSearch(''); };
 
@@ -561,32 +351,19 @@ export default function RoomsPage() {
   if (error)           return <ErrorState message={error} onRetry={refetch} />;
 
   const popupRoom    = popup     ? allRooms.find(r => String(r._id) === popup) : null;
-  const editRoomData = editRoom  ? allRooms.find(r => String(r._id) === editRoom) : null;
 
   return (
     <div className="animate-fade-in">
       <ToastContainer toasts={toasts} />
 
       {/* ─── modals ─── */}
-      {(showNew || editRoomData) && (
-        <RoomModal
-          propertyId={propertyId}
-          room={editRoomData || undefined}
-          roomTypes={roomTypes}
-          onClose={() => { setShowNew(false); setEditRoom(null); }}
-          onSaved={() => {
-            toastSuccess(editRoomData ? `חדר עודכן` : 'חדר נוצר');
-            setShowNew(false); setEditRoom(null); refetch();
-          }}
-        />
-      )}
       {popupRoom && (
         <RoomPopup
           room={popupRoom}
           propertyId={propertyId}
           onClose={() => setPopup(null)}
-          onEdit={() => { setPopup(null); setEditRoom(String(popupRoom._id)); }}
-          onDeactivate={() => deactivate(popupRoom)}
+          onEdit={toSetup}
+          onDeactivate={toSetup}
           onChanged={() => { setPopup(null); refetch(); }}
           toastFn={(type, msg) => type === 'success' ? toastSuccess(msg) : toastError(msg)}
         />
@@ -604,8 +381,8 @@ export default function RoomsPage() {
             <Filter size={14} /> {groupByFloor ? 'לפי קומה' : 'רשימה'}
           </button>
           <button onClick={refetch} className="btn btn-ghost btn-icon"><RefreshCw size={15} /></button>
-          <button onClick={() => setShowNew(true)} className="btn btn-primary flex items-center gap-2">
-            <Plus size={15} /> חדר חדש
+          <button onClick={toSetup} className="btn btn-primary flex items-center gap-2">
+            <Plus size={15} /> הוספה ועריכת חדרים
           </button>
         </div>
       </div>
@@ -783,7 +560,7 @@ export default function RoomsPage() {
                     </td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <button className="btn btn-ghost btn-icon btn-sm"
-                        onClick={() => { setEditRoom(String(room._id)); }}>
+                        onClick={toSetup}>
                         <Pencil size={13} />
                       </button>
                     </td>

@@ -170,6 +170,15 @@ export const frontdesk = {
 
 // ── Operations: housekeeping, room status, inspection, lost & found, maintenance (OPS-01…06) ──
 const withP = (propertyId, body = {}) => ({ ...body, propertyId });
+export const setup = {
+  get:            (propertyId)              => api.get(`/setup?propertyId=${propertyId}`),
+  updateProperty: (propertyId, body)        => api.patch('/setup/property', withP(propertyId, body)),
+  createType:     (propertyId, body)        => api.post('/setup/room-types', withP(propertyId, body)),
+  updateType:     (propertyId, id, body)    => api.patch(`/setup/room-types/${id}`, withP(propertyId, body)),
+  addRooms:       (propertyId, body)        => api.post('/setup/rooms', withP(propertyId, body)),
+  updateRoom:     (propertyId, id, body)    => api.patch(`/setup/rooms/${id}`, withP(propertyId, body)),
+};
+
 export const ops = {
   board:          (propertyId, params = {}) => api.get(`/ops/board?propertyId=${propertyId}${qs(params)}`),
   generate:       (propertyId, date)        => api.post('/ops/tasks/generate', withP(propertyId, { date })),
@@ -188,6 +197,11 @@ export const ops = {
   setClean:       (propertyId, roomId, body) => api.post(`/ops/rooms/${roomId}/clean-status`, withP(propertyId, body)),
   unblock:        (propertyId, roomId, reason) => api.post(`/ops/rooms/${roomId}/unblock`, withP(propertyId, { reason })),
   roomsLite:      (propertyId)              => api.get(`/ops/rooms-lite?propertyId=${propertyId}`),
+  availability:   (propertyId, params = {}) => api.get(`/ops/availability?propertyId=${propertyId}${qs(params)}`),
+  roomChart:      (propertyId, params = {}) => api.get(`/ops/room-chart?propertyId=${propertyId}${qs(params)}`),
+  roomBlocks:     (propertyId, params = {}) => api.get(`/ops/room-blocks?propertyId=${propertyId}${qs(params)}`),
+  createBlock:    (propertyId, roomId, body) => api.post(`/ops/rooms/${roomId}/blocks`, withP(propertyId, body)),
+  releaseBlock:   (propertyId, blockId, reason) => api.post(`/ops/room-blocks/${blockId}/release`, withP(propertyId, { reason })),
   staff:          (propertyId, kind)        => api.get(`/ops/staff?propertyId=${propertyId}${qs({ kind })}`),
   lostItems:      (propertyId, params = {}) => api.get(`/ops/lost-items?propertyId=${propertyId}${qs(params)}`),
   createLost:     (propertyId, body)        => api.post('/ops/lost-items', withP(propertyId, body)),
@@ -216,6 +230,7 @@ export const finance = {
   creditNote:  (propertyId, invoiceId, body) => api.post(`/finance/invoices/${invoiceId}/credit-note`, { ...body, propertyId }),
   dayClose:    (propertyId)              => api.get(`/finance/day-close?propertyId=${propertyId}`),
   runDayClose: (propertyId, body)        => api.post('/finance/day-close/run', { ...body, propertyId }),
+  setAutoDayClose: (propertyId, body)    => api.put('/finance/day-close/auto', { ...body, propertyId }),
   dayReport:   (propertyId, date)        => api.get(`/finance/day-close/report?propertyId=${propertyId}${qs({ date })}`),
   closeFolio:  (propertyId, folioId)     => api.post(`/finance/folios/${folioId}/close`, { propertyId }),
   // FIN-06 / FIN-10 documents from a folio and the allocation centre
@@ -271,6 +286,7 @@ export const booking = {
   availability: (propertyId, params)       => api.get(`/booking/availability?propertyId=${propertyId}${qs(params)}`),
   create:       (propertyId, body)         => api.post('/booking/reservations', { ...body, propertyId }),
   party:        (propertyId, body)         => api.post('/booking/party', { ...body, propertyId }),
+  sendConfirmation: (propertyId, id, to)  => api.post(`/booking/reservations/${id}/confirmation`, { to, propertyId }),
   freeRooms:    (propertyId, params)       => api.get(`/booking/free-rooms?propertyId=${propertyId}${qs(params)}`),
   boardConfig:  (propertyId)               => api.get(`/booking/board-config?propertyId=${propertyId}`),
   setBoardConfig: (propertyId, body)       => api.put('/booking/board-config', { ...body, propertyId }),

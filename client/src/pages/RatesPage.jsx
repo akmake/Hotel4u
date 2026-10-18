@@ -31,7 +31,7 @@ function parseDateLabel(dateStr) {
 }
 
 // ── Rate Plan Modal ───────────────────────────────────────────────────────────
-function RatePlanModal({ plan, propertyId, onClose, onSaved }) {
+function RatePlanModal({ plan, plans = [], propertyId, onClose, onSaved }) {
   const isEdit = !!plan;
   const [form, setForm] = useState({
     code:               plan?.code || '',
@@ -45,6 +45,8 @@ function RatePlanModal({ plan, propertyId, onClose, onSaved }) {
     cancellationPolicy: plan?.cancellationPolicy || '',
     depositPolicy:      plan?.depositPolicy || '',
     sortOrder:          plan?.sortOrder ?? 0,
+    derivedFrom:        plan?.derived?.from ? String(plan.derived.from) : '',
+    derivedPct:         plan?.derived?.pct ?? '',
   });
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
@@ -58,10 +60,13 @@ function RatePlanModal({ plan, propertyId, onClose, onSaved }) {
     setLoading(true);
     setError('');
     try {
+      const { derivedFrom, derivedPct, ...rest } = form;
+      const derived = derivedFrom ? { from: derivedFrom, pct: Number(derivedPct) || 0 } : null;
       if (isEdit) {
-        await ratesApi.updatePlan(plan._id, form);
+        await ratesApi.updatePlan(plan._id, { ...rest, derived });
       } else {
-        await ratesApi.createPlan({ ...form, propertyId });
+        const created = await ratesApi.createPlan({ ...rest, propertyId });
+        if (derived && created?._id) await ratesApi.updatePlan(created._id, { derived });
       }
       onSaved();
     } catch (e) {
@@ -138,6 +143,22 @@ function RatePlanModal({ plan, propertyId, onClose, onSaved }) {
                 value={form.depositPolicy} onChange={e => set('depositPolicy', e.target.value)} />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">נגזר מתעריף</label>
+              <select className="select w-full" value={form.derivedFrom} onChange={e => set('derivedFrom', e.target.value)}>
+                <option value="">— לא נגזר —</option>
+                {plans.filter(p => p._id !== plan?._id && !p.derived?.from).map(p => <option key={p._id} value={p._id}>{p.code} · {p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">% מול תעריף האב</label>
+              <input className="input w-full" inputMode="decimal" placeholder="למשל ‎-12" disabled={!form.derivedFrom}
+                value={form.derivedPct} onChange={e => set('derivedPct', e.target.value)} />
+            </div>
+          </div>
+          {form.derivedFrom && <div className="text-xs text-ink-muted">בלילה בלי מחיר משלו בלוח — המחיר של תעריף האב באותו לילה {Number(form.derivedPct) < 0 ? `פחות ${Math.abs(Number(form.derivedPct))}%` : Number(form.derivedPct) > 0 ? `ועוד ${Number(form.derivedPct)}%` : ''}. מחיר שהוזן בלוח לתעריף הזה גובר.</div>}
 
           {error && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
         </div>
@@ -369,7 +390,7 @@ function PricingRulesModal({ plan, onClose, onSaved, onError }) {
 
   const emptyRule = () => ({
     _key: Date.now(),
-    name: '', active: true, adjustmentType: 'fixed', adjustmentValue: 0,
+    name: '', active: true, appliesTo: 'all', adjustmentType: 'fixed', adjustmentValue: 0,
     weekdays: [], seasonFrom: '', seasonTo: '', minLos: '', maxLos: '',
     minLeadDays: '', maxLeadDays: '', channels: [], promoCodes: '', loyaltyTiers: '',
   });
@@ -444,6 +465,13 @@ function PricingRulesModal({ plan, onClose, onSaved, onError }) {
                   <div className="col-span-2">
                     <label className="text-xs font-semibold text-ink-secondary block mb-1">שם הכלל</label>
                     <input className="input w-full text-sm" value={rule.name} onChange={e => updateRule(idx,'name',e.target.value)} placeholder="שם הכלל..." />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1">חל על</label>
+                    <select className="select w-full text-sm" value={rule.appliesTo || 'all'} onChange={e => updateRule(idx,'appliesTo',e.target.value)}>
+                      <option value="all">כל הלילות (גם מעל המחיר בלוח)</option>
+                      <option value="base">רק לילות בלי מחיר בלוח</option>
+                    </select>
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-ink-secondary block mb-1">סוג התאמה</label>
@@ -849,6 +877,7 @@ export default function RatesPage() {
       {planModal && (
         <RatePlanModal
           plan={planModal === 'new' ? null : planModal}
+          plans={plans || []}
           propertyId={propertyId}
           onClose={() => setPlanModal(null)}
           onSaved={() => {

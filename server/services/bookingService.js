@@ -24,6 +24,7 @@ import Invoice from '../models/Invoice.js';
 import GuestRequest from '../models/GuestRequest.js';
 import AuditLog from '../models/AuditLog.js';
 import { RatePlan, RateDate } from '../models/RatePlan.js';
+import { priceNight } from './ratePricing.js';
 import { audit } from './auditService.js';
 import { nightlyAvailability, getStayDates, incrementInventory, checkAvailability } from './availabilityService.js';
 import { createReservation } from './reservationService.js';
@@ -78,16 +79,6 @@ function validateStay({ arrival, departure, adults, children, rooms, today }) {
   return { nights, adults: a, children: c, rooms: r };
 }
 
-// Price per room per night from the rate calendar, with occupancy and child prices when defined.
-function nightPrice(rd, perRoomAdults, perRoomChildren) {
-  let price = Number(rd.price);
-  const occ = { 2: rd.occupancy2Price, 3: rd.occupancy3Price, 4: rd.occupancy4Price }[Math.min(4, perRoomAdults)];
-  if (perRoomAdults >= 2 && Number(occ) > 0) price = Number(occ);
-  if (perRoomChildren > 0 && Number(rd.childPricePerNight) > 0) price += perRoomChildren * Number(rd.childPricePerNight);
-  if (Number(rd.weekdayAdjustmentPct)) price *= 1 + Number(rd.weekdayAdjustmentPct) / 100;
-  return round2(price);
-}
-
 async function offersFor({ propertyId, property, roomType, plans, arrival, departure, adults, children, rooms, nights, board, childAges }) {
   const dates = getStayDates(arrival, departure);
   const perRoomAdults = Math.ceil(adults / rooms);
@@ -108,7 +99,11 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
   if (!missingInv.length && minAvail < rooms) invReasons.push({ code: 'sold_out', label: minAvail > 0 ? `נותרו ${minAvail} יחידות בלבד` : 'אין מקום פנוי בכל הלילות' });
   if (capacityIssue) invReasons.push({ code: 'capacity', label: `הרכב של ${perRoomAdults} מבוגרים${perRoomChildren ? ` ו־${perRoomChildren} ילדים` : ''} ליחידה חורג מקיבולת החדר` });
 
-  const rds = await RateDate.find({ roomType: roomType._id, ratePlan: { $in: plans.map((p) => p._id) }, date: { $in: [...dates, departure] } }).lean();
+  // Parents of derived rates take part in pricing even when they are not offered here.
+  const parentIds = [...new Set(plans.map((p) => p.derived?.from && String(p.derived.from)).filter(Boolean))];
+  const missingParents = parentIds.filter((id) => !plans.some((p) => String(p._id) === id));
+  const parents = new Map([...plans, ...(missingParents.length ? await RatePlan.find({ _id: { $in: missingParents } }).lean() : [])].map((p) => [String(p._id), p]));
+  const rds = await RateDate.find({ roomType: roomType._id, ratePlan: { $in: [...plans.map((p) => p._id), ...missingParents] }, date: { $in: [...dates, departure] } }).lean();
   const byPlan = new Map();
   for (const rd of rds) {
     const k = String(rd.ratePlan);
@@ -122,13 +117,17 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
       const reasons = [...invReasons];
       const nightly = [];
       const missingRate = [];
+      const today = businessDateOf(property);
       for (const d of dates) {
         const rd = cal.get(d);
-        if (!rd) { missingRate.push(d); continue; }
-        if (rd.stopSell) reasons.push({ code: 'rate_closed', label: `התעריף סגור ל־${d}` });
-        nightly.push({ date: d, price: nightPrice(rd, perRoomAdults, perRoomChildren) });
+        if (rd?.stopSell) reasons.push({ code: 'rate_closed', label: `התעריף סגור ל־${d}` });
+        const parentPlan = plan.derived?.from ? parents.get(String(plan.derived.from)) : null;
+        const parent = parentPlan ? { plan: parentPlan, rd: byPlan.get(String(parentPlan._id))?.get(d) } : null;
+        const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: nights, today, parent });
+        if (p.price === null) { missingRate.push(d); continue; }
+        nightly.push({ date: d, price: p.price });
       }
-      if (missingRate.length) reasons.push({ code: 'missing_rate', label: `אין מחיר לתעריף ל־${missingRate.slice(0, 3).join(', ')}${missingRate.length > 3 ? '…' : ''}` });
+      if (missingRate.length) reasons.push({ code: 'missing_rate', label: `אין מחיר ל־${missingRate.slice(0, 3).join(', ')}${missingRate.length > 3 ? '…' : ''} — אין מחיר בלוח התעריפים ואין מחיר בסיס לסוג החדר` });
       const first = cal.get(arrival);
       if (first?.cta) reasons.push({ code: 'cta', label: 'התעריף סגור להגעה בתאריך זה' });
       if (cal.get(departure)?.ctd) reasons.push({ code: 'ctd', label: 'התעריף סגור ליציאה בתאריך זה' });
@@ -547,6 +546,7 @@ export async function getStayFile({ propertyId, id, role }) {
     terms: { cancellation: r.cancellationPolicy || null, deposit: r.depositPolicy || null, guarantee: r.guaranteeType || 'none' },
     quote: r.quote?.version ? { ...r.quote, expired: !!(r.quote.validUntil && new Date(r.quote.validUntil) < new Date()) } : null,
     holdExpiresAt: r.status === 'hold' ? r.holdExpiresAt : null,
+    confirmation: { sent: !!r.confirmationSent, at: r.confirmationSentAt || null, to: r.confirmationSentTo || null, guestEmail: r.primaryGuest?.email || null },
     money: financeVisible ? { balance, folios: folios.length, documents: docs.map((d) => ({ id: String(d._id), type: d.type, number: d.invoiceNumber, status: d.status, gross: d.totalGross })) } : null,
     requests: requests.map((q) => ({ id: String(q._id), category: q.category, description: q.description, status: q.status, priority: q.priority })),
     specialRequests: r.specialRequests || null, internalNotes: financeVisible ? r.internalNotes || null : null,
@@ -569,21 +569,28 @@ export async function getStayFile({ propertyId, id, role }) {
   };
 }
 
-// Price of given nights from the rate calendar (used by stay changes: extension, modification).
-// Missing nights are returned, never filled in.
+// Price of given nights (used by stay changes: extension, modification) — same engine as booking.
+// A night that cannot be priced (no calendar row and no base price) is returned as missing, never invented.
 export async function priceNights({ roomTypeId, ratePlanId, dates, adults = 2, children = 0, rooms = 1 }) {
   const perRoomAdults = Math.ceil(adults / rooms);
   const perRoomChildren = Math.ceil(children / rooms);
-  const rds = ratePlanId ? await RateDate.find({ roomType: roomTypeId, ratePlan: ratePlanId, date: { $in: dates } }).lean() : [];
+  const [rds, plan, roomType] = await Promise.all([
+    ratePlanId ? RateDate.find({ roomType: roomTypeId, ratePlan: ratePlanId, date: { $in: dates } }).lean() : [],
+    ratePlanId ? RatePlan.findById(ratePlanId).lean() : null,
+    RoomType.findById(roomTypeId).lean(),
+  ]);
   const by = new Map(rds.map((rd) => [rd.date, rd]));
+  const parentPlan = plan?.derived?.from ? await RatePlan.findById(plan.derived.from).lean() : null;
+  const parentRows = parentPlan ? new Map((await RateDate.find({ roomType: roomTypeId, ratePlan: parentPlan._id, date: { $in: dates } }).lean()).map((r) => [r.date, r])) : new Map();
   const nightly = [];
   const missing = [];
   const closed = [];
   for (const d of dates) {
     const rd = by.get(d);
-    if (!rd) { missing.push(d); continue; }
-    if (rd.stopSell) closed.push(d);
-    nightly.push({ date: d, price: nightPrice(rd, perRoomAdults, perRoomChildren) });
+    if (rd?.stopSell) closed.push(d);
+    const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: dates.length, parent: parentPlan ? { plan: parentPlan, rd: parentRows.get(d) } : null });
+    if (p.price === null) { missing.push(d); continue; }
+    nightly.push({ date: d, price: p.price });
   }
   return { nightly, missing, closed, perRoom: round2(nightly.reduce((s, n) => s + n.price, 0)), signature: signature(nightly) };
 }

@@ -187,6 +187,16 @@ export function initPmsScheduler() {
     }
   });
 
+  // Automatic day close (properties that turned it on) — checked every 5 minutes.
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const { autoDayCloseTick } = await import('./financeService.js');
+      await autoDayCloseTick();
+    } catch (err) {
+      console.error('[pmsScheduler] autoDayClose failed:', err.message);
+    }
+  });
+
   // Check-in reminders — fires at 09:00 every morning
   cron.schedule('0 9 * * *', async () => {
     await sendCheckInReminders().catch(err =>

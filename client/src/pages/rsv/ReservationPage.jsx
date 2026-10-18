@@ -14,7 +14,7 @@ import { formatShort, formatLong } from '../../utils/date';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/ui/Toast';
 import {
-  Page, Toolbar, Card, DataTable, Pill, Tag, Banner, KeyValues, RowMenu, ConfirmDialog, Modal, ErrorBanner, Spinner, Empty,
+  Page, Toolbar, Card, DataTable, Pill, Tag, Banner, KeyValues, RowMenu, ConfirmDialog, Modal, ErrorBanner, Spinner, Empty, Field,
   useLoader, useAction, money, formatDateTime,
 } from '../../components/kit';
 import { MoveRoomDialog, ExtendDialog, EarlyDepartureDialog, ModifyBookingDialog, CancelBookingDialog } from '../../components/stay/StayChangeDialogs';
@@ -46,6 +46,7 @@ export default function ReservationPage() {
   const { propertyId } = useProperty();
   const role = useAuthStore((s) => s.user?.role);
   const { toasts, success } = useToast();
+  const [mailTo, setMailTo] = useState('');
   const [dialog, setDialog] = useState(null);
   const act = useAction();
   const { data: r, loading, error, reload } = useLoader(async () => (propertyId ? booking.get(propertyId, id) : null), [propertyId, id]);
@@ -120,6 +121,7 @@ export default function ReservationPage() {
                 inHouse && liveUnits.length > 1 && { label: 'מעבר חדר', disabled: true, why: 'בחרו יחידה בטבלת היחידות' },
                 inHouse && { label: 'הארכת שהייה', disabled: !canFront, why: 'קבלה בלבד', onSelect: () => setDialog({ kind: 'extend' }) },
                 inHouse && r.departureDate > r.businessDate && { label: 'עזיבה מוקדמת', disabled: !canFront, why: 'קבלה בלבד', onSelect: () => setDialog({ kind: 'early' }) },
+                r.confirmation && ['confirmed', 'modified', 'hold', 'pending_payment', 'checked_in', 'in_house'].includes(r.status) && { label: r.confirmation.sent ? 'שליחת אישור שוב' : 'שליחת אישור הזמנה', hint: r.confirmation.sent ? `נשלח ל־${r.confirmation.to || ''}` : 'במייל לאורח', onSelect: () => setDialog({ kind: 'confirm-mail' }) },
                 { label: 'סימון "לא הגיע"', disabled: !r.actions.noShow.ok, why: r.actions.noShow.why, onSelect: () => setDialog({ kind: 'noshow' }) },
                 r.actions.reverseCheckIn?.ok && { label: 'ביטול כניסה', hint: 'נרשם בטעות / חדר לא נכון', disabled: !SHIFT_MANAGER_ROLES.includes(role), why: 'מנהל משמרת ומעלה', onSelect: () => setDialog({ kind: 'reverse' }) },
                 r.actions.postStay?.ok && { label: 'חיוב אחרי יציאה', hint: 'מיני־בר, נזק, חיוב שנשכח', disabled: !POST_STAY_ROLES.includes(role), why: 'מנהל משמרת או כספים', onSelect: () => setDialog({ kind: 'poststay' }) },
@@ -282,6 +284,13 @@ export default function ReservationPage() {
         </div>
       </div>
 
+      <ConfirmDialog open={dialog?.kind === 'confirm-mail'} onClose={() => setDialog(null)} title="שליחת אישור הזמנה במייל"
+        subtitle={r.confirmation?.sent ? `נשלח לאחרונה ל־${r.confirmation.to} · ${formatDateTime(r.confirmation.at)}` : 'האורח יקבל את פרטי ההזמנה והשהייה'} confirmLabel="שליחה"
+        onConfirm={async () => { const out = await booking.sendConfirmation(propertyId, r.id, mailTo || undefined); setDialog(null); success(`האישור נשלח ל־${out.to}`); reload(); }}>
+        <Field id="cm-to" label="לכתובת" hint={r.confirmation?.guestEmail ? `ריק = ${r.confirmation.guestEmail}` : 'לאורח אין כתובת שמורה'}>
+          <input id="cm-to" type="email" dir="ltr" className="input w-full" value={mailTo} onChange={(e) => setMailTo(e.target.value)} placeholder={r.confirmation?.guestEmail || 'guest@example.com'} />
+        </Field>
+      </ConfirmDialog>
       <TouristDialog open={dialog?.kind === 'tourist'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} onDone={() => { setDialog(null); success('נשמר'); tourist.reload(); }} />
       <ReinstateDialog open={dialog?.kind === 'reinstate'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success(out.roomReleased ? 'ההזמנה שוחזרה · החדר ששובץ נתפס — יש לשבץ מחדש' : 'ההזמנה שוחזרה'); reload(); }} />
       <ReverseCheckInDialog open={dialog?.kind === 'reverse'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('הכניסה בוטלה — ההזמנה מאושרת וממתינה לכניסה'); reload(); }} />

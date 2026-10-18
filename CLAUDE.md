@@ -581,6 +581,48 @@ GET|POST /queue, POST /queue/:id/take|prioritize|remove, PATCH /queue/:id   FD-0
 Service: `services/frontDeskService.js`. Model: `models/ArrivalQueueEntry.js`. Policy: `Property.checkInPolicy`.
 QA: `npm run qa:frontdesk` (live server + same DB; cleans up after itself).
 
+#### Availability + room blocks (INV-01 / INV-04, 2026-10-19)
+`availabilityService.assessAvailability` computes each night from real data: rooms of the type not out of sale that
+night (current opsStatus until `outOfServiceUntil`, or a dated `RoomBlock`) − stays sold as the type − rooms of the type
+held by other-type stays − booking locks − manual holds. **No InventoryDate row is required** (rows only add stop sell,
+CTA/CTD, min/max stay, overbooking, allotment). `checkAvailability` / `nightlyAvailability` / `roomsFreeForStay` use it;
+`frontDeskService.conflictingRoomIds` treats a dated block as a conflict (assignment, moves).
+```
+GET  /api/pms/ops/availability?from&days      grid: room types × nights + totals + blocks   → screen /pms/availability
+GET  /api/pms/ops/room-blocks, POST /ops/rooms/:id/blocks {from,to,kind,reason,confirmOversell}, POST /ops/room-blocks/:id/release {reason}
+```
+Service `services/roomBlockService.js`, model `models/RoomBlock.js` ([from,to) nights; refused while a stay is assigned to
+the room; 409 `oversell` unless confirmed).
+
+#### Hotel setup (ADM-01/02/03, 2026-10-19) — screen `/pms/admin/setup`
+```
+GET  /api/pms/setup                 property + room types (with room counts) + rooms + readiness checklist
+PATCH /setup/property               validated (tax ID check digit, HH:MM, e-mail), audited before/after
+POST /setup/room-types, PATCH /setup/room-types/:id   code unique per property; deactivate refused with active rooms / open stays
+POST /setup/rooms {roomTypeId, floor, numbers:"101-110, 115, A1-A3"}   bulk, refuses existing numbers
+PATCH /setup/rooms/:id              number/floor/type/flags/active; type change or deactivation refused while stays are assigned
+```
+Service `services/setupService.js`. Old `/properties/room-types` PATCH/DELETE now check property scope.
+
+#### Price engine (2026-10-19) — `services/ratePricing.js priceNight()`
+One engine for booking (`bookingService.offersFor`, `priceNights` for stay changes) and the legacy `/rates/quote`:
+RateDate row for the night, else **RoomType.baseRate** (no pre-made rows needed) → row occupancy/weekday adjustments →
+the plan's `pricingRules` (season/holiday dates, weekdays, guests, LOS, lead days, channel, company) by priority →
+child price × children, extra-adult price × adults above `capacityBase`.
+Derived rates: `RatePlan.derived {from, pct}` — a night without its own row = parent's price that night ± pct (set in the
+rate-plan dialog; one level only). Main property: VIP −15%, CORP −12%, OTA −5% from BAR (taken from the existing calendar). Old `/api/pms/rooms` POST/PATCH/DELETE → 410.
+
+#### More of 2026-10-19
+- Pricing rule `appliesTo: 'all'|'base'` — 'base' rules apply only to nights with no calendar row (BAR has Fri/Sat +30% this way).
+- Room chart `/pms/tape-chart` (new, `services/roomChartService.js`, `GET /ops/room-chart`): stays on rooms → reservation
+  file, empty night → new booking for that room, dated blocks, unassigned count per type. `/pms/room-rack` → room status.
+- Guests (`routes/guests.js`): merge moves every reference (reservations, units, cards, requests, messages, lost items,
+  folios); anonymize blocked by any open stay and clears all personal fields; edits audited; blacklist needs a reason.
+- Automatic day close: `Property.dayClose.auto {enabled,time,arrivals}`, `PUT /finance/day-close/auto`, scheduler every
+  5 min (`autoDayCloseTick`) closes days before today; open departures stop it and raise an urgent work item.
+- Booking confirmation e-mail: `services/confirmationService.js` — sent automatically on create (when mail is configured
+  and the guest has an e-mail), again from the reservation file; marked sent only after the mail server accepted it.
+
 #### Charge codes, day-close books, walking back (gaps G1/G4/G6 — docs/specification/13-opera-gap-analysis.md)
 ```
 GET|POST /api/pms/finance/charge-codes, PATCH /charge-codes/:id   ADM-13 catalogue (models/ChargeCode.js). Folio line `department` = code.
@@ -599,6 +641,13 @@ API only.** Hotel4u does not own fiscal documents: it sends billing events (`ser
 No shared DB, models or users. Env: `INVOICER_API_URL`, `INVOICER_API_KEY` (server only, HTTPS outside localhost).
 Details: `docs/specification/16-invoicer-standalone-connection.md`. The in-app document stack below (documentService,
 ITA allocation, open format, accounting engine) is legacy — do not extend it; new invoicing work goes to the invoicer API.
+Issuing (built 2026-10-19): `POST /finance/folios/:id/documents` → `documentService.issueViaInvoicer` builds the document
+from the folio (VAT-inclusive lines `pricesIncludeVat:true`, discounts folded into same-rate charges, payments with their
+details), ensures the customer (`externalId hotel4u:vat|id|res:…`), creates the draft + issues with keys
+`hotel4u:draft|issue:<requestKey>`, then saves a mirror `Invoice {issuer:'invoicer', external, coveredLineIds}`.
+In-app numbering (`nextNumber`) refuses; allocation / send / credit of a mirror return 409 (done in the invoicer).
+`LEGACY_LOCAL_DOCUMENTS=1` (never in production) re-enables local numbering for the legacy suites only.
+QA: `npm run qa:invoicer` starts the real invoicer (INVOICER_DIR, default ../invoicer) on a disposable Replica Set.
 
 #### Payment details + fiscal documents (FIN-03 details, FIN-06, FIN-10) — legacy, superseded by the invoicer
 ```
@@ -808,7 +857,7 @@ GET    /housekeeping            Housekeeping productivity report
 
 | File | Mount | Purpose |
 |---|---|---|
-| `auth.js` | `/api/auth` | login, register, logout, refresh, /me |
+| `auth.js` | `/api/auth` | login, logout, refresh, /me (public register closed → 410; users are created by an admin) |
 | `userRoutes.js` | `/api/users` | User CRUD |
 | `bookingRoutes.js` | `/api/bookings` | Ziporiclass booking CRUD |
 | `orderRoutes.js` | `/api/orders` | Ziporiclass order management |
@@ -1052,7 +1101,7 @@ All files use `import/export`. Node `"type":"module"`. No `require()`.
 ```
 MONGO_URI              MongoDB connection string (default: mongodb://localhost:27017/hotel4u)
 PORT                   HTTP port (default: 4000)
-JWT_SECRET             JWT signing secret
+JWT_SECRET             PMS token secret (falls back to JWT_ACCESS_SECRET). No secret in code: production refuses to start without one; dev without one uses a random per-run secret
 JWT_REFRESH_SECRET     Refresh token secret
 CLIENT_URL             CORS allowed origin
 SMTP_HOST/PORT/USER/PASS  Nodemailer SMTP config

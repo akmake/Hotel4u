@@ -1,5 +1,6 @@
 // /api/pms/booking — availability & price (INV-03), create booking/quote (RSV-02/RSV-04),
 // reservation list (RSV-01) and stay file (RSV-03). Rules live in services/bookingService.js.
+import { sendConfirmation, autoSendConfirmation } from '../services/confirmationService.js';
 import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import GuestProfile from '../models/GuestProfile.js';
@@ -65,7 +66,15 @@ router.get('/availability', handle(async (req) => {
 // ── RSV-02 / RSV-04 ─────────────────────────────────────────────────────────
 router.post('/reservations', handle(async (req) => {
   requireRoles(req, BOOKING_ROLES, 'אין הרשאה ליצור הזמנה');
-  return createBooking({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+  const out = await createBooking({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+  if (!out.duplicate && out.status !== 'quote') autoSendConfirmation({ propertyId: scope(req), reservationId: out.id, actor: actorOf(req), ip: req.ip });
+  return out;
+}));
+
+// GST-04 booking confirmation by e-mail (again, or to another address).
+router.post('/reservations/:id/confirmation', handle(async (req) => {
+  requireRoles(req, BOOKING_ROLES, 'אין הרשאה לשלוח אישור');
+  return sendConfirmation({ propertyId: scope(req), reservationId: req.params.id, to: req.body?.to, actor: actorOf(req), ip: req.ip });
 }));
 
 // G2: board (meal plan) pricing — supplements per person and which rate plans include a board.
@@ -82,7 +91,10 @@ router.put('/board-config', handle(async (req) => {
 // Multi-room booking: several rooms (same or different types) in one action, linked as a party.
 router.post('/party', handle(async (req) => {
   requireRoles(req, BOOKING_ROLES, 'אין הרשאה ליצור הזמנה');
-  return createParty({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+  const out = await createParty({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+  // One mail for the party (same guest): sent for its first room, whose number is the party code.
+  if (!out.duplicate && out.rooms?.[0]) autoSendConfirmation({ propertyId: scope(req), reservationId: out.rooms[0].id, actor: actorOf(req), ip: req.ip });
+  return out;
 }));
 
 router.get('/free-rooms', handle(async (req) => {

@@ -556,12 +556,56 @@ function runDto(r) {
   };
 }
 
+// ── Automatic day close ─────────────────────────────────────────────────────
+export async function setAutoDayClose({ propertyId, input, actor, ip }) {
+  if (!NIGHT_ROLES.includes(actor.role)) throw httpError('הגדרת סגירה אוטומטית מותרת למנהל', 403);
+  const time = String(input.time || '03:00');
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw httpError('שעה HH:MM', 422, { fields: { time: 'שעה' } });
+  const auto = { enabled: !!input.enabled, time, arrivals: input.arrivals === 'no_show' ? 'no_show' : 'keep', by: actor.name || undefined, at: new Date() };
+  await Property.updateOne({ _id: propertyId }, { $set: { 'dayClose.auto': auto } });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'day_close.auto_settings', entityType: 'Property', entityId: propertyId, after: auto, ip });
+  return auto;
+}
+
+const localHm = (tz) => new Intl.DateTimeFormat('en-GB', { timeZone: tz || 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+
+// Called by the scheduler. Closes only days before today; never decides about open departures.
+export async function autoDayCloseTick() {
+  const props = await Property.find({ 'dayClose.auto.enabled': true }).select('name timezone dayClose').lean();
+  for (const p of props) {
+    try {
+      const { today, dateToClose } = await dayState(p._id);
+      if (!dateToClose || dateToClose >= today) continue;
+      if (localHm(p.timezone) < (p.dayClose.auto.time || '03:00')) continue;
+      if (p.dayClose.auto.triedOn === today) continue;
+      const readiness = await readinessFor(p._id, dateToClose);
+      if (readiness.departures.length) {
+        await Property.updateOne({ _id: p._id }, { $set: { 'dayClose.auto.triedOn': today } });
+        await raiseWork({ propertyId: p._id, kind: 'finance', severity: 'urgent', title: `סגירה אוטומטית של ${dateToClose} לא בוצעה`, body: `${readiness.departures.length} עזיבות לא נסגרו — סוגרים אותן או סוגרים את היום ידנית עם סיבה.`, source: { type: 'day_close', id: dateToClose, label: dateToClose, link: '/pms/night-audit' }, dedupeKey: `autoclose:${dateToClose}` }).catch(() => null);
+        continue;
+      }
+      const policy = p.dayClose.auto.arrivals === 'no_show' ? 'no_show' : 'keep';
+      await runDayClose({
+        propertyId: p._id, date: dateToClose, arrivals: readiness.arrivals.length ? policy : undefined,
+        reason: readiness.arrivals.length && policy === 'keep' ? 'סגירה אוטומטית — הגעות שלא נכנסו נשארו פתוחות לפי מדיניות הנכס' : undefined,
+        actor: { id: null, name: 'סגירה אוטומטית', role: 'system' }, ip: 'scheduler',
+      });
+    } catch (err) {
+      const today = new Date().toISOString().slice(0, 10);
+      await Property.updateOne({ _id: p._id }, { $set: { 'dayClose.auto.triedOn': today } }).catch(() => null);
+      await raiseWork({ propertyId: p._id, kind: 'finance', severity: 'urgent', title: 'סגירת יום אוטומטית נכשלה', body: String(err.message).slice(0, 400), source: { type: 'day_close', id: today, label: today, link: '/pms/night-audit' }, dedupeKey: `autoclose-fail:${today}` }).catch(() => null);
+      console.error('[autoDayClose]', p.name, err.message);
+    }
+  }
+}
+
 export async function getDayClose({ propertyId }) {
-  const { today, last, dateToClose } = await dayState(propertyId);
+  const { today, last, dateToClose, property } = await dayState(propertyId);
   const runs = await DayCloseRun.find({ property: propertyId }).sort({ businessDate: -1 }).limit(14).lean();
   const current = dateToClose ? runs.find((r) => r.businessDate === dateToClose) || null : null;
   return {
     today, lastClosedDate: last, dateToClose,
+    auto: { enabled: !!property.dayClose?.auto?.enabled, time: property.dayClose?.auto?.time || '03:00', arrivals: property.dayClose?.auto?.arrivals || 'keep', by: property.dayClose?.auto?.by || null },
     readiness: dateToClose ? await readinessFor(propertyId, dateToClose) : null,
     current: runDto(current),
     runs: runs.map(runDto),
@@ -633,7 +677,7 @@ async function snapshotFor(propertyId, date) {
 }
 
 export async function runDayClose({ propertyId, date, arrivals, reason, actor, ip }) {
-  if (!NIGHT_ROLES.includes(actor.role)) throw httpError('סגירת יום מותרת למנהל משמרת/לילה או לכספים', 403);
+  if (!NIGHT_ROLES.includes(actor.role) && actor.role !== 'system') throw httpError('סגירת יום מותרת למנהל משמרת/לילה או לכספים', 403);
   const { dateToClose, today } = await dayState(propertyId);
   if (!dateToClose) throw httpError('היום העסקי כבר נסגר — אין יום פתוח לסגירה', 409, { code: 'already_closed' });
   if (date && date !== dateToClose) throw httpError(date > today ? 'לא סוגרים יום עתידי' : `יש לסגור קודם את ${dateToClose} — ימים נסגרים לפי הסדר`, 409, { code: 'out_of_order' });

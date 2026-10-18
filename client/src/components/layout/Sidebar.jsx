@@ -75,8 +75,8 @@ const PMS_NAV = [
     items: [
       { path: '/pms',              icon: LayoutDashboard, label: 'היום בקבלה' },
       { path: '/pms/work',         icon: ListChecks,      label: 'מרכז משימות' },
+      { path: '/pms/availability', icon: CalendarDays,    label: 'זמינות' },
       { path: '/pms/tape-chart',   icon: CalendarDays,    label: 'לוח חדרים' },
-      { path: '/pms/room-rack',    icon: Calendar,        label: 'Room Rack' },
       { path: '/pms/reservations', icon: ClipboardList,   label: 'הזמנות' },
       { path: '/pms/arrivals',     icon: LogIn,           label: 'הגעות' },
       { path: '/pms/arrival-queue',icon: Hourglass,       label: 'תור המתנה' },
@@ -108,6 +108,7 @@ const PMS_NAV = [
       { path: '/pms/automation',       icon: Zap,        label: 'אוטומציה' },
       { path: '/pms/channel-manager',  icon: Radio,      label: 'ערוצי הפצה' },
       { path: '/pms/companies',        icon: Building2,  label: 'חברות וסוכנים' },
+      { path: '/pms/admin/setup',      icon: Building2,  label: 'הקמת מלון: חדרים וסוגים' },
       { path: '/pms/admin/users',      icon: Users,      label: 'משתמשים והרשאות' },
       { path: '/pms/admin/policy',     icon: FileText,   label: 'מדיניות' },
       { path: '/pms/admin/audit',      icon: ClipboardList, label: 'יומן ביקורת' },

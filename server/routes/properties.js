@@ -128,6 +128,9 @@ router.patch('/room-types/:id', asyncHandler(async (req, res) => {
     }
   }
 
+  const existing = await RoomType.findById(req.params.id).select('property').lean();
+  if (!existing) return res.status(404).json({ success: false, error: 'Room type not found' });
+  assertPropertyScope(req, String(existing.property));
   const rt = await RoomType.findByIdAndUpdate(req.params.id, update, { new: true }).lean();
   if (!rt) return res.status(404).json({ success: false, error: 'Room type not found' });
   res.json({ success: true, data: rt });
@@ -135,6 +138,9 @@ router.patch('/room-types/:id', asyncHandler(async (req, res) => {
 
 router.delete('/room-types/:id', asyncHandler(async (req, res) => {
   requireRoles(req, PROPERTY_ADMIN_ROLES, 'Room type management requires property admin permissions');
+  const existing = await RoomType.findById(req.params.id).select('property').lean();
+  if (!existing) return res.status(404).json({ success: false, error: 'Room type not found' });
+  assertPropertyScope(req, String(existing.property));
   const rt = await RoomType.findByIdAndUpdate(req.params.id, { active: false }, { new: true }).lean();
   if (!rt) return res.status(404).json({ success: false, error: 'Room type not found' });
   res.json({ success: true, data: rt });

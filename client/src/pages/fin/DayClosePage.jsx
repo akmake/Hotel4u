@@ -210,6 +210,33 @@ export default function DayClosePage() {
         <p className="ui-p">אחרי הסגירה תיקון נעשה ברשומה מתקנת (חיוב/היפוך/זיכוי) — לא בשינוי שקט.</p>
         {run.error && <Tag tone="bad">{run.error}</Tag>}
       </Modal>
+      {data?.auto && <AutoCloseCard auto={data.auto} canEdit={canRun} propertyId={propertyId} onSaved={() => { success('הגדרות הסגירה האוטומטית נשמרו'); reload(); }} />}
     </Page>
+  );
+}
+
+// Automatic close: closes the previous business day at a set hour; open departures stop it and open a work item.
+function AutoCloseCard({ auto, canEdit, propertyId, onSaved }) {
+  const save = useAction();
+  const [f, setF] = useState(auto);
+  useEffect(() => setF(auto), [auto]);
+  const changed = JSON.stringify({ e: f.enabled, t: f.time, a: f.arrivals }) !== JSON.stringify({ e: auto.enabled, t: auto.time, a: auto.arrivals });
+  return (
+    <Card title="סגירה אוטומטית" actions={canEdit && <button type="button" className="btn btn-primary btn-sm" disabled={!changed || save.busy} onClick={() => save.run(async () => { await finance.setAutoDayClose(propertyId, { enabled: f.enabled, time: f.time, arrivals: f.arrivals }); onSaved(); })}>{save.busy ? <Spinner /> : 'שמירה'}</button>}>
+      <div className="ui-stack">
+        <ErrorBanner error={save.error} />
+        <label className="ui-check"><input type="checkbox" checked={!!f.enabled} disabled={!canEdit} onChange={(e) => setF((p) => ({ ...p, enabled: e.target.checked }))} /><span>לסגור את היום הקודם אוטומטית</span></label>
+        <div className="ui-grid-2">
+          <Field id="ac-time" label="בשעה" error={save.fields.time}><input id="ac-time" type="time" className="input w-full" disabled={!canEdit || !f.enabled} value={f.time} onChange={(e) => setF((p) => ({ ...p, time: e.target.value }))} /></Field>
+          <Field id="ac-arr" label="הגעות שלא נכנסו">
+            <select id="ac-arr" className="input w-full" disabled={!canEdit || !f.enabled} value={f.arrivals} onChange={(e) => setF((p) => ({ ...p, arrivals: e.target.value }))}>
+              <option value="keep">להשאיר פתוחות (יירשם בסגירה)</option>
+              <option value="no_show">לסמן "לא הגיע"</option>
+            </select>
+          </Field>
+        </div>
+        <p className="ui-sub">עזיבות שלא נסגרו עוצרות את הסגירה האוטומטית — נפתחת משימה דחופה במרכז המשימות, וסוגרים ידנית.{auto.by ? ` · עודכן על ידי ${auto.by}` : ''}</p>
+      </div>
+    </Card>
   );
 }

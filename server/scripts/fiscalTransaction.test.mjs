@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+
+// Covers the legacy in-app numbering; live documents are issued by the invoicing system (qa:invoicer).
+process.env.LEGACY_LOCAL_DOCUMENTS = '1';
 import { runFiscalTransaction } from '../services/fiscalTransaction.js';
 import { nextDocumentNumber } from '../services/documentService.js';
 import Property from '../models/Property.js';

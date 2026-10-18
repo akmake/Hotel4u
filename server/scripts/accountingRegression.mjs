@@ -24,6 +24,8 @@ try {
     MONGO_URI: uri, JWT_SECRET: 'isolated-accounting-regression-secret', EMAIL_USER: '', EMAIL_PASS: '',
     ITA_CLIENT_ID: 'test', ITA_CLIENT_SECRET: 'secret', ITA_AUTH_BASE: 'http://127.0.0.1:4899', ITA_API_BASE: 'http://127.0.0.1:4899',
     TAX_TOKEN_KEY: '0123456789abcdef'.repeat(4), CLIENT_URL: '', NODE_ENV: 'test',
+    // These suites cover the legacy in-app numbering; live documents go to the invoicing system (qa:invoicer).
+    LEGACY_LOCAL_DOCUMENTS: '1',
   };
   Object.assign(process.env, qaEnv);
   await mongoose.connect(uri);

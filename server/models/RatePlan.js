@@ -26,6 +26,8 @@ const PricingRuleSchema = new Schema({
   promoCodes: { type: [String], default: [] },
   loyaltyTiers: { type: [String], default: [] },
 
+  // 'all' — on top of the calendar too; 'base' — only nights priced without a calendar row (base / derived).
+  appliesTo: { type: String, enum: ['all', 'base'], default: 'all' },
   adjustmentType: { type: String, enum: ['set', 'percent', 'fixed'], default: 'percent' },
   adjustmentValue: { type: Number, default: 0 },
 
@@ -54,6 +56,12 @@ const RatePlanSchema = new Schema({
   channels:           { type: [String], default: [] },
   activeRoomTypes:   [{ type: Schema.Types.ObjectId, ref: 'RoomType' }],
   pricingRules:      { type: [PricingRuleSchema], default: [] },
+  // Derived rate: a night without its own calendar price = the parent plan's price that night ± pct
+  // (e.g. CORP = BAR −12%). The plan's own calendar row, when entered, always wins.
+  derived: {
+    from: { type: Schema.Types.ObjectId, ref: 'RatePlan' },
+    pct:  { type: Number, min: -100, max: 500 },
+  },
   sortOrder:         { type: Number, default: 0 },
   active:            { type: Boolean, default: true },
 }, { timestamps: true });

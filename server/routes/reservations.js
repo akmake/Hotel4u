@@ -1,4 +1,5 @@
-﻿import { Router } from 'express';
+﻿import { sendConfirmation } from '../services/confirmationService.js';
+import { Router } from 'express';
 import { z } from 'zod';
 import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
@@ -1704,27 +1705,13 @@ router.post('/:id/send-confirmation', asyncHandler(async (req, res) => {
   if (!reservation) return;
   assertPropertyScope(req, reservation.property);
 
-  const actor = actorFromReq(req);
-  const updated = await Reservation.findByIdAndUpdate(
-    reservation._id,
-    { $set: { confirmationSent: true, updatedBy: actor.id || undefined } },
-    { returnDocument: 'after' }
-  ).lean();
-
-  await audit({
-    property: reservation.property,
-    actor: actor.id || null,
-    actorName: actor.name || 'system',
-    action: 'reservation.confirmation_sent',
-    entityType: 'Reservation',
-    entityId: reservation._id,
-    after: { confirmationSent: true },
-    ip: req.ip,
-  }).catch(() => null);
-
-  dispatchConfirmationEmail(reservation).catch(() => null);
-
-  res.json({ success: true, data: updated });
+  // Marked as sent only after the mail server accepted it (services/confirmationService.js).
+  try {
+    const out = await sendConfirmation({ propertyId: String(reservation.property), reservationId: reservation._id, to: req.body?.to, actor: actorFromReq(req), ip: req.ip });
+    res.json({ success: true, data: out });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, error: err.message, code: err.code });
+  }
 }));
 
 // PATCH /api/reservations/:id

@@ -75,7 +75,14 @@ async function main() {
     check('INV-03 availability is reported per night', offBar?.availability.length === 3 && offBar.availability.every((a) => a.available === 2));
     r = await call('GET', `/booking/availability?${qs({ arrival: addDays(today, 5), departure: addDays(today, 8), adults: 2, rooms: 1 })}`, R);
     const offNr = r.data?.offers?.find((o) => o.ratePlan.code === 'NR');
-    check('INV-03 a night without a rate is not sellable (no silent fallback)', offNr && !offNr.bookable && offNr.reasons.some((x) => x.code === 'missing_rate'), JSON.stringify(offNr?.reasons));
+    // 2026-10-19: a night with no calendar row is priced from the room type's base price (not unsellable);
+    // only when there is no base price either is it refused.
+    check('INV-03 a night without a calendar price uses the room type base price', offNr && !offNr.reasons.some((x) => x.code === 'missing_rate') && offNr.nightly.length === 3 && offNr.nightly.every((n) => n.price > 0), JSON.stringify(offNr?.reasons));
+    await RoomType.updateOne({ _id: rt._id }, { $set: { baseRate: 0 } });
+    r = await call('GET', `/booking/availability?${qs({ arrival: addDays(today, 5), departure: addDays(today, 8), adults: 2, rooms: 1 })}`, R);
+    const offNr0 = r.data?.offers?.find((o) => o.ratePlan.code === 'NR');
+    check('INV-03 no calendar price and no base price → not sellable (no silent zero)', offNr0 && !offNr0.bookable && offNr0.reasons.some((x) => x.code === 'missing_rate'), JSON.stringify(offNr0?.reasons));
+    await RoomType.updateOne({ _id: rt._id }, { $set: { baseRate: rt.baseRate } });
     r = await call('GET', `/booking/availability?${qs({ arrival: addDays(today, 10), departure: addDays(today, 12), adults: 2 })}`, R);
     check('INV-03 closed-to-arrival blocks the offer', r.data?.offers?.find((o) => o.ratePlan.code === 'BAR')?.reasons.some((x) => x.code === 'cta'));
     r = await call('GET', `/booking/availability?${qs({ arrival: addDays(today, 12), departure: addDays(today, 14), adults: 2 })}`, R);

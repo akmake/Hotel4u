@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/authStore';
 
 const ADMIN = ['super_admin', 'chain_admin', 'property_admin', 'general_manager'];
 const TABS = [
+  { to: '/pms/admin/setup', label: 'הקמת מלון', roles: [...ADMIN, 'front_desk_manager', 'revenue_manager', 'auditor'] },
   { to: '/pms/admin/users', label: 'משתמשים והרשאות', roles: [...ADMIN, 'auditor'] },
   { to: '/pms/admin/policy', label: 'מדיניות', roles: [...ADMIN, 'front_desk_manager', 'finance_manager', 'auditor', 'housekeeping_manager'] },
   { to: '/pms/admin/audit', label: 'יומן ביקורת', roles: [...ADMIN, 'auditor', 'finance_manager'] },
@@ -13,7 +14,7 @@ const TABS = [
   { to: '/pms/admin/tax', label: 'מס ומזומן — אורחים מחו״ל', roles: [...ADMIN, 'finance_manager', 'auditor'] },
   { to: '/pms/admin/fiscal', label: 'מסמכים ורשות המסים', roles: [...ADMIN, 'finance_manager', 'auditor'] },
   { to: '/pms/fin/accounting', label: 'הנהלת חשבונות', roles: [...ADMIN, 'finance_manager', 'auditor'] },
-  { to: '/pms/settings', label: 'הגדרות נכס וחדרים', roles: ADMIN },
+  { to: '/pms/settings', label: 'הגדרות נוספות (CRM, Webhooks)', roles: ADMIN },
 ];
 
 export default function AdminNav({ end }) {

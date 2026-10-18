@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import {
   listFolios, getStayFolios, ensureGuestFolio, postCharge, reverseCharge, recordFolioPayment, refundPayment, creditNote,
-  getDayClose, runDayClose, NIGHT_ROLES,
+  getDayClose, runDayClose, setAutoDayClose, NIGHT_ROLES,
 } from '../services/financeService.js';
 import { listCodes, createCode, updateCode, CATALOG_ROLES } from '../services/chargeCodeService.js';
 import { dayReport } from '../services/ledgerService.js';
@@ -272,6 +272,8 @@ router.get('/day-close/report', handle(async (req) => {
   requireRoles(req, DAY_READ, 'אין הרשאה לדוחות סגירת יום');
   return dayReport({ propertyId: scope(req), date: req.query.date });
 }));
+
+router.put('/day-close/auto', handle(async (req) => setAutoDayClose({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip })));
 
 router.post('/day-close/run', handle(async (req) => {
   requireRoles(req, NIGHT_ROLES, 'סגירת יום מותרת למנהל משמרת/לילה או לכספים');

@@ -45,114 +45,13 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // POST /api/rooms
-router.post('/', asyncHandler(async (req, res) => {
-  requireRoles(req, ROOM_MANAGER_ROLES, 'Room management requires manager permissions');
-  const {
-    propertyId,
-    roomTypeId,
-    number,
-    floor,
-    building,
-    wing,
-    housekeepingZone,
-    maintenanceArea,
-    isVip,
-    isSmoking,
-    isAccessible,
-    internalNotes,
-    connectingRoom,
-    preferredAlternateRoom,
-    lastRenovatedAt,
-    opsStatus,
-    outOfServiceUntil,
-    cleanStatus,
-    occStatus,
-  } = req.body;
-
-  if (!propertyId || !roomTypeId || !number || floor === undefined) {
-    return res.status(400).json({ success: false, error: 'Required: propertyId, roomTypeId, number, floor' });
-  }
-  assertPropertyScope(req, propertyId);
-
-  const room = await Room.create({
-    property: propertyId,
-    roomType: roomTypeId,
-    number: String(number),
-    floor: Number(floor),
-    building: building || undefined,
-    wing: wing || undefined,
-    housekeepingZone: housekeepingZone || undefined,
-    maintenanceArea: maintenanceArea || undefined,
-    isVip: !!isVip,
-    isSmoking: !!isSmoking,
-    isAccessible: !!isAccessible,
-    internalNotes: internalNotes || undefined,
-    connectingRoom: connectingRoom || undefined,
-    preferredAlternateRoom: preferredAlternateRoom || undefined,
-    lastRenovatedAt: lastRenovatedAt || undefined,
-    opsStatus: opsStatus || 'available',
-    outOfServiceUntil: outOfServiceUntil || undefined,
-    cleanStatus: cleanStatus || 'clean',
-    occStatus: occStatus || 'vacant',
-  });
-
-  const populated = await Room.findById(room._id)
-    .populate('roomType', 'name code')
-    .populate('preferredAlternateRoom', 'number floor')
-    .lean();
-
-  res.status(201).json({ success: true, data: populated });
-}));
+router.post('/', (req, res) => res.status(410).json({ success: false, error: 'חדרים נוספים, נערכים ומושבתים במסך הקמת מלון (/api/pms/setup/rooms)' }));
 
 // PATCH /api/rooms/:id
-router.patch('/:id', asyncHandler(async (req, res) => {
-  requireRoles(req, ROOM_MANAGER_ROLES, 'Room management requires manager permissions');
-  const allowed = [
-    'number',
-    'floor',
-    'building',
-    'wing',
-    'roomType',
-    'housekeepingZone',
-    'maintenanceArea',
-    'isVip',
-    'isSmoking',
-    'isAccessible',
-    'internalNotes',
-    'connectingRoom',
-    'preferredAlternateRoom',
-    'lastRenovatedAt',
-    'active',
-    'outOfServiceUntil',
-  ];
-
-  const update = {};
-  allowed.forEach((k) => {
-    if (req.body[k] !== undefined) update[k] = req.body[k];
-  });
-
-  const existing = await Room.findById(req.params.id).lean();
-  if (!existing) return res.status(404).json({ success: false, error: 'Room not found' });
-  assertPropertyScope(req, existing.property);
-  const room = await Room.findByIdAndUpdate(req.params.id, update, { new: true })
-    .populate('roomType', 'name code')
-    .populate('preferredAlternateRoom', 'number floor')
-    .lean();
-
-  if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
-  res.json({ success: true, data: room });
-}));
+router.patch('/:id', (req, res) => res.status(410).json({ success: false, error: 'חדרים נוספים, נערכים ומושבתים במסך הקמת מלון (/api/pms/setup/rooms)' }));
 
 // DELETE /api/rooms/:id (soft delete)
-router.delete('/:id', asyncHandler(async (req, res) => {
-  requireRoles(req, ROOM_MANAGER_ROLES, 'Room management requires manager permissions');
-  const existing = await Room.findById(req.params.id).lean();
-  if (!existing) return res.status(404).json({ success: false, error: 'Room not found' });
-  assertPropertyScope(req, existing.property);
-  const room = await Room.findByIdAndUpdate(req.params.id, { active: false }, { new: true }).lean();
-  if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
-  res.json({ success: true, data: room });
-}));
+router.delete('/:id', (req, res) => res.status(410).json({ success: false, error: 'חדרים נוספים, נערכים ומושבתים במסך הקמת מלון (/api/pms/setup/rooms)' }));
 
 // PATCH /api/rooms/:id/clean-status
 router.patch('/:id/clean-status', asyncHandler(async (req, res) => {

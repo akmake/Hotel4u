@@ -378,3 +378,55 @@ nav.ui-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .doc-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgb(var(--border)); }
 .doc-list li:last-child { border-bottom: 0; }
 .doc-acts { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; }
+
+/* INV-01 availability grid */
+.avail-wrap { border: 0; border-radius: 0; }
+.avail-grid th, .avail-grid td { text-align: center; white-space: nowrap; }
+.avail-grid tbody th { text-align: right; position: sticky; right: 0; background: rgb(var(--bg-elevated)); min-width: 120px; }
+.avail-grid thead th.is-weekend { background: rgb(var(--border) / 0.35); }
+.avail-cell { padding: 0 !important; }
+.avail-btn { all: unset; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-width: 44px; min-height: 44px; cursor: pointer; }
+.avail-btn:disabled { cursor: default; }
+.avail-btn:focus-visible { outline: 2px solid rgb(var(--accent-400)); outline-offset: -2px; }
+.avail-cell.is-warn { background: rgb(var(--warning) / 0.12); }
+.avail-cell.is-bad { background: rgb(var(--danger) / 0.12); color: rgb(var(--danger)); }
+.avail-cell.is-closed { background: rgb(var(--border) / 0.5); color: rgb(var(--fg-muted)); }
+.avail-ooo { font-size: 10px; color: rgb(var(--danger)); }
+.avail-total td, .avail-total th { border-top: 2px solid rgb(var(--border)); }
+
+/* ADM setup checklist */
+.setup-check { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 16px; }
+.setup-check-btn { all: unset; display: flex; gap: 8px; align-items: center; cursor: pointer; padding: 4px 0; color: rgb(var(--warning)); }
+.setup-check .is-ok .setup-check-btn { color: rgb(var(--fg-muted)); }
+.setup-check-btn:focus-visible { outline: 2px solid rgb(var(--accent-400)); }
+
+/* Room chart (tape chart) */
+.chart-wrap { overflow: auto; max-height: calc(100vh - 190px); }
+.chart-row { display: grid; position: relative; border-bottom: 1px solid rgb(var(--border)); min-height: 34px; }
+.chart-head { position: sticky; top: 0; z-index: 3; background: rgb(var(--bg-elevated)); }
+.chart-room { position: sticky; right: 0; z-index: 2; background: rgb(var(--bg-elevated)); display: flex; align-items: center; gap: 6px; padding: 0 10px; border-left: 1px solid rgb(var(--border)); font-size: 13px; }
+.chart-day { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; border-left: 1px solid rgb(var(--border) / 0.6); }
+.chart-day small { color: rgb(var(--fg-muted)); font-size: 10px; }
+.chart-head .chart-day.is-weekend { background: rgb(var(--border) / 0.35); }
+.chart-day.is-today, .chart-cell.is-today { background: rgb(var(--accent-400) / 0.10); }
+.chart-type { background: rgb(var(--bg-content)); min-height: 28px; }
+.chart-type .chart-room { background: rgb(var(--bg-content)); }
+.chart-day.has-unassigned { color: rgb(var(--warning)); font-weight: 700; }
+.chart-cell { all: unset; border-left: 1px solid rgb(var(--border) / 0.6); cursor: pointer; grid-row: 1; }
+.chart-cell:hover:not(:disabled) { background: rgb(var(--bg-hover)); }
+.chart-cell:disabled { cursor: default; }
+.chart-cell:focus-visible { outline: 2px solid rgb(var(--accent-400)); outline-offset: -2px; }
+.chart-bar { all: unset; box-sizing: border-box; grid-row: 1; z-index: 1; margin: 4px 2px; padding: 0 8px; border-radius: 6px; font-size: 12px; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  background: rgb(var(--accent-400) / 0.18); color: rgb(var(--fg)); border: 1px solid rgb(var(--accent-400) / 0.5); }
+.chart-bar.is-in { background: rgb(var(--success) / 0.20); border-color: rgb(var(--success) / 0.6); }
+.chart-bar.is-out { background: rgb(var(--border) / 0.6); border-color: rgb(var(--border-strong)); color: rgb(var(--fg-muted)); }
+.chart-bar.is-hold { background: rgb(var(--warning) / 0.15); border-style: dashed; border-color: rgb(var(--warning)); }
+.chart-bar.is-block { cursor: default; color: rgb(var(--danger)); border-color: rgb(var(--danger) / 0.5); background: repeating-linear-gradient(45deg, rgb(var(--danger) / 0.10) 0 6px, transparent 6px 12px); }
+.chart-bar.cut-start { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
+.chart-bar.cut-end { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
+.chart-bar:focus-visible { outline: 2px solid rgb(var(--accent-400)); }
+.chart-dot { width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--fg-faint)); }
+.chart-dot.is-dirty, .chart-dot.is-pickup { background: rgb(var(--danger)); }
+.chart-dot.is-clean { background: rgb(var(--warning)); }
+.chart-dot.is-inspected { background: rgb(var(--success)); }
+.chart-held { font-size: 10px; color: rgb(var(--danger)); }
