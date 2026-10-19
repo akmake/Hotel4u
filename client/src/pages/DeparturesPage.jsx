@@ -1,6 +1,7 @@
 // FD-07 — Departures. Physical departure and closing the money are shown separately: a stay can
 // be "left" while a folio stays open with an approved settlement, and that stays visible here.
 // Late departures (still in the house after their date) are part of today's list.
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Crown } from 'lucide-react';
@@ -46,6 +47,7 @@ export default function DeparturesPage() {
       q: url.get('q') || undefined,
     });
   }, [propertyId, url.key]);
+  useLiveRefresh(propertyId, ['Reservation', 'ReservationRoom', 'Folio', 'ArrivalQueueEntry', 'Room'], reload);
 
   const viewDate = data?.date;
   const isToday = data && data.date === data.businessDate;

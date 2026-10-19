@@ -10,6 +10,7 @@ export const MT_STAFF = ['technician', 'maintenance_manager'];
 export const UNBLOCK_ROLES = [...MT_MANAGER_ROLES, 'front_desk_manager', 'housekeeping_manager'];
 
 const TABS = [
+  { to: '/pms/housekeeping/status', label: 'מצב המלון', roles: [...HK_MANAGER_ROLES, ...FRONT_ROLES, 'auditor', 'owner_readonly'] },
   { to: '/pms/housekeeping', end: true, label: 'תכנון', roles: [...HK_MANAGER_ROLES, ...FRONT_ROLES, 'auditor', 'owner_readonly'] },
   { to: '/pms/housekeeping/my', label: 'המשימות שלי', roles: [...HK_MANAGER_ROLES, ...HK_STAFF] },
   { to: '/pms/housekeeping/inspection', label: 'בדיקת חדרים', roles: HK_MANAGER_ROLES },

@@ -47,6 +47,17 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // Uploaded files (room-type photos, ticket photos) are served by the API server.
+      '/uploads': {
+        target: process.env.API_PROXY || 'http://localhost:4000',
+        changeOrigin: true,
+      },
+      // PMS live updates (Socket.IO, namespace /pms).
+      '/socket.io': {
+        target: process.env.API_PROXY || 'http://localhost:4000',
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 });

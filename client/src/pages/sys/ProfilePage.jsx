@@ -68,8 +68,8 @@ export default function ProfilePage() {
               ['אימות דו־שלבי', data.twoFactorEnabled ? 'מופעל' : 'לא מופעל'],
               data.accessUntil && ['גישה עד', formatDateTime(data.accessUntil)],
             ]} />
-            {!data.twoFactorEnabled && <div className="ui-sub">הפעלת אימות דו־שלבי תתווסף כשמדיניות MFA של הארגון תוגדר.</div>}
           </Card>
+          <MfaCard enabled={!!data.twoFactorEnabled} onChanged={(m) => { success(m); reload(); }} />
           <Card title="מושבים וכניסות אחרונות" actions={<button type="button" className="btn btn-secondary btn-sm" onClick={() => setConfirmAll(true)}>ניתוק מכל המכשירים</button>}>
             {data.recentAccess.length === 0 ? <div className="ui-sub">אין רשומות</div> : (
               <ul className="ui-timeline">
@@ -84,5 +84,58 @@ export default function ProfilePage() {
         <Banner tone="info">כל מכשיר אחר שמחובר בשם שלך ינותק מיד ויצטרך להתחבר מחדש.</Banner>
       </ConfirmDialog>
     </Page>
+  );
+}
+
+// SYS-01 two-factor: set up with an authenticator app (key + otpauth link), confirm with a code, keep the recovery codes.
+function MfaCard({ enabled, onChanged }) {
+  const act = useAction();
+  const [setupData, setSetupData] = useState(null);
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [recovery, setRecovery] = useState(null);
+  const [disabling, setDisabling] = useState(false);
+  return (
+    <Card title="אימות דו־שלבי">
+      <div className="ui-stack">
+        <ErrorBanner error={act.error} />
+        {recovery && (
+          <Banner tone="warn">
+            <div><b>קודי שחזור — מוצגים פעם אחת בלבד.</b> שמרו אותם במקום בטוח; כל קוד משמש פעם אחת אם הטלפון לא זמין.</div>
+            <div className="ui-num" dir="ltr" style={{ columns: 2, marginTop: 6 }}>{recovery.map((c) => <div key={c}>{c}</div>)}</div>
+          </Banner>
+        )}
+        {!enabled && !setupData && (
+          <>
+            <p className="ui-sub">אחרי הסיסמה תתבקשו קוד מאפליקציית אימות (Google Authenticator, Microsoft Authenticator וכדומה).</p>
+            <button type="button" className="btn btn-primary btn-sm" disabled={act.busy} onClick={() => act.run(async () => { setSetupData(await identity.mfaSetup()); setCode(''); })}>הפעלה</button>
+          </>
+        )}
+        {!enabled && setupData && (
+          <>
+            <p className="ui-sub">באפליקציה: הוספת חשבון ← הזנת מפתח ידנית. בטלפון אפשר גם ללחוץ על הקישור.</p>
+            <KeyValues rows={[['מפתח', <bdi key="k" className="ui-num" dir="ltr">{setupData.secret}</bdi>], ['קישור', <a key="l" href={setupData.otpauth} dir="ltr">פתיחה באפליקציה</a>]]} />
+            <Field id="mfa-code" label="קוד מהאפליקציה" required error={act.fields.code}><input id="mfa-code" className="input w-full" dir="ltr" inputMode="numeric" maxLength={6} autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} /></Field>
+            <button type="button" className="btn btn-primary btn-sm" disabled={act.busy || code.length !== 6} onClick={() => act.run(async () => { const out = await identity.mfaEnable(code); setRecovery(out.recoveryCodes); setSetupData(null); onChanged('אימות דו־שלבי הופעל'); })}>אישור והפעלה</button>
+          </>
+        )}
+        {enabled && !disabling && (
+          <>
+            <p className="ui-sub">מופעל. בכל כניסה תתבקשו קוד מהאפליקציה.</p>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setDisabling(true); setCode(''); setPassword(''); act.reset(); }}>ביטול אימות דו־שלבי</button>
+          </>
+        )}
+        {enabled && disabling && (
+          <>
+            <Field id="mfa-pw" label="סיסמה" required error={act.fields.password}><input id="mfa-pw" type="password" className="input w-full" dir="ltr" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+            <Field id="mfa-code2" label="קוד מהאפליקציה" required error={act.fields.code}><input id="mfa-code2" className="input w-full" dir="ltr" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} /></Field>
+            <div className="ui-row">
+              <button type="button" className="btn btn-danger btn-sm" disabled={act.busy || !password || code.length !== 6} onClick={() => act.run(async () => { await identity.mfaDisable(password, code); setDisabling(false); onChanged('אימות דו־שלבי בוטל'); })}>ביטול</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDisabling(false)}>חזרה</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
   );
 }

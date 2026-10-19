@@ -1,6 +1,7 @@
 // FD-06 — In-house. Split view: the list of stays in the house on one side, the selected stay's
 // money, requests, exceptions and actions on the other. Balance and guarantee are two separate
 // facts; DND and room problems come from operations, not from the desk.
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Crown, Moon } from 'lucide-react';
@@ -43,6 +44,7 @@ export default function InHousePage() {
       pageSize: url.get('size'),
     });
   }, [propertyId, url.key]);
+  useLiveRefresh(propertyId, ['Reservation', 'ReservationRoom', 'Folio', 'ArrivalQueueEntry', 'Room'], reload);
 
   const rows = useMemo(() => data?.rows || [], [data]);
 

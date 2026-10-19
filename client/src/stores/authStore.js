@@ -33,6 +33,7 @@ export const useAuthStore = create((set, get) => ({
       const outer = response.data || response;
       // Support { data: { token, user } } (new) and { user } (old fallback)
       const payload = outer.data || outer;
+      if (payload.mfaRequired) { set({ isLoading: false }); return { mfaRequired: true, ticket: payload.mfaTicket }; }
       const user    = payload.user || outer.user;
       const token   = payload.token;
 
@@ -46,6 +47,23 @@ export const useAuthStore = create((set, get) => ({
     } catch (error) {
       const message = error.response?.data?.error || error.response?.data?.message || error.message || 'שגיאה בהתחברות';
       set({ error: message, isLoading: false });
+      throw error;
+    }
+  },
+
+  verifyMfa: async (ticket, code) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await api.post('/auth/mfa', { ticket, code });
+      const outer = response.data || response;
+      const payload = outer.data || outer;
+      if (!payload.user) throw new Error('התחברות נכשלה');
+      if (payload.token) localStorage.setItem('hotel4u_token', payload.token);
+      saveUser(payload.user);
+      set({ isAuthenticated: true, user: payload.user, isLoading: false, error: null });
+      return payload.user;
+    } catch (error) {
+      set({ isLoading: false });
       throw error;
     }
   },

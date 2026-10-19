@@ -430,3 +430,59 @@ nav.ui-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .chart-dot.is-clean { background: rgb(var(--warning)); }
 .chart-dot.is-inspected { background: rgb(var(--success)); }
 .chart-held { font-size: 10px; color: rgb(var(--danger)); }
+.chart-row.is-drop { background: rgb(var(--accent-400) / 0.12); }
+.chart-bar[draggable='true'] { cursor: grab; }
+.ticket-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.ticket-photos img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; border: 1px solid rgb(var(--border)); display: block; }
+.ticket-photo-add { width: 88px; height: 88px; border: 1px dashed rgb(var(--border-strong)); border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; color: rgb(var(--fg-muted)); }
+.ticket-photo-add:focus-within { outline: 2px solid rgb(var(--accent-400)); }
+
+/* Printing an operational report (kitchen sheet, housekeeping list): page content only. */
+@media print {
+  .sidebar, .sidebar-scrim, .hotjar-shell-brand, .content-header, .ui-toolbar, .ui-banner, .ui-row-actions { display: none !important; }
+  .main-content { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+  .ui-table-wrap { max-height: none !important; overflow: visible !important; }
+  .ui-card { break-inside: avoid; box-shadow: none !important; }
+  body { background: #fff !important; }
+}
+
+/* Operational reports: report list + parameters + a printable document. */
+.ops-reports { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; }
+.ops-reports-list { display: grid; gap: 14px; position: sticky; top: 8px; }
+.ops-reports-item { display: grid; gap: 2px; width: 100%; text-align: start; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; }
+.ops-reports-item strong { font-size: 13px; font-weight: 600; color: rgb(var(--fg)); }
+.ops-reports-item span { font-size: 11.5px; color: rgb(var(--fg-muted)); line-height: 1.35; }
+.ops-reports-item:hover { background: rgb(var(--bg-hover)); }
+.ops-reports-item.is-on { background: rgb(var(--bg-hover)); border-color: rgb(var(--border)); }
+.ops-reports-main { display: grid; gap: 10px; min-width: 0; }
+.ops-reports-params { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ops-reports-actions { margin-inline-start: auto; display: flex; gap: 6px; }
+.ops-num { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: rgb(var(--fg-secondary)); }
+.ops-num input { width: 56px; padding: 3px 6px; border: 1px solid rgb(var(--border)); border-radius: 6px; background: rgb(var(--bg)); }
+.ops-doc { background: #fff; color: #111; border: 1px solid rgb(var(--border)); border-radius: 8px; padding: 20px 22px; overflow-x: auto; }
+.ops-doc-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 12px; }
+.ops-doc-hotel { font-size: 12px; color: #555; }
+.ops-doc-head h2 { font-size: 19px; font-weight: 700; margin: 2px 0; }
+.ops-doc-sub { font-size: 13px; }
+.ops-doc-meta { font-size: 11px; color: #555; white-space: nowrap; }
+.ops-doc-heading { font-size: 15px; font-weight: 700; margin: 4px 0 8px; }
+.ops-doc-section { margin-bottom: 14px; }
+.ops-doc-section h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 5px; }
+.ops-doc-empty { font-size: 12.5px; color: #666; }
+.ops-doc-note { font-size: 11.5px; color: #444; margin-top: 8px; line-height: 1.5; }
+.ops-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ops-table th, .ops-table td { border: 1px solid #bbb; padding: 4px 6px; text-align: start; vertical-align: top; }
+.ops-table thead th { background: #f1f1f1; font-weight: 600; }
+.ops-table tfoot td { font-weight: 700; background: #f7f7f7; }
+.ops-table tr.is-alert td { background: #fff4f2; }
+@media (max-width: 900px) { .ops-reports { grid-template-columns: 1fr; } .ops-reports-list { position: static; } }
+@media print {
+  .no-print { display: none !important; }
+  .ops-reports { display: block; }
+  .ops-doc { border: 0; padding: 0; overflow: visible; }
+  .ops-break { break-after: page; }
+  .ops-table { font-size: 11px; }
+  .ops-table thead { display: table-header-group; }
+  .ops-table tr { break-inside: avoid; }
+  .ops-table tr.is-alert td, .ops-table thead th, .ops-table tfoot td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

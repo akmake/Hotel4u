@@ -1,4 +1,5 @@
-﻿import AuditLog from '../models/AuditLog.js';
+﻿import { emitPropertyChange } from '../socket.js';
+import AuditLog from '../models/AuditLog.js';
 
 /**
  * Write an immutable audit entry.
@@ -9,6 +10,7 @@ export async function audit({
   before, after, reason, ip, userAgent,
 }) {
   try {
+    if (property) emitPropertyChange(String(property), { entity: entityType || null, action: action || null, at: Date.now() });
     await AuditLog.create({
       property,
       actor: actor || undefined,

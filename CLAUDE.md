@@ -623,6 +623,45 @@ rate-plan dialog; one level only). Main property: VIP −15%, CORP −12%, OTA �
 - Booking confirmation e-mail: `services/confirmationService.js` — sent automatically on create (when mail is configured
   and the guest has an e-mail), again from the reservation file; marked sent only after the mail server accepted it.
 
+#### Basics batch (2026-10-19, later)
+- Kitchen report `GET /ops/meals?from&days` → `/pms/meals` (breakfast after a night, dinner every HB/FB night, lunch FB inner
+  days): adults/children/infants (childAges vs boardPricing.infantMaxAge), hold/pending_payment apart as tentative, early
+  check-out stops on the day left, by board, groups, guests with allergies/requests/VIP. Roles BOARD_READ (names + allergies).
+- Hotel status for housekeeping `GET /ops/hk-overview?date&days` → `/pms/housekeeping/status` (`services/hkOverviewService.js`):
+  per room departure (left / still in) · arrival (ETA, VIP, waiting at desk) · stayover, server priority 1–8 (rules listed on the
+  screen), arrivals without a room vs clean rooms of the type (shortage), 7-day forecast. No guest names (OPS-01-F05).
+  Both reports skip bookings whose arrival day passed without check-in and report them as `staleArrivals`.
+- Printable ops reports `/pms/ops-reports?r=` (`pages/ops/OpsReportsPage.jsx`, print A4 + Excel from the same table spec):
+  kitchen-daily · kitchen-forecast · dining-list (`GET /ops/reports/dining-list?date`, per room, heads split over units) ·
+  dietary · groups · hk-sheets (`GET /ops/reports/hk-sheets?date&floor`, one page per housekeeper in priority order) ·
+  hk-movement · hk-staffing (minutes per checkout/stayover/arrival + shift hours → housekeepers needed).
+- Room chart drag → `components/stay/DragMoveDialog` (in-house = FD-09 move, future = assignment).
+- Ticket photos `POST /ops/tickets/:id/photos` (multipart `photo`, sharp re-encode, `uploads/tickets/<random>.jpg`).
+- Preventive maintenance `models/PreventivePlan.js`, `services/preventiveService.js`, `/ops/preventive*`, cron 06:00,
+  screen `/pms/maintenance/preventive`; tickets carry `preventive {plan, due}` (no duplicates).
+- Company receivables `services/receivablesService.js`, `GET /finance/receivables`, `POST /finance/receivables/:companyId/payments`
+  (FIFO or explicit allocation, each part via recordFolioPayment) → `/pms/fin/receivables`.
+- Two-factor (TOTP, `utils/totp.js`, `services/mfaService.js`): `/api/auth/login` returns `{mfaRequired, mfaTicket}` when on,
+  `POST /api/auth/mfa {ticket, code}` finishes; `/identity/me/mfa/*`, admin `POST /identity/users/:id/mfa/reset`.
+  Secrets sealed with `utils/secretBox` (key from TAX_TOKEN_KEY / JWT secret — rotating it voids enrolled secrets).
+- Live updates: Socket.IO namespace `/pms` (PMS token, room `property:<id>`); `auditService.audit` emits
+  `pms:change {entity, action}`; client `hooks/useLiveRefresh(propertyId, entities, reload)`; vite proxies `/socket.io`.
+
+#### Public booking site (2026-10-19) — `/book` (client `pages/book/*`, own look in `book.css`)
+```
+GET  /api/public/booking/site?p=        hotel + room types (content, capacity, photos) + payment mode  (no login, rate-limited)
+GET  /api/public/booking/search?p&arrival&departure&adults&children&childAges   rooms → offers (rate × board), full price
+POST /api/public/booking/start          guest + consent → HOLD (Property.onlineBooking.holdMinutes) + OnlinePayment session → redirectUrl
+GET  /session/:token, POST /session/:token/complete | retry | mock-pay     (token = guest capability)
+GET|PUT /api/pms/setup/online-booking   on/off, payment full|deposit(%), hold minutes, rate plans sold, texts
+POST /api/pms/setup/room-types/:id/photos (multipart photo), PUT .../photos {images}   (services/roomTypePhotoService.js)
+```
+`services/publicBookingService.js` reuses `bookingService` (server price, signature, hold). Paid → hold→confirmed, deposit line
+(credit_card, last4/approval from the provider) via `recordFolioPayment`, confirmation e-mail. Paid after the hold was
+released → `needs_refund` + urgent WorkItem. Web bookings always create a new GuestProfile (desk merges), marketSegment `website`.
+`services/paymentGateway.js`: only `mock` (refuses in production) — a real clearing provider is still to be chosen and wired
+(the manual card rule rejects approvals of 7+ digits; adapt when wiring). Demo content: `node scripts/seedWebsiteContent.mjs`.
+
 #### Charge codes, day-close books, walking back (gaps G1/G4/G6 — docs/specification/13-opera-gap-analysis.md)
 ```
 GET|POST /api/pms/finance/charge-codes, PATCH /charge-codes/:id   ADM-13 catalogue (models/ChargeCode.js). Folio line `department` = code.

@@ -1,6 +1,7 @@
 // /api/pms/finance — folio (FIN-01), charges & reversals (FIN-02), payments/deposits (FIN-03),
 // refunds (FIN-04), credit notes (FIN-07) and day close (FIN-12).
 // Business rules live in services/financeService.js; this file gates roles and property scope.
+import { receivables, receiveCompanyPayment } from '../services/receivablesService.js';
 import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import {
@@ -271,6 +272,13 @@ router.get('/day-close', handle(async (req) => {
 router.get('/day-close/report', handle(async (req) => {
   requireRoles(req, DAY_READ, 'אין הרשאה לדוחות סגירת יום');
   return dayReport({ propertyId: scope(req), date: req.query.date });
+}));
+
+// G5 company receivables (city ledger).
+router.get('/receivables', handle(async (req) => { requireRoles(req, [...MONEY_WORK, 'auditor', 'owner_readonly'], 'אין הרשאה לחייבים'); return receivables({ propertyId: scope(req) }); }));
+router.post('/receivables/:companyId/payments', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה לרשום תשלום');
+  return receiveCompanyPayment({ propertyId: scope(req), companyId: req.params.companyId, input: req.body || {}, actor: actorOf(req), ip: req.ip });
 }));
 
 router.put('/day-close/auto', handle(async (req) => setAutoDayClose({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip })));

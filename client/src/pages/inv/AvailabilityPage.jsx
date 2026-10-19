@@ -1,5 +1,6 @@
 // INV-01 availability by night and room type, INV-04 room blocks by dates.
 // Numbers come from the server: rooms of the type that are in sale that night, minus what is sold.
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Ban, ChevronRight, ChevronLeft, Plus } from 'lucide-react';
@@ -30,6 +31,7 @@ export default function AvailabilityPage() {
   const days = Number(url.get('days')) || 14;
 
   const { data, loading, error, reload } = useLoader(async () => (propertyId ? ops.availability(propertyId, { from: url.get('from') || undefined, days }) : null), [propertyId, url.get('from'), days]);
+  useLiveRefresh(propertyId, ['Reservation', 'ReservationRoom', 'Room'], reload);
   const from = data?.from || url.get('from');
   const shift = (n) => url.set({ from: addDays(from || data?.today, n) });
   const book = (typeId, date) => navigate(`/pms/reservations/new?arrival=${date}&departure=${addDays(date, 1)}&roomTypeId=${typeId}`);

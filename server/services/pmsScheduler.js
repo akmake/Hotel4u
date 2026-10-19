@@ -197,6 +197,16 @@ export function initPmsScheduler() {
     }
   });
 
+  // OPS-07 preventive maintenance — opens due rounds every morning at 06:00.
+  cron.schedule('0 6 * * *', async () => {
+    try {
+      const { runDuePlans } = await import('./preventiveService.js');
+      await runDuePlans();
+    } catch (err) {
+      console.error('[pmsScheduler] preventive failed:', err.message);
+    }
+  });
+
   // Check-in reminders — fires at 09:00 every morning
   cron.schedule('0 9 * * *', async () => {
     await sendCheckInReminders().catch(err =>

@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { loginUser, logout, refresh, signPmsToken } from '../controllers/authController.js';
+import { loginUser, logout, refresh, signPmsToken, verifyMfaLogin } from '../controllers/authController.js';
 import requireAuth from '../middlewares/requireAuth.js';
 import requireRefresh from '../middlewares/requireRefresh.js';
 import { requestPasswordReset, resetPassword } from '../services/identityService.js';
@@ -13,6 +13,8 @@ const router = Router();
 
 // POST /api/auth/login
 router.post('/login', loginUser);
+// SYS-01 two-factor: second step of the login (ticket from /login + 6-digit or recovery code).
+router.post('/mfa', verifyMfaLogin);
 
 // SYS-02 — password recovery. The answer is the same whether or not the address exists.
 const respond = (fn) => async (req, res) => {

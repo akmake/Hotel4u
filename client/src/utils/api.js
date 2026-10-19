@@ -86,6 +86,16 @@ async function request(method, path, body) {
   return data.data;
 }
 
+// Multipart upload to the PMS (photos). Same auth and error shape as request().
+async function uploadForm(path, form) {
+  const token = getToken();
+  const res = await fetch(`${PMS_BASE}${path}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+  if (res.status === 401) { endSessionAndRedirect(); throw new Error('פג תוקף ההתחברות — יש להתחבר מחדש'); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) { const err = new Error(data.error || `HTTP ${res.status}`); err.status = res.status; if (data.fields) err.fields = data.fields; throw err; }
+  return data.data;
+}
+
 // Expired/invalid PMS session: clear local auth state and send the user to login,
 // remembering the page they were on.
 let redirecting = false;
@@ -177,6 +187,10 @@ export const setup = {
   updateType:     (propertyId, id, body)    => api.patch(`/setup/room-types/${id}`, withP(propertyId, body)),
   addRooms:       (propertyId, body)        => api.post('/setup/rooms', withP(propertyId, body)),
   updateRoom:     (propertyId, id, body)    => api.patch(`/setup/rooms/${id}`, withP(propertyId, body)),
+  typePhoto:      (propertyId, id, file)    => { const f = new FormData(); f.append('photo', file); return uploadForm(`/setup/room-types/${id}/photos?propertyId=${propertyId}`, f); },
+  typePhotos:     (propertyId, id, images)  => api.put(`/setup/room-types/${id}/photos`, withP(propertyId, { images })),
+  online:         (propertyId)              => api.get(`/setup/online-booking?propertyId=${propertyId}`),
+  saveOnline:     (propertyId, body)        => api.put('/setup/online-booking', withP(propertyId, body)),
 };
 
 export const ops = {
@@ -199,6 +213,14 @@ export const ops = {
   roomsLite:      (propertyId)              => api.get(`/ops/rooms-lite?propertyId=${propertyId}`),
   availability:   (propertyId, params = {}) => api.get(`/ops/availability?propertyId=${propertyId}${qs(params)}`),
   roomChart:      (propertyId, params = {}) => api.get(`/ops/room-chart?propertyId=${propertyId}${qs(params)}`),
+  meals:          (propertyId, params = {}) => api.get(`/ops/meals?propertyId=${propertyId}${qs(params)}`),
+  hkOverview:     (propertyId, params = {}) => api.get(`/ops/hk-overview?propertyId=${propertyId}${qs(params)}`),
+  diningList:     (propertyId, params = {}) => api.get(`/ops/reports/dining-list?propertyId=${propertyId}${qs(params)}`),
+  hkSheets:       (propertyId, params = {}) => api.get(`/ops/reports/hk-sheets?propertyId=${propertyId}${qs(params)}`),
+  preventive:     (propertyId)              => api.get(`/ops/preventive?propertyId=${propertyId}`),
+  createPreventive: (propertyId, body)      => api.post('/ops/preventive', withP(propertyId, body)),
+  updatePreventive: (propertyId, id, body)  => api.patch(`/ops/preventive/${id}`, withP(propertyId, body)),
+  runPreventive:  (propertyId, id)          => api.post(`/ops/preventive/${id}/run`, withP(propertyId, {})),
   roomBlocks:     (propertyId, params = {}) => api.get(`/ops/room-blocks?propertyId=${propertyId}${qs(params)}`),
   createBlock:    (propertyId, roomId, body) => api.post(`/ops/rooms/${roomId}/blocks`, withP(propertyId, body)),
   releaseBlock:   (propertyId, blockId, reason) => api.post(`/ops/room-blocks/${blockId}/release`, withP(propertyId, { reason })),
@@ -210,6 +232,7 @@ export const ops = {
   disposeLost:    (propertyId, id, body)    => api.post(`/ops/lost-items/${id}/dispose`, withP(propertyId, body)),
   tickets:        (propertyId, params = {}) => api.get(`/ops/tickets?propertyId=${propertyId}${qs(params)}`),
   ticket:         (propertyId, id)          => api.get(`/ops/tickets/${id}?propertyId=${propertyId}`),
+  ticketPhoto:    (propertyId, id, file, caption) => { const f = new FormData(); f.append('photo', file); if (caption) f.append('caption', caption); f.append('propertyId', propertyId); return uploadForm(`/ops/tickets/${id}/photos?propertyId=${propertyId}`, f); },
   createTicket:   (propertyId, body)        => api.post('/ops/tickets', withP(propertyId, body)),
   takeTicket:     (propertyId, id)          => api.post(`/ops/tickets/${id}/take`, withP(propertyId)),
   updateTicket:   (propertyId, id, body)    => api.patch(`/ops/tickets/${id}`, withP(propertyId, body)),
@@ -231,6 +254,8 @@ export const finance = {
   dayClose:    (propertyId)              => api.get(`/finance/day-close?propertyId=${propertyId}`),
   runDayClose: (propertyId, body)        => api.post('/finance/day-close/run', { ...body, propertyId }),
   setAutoDayClose: (propertyId, body)    => api.put('/finance/day-close/auto', { ...body, propertyId }),
+  receivables: (propertyId)               => api.get(`/finance/receivables?propertyId=${propertyId}`),
+  receivePayment: (propertyId, companyId, body) => api.post(`/finance/receivables/${companyId}/payments`, { ...body, propertyId }),
   dayReport:   (propertyId, date)        => api.get(`/finance/day-close/report?propertyId=${propertyId}${qs({ date })}`),
   closeFolio:  (propertyId, folioId)     => api.post(`/finance/folios/${folioId}/close`, { propertyId }),
   // FIN-06 / FIN-10 documents from a folio and the allocation centre
@@ -332,6 +357,11 @@ export const stay = {
 
 // ── Identity (ADM-06, SYS-04) ────────────────────────────────────────────────
 export const identity = {
+  mfaStatus:  ()                        => api.get('/identity/me/mfa'),
+  mfaSetup:   ()                        => api.post('/identity/me/mfa/setup', {}),
+  mfaEnable:  (code)                    => api.post('/identity/me/mfa/enable', { code }),
+  mfaDisable: (password, code)          => api.post('/identity/me/mfa/disable', { password, code }),
+  mfaReset:   (propertyId, userId)      => api.post(`/identity/users/${userId}/mfa/reset`, { propertyId }),
   users:      (propertyId, params = {}) => api.get(`/identity/users?propertyId=${propertyId}${qs(params)}`),
   roles:      (propertyId)              => api.get(`/identity/roles?propertyId=${propertyId}`),
   create:     (propertyId, body)        => api.post('/identity/users', { ...body, propertyId }),

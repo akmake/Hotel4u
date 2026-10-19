@@ -1,5 +1,6 @@
 // /api/pms/identity — users, roles and access (ADM-06) and the signed-in person's profile and
 // sessions (SYS-04). Rules live in services/identityService.js.
+import { mfaStatus, startSetup, enable, disable, adminReset } from '../services/mfaService.js';
 import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import {
@@ -72,6 +73,11 @@ router.post('/users/:id/setup-link', handle(async (req) => {
 router.get('/me', handle(async (req) => getMe({ actor: actorOf(req) })));
 router.patch('/me', handle(async (req) => updateMe({ actor: actorOf(req), input: req.body || {}, ip: req.ip })));
 router.post('/me/password', handle(async (req) => changeMyPassword({ actor: actorOf(req), current: req.body?.current, next: req.body?.next, ip: req.ip })));
+router.get('/me/mfa', handle(async (req) => mfaStatus({ actor: actorOf(req) })));
+router.post('/me/mfa/setup', handle(async (req) => startSetup({ actor: actorOf(req) })));
+router.post('/me/mfa/enable', handle(async (req) => enable({ actor: actorOf(req), code: req.body?.code, ip: req.ip })));
+router.post('/me/mfa/disable', handle(async (req) => disable({ actor: actorOf(req), password: req.body?.password, code: req.body?.code, ip: req.ip })));
+router.post('/users/:id/mfa/reset', handle(async (req) => adminReset({ propertyId: scope(req), userId: req.params.id, actor: actorOf(req), ip: req.ip })));
 router.post('/me/logout-all', handle(async (req) => logoutEverywhere({ actor: actorOf(req), ip: req.ip })));
 
 export default router;

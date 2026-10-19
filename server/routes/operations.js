@@ -15,6 +15,10 @@ import {
 } from '../services/operationsService.js';
 import { listBlocks, createBlock, releaseBlock, availabilityGrid } from '../services/roomBlockService.js';
 import { roomChart } from '../services/roomChartService.js';
+import { mealCount, diningList } from '../services/mealCountService.js';
+import { hkOverview, hkSheets } from '../services/hkOverviewService.js';
+import { photoUpload, addTicketPhoto } from '../services/ticketPhotoService.js';
+import { listPlans, savePlan, runPlanNow } from '../services/preventiveService.js';
 
 const router = Router();
 
@@ -167,6 +171,27 @@ router.get('/availability', handle(async (req) => {
   return availabilityGrid({ propertyId: scope(req), from: req.query.from, days: req.query.days });
 }));
 
+// Kitchen report: names, allergies and requests of guests — not for room-level staff.
+router.get('/meals', handle(async (req) => {
+  requireRoles(req, BOARD_READ, 'אין הרשאה לדוח המטבח');
+  return mealCount({ propertyId: scope(req), from: req.query.from, days: req.query.days });
+}));
+
+router.get('/hk-overview', handle(async (req) => {
+  requireRoles(req, BOARD_READ, 'אין הרשאה לצפות במצב המלון');
+  return hkOverview({ propertyId: scope(req), date: req.query.date, days: req.query.days });
+}));
+
+// Printable reports (kitchen dining list, housekeeping work sheets).
+router.get('/reports/dining-list', handle(async (req) => {
+  requireRoles(req, BOARD_READ, 'אין הרשאה לדוח המטבח');
+  return diningList({ propertyId: scope(req), date: req.query.date });
+}));
+router.get('/reports/hk-sheets', handle(async (req) => {
+  requireRoles(req, BOARD_READ, 'אין הרשאה לדפי העבודה');
+  return hkSheets({ propertyId: scope(req), date: req.query.date, floor: req.query.floor });
+}));
+
 router.get('/room-chart', handle(async (req) => {
   requireRoles(req, ROOM_STATUS_READ, 'אין הרשאה');
   return roomChart({ propertyId: scope(req), from: req.query.from, days: req.query.days });
@@ -217,6 +242,17 @@ router.get('/tickets', handle(async (req) => {
   const q = req.query;
   return listTickets({ propertyId: scope(req), status: q.status || 'open', priority: q.priority, roomId: q.roomId, q: q.q, mine: q.mine === '1', actor: actorOf(req) });
 }));
+
+router.post('/tickets/:id/photos', (req, res, next) => photoUpload(req, res, (err) => (err ? res.status(422).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'התמונה גדולה מ־12MB' : 'קובץ לא תקין' }) : next())), handle(async (req) => {
+  requireRoles(req, TICKET_REPORT, 'אין הרשאה לצרף תמונה');
+  return addTicketPhoto({ propertyId: scope(req), ticketId: req.params.id, file: req.file, caption: req.body?.caption, actor: actorOf(req), ip: req.ip });
+}));
+
+// OPS-07 preventive maintenance plans.
+router.get('/preventive', handle(async (req) => { requireRoles(req, TICKET_READ, 'אין הרשאה'); return listPlans({ propertyId: scope(req) }); }));
+router.post('/preventive', handle(async (req) => savePlan({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip })));
+router.patch('/preventive/:id', handle(async (req) => savePlan({ propertyId: scope(req), id: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip })));
+router.post('/preventive/:id/run', handle(async (req) => runPlanNow({ propertyId: scope(req), id: req.params.id, actor: actorOf(req) })));
 
 router.get('/tickets/:id', handle(async (req) => {
   requireRoles(req, TICKET_READ, 'אין הרשאה לצפות בתקלות');

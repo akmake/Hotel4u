@@ -665,6 +665,7 @@ function ticketDto(t) {
     estimatedCost: t.estimatedCost ?? null, actualCost: t.actualCost ?? null,
     notes: (t.internalNotes || []).map((n) => ({ text: n.text, by: n.authorName, at: n.createdAt })),
     parts: (t.partsNeeded || []).map((p) => ({ name: p.name, quantity: p.quantity, ordered: !!p.ordered })),
+    photos: (t.photos || []).map((p) => ({ url: p.url, caption: p.caption || null, at: p.uploadedAt || null })),
     reopenReason: t.reopenReason || null, closingNote: t.closingNote || null,
     overdue: !!(t.dueDate && new Date(t.dueDate) < new Date() && OPEN_TICKET.includes(t.status)),
     createdAt: t.createdAt, version: t.updatedAt ? new Date(t.updatedAt).toISOString() : null,

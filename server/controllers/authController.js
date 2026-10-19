@@ -1,3 +1,4 @@
+import { mfaTicket, verifyLoginCode } from '../services/mfaService.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
@@ -47,6 +48,15 @@ export const loginUser = async (req, res) => {
     return res.status(403).json({ message: 'תוקף הגישה של המשתמש הסתיים — פנו למנהל המערכת' });
 
   await user.resetLoginAttempts();
+  // Two-factor: the password step only earns a 5-minute ticket for the code step (POST /api/auth/mfa).
+  if (user.twoFactorEnabled) {
+    return res.status(200).json({ success: true, data: { mfaRequired: true, mfaTicket: mfaTicket(user) } });
+  }
+  return finishLogin(user, req, res);
+};
+
+// Session issue after every factor passed (password, and a code when two-factor is on).
+export async function finishLogin(user, req, res) {
   user.lastLoginAt = new Date();
   await user.updateOne({ lastLoginAt: user.lastLoginAt });
 
@@ -76,6 +86,16 @@ export const loginUser = async (req, res) => {
     message: 'התחברת בהצלחה',
     data: { token: bearerToken, user: userPayload },
   });
+}
+
+export const verifyMfaLogin = async (req, res) => {
+  try {
+    const user = await verifyLoginCode({ ticket: req.body?.ticket, code: req.body?.code });
+    await user.resetLoginAttempts();
+    return finishLogin(user, req, res);
+  } catch (err) {
+    return res.status(err.status || 401).json({ message: err.message });
+  }
 };
 
 export const logout = async (req, res) => {

@@ -231,6 +231,20 @@ const PropertySchema = new Schema({
   // How the property sells: 'rates' (choose a rate plan) or 'board' (choose a board — each board is
   // a rate plan with its own price calendar). The manager decides; the booking form shows one choice.
   pricingMode: { type: String, enum: ['rates', 'board'], default: 'rates' },
+  // Public booking site (/book). Off until a manager turns it on; payment is taken at booking time
+  // through the payment provider (services/paymentGateway.js) — full amount or a deposit.
+  onlineBooking: {
+    enabled:      { type: Boolean, default: false },
+    payment:      { type: String, enum: ['full', 'deposit'], default: 'full' },
+    depositPct:   { type: Number, min: 10, max: 100, default: 30 },
+    holdMinutes:  { type: Number, min: 15, max: 60, default: 20 },   // stock held while the guest pays
+    ratePlanCodes: { type: [String], default: [] },                  // empty = every public rate plan
+    headline:     { type: String, maxlength: 120 },
+    intro:        { type: String, maxlength: 600 },
+    termsText:    { type: String, maxlength: 4000 },
+    updatedByName: String,
+    updatedAt:    Date,
+  },
   boardPricing: {
     supplements: [{
       _id: false,

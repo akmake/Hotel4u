@@ -6,7 +6,7 @@ import {
   BedDouble, UserCheck, Megaphone, GitBranch, Bot, FileText,
   BadgeDollarSign, Search, TrendingUp, Building2, Star, PackagePlus,
   LogOut, Calendar, Sparkles, Tag, BookOpen, Funnel, CreditCard,
-  LogIn, Hourglass, BedSingle, Moon, ReceiptText, ListChecks, Zap, Radio,
+  LogIn, Hourglass, BedSingle, Moon, ReceiptText, ListChecks, Printer, Zap, Radio,
   ChevronDown, SquarePen, ArrowLeftRight,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
@@ -92,6 +92,8 @@ const PMS_NAV = [
     items: [
       { path: '/pms/housekeeping', icon: Sparkles,     label: 'חדרנות' },
       { path: '/pms/maintenance',  icon: Wrench,        label: 'תחזוקה' },
+      { path: '/pms/meals',        icon: ListChecks,    label: 'מטבח — סועדים' },
+      { path: '/pms/ops-reports',  icon: Printer,       label: 'דוחות תפעול' },
       { path: '/pms/rooms',        icon: BedDouble,     label: 'חדרים' },
     ],
   },
@@ -102,6 +104,7 @@ const PMS_NAV = [
       { path: '/pms/reports',          icon: BarChart3,  label: 'דוחות' },
       { path: '/pms/night-audit',      icon: Moon,       label: 'סגירת יום' },
       { path: '/pms/night-audit/report', icon: BarChart3, label: 'מאזן בוחן וספרים' },
+      { path: '/pms/fin/receivables',  icon: Building2,  label: 'חייבים — חברות' },
       { path: '/pms/fin/reports',      icon: ReceiptText, label: 'דוחות כספיים ומע״מ' },
       { path: '/pms/fin/accounting',   icon: ReceiptText, label: 'הנהלת חשבונות' },
       { path: '/pms/bulk-jobs',        icon: ListChecks, label: 'פעולות מרוכזות' },

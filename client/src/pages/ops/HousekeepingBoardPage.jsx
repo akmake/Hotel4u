@@ -1,6 +1,7 @@
 // OPS-01 — housekeeping planning. One row per room for the day: occupancy (derived from stays),
 // cleanliness, blocking, the day's task and who has it, and minimal arrival info (time / waiting at
 // the desk, never guest identity). Supervisors generate, assign in bulk, re-prioritise with a reason.
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Plus, Wand2 } from 'lucide-react';
@@ -50,6 +51,7 @@ export default function HousekeepingBoardPage() {
     if (!propertyId) return null;
     return ops.board(propertyId, { date: url.get('date') || undefined, floor: url.get('floor') || undefined });
   }, [propertyId, url.get('date'), url.get('floor')]);
+  useLiveRefresh(propertyId, ['HousekeepingTask', 'Room', 'Reservation'], reload);
 
   // The board is shared between stations: refresh every minute while visible.
   useEffect(() => {

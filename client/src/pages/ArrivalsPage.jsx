@@ -2,6 +2,7 @@
 // server with its reasons, and every action from the screen contract: open stay, start check-in,
 // assign room, add to the waiting queue, walk-in, no-show. Filter/sort/page state lives in the URL
 // so refresh and back keep the context; `?checkin=<reservationId>` opens the wizard directly.
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as Menu from '@radix-ui/react-dropdown-menu';
@@ -96,6 +97,7 @@ export default function ArrivalsPage() {
   }, [propertyId, params.toString()]);
 
   useEffect(() => { load(); }, [load]);
+  useLiveRefresh(propertyId, ['Reservation', 'ReservationRoom', 'Folio', 'ArrivalQueueEntry', 'Room'], load);
   const committedQ = params.get('q') || '';
   useEffect(() => { setDraftQ(committedQ); }, [committedQ]);
   useEffect(() => {

@@ -1,5 +1,8 @@
 import { Server } from 'socket.io';
 import Message from './models/Message.js'; 
+import jwt from 'jsonwebtoken';
+import User from './models/User.js';
+import { pmsJwtSecret } from './utils/jwtSecret.js';
 
 let io;
 
@@ -62,8 +65,31 @@ export const initSocket = (httpServer) => {
         });
     });
 
+    // PMS live updates: namespace /pms, signed in with the PMS bearer token; one room per property.
+    // Only "what changed" is sent (entity + action), never record contents — screens reload through the API.
+    const pms = io.of('/pms');
+    pms.use(async (socket, next) => {
+        try {
+            const claim = jwt.verify(String(socket.handshake.auth?.token || ''), pmsJwtSecret());
+            const user = await User.findById(claim.id).select('property role active tokenVersion').lean();
+            if (!user || user.active === false || Number(user.tokenVersion || 0) !== Number(claim.tv || 0)) return next(new Error('unauthorized'));
+            const wanted = String(socket.handshake.auth?.propertyId || user.property || '');
+            const cross = ['super_admin', 'chain_admin'].includes(user.role);
+            if (!wanted || (!cross && wanted !== String(user.property))) return next(new Error('forbidden'));
+            socket.join(`property:${wanted}`);
+            return next();
+        } catch {
+            return next(new Error('unauthorized'));
+        }
+    });
+
     return io;
 };
+
+export function emitPropertyChange(propertyId, payload) {
+    if (!io || !propertyId) return;
+    try { io.of('/pms').to(`property:${propertyId}`).emit('pms:change', payload); } catch { /* live updates are best effort */ }
+}
 
 // פונקציית הגישה (מוצהרת כאן פעם אחת בלבד!)
 export const getSocketIO = () => {

@@ -2,6 +2,7 @@
 // cleanliness (editable by hand only as an exception, with a reason and the version the user saw)
 // and operational status (blocking is its own decision; unblocking needs a manager and no open
 // blocking ticket). "Inspected" is never set here — only through OPS-04.
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useMemo, useState } from 'react';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuthStore } from '../../stores/authStore';
@@ -33,6 +34,7 @@ export default function RoomStatusPage() {
 
   // Clean filter is applied locally so the tiles always show the counts of the whole floor.
   const { data, loading, error, reload } = useLoader(async () => (propertyId ? ops.rooms(propertyId, { floor: url.get('floor') || undefined, q: url.get('q') || undefined }) : null), [propertyId, url.get('floor'), url.get('q')]);
+  useLiveRefresh(propertyId, ['Room', 'HousekeepingTask', 'MaintenanceTicket', 'Reservation', 'ReservationRoom'], reload);
   const all = data?.rows || [];
   const floors = useMemo(() => [...new Set(all.map((r) => r.floor))].sort((a, b) => a - b), [all]);
   const match = (r, k) => (k === 'dirty' ? ['dirty', 'pickup'].includes(r.cleanStatus) : k === 'blocked' ? r.opsStatus !== 'available' || r.tickets.blocking : r.cleanStatus === k);

@@ -9,6 +9,7 @@ import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/ui/Toast';
 import { Page, Card, Field, ErrorBanner, Banner, Spinner, Modal, Segmented, Tag, DataTable, Empty, useLoader, useAction, useUrlState, money } from '../../components/kit';
 import AdminNav from '../../components/sys/AdminNav';
+import OnlineBookingCard from '../../components/sys/OnlineBookingCard';
 
 const SETUP_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager'];
 const BED_LABELS = { king: 'קינג', queen: 'קווין', twin: 'שתי מיטות נפרדות', double: 'זוגית', single: 'יחיד', bunk: 'קומתיים', mixed: 'משולב', other: 'אחר' };
@@ -47,10 +48,12 @@ export default function HotelSetupPage() {
               { value: 'property', label: 'פרטי המלון' },
               { value: 'types', label: `סוגי חדרים (${data.roomTypes.filter((t) => t.active).length})` },
               { value: 'rooms', label: `חדרים (${data.rooms.filter((r) => r.active).length})` },
+              { value: 'web', label: 'אתר ההזמנות' },
             ]} />
           </div>
           {tab === 'property' && <PropertyForm data={data} canEdit={canEdit} propertyId={propertyId} onSaved={() => { success('פרטי המלון נשמרו'); reload(); }} />}
           {tab === 'types' && <RoomTypes data={data} canEdit={canEdit} propertyId={propertyId} onSaved={(m) => { success(m); reload(); }} />}
+          {tab === 'web' && <OnlineBookingCard propertyId={propertyId} role={role} onSaved={(m) => success(m)} />}
           {tab === 'rooms' && <Rooms data={data} canEdit={canEdit} propertyId={propertyId} onSaved={(m) => { success(m); reload(); }} />}
         </>
       )}
@@ -103,7 +106,8 @@ function PropertyForm({ data, canEdit, propertyId, onSaved }) {
   );
 }
 
-const TYPE_EMPTY = { code: '', name: '', shortDesc: '', baseRate: '', capacityBase: 2, capacityMax: 2, adultsMax: 2, childrenMax: 0, bedType: 'double', roomSizeSqm: '', sortOrder: 0, extraBedAllowed: false, cribAllowed: true };
+const TYPE_EMPTY = { code: '', name: '', shortDesc: '', baseRate: '', capacityBase: 2, capacityMax: 2, adultsMax: 2, childrenMax: 0, bedType: 'double', roomSizeSqm: '', sortOrder: 0, extraBedAllowed: false, cribAllowed: true, fullDesc: '', view: '', amenities: [], images: [], showInEngine: true };
+const VIEW_LABELS = { sea: 'ים / אגם', garden: 'גן', city: 'עיר', mountain: 'הרים', pool: 'בריכה', interior: 'חצר פנימית', courtyard: 'חצר', other: 'אחר' };
 
 function RoomTypes({ data, canEdit, propertyId, onSaved }) {
   const [edit, setEdit] = useState(null);
@@ -133,7 +137,8 @@ function TypeDialog({ value, onClose, propertyId, bedTypes, onSaved }) {
   const e = save.fields;
   const num = (k, label, hint) => <Field id={`rt-${k}`} label={label} error={e[k]} hint={hint}><input id={`rt-${k}`} className="input w-full" inputMode="numeric" value={f[k] ?? ''} onChange={set(k)} /></Field>;
   const submit = (extra = {}) => save.run(async () => {
-    const body = { code: f.code, name: f.name, shortDesc: f.shortDesc, baseRate: f.baseRate, capacityBase: f.capacityBase, capacityMax: f.capacityMax, adultsMax: f.adultsMax, childrenMax: f.childrenMax, bedType: f.bedType, roomSizeSqm: f.roomSizeSqm, sortOrder: f.sortOrder, extraBedAllowed: f.extraBedAllowed, cribAllowed: f.cribAllowed, ...extra };
+    const amenities = Array.isArray(f.amenities) ? f.amenities : String(f.amenities || '').split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+    const body = { code: f.code, name: f.name, shortDesc: f.shortDesc, baseRate: f.baseRate, capacityBase: f.capacityBase, capacityMax: f.capacityMax, adultsMax: f.adultsMax, childrenMax: f.childrenMax, bedType: f.bedType, roomSizeSqm: f.roomSizeSqm, sortOrder: f.sortOrder, extraBedAllowed: f.extraBedAllowed, cribAllowed: f.cribAllowed, fullDesc: f.fullDesc, view: f.view || '', amenities, showInEngine: f.showInEngine !== false, ...extra };
     if (creating) await setup.createType(propertyId, body); else await setup.updateType(propertyId, value.id, body);
     onSaved(creating ? `סוג החדר ${f.name} נוסף` : extra.active === false ? `${f.name} הושבת` : extra.active ? `${f.name} הופעל` : 'סוג החדר נשמר');
   });
@@ -167,9 +172,50 @@ function TypeDialog({ value, onClose, propertyId, bedTypes, onSaved }) {
         <div className="ui-row" style={{ gap: 16 }}>
           <label className="ui-check"><input type="checkbox" checked={!!f.extraBedAllowed} onChange={set('extraBedAllowed')} /><span>אפשר מיטה נוספת</span></label>
           <label className="ui-check"><input type="checkbox" checked={!!f.cribAllowed} onChange={set('cribAllowed')} /><span>אפשר עריסה</span></label>
+          <label className="ui-check"><input type="checkbox" checked={f.showInEngine !== false} onChange={set('showInEngine')} /><span>מוצג ונמכר באתר ההזמנות</span></label>
         </div>
+        <div className="ui-section-title">באתר ההזמנות</div>
+        <Field id="rt-view" label="נוף" optional><select id="rt-view" className="input w-full" value={f.view || ''} onChange={set('view')}><option value="">—</option>{Object.entries(VIEW_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+        <Field id="rt-full" label="תיאור מלא" optional hint="מוצג בחלון פרטי החדר"><textarea id="rt-full" className="input w-full" rows={3} maxLength={2000} value={f.fullDesc || ''} onChange={set('fullDesc')} /></Field>
+        <Field id="rt-amen" label="מה יש בחדר" optional error={e.amenities} hint="פריט בכל שורה או מופרד בפסיק — עד 20"><textarea id="rt-amen" className="input w-full" rows={3} value={Array.isArray(f.amenities) ? f.amenities.join('\n') : f.amenities || ''} onChange={(ev) => setF((p) => ({ ...p, amenities: ev.target.value }))} /></Field>
+        {!creating && <TypePhotos propertyId={propertyId} type={value} />}
       </div>
     </Modal>
+  );
+}
+
+// Photos for the booking site: upload one at a time (re-encoded on the server), first = cover.
+function TypePhotos({ propertyId, type }) {
+  const [images, setImages] = useState(type.images || []);
+  const act = useAction();
+  useEffect(() => setImages(type.images || []), [type]);
+  const upload = (file) => file && act.run(async () => { const out = await setup.typePhoto(propertyId, type.id, file); setImages(out.images); });
+  const save = (next) => act.run(async () => { const out = await setup.typePhotos(propertyId, type.id, next); setImages(out.images); });
+  return (
+    <Field id="rt-photos" label={`תמונות (${images.length}/8)`} optional hint="JPG / PNG / WEBP. התמונה הראשונה היא תמונת השער באתר.">
+      <div className="ui-stack">
+        <ErrorBanner error={act.error} />
+        {images.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+            {images.map((src, i) => (
+              <figure key={src} style={{ margin: 0, display: 'grid', gap: 4 }}>
+                <img src={src} alt={`תמונה ${i + 1}`} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: 6, outline: i === 0 ? '2px solid currentColor' : 'none' }} />
+                <div className="ui-row" style={{ gap: 4 }}>
+                  {i > 0 && <button type="button" className="btn btn-ghost btn-sm" disabled={act.busy} onClick={() => save([src, ...images.filter((x) => x !== src)])}>לשער</button>}
+                  <button type="button" className="btn btn-ghost btn-sm" disabled={act.busy} onClick={() => save(images.filter((x) => x !== src))}>הסרה</button>
+                </div>
+              </figure>
+            ))}
+          </div>
+        )}
+        {images.length < 8 && (
+          <label className="btn btn-secondary btn-sm" style={{ width: 'fit-content' }}>
+            {act.busy ? <><Spinner /> מעלה…</> : <><Plus size={14} /> הוספת תמונה</>}
+            <input id="rt-photos" type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={act.busy} onChange={(ev) => { upload(ev.target.files?.[0]); ev.target.value = ''; }} />
+          </label>
+        )}
+      </div>
+    </Field>
   );
 }
 

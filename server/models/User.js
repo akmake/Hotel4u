@@ -69,7 +69,10 @@ const UserSchema = new Schema({
   // Security
   forcedLogoutTime:    { type: String, default: null },
   twoFactorEnabled:    { type: Boolean, default: false },
-  totpSecret:          { type: String, default: '' },
+  totpSecret:          { type: String, default: '' },     // sealed (utils/secretBox)
+  totpPending:         String,                            // sealed, during setup only
+  totpLastStep:        Number,                            // last accepted 30 s step — a code is used once
+  mfaRecovery:         { type: [String], default: [] },   // sha256 of one-time recovery codes
   failedLoginAttempts: { type: Number, default: 0 },
   lockUntil:           { type: Date, default: null },
   tokenVersion:        { type: Number, default: 0 },      // bumped on deactivation / password change / "log out everywhere"

@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 // OPS-06 — maintenance tickets. Taking a ticket is atomic; "fixed" and "closed" are separate steps
 // with a note each; fixing never makes a room available or clean — unblocking is a manager decision
 // that the server refuses while any other blocking ticket is open.
@@ -32,6 +34,8 @@ function TicketDrawer({ id, propertyId, role, me, onClose, onChanged }) {
   const save = useAction();
   const [f, setF] = useState({});
   const [confirm, setConfirm] = useState(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState(null);
   useEffect(() => {
     if (t) setF({ status: '', priority: t.priority, dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 16) : '', vendor: t.vendor || '', estimatedCost: t.estimatedCost ?? '', actualCost: t.actualCost ?? '', note: '', assigneeId: t.assignee?.id || '' });
   }, [t]);
@@ -154,6 +158,20 @@ function TicketDrawer({ id, propertyId, role, me, onClose, onChanged }) {
             </div>
           )}
           <div>
+            <div className="ui-section-title">תמונות ({t.photos?.length || 0})</div>
+            <div className="ticket-photos">
+              {(t.photos || []).map((p) => <a key={p.url} href={p.url} target="_blank" rel="noreferrer" title={p.caption || formatDateTime(p.at)}><img src={p.url} alt={p.caption || 'תמונת תקלה'} loading="lazy" /></a>)}
+              {(t.photos?.length || 0) < 10 && (
+                <label className="ticket-photo-add">
+                  {photoBusy ? <Spinner /> : '+ תמונה'}
+                  <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={photoBusy}
+                    onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return; setPhotoBusy(true); setPhotoErr(null); try { await ops.ticketPhoto(propertyId, t.id, file); reload(); } catch (err) { setPhotoErr(err.message); } finally { setPhotoBusy(false); } }} />
+                </label>
+              )}
+            </div>
+            <ErrorBanner error={photoErr} />
+          </div>
+          <div>
             <div className="ui-section-title">הערות והיסטוריה</div>
             <ol className="ui-timeline">
               {t.notes.map((n, i) => <li key={`n${i}`}><span>{n.text}</span><span className="ui-sub">{n.by || '—'} · {formatDateTime(n.at)}</span></li>)}
@@ -194,6 +212,7 @@ export default function MaintenancePage() {
   const { data, loading, error, reload } = useLoader(async () => (propertyId ? ops.tickets(propertyId, {
     status: url.get('status'), priority: url.get('priority') || undefined, q: url.get('q') || undefined, mine: url.get('mine') || undefined,
   }) : null), [propertyId, url.get('status'), url.get('priority'), url.get('q'), url.get('mine')]);
+  useLiveRefresh(propertyId, ['MaintenanceTicket', 'Room'], reload);
   useEffect(() => {
     const id = setInterval(() => { if (document.visibilityState === 'visible') reload(); }, 60000);
     return () => clearInterval(id);
@@ -269,7 +288,7 @@ export default function MaintenancePage() {
             {isWorker && <label className="ui-switch"><input type="checkbox" checked={url.get('mine') === '1'} onChange={(e) => url.set({ mine: e.target.checked ? '1' : '' })} />שלי</label>}
           </>
         )}
-        end={<button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'new' })}><Plus size={14} /> תקלה חדשה</button>}
+        end={<><Link to="/pms/maintenance/preventive" className="btn btn-secondary btn-sm">תחזוקה מונעת</Link><button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'new' })}><Plus size={14} /> תקלה חדשה</button></>}
       />
       <Tiles
         label="תקלות פתוחות"

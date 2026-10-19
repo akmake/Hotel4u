@@ -82,7 +82,7 @@ function unitStatusFor(resStatus) {
 
 // One implicit unit per booked room, in the same order ensureUnits will create them, so the
 // screen and the first write agree (unit index is the stable handle until ids exist).
-function implicitUnits(res) {
+export function implicitUnits(res) {
   const count = Math.max(1, Number(res.roomsCount || 1));
   return Array.from({ length: count }, (_, i) => ({
     _id: null,

@@ -12,6 +12,7 @@ import { httpError, businessDateOf } from './frontDeskService.js';
 
 export const SETUP_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager'];
 const LIVE = ['cancelled', 'no_show', 'checked_out', 'quote', 'draft', 'waitlisted'];
+const VIEWS = ['sea', 'garden', 'city', 'mountain', 'pool', 'interior', 'courtyard', 'other'];
 const BED_TYPES = ['king', 'queen', 'twin', 'double', 'single', 'bunk', 'mixed', 'other'];
 const clip = (v, n) => String(v ?? '').trim().slice(0, n);
 const digits = (v) => String(v ?? '').replace(/\D/g, '');
@@ -38,6 +39,7 @@ function typeDto(t, counts) {
     capacityBase: t.capacityBase ?? 2, capacityMax: t.capacityMax ?? 2, adultsMax: t.adultsMax ?? t.capacityMax ?? 2, childrenMax: t.childrenMax ?? 0,
     bedType: t.bedType || 'double', roomSizeSqm: t.roomSizeSqm ?? '', extraBedAllowed: !!t.extraBedAllowed, cribAllowed: t.cribAllowed !== false,
     sortOrder: t.sortOrder ?? 0, active: t.active !== false, rooms: counts.get(String(t._id)) || 0,
+    fullDesc: t.fullDesc || '', view: t.view || '', amenities: t.amenities || [], images: t.images || [], showInEngine: t.showInEngine !== false,
   };
 }
 function roomDto(r, typeName) {
@@ -121,7 +123,15 @@ function typeInput(input, f, creating) {
   if (input.baseRate !== undefined) { const v = Number(input.baseRate); if (!(v >= 0)) f.baseRate = 'מחיר 0 ומעלה'; set.baseRate = Math.round(v * 100) / 100; }
   if (input.roomSizeSqm !== undefined) { const v = int(input.roomSizeSqm); if (v !== undefined && !(v > 0 && v < 1000)) f.roomSizeSqm = 'מ״ר'; set.roomSizeSqm = v; }
   if (input.bedType !== undefined) { if (!BED_TYPES.includes(input.bedType)) f.bedType = 'סוג מיטה'; set.bedType = input.bedType; }
-  for (const k of ['extraBedAllowed', 'cribAllowed']) if (input[k] !== undefined) set[k] = !!input[k];
+  for (const k of ['extraBedAllowed', 'cribAllowed', 'showInEngine']) if (input[k] !== undefined) set[k] = !!input[k];
+  // Public booking site content.
+  if (input.fullDesc !== undefined) set.fullDesc = clip(input.fullDesc, 2000);
+  if (input.view !== undefined) { if (input.view && !VIEWS.includes(input.view)) f.view = 'נוף'; set.view = input.view || undefined; }
+  if (input.amenities !== undefined) {
+    const list = (Array.isArray(input.amenities) ? input.amenities : String(input.amenities).split(/[,\n]/)).map((a) => clip(a, 40)).filter(Boolean);
+    if (list.length > 20) f.amenities = 'עד 20 פריטים';
+    set.amenities = [...new Set(list)].slice(0, 20);
+  }
   return set;
 }
 function checkCapacity(t, f) {

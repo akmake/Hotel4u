@@ -67,6 +67,16 @@ const InspectionPage       = lazy(() => import('./pages/ops/InspectionPage'));
 const OpsRoomStatusPage    = lazy(() => import('./pages/ops/RoomStatusPage'));
 const AvailabilityPage     = lazy(() => import('./pages/inv/AvailabilityPage'));
 const RoomChartPage        = lazy(() => import('./pages/inv/RoomChartPage'));
+const MealsPage            = lazy(() => import('./pages/ops/MealsPage'));
+const HotelStatusPage      = lazy(() => import('./pages/ops/HotelStatusPage'));
+const OpsReportsPage       = lazy(() => import('./pages/ops/OpsReportsPage'));
+const BookLayout           = lazy(() => import('./pages/book/BookLayout'));
+const BookSearchPage       = lazy(() => import('./pages/book/BookSearchPage'));
+const BookCheckoutPage     = lazy(() => import('./pages/book/BookCheckoutPage'));
+const BookPayPage          = lazy(() => import('./pages/book/BookPayPage'));
+const BookDonePage         = lazy(() => import('./pages/book/BookDonePage'));
+const PreventivePage       = lazy(() => import('./pages/ops/PreventivePage'));
+const ReceivablesPage      = lazy(() => import('./pages/fin/ReceivablesPage'));
 const HotelSetupPage       = lazy(() => import('./pages/sys/HotelSetupPage'));
 const LostFoundPage        = lazy(() => import('./pages/ops/LostFoundPage'));
 const MaintenancePage      = lazy(() => import('./pages/ops/MaintenancePage'));
@@ -165,6 +175,13 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/quote/:orderId" element={<QuotePage />} />
+          {/* Public booking site */}
+          <Route path="/book" element={<BookLayout />}>
+            <Route index element={<BookSearchPage />} />
+            <Route path="checkout" element={<BookCheckoutPage />} />
+            <Route path="pay/:token" element={<BookPayPage />} />
+            <Route path="done/:token" element={<BookDonePage />} />
+          </Route>
 
           {/* Protected — all inside AppShell */}
           <Route element={<AuthGate><AppShell /></AuthGate>}>
@@ -225,10 +242,14 @@ export default function App() {
               <Route path="check-out"         element={<Navigate to="/pms/departures" replace />} />
               <Route path="rooms"             element={<RoomsPage />} />
               <Route path="housekeeping"      element={<HousekeepingHome />} />
+              <Route path="housekeeping/status" element={<HotelStatusPage />} />
+              <Route path="ops-reports"       element={<OpsReportsPage />} />
               <Route path="housekeeping/my"   element={<MyTasksPage />} />
               <Route path="housekeeping/inspection" element={<InspectionPage />} />
               <Route path="housekeeping/rooms" element={<OpsRoomStatusPage />} />
               <Route path="availability"      element={<AvailabilityPage />} />
+              <Route path="meals"             element={<MealsPage />} />
+              <Route path="maintenance/preventive" element={<PreventivePage />} />
               <Route path="housekeeping/lost-found" element={<LostFoundPage />} />
               <Route path="maintenance"       element={<MaintenancePage />} />
               <Route path="guests"            element={<GuestsPage />} />
@@ -252,6 +273,7 @@ export default function App() {
               <Route path="admin/tax" element={<TaxPolicyPage />} />
               <Route path="admin/fiscal" element={<FiscalSettingsPage />} />
               <Route path="fin/reports" element={<FinanceReportsPage />} />
+              <Route path="fin/receivables" element={<ReceivablesPage />} />
               <Route path="fin/accounting" element={<AccountingPage />} />
               <Route path="admin/board" element={<BoardPage />} />
               <Route path="admin/setup" element={<HotelSetupPage />} />

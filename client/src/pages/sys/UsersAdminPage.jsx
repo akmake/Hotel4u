@@ -108,6 +108,7 @@ export default function UsersAdminPage() {
           label={`פעולות — ${u.name}`}
           items={[
             { label: 'עריכה', disabled: !u.manageable || isAuditor, why: 'מחוץ לסמכות שלך', onSelect: () => setDialog({ kind: 'edit', user: u }) },
+            u.twoFactorEnabled && { label: 'איפוס אימות דו־שלבי', hint: 'טלפון אבד — המשתמש יגדיר מחדש', disabled: !u.manageable || isAuditor, why: 'מחוץ לסמכות שלך', onSelect: async () => { try { await identity.mfaReset(propertyId, u.id); success('האימות הדו־שלבי אופס והמשתמש נותק מכל המכשירים'); reload(); } catch (e) { toastError(e.message); } } },
             u.active && { label: 'קישור הגדרת סיסמה', hint: 'איפוס על ידי מנהל', disabled: !u.manageable || isAuditor, why: 'מחוץ לסמכות שלך', onSelect: async () => { try { setLink(await identity.setupLink(propertyId, u.id)); } catch (e) { toastError(e.message); } } },
             { separator: true },
             u.active && { label: 'השבתה', danger: true, disabled: !u.manageable || isAuditor, why: 'מחוץ לסמכות שלך', onSelect: () => setDialog({ kind: 'deactivate', user: u }) },

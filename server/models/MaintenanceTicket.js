@@ -31,6 +31,8 @@ const MaintenanceTicketSchema = new Schema({
   property:      { type: Schema.Types.ObjectId, ref: 'Property', required: true },
   room:          { type: Schema.Types.ObjectId, ref: 'Room' },
   areaId:        String,
+  // OPS-07: opened by a preventive-maintenance plan (one ticket per plan, due date and room).
+  preventive:    { plan: { type: Schema.Types.ObjectId, ref: 'PreventivePlan' }, due: String },
   category:      { type: String, enum: MT_CATEGORY, required: true },
   description:   { type: String, required: true },
   priority:      { type: String, enum: MT_PRIORITY, default: 'medium' },

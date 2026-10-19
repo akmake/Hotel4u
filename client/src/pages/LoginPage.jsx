@@ -27,6 +27,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(false);
+  const [mfa, setMfa] = useState(null); // { ticket } after the password step
+  const [code, setCode] = useState('');
+  const verifyMfa = useAuthStore((s) => s.verifyMfa);
 
   // where to return after login: router state (AuthGate) or ?next= (expired session redirect)
   const nextParam = new URLSearchParams(location.search).get('next');
@@ -43,6 +46,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const u = await login({ email: em, password: pw, rememberMe: remember });
+      if (u?.mfaRequired) { setMfa({ ticket: u.ticket }); setCode(''); return; }
       navigate(from || homeFor(u?.role), { replace: true });
     } catch (err) {
       setError(errorMessage(err));
@@ -77,7 +81,18 @@ export default function LoginPage() {
 
             </div>
             <div className="hotjar-divider"><span>Or, sign in with email</span></div>
-            <form onSubmit={handleSubmit}>
+            {mfa && (
+              <form onSubmit={async (e) => { e.preventDefault(); if (loading) return; setError(''); setLoading(true); try { const u = await verifyMfa(mfa.ticket, code.trim()); navigate(from || homeFor(u?.role), { replace: true }); } catch (err) { setError(errorMessage(err)); setCode(''); if (err?.response?.status === 401 && /פג תוקף|מחדש/.test(errorMessage(err))) setMfa(null); } finally { setLoading(false); } }}>
+                <div className="hotjar-field">
+                  <label htmlFor="login-code">קוד אימות (6 ספרות מהאפליקציה, או קוד שחזור)</label>
+                  <input id="login-code" dir="ltr" autoFocus value={code} onChange={(e) => { setCode(e.target.value); setError(''); }} autoComplete="one-time-code" inputMode="numeric" maxLength={11} required aria-invalid={!!error} aria-describedby={error ? 'login-error' : undefined} />
+                  {error && <p id="login-error" role="alert" className="hotjar-login-error"><AlertCircle size={15} />{error}</p>}
+                </div>
+                <button type="submit" disabled={loading || code.trim().length < 6} className="hotjar-submit">{loading ? <><Loader2 size={18} className="animate-spin" /> בודק…</> : 'אימות'}</button>
+                <button type="button" className="hotjar-forgot" onClick={() => { setMfa(null); setPassword(''); setError(''); }}>חזרה</button>
+              </form>
+            )}
+            {!mfa && <form onSubmit={handleSubmit}>
               <div className="hotjar-field">
                 <label htmlFor="login-email">Email address</label>
                 <input id="login-email" type="email" dir="ltr" value={email} onChange={e => { setEmail(e.target.value); setError(''); }} autoComplete="username" inputMode="email" required aria-invalid={!!error} aria-describedby={error ? 'login-error' : undefined} />
@@ -94,7 +109,7 @@ export default function LoginPage() {
               <label className="hotjar-remember"><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />Keep me signed in</label>
               <Link to="/reset-password" className="hotjar-forgot">Forgot password?</Link>
               <button type="submit" disabled={loading || !email.trim() || !password} className="hotjar-submit">{loading ? <><Loader2 size={18} className="animate-spin" /> מתחבר…</> : 'Sign in'}</button>
-            </form>
+            </form>}
 
           </div>
         </section>

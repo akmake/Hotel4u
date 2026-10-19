@@ -8,6 +8,7 @@ dotenv.config();
 import dns from 'dns';
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 import express from 'express';
+import publicBookingRoutes from './routes/publicBooking.js';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -259,6 +260,9 @@ pmsRouter.use('/platform',       pmsPlatformRouter);
 // =========================================================================
 // ✨ הפתרון הכפול: חיבור ה-Router לשני הנתיבים
 // =========================================================================
+
+// Public booking site API — no login / cookies, so outside CSRF; rate-limited inside the router.
+app.use('/api/public/booking', publicBookingRoutes);
 
 // 1. PMS routes (לפני apiRouter — עוקפים CSRF)
 app.use('/api/pms', pmsRouter);
