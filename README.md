@@ -1,3 +1,24 @@
+# Hotel4u
+
+Repository for the **Hotel4u** project.
+
+## Structure
+
+- `client` — frontend.
+- `server` — backend.
+- `python` — Python tools.
+- `docs` — documentation.
+
+## Available scripts
+
+- `npm run dev` — `concurrently "npm --prefix server run dev" "npm --prefix client run dev"`
+- `npm run dev:safe` — `concurrently "npm --prefix server run dev:safe" "npm --prefix client run dev"`
+- `npm run dev:server` — `npm --prefix server run dev`
+- `npm run dev:client` — `npm --prefix client run dev`
+- `npm run build` — `npm --prefix client run build`
+
+## Existing documentation
+
 # אפיון מוצר v1 — מערכת מלאה לניהול מלון
 
 ## 0. מטרת המסמך
@@ -2466,3 +2487,4 @@ Folio הוא ספר חיובים. חשבונית היא מסמך שיוצא ממ
 5. Mobile Housekeeping — app לחדרניות.
 6. Kiosk / Self check-in — נקודת קצה ציבורית.
 7. Automation Engine — ביצוע חוקי אוטומציה בפועל.
+
