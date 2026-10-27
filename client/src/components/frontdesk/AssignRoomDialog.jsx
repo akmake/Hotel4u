@@ -6,8 +6,13 @@ import { frontdesk } from '../../utils/api';
 import { cleanLabel, opsLabel } from '../../lib/labels';
 import { formatShort } from '../../utils/date';
 import { Modal, Field, Spinner, ErrorBanner } from '../kit';
+import AssignRoomStudio from './AssignRoomStudio';
 
-export default function AssignRoomDialog({ open, propertyId, row, onClose, onAssigned }) {
+const PICKERS = ['sheet', 'seatmap', 'twopane', 'quick'];
+
+// `appearance` (design page only) swaps this dialog for one of the AssignRoomStudio layouts.
+export default function AssignRoomDialog({ open, propertyId, row, onClose, onAssigned, appearance }) {
+  const picker = PICKERS.includes(appearance) ? appearance : null;
   const [allTypes, setAllTypes] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -45,10 +50,10 @@ export default function AssignRoomDialog({ open, propertyId, row, onClose, onAss
   const chosen = candidates.find((c) => c.id === selected);
   const typeChange = chosen && !chosen.sameType;
 
-  async function save() {
+  async function save(roomId = selected) {
     setSaving(true); setSaveError(null); setFieldErrors({});
     try {
-      const out = await frontdesk.assignRoom(propertyId, row.reservationId, { unitId: row.unitId || undefined, roomId: selected, reason: reason || undefined });
+      const out = await frontdesk.assignRoom(propertyId, row.reservationId, { unitId: row.unitId || undefined, roomId, reason: reason || undefined });
       onAssigned?.(out);
     } catch (e) {
       setFieldErrors(e.fields || {});
@@ -63,6 +68,15 @@ export default function AssignRoomDialog({ open, propertyId, row, onClose, onAss
     : selected === data?.currentRoomId ? 'זה החדר המשובץ כעת'
       : replacing && reason.trim().length < 3 ? 'החלפת שיבוץ מחייבת סיבה' : null;
 
+  if (picker) {
+    return (
+      <AssignRoomStudio key={open ? row?.key : 'closed'} variant={picker} open={open} onClose={onClose} row={row} data={data} candidates={candidates}
+        loading={loading} loadError={loadError} onRetry={() => setReloadKey((k) => k + 1)} saveError={saveError} fieldErrors={fieldErrors}
+        allTypes={allTypes} setAllTypes={setAllTypes} selected={selected} setSelected={setSelected} chosen={chosen}
+        save={save} saving={saving} disabledReason={disabledReason} replacing={replacing} reason={reason} setReason={setReason} typeChange={typeChange} />
+    );
+  }
+
   return (
     <Modal
       open={open}
@@ -75,7 +89,7 @@ export default function AssignRoomDialog({ open, propertyId, row, onClose, onAss
         <>
           {disabledReason && selected !== null && <span className="ui-foot-note">{disabledReason}</span>}
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>ביטול</button>
-          <button type="button" className="btn btn-primary" onClick={save} disabled={!!disabledReason || saving} title={disabledReason || undefined}>
+          <button type="button" className="btn btn-primary" onClick={() => save()} disabled={!!disabledReason || saving} title={disabledReason || undefined}>
             {saving ? <><Spinner /> שומר…</> : replacing ? 'החלפת שיבוץ' : 'אישור שיבוץ'}
           </button>
         </>

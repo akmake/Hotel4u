@@ -477,7 +477,6 @@ async function executeBulkReservationAction({
       actorName: actor.name,
       ip,
     });
-    await ReservationRoom.updateMany({ reservation: cancelled._id }, { $set: { status: 'cancelled' } });
     return { reservationId, success: true, status: cancelled.status };
   }
 
@@ -491,7 +490,6 @@ async function executeBulkReservationAction({
       actorName: actor.name,
       ip,
     });
-    await ReservationRoom.updateMany({ reservation: noShow._id }, { $set: { status: 'no_show' } });
     return { reservationId, success: true, status: noShow.status };
   }
 
@@ -1822,7 +1820,6 @@ router.post('/:id/cancel', asyncHandler(async (req, res) => {
     ip: req.ip,
   });
 
-  await ReservationRoom.updateMany({ reservation: reservation._id }, { $set: { status: 'cancelled' } });
 
   res.json({ success: true, data: reservation });
 }));
@@ -1848,7 +1845,6 @@ router.post('/:id/no-show', asyncHandler(async (req, res) => {
     ip: req.ip,
   });
 
-  await ReservationRoom.updateMany({ reservation: reservation._id }, { $set: { status: 'no_show' } });
 
   res.json({ success: true, data: reservation });
 }));

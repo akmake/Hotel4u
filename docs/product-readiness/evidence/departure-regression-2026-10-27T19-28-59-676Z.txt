@@ -1,0 +1,33 @@
+PASS  FD-06 in-house lists the stay with its room
+PASS  FD-06 "overdue" view filters on the server
+PASS  FD-07 departures lists today's departure as expected
+PASS  RBAC: housekeeper cannot read departures (money)
+PASS  FD-08 context shows 2 unposted nights in the balance
+PASS  Nights post once (second run adds nothing)
+PASS  Lodging VAT is extracted from the quoted rate (T22)
+PASS  Payment with the same key is recorded once
+PASS  Payment above the balance is refused (no accidental credit)
+PASS  Payment without an operation key is refused
+PASS  FD-08 open balance blocks checkout and names the folio
+PASS  Receptionist cannot leave a balance open
+PASS  Legacy /reservations/:id/check-out obeys the same rules
+PASS  FD-08 paid stay closes: reservation, unit, folio closed
+PASS  FD-08 room goes dirty and a checkout-clean task is created
+PASS  T11 companion folio with a balance blocks checkout
+PASS  T11 manager exception leaves that folio open, recorded with who and why
+PASS  FD-07 a left stay with an open folio stays visible as an exception
+PASS  A credit balance is not "paid" — checkout asks to refund
+PASS  Receptionist cannot refund
+PASS  Refund above the credit is refused (T16)
+PASS  Refund of the exact credit zeroes the folio
+PASS  After the refund the stay closes
+PASS  Legacy lodging lines (no reference) count as posted nights
+PASS  Company without a credit line: receivable needs a manager (T13)
+PASS  Company within its limit: balance moves to receivables, folio stays open
+PASS  Partial departure: one room leaves, stay is partially checked out, shared folio stays open
+PASS  Partial departure posts the leaving room's nights only
+PASS  Early departure without a reason is refused
+PASS  Early departure: stay ends today, original date kept, unused nights released
+PASS  Service charge: entered gross, VAT extracted, posted once
+
+Summary: PASS=31 FAIL=0

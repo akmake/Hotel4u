@@ -71,7 +71,7 @@ async function rollback(e, f, Model, method, fn, shouldInject = () => true) {
   e.before = await state(f); const original = Model[method];
   Model[method] = function (...args) { if (shouldInject(...args)) throw new Error('QA_INJECTED_FAILURE'); return original.apply(this, args); };
   try { e.response = await outcome(fn); } finally { Model[method] = original; }
-  e.after = await state(f); assert.equal(e.response.ok, false); assert.deepEqual(e.after, e.before);
+  e.after = await state(f); assert.equal(e.response.ok, false); assert.equal(e.response.error?.message, 'QA_INJECTED_FAILURE'); assert.deepEqual(e.after, e.before);
 }
 let replica;
 try {
@@ -127,11 +127,72 @@ try {
     e.response = await outcome(() => extend(f)); const seg = await StaySegment.find({ reservation: f.resId }).sort({ fromDate: 1 }).lean(); e.segments = seg;
     assert.equal(e.response.ok, true); assert.equal(seg.length, 2); assert.equal(seg[0].toDate, f.departure); assert.equal(seg[0].ratePerNight, 500); assert.equal(seg[1].fromDate, f.departure); assert.equal(seg[1].ratePerNight, 800);
   });
+  await check('CX06', 'cancellation rejects a stale parent status with an entered unit', async (e) => {
+    const f = await fixture(); await ReservationRoom.updateOne({ _id: f.units[0]._id }, { $set: { status: 'in_house' } });
+    e.before = await state(f); e.response = await outcome(() => cancel(f)); e.after = await state(f); assert.equal(e.response.error?.status, 409); assert.deepEqual(e.after, e.before);
+  });
+  await check('CX07', 'channel queue failure rolls back the entire cancellation', async (e) => { const f = await fixture(); await rollback(e, f, ChannelUpdateQueue, 'create', () => cancel(f)); });
+  await check('CX08', 'notice records one finance decision item without creating a fee or refund', async (e) => {
+    const f = await fixture(); const beforeFolios = await Folio.find({ reservation: f.resId }).lean();
+    e.response = await outcome(() => notice(f)); const r = await Reservation.findById(f.resId).lean();
+    assert.equal(e.response.ok, true); assert.equal(r.status, 'cancelled'); assert.equal(r.cancellation.channel, 'desk'); assert.equal(await WorkItem.countDocuments({ property: f.propertyId }), 1);
+    assert.deepEqual(await Folio.find({ reservation: f.resId }).lean(), beforeFolios);
+  });
+  await check('NS06', 'all no-show entry points reject a guest already in the arrival queue', async (e) => {
+    const f = await fixture(); await ArrivalQueueEntry.create({ property: f.propertyId, reservation: f.resId, reservationRoom: f.units[0]._id, owner: actor.id, arrivedAt: new Date(), reason: 'cleaning' });
+    e.before = await state(f); e.response = await outcome(() => noShow(f)); e.after = await state(f); assert.equal(e.response.error?.status, 409); assert.deepEqual(e.after, e.before);
+  });
+  await check('NS07', 'a successful no-show closes its unit without changing physical occupancy', async (e) => {
+    const f = await fixture(); await Room.updateOne({ _id: f.rooms[0]._id }, { $set: { occStatus: 'occupied' } }); e.response = await outcome(() => noShow(f));
+    assert.equal(e.response.ok, true); assert.equal((await ReservationRoom.findById(f.units[0]._id)).status, 'no_show'); assert.equal((await Room.findById(f.rooms[0]._id)).occStatus, 'occupied');
+  });
+  await check('EX08', 'expired extension lease rolls back all added nights', async (e) => {
+    const f = await fixture({ inHouse: true }); e.before = await state(f); const original = StaySegment.insertMany; let injected = false;
+    StaySegment.insertMany = async function (...args) { const value = await original.apply(this, args); if (!injected) { injected = true; await OperationLock.updateMany({ key: `res:${f.resId}` }, { $set: { expiresAt: new Date(0) } }); } return value; };
+    try { e.response = await outcome(() => extend(f)); } finally { StaySegment.insertMany = original; }
+    e.after = await state(f); assert.equal(e.response.error?.code, 'lock_expired'); assert.deepEqual(e.after, e.before);
+  });
+  await check('EX09', 'mixed room types are refused before extension can allocate the wrong inventory', async (e) => {
+    const f = await fixture({ inHouse: true, roomsCount: 2 }); const other = await RoomType.create({ property: f.propertyId, code: 'FAM', name: 'Synthetic family', baseRate: 800 });
+    await ReservationRoom.updateOne({ _id: f.units[1]._id }, { $set: { roomTypeBooked: other._id } });
+    e.before = await state(f); e.response = await outcome(() => extend(f)); e.after = await state(f); assert.equal(e.response.error?.status, 409); assert.deepEqual(e.after, e.before);
+  });
+  await check('EX10', 'an unpriced board supplement blocks extension without losing the meal package', async (e) => {
+    const f = await fixture({ inHouse: true, board: true }); await Property.updateOne({ _id: f.propertyId }, { $set: { 'boardPricing.supplements': [] } });
+    e.before = await state(f); e.response = await outcome(() => extend(f)); e.after = await state(f); assert.equal(e.response.error?.status, 409); assert.deepEqual(e.after, e.before);
+  });
+  await check('EX11', 'closed rate on an added night blocks extension', async (e) => {
+    const f = await fixture({ inHouse: true }); await RateDate.updateOne({ ratePlan: f.plan._id, date: f.departure }, { $set: { stopSell: true } });
+    e.before = await state(f); e.response = await outcome(() => extend(f)); e.after = await state(f); assert.equal(e.response.error?.status, 409); assert.deepEqual(e.after, e.before);
+  });
+  await check('EX12', 'new booking and extension cannot both sell the last added night', async (e) => {
+    const f = await fixture({ inHouse: true }); await Room.deleteOne({ _id: f.rooms[1]._id }); await InventoryDate.updateMany({ property: f.propertyId }, { $set: { physicalCount: 1 } });
+    const r = await Reservation.findById(f.resId).lean();
+    e.responses = await Promise.all([outcome(() => extend(f)), outcome(() => createBooking({ propertyId: f.propertyId, actor, input: { arrival: f.departure, departure: plus(f.departure, 1), adults: 2, children: 0, rooms: 1, roomTypeId: id(f.type), ratePlanId: id(f.plan), guestId: id(r.primaryGuest), mode: 'confirm', idempotencyKey: randomUUID() } }))]);
+    assert.equal(e.responses.filter((r) => r.ok).length, 1); assert.equal((await InventoryDate.findOne({ property: f.propertyId, date: f.departure })).bookedCount, 1);
+  });
+  await check('EX13', 'two units assigned to one physical room cannot be extended', async (e) => {
+    const f = await fixture({ inHouse: true, roomsCount: 2 }); await ReservationRoom.updateMany({ reservation: f.resId }, { $set: { assignedRoom: f.rooms[0]._id } });
+    e.before = await state(f); e.response = await outcome(() => extend(f)); e.after = await state(f); assert.equal(e.response.error?.status, 409); assert.deepEqual(e.after, e.before);
+  });
+  await check('EX14', 'a board included in the rate is not supplemented twice on extension', async (e) => {
+    const f = await fixture({ inHouse: true }); await RatePlan.updateOne({ _id: f.plan._id }, { $set: { includesBreakfast: true } }); await Reservation.updateOne({ _id: f.resId }, { $set: { board: 'breakfast' } });
+    e.response = await outcome(() => extend(f)); assert.equal(e.response.ok, true); assert.equal(e.response.value.added, 500);
+  });
+  await check('EX15', 'manual lodging extension price still includes the separately priced board', async (e) => {
+    const f = await fixture({ inHouse: true, board: true });
+    e.response = await outcome(() => extendStay({ propertyId: f.propertyId, reservationId: f.resId, actor, input: { newDeparture: plus(f.departure, 1), paymentArrangement: 'Synthetic guarantee', guestConfirmation: 'Synthetic consent', manualRate: 400, reason: 'Synthetic manager adjustment' } }));
+    const r = await Reservation.findById(f.resId).lean(); assert.equal(e.response.ok, true); assert.equal(e.response.value.added, 600); assert.equal(r.totalAmount, 2000); assert.equal(r.priceSnapshot.nightly.at(-1).price, 400); assert.equal(r.priceSnapshot.board.nightly.at(-1).price, 200);
+  });
+  await check('EX16', 'partial arrival cannot silently extend only some units of the booking', async (e) => {
+    const f = await fixture({ inHouse: true, roomsCount: 2 }); await Reservation.updateOne({ _id: f.resId }, { $set: { status: 'partially_checked_in' } }); await ReservationRoom.updateOne({ _id: f.units[1]._id }, { $set: { status: 'reserved' } });
+    e.before = await state(f); e.response = await outcome(() => extend(f)); e.after = await state(f); assert.equal(e.response.error?.status, 409); assert.deepEqual(e.after, e.before);
+  });
 } catch (e) { results.push({ code: 'INFRA', status: 'blocked', failure: e.message }); console.error(e.message); }
 finally {
   await mongoose.disconnect(); if (replica) await replica.stop();
   const dir = fileURLToPath(new URL('../../docs/product-readiness/evidence/', import.meta.url)); await mkdir(dir, { recursive: true });
-  const paths = ['../services/reservationService.js', '../services/stayChangeService.js', '../services/platformService.js', '../services/bookingService.js', '../services/stayTransaction.js', '../services/locks.js', './stayClosureReadiness.mjs'];
+  const paths = ['../services/reservationService.js', '../services/stayChangeService.js', '../services/platformService.js', '../services/bookingService.js', '../services/frontDeskService.js', '../services/availabilityService.js', '../services/channelQueueService.js', '../services/auditService.js', '../services/boardService.js', '../services/stayTransaction.js', '../services/locks.js', '../routes/reservations.js', './stayClosureReadiness.mjs'];
   const hashes = Object.fromEntries(paths.map((p) => [p, createHash('sha256').update(readFileSync(new URL(p, import.meta.url))).digest('hex')]));
   const report = { startedAt, finishedAt: new Date().toISOString(), mode: 'isolated local replica; synthetic fixtures; no external delivery', hashes, counts: { passed: results.filter((r) => r.status === 'passed').length, failed: results.filter((r) => r.status === 'failed').length, blocked: results.filter((r) => r.status === 'blocked').length }, results };
   const body = JSON.stringify(report, null, 2) + '\n'; await writeFile(`${dir}/stay-closure-${startedAt.replace(/[:.]/g, '-')}.json`, body); await writeFile(`${dir}/stay-closure-latest.json`, body);

@@ -40,16 +40,16 @@ export function decide(tourist, rule) {
   return { decision: 'eligible', reason: null };
 }
 
-async function ruleOf(propertyId) {
-  const p = await Property.findById(propertyId).select('taxPolicy vatRate timezone').lean();
+async function ruleOf(propertyId, session = null) {
+  const p = await Property.findById(propertyId).session(session).select('taxPolicy vatRate timezone').lean();
   return { rule: p?.taxPolicy?.tourist || { enabled: false }, vatRate: p?.vatRate ?? 18, property: p };
 }
 
 // VAT for a line of this reservation under this charge code (used by every posting path).
-export async function vatForLine({ reservation, code, propertyVatRate }) {
+export async function vatForLine({ reservation, code, propertyVatRate, session = null }) {
   const t = reservation?.tourist;
   if (!t?.nonResident) return { rate: propertyVatRate, reason: null };
-  const { rule } = await ruleOf(reservation.property);
+  const { rule } = await ruleOf(reservation.property, session);
   const { decision } = decide(t, rule);
   if (decision === 'eligible' && (rule.chargeCodes || ['rooms']).includes(code)) {
     // strip: the tourist pays the shelf price without its VAT part (property pricing choice).

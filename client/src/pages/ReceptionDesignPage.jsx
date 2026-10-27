@@ -5,7 +5,8 @@ import './ReceptionDesignPage.css';
 
 const STORAGE_KEY = 'hotel4u:reception-design:v1';
 const APPEARANCES = [{ value: 'soft', label: 'רך ומעוגל' }, { value: 'layered', label: 'שכבתי' },
-  { value: 'flag', label: 'דגל' }, { value: 'bar', label: 'סרגל' }, { value: 'poster', label: 'כרזה' }];
+  { value: 'flag', label: 'דגל' }, { value: 'bar', label: 'סרגל' }, { value: 'poster', label: 'כרזה' },
+  { value: 'glass', label: 'זכוכית חלב' }, { value: 'ledger', label: 'מספר ופירוט' }, { value: 'ink', label: 'כרטיס פעיל כהה' }, { value: 'strip', label: 'פס מאוחד' }];
 const ROW_STORAGE_KEY = 'hotel4u:reception-design:rows:v1';
 const ROW_APPEARANCES = [
   { value: 'continuous', label: 'טבלה קומפקטית' },
@@ -36,7 +37,23 @@ const SURFACE_APPEARANCES = [
   { value: 'ruled', label: 'קווים' },
 ];
 
-const CANVAS_STORAGE_KEY = 'hotel4u:reception-design:canvas:v1';
+const ASSIGN_STORAGE_KEY = 'hotel4u:reception-design:assign:v2';
+const ASSIGN_APPEARANCES = [
+  { value: 'current', label: 'הנוכחי' },
+  { value: 'sheet', label: 'חלונית צד · TravelPerk' },
+  { value: 'seatmap', label: 'מפת חדרים · KAYAK' },
+  { value: 'twopane', label: 'שני חלקים · Apple' },
+  { value: 'quick', label: 'בחירה מהירה · Jira' },
+];
+
+function savedAssignAppearance() {
+  try {
+    const saved = localStorage.getItem(ASSIGN_STORAGE_KEY);
+    return ASSIGN_APPEARANCES.some((option) => option.value === saved) ? saved : 'current';
+  } catch { return 'current'; }
+}
+
+const CANVAS_STORAGE_KEY ='hotel4u:reception-design:canvas:v1';
 const CANVAS_DEFAULT = { level: 12, color: '#808080' };
 
 function savedCanvas() {
@@ -112,6 +129,11 @@ export default function ReceptionDesignPage() {
     setSurfaceAppearance(value);
     try { localStorage.setItem(SURFACE_STORAGE_KEY, value); } catch { /* The current visit still keeps the choice. */ }
   };
+  const [assignAppearance, setAssignAppearance] = useState(savedAssignAppearance);
+  const chooseAssign = (value) => {
+    setAssignAppearance(value);
+    try { localStorage.setItem(ASSIGN_STORAGE_KEY, value); } catch { /* The current visit still keeps the choice. */ }
+  };
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
@@ -159,9 +181,13 @@ export default function ReceptionDesignPage() {
             <button type="button" onClick={() => chooseCanvas(CANVAS_DEFAULT)}>איפוס</button>
           </div>
         </div>
+        <div className="reception-design-options" role="group" aria-label="חלון שיבוץ חדר">
+          <span>שלב 6 · חלון שיבוץ חדר (נפתח מ״שיבוץ חדר״)</span>
+          {ASSIGN_APPEARANCES.map((option) => <button key={option.value} type="button" aria-pressed={assignAppearance === option.value} onClick={() => chooseAssign(option.value)}>{option.label}</button>)}
+        </div>
         <p className="reception-design-settings-note">הבחירות נשמרות בעמוד העיצוב. סגור את הפאנל להשוואה על המסך המלא.</p>
       </section>}
-      <DashboardPage summaryAppearance={appearance} rowAppearance={rowAppearance} />
+      <DashboardPage summaryAppearance={appearance} rowAppearance={rowAppearance} assignAppearance={assignAppearance} />
     </div>
   );
 }

@@ -524,6 +524,59 @@
   .reception-design-page[data-row-style="split"] .dk-table .reception-guest-row > td:nth-child(2) { text-align: end; }
 }
 
+/* Step 1 · Milk glass — frosted white panes over a quiet teal-and-sand field, so the blur has something to hold. */
+.reception-design-page .dk-tiles:has(> .reception-summary.is-glass) { padding: 14px; margin-bottom: 18px; border-radius: 26px; background: radial-gradient(60% 140% at 10% 0%, rgb(var(--accent-600) / .17), transparent 62%), radial-gradient(55% 140% at 92% 100%, rgb(var(--accent-600) / .12), transparent 66%), radial-gradient(40% 110% at 55% 45%, rgb(214 190 150 / .24), transparent 70%), rgb(var(--bg-group)); }
+.reception-design-page[data-surface-style] .reception-summary.is-glass { border: 1px solid rgb(255 255 255 / .8); border-radius: 18px; background: rgb(255 255 255 / .56); -webkit-backdrop-filter: blur(22px) saturate(160%); backdrop-filter: blur(22px) saturate(160%); box-shadow: inset 0 1px 0 rgb(255 255 255 / .9), 0 1px 2px rgb(16 60 52 / .05), 0 12px 32px -14px rgb(16 60 52 / .22); transition: background-color .2s ease-out, box-shadow .2s ease-out; }
+.reception-design-page[data-surface-style] .reception-summary.is-glass:hover { background: rgb(255 255 255 / .7); box-shadow: inset 0 1px 0 rgb(255 255 255 / .9), 0 1px 2px rgb(16 60 52 / .05), 0 16px 36px -14px rgb(16 60 52 / .28); }
+.reception-design-page[data-surface-style] .reception-summary.is-glass.is-on { background: rgb(255 255 255 / .86); box-shadow: inset 0 1px 0 #fff, 0 0 0 1.5px rgb(var(--accent-600) / .55), 0 16px 36px -14px rgb(16 60 52 / .28); }
+.reception-summary.is-glass .reception-summary-face { padding: 16px 18px 4px; }
+.reception-summary.is-glass .reception-summary-heading { font-size: 13.5px; color: rgb(var(--fg-secondary)); }
+.reception-summary.is-glass .reception-summary-face > strong { margin-top: 4px; font-size: clamp(36px, 3.6cqw, 46px); color: var(--reception-active); }
+.reception-summary.is-glass .reception-summary-details { display: flex; gap: 0; padding: 8px 18px 14px; }
+.reception-summary.is-glass .reception-summary-details > span { flex-direction: row; align-items: baseline; gap: 5px; }
+.reception-summary.is-glass .reception-summary-details > span + span { margin-inline-start: 12px; padding-inline-start: 12px; border-inline-start: 1px solid rgb(var(--fg) / .12); }
+.reception-summary.is-glass .reception-summary-details b { font-size: 13.5px; font-weight: 600; }
+.reception-summary.is-glass .reception-summary-details > span > span { font-size: 12px; color: rgb(var(--fg-secondary)); }
+
+/* Step 1 · Number and ledger — the count on one side, its breakdown as a two-line ledger on the other. */
+.reception-design-page[data-surface-style] .reception-summary.is-ledger { flex-direction: row; align-items: stretch; border-radius: 16px; }
+.reception-summary.is-ledger .reception-summary-face { flex: 1; min-width: 0; justify-content: space-between; padding: 14px 16px; }
+.reception-summary.is-ledger .reception-summary-face > strong { margin-top: 10px; font-size: clamp(36px, 3.6cqw, 46px); }
+.reception-summary.is-ledger .reception-summary-details { display: grid; grid-template-columns: none; align-content: center; gap: 0; width: 48%; margin: 12px 0; padding: 0 14px; border-inline-start: 1px solid rgb(var(--border)); }
+.reception-summary.is-ledger .reception-summary-details > span { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 8px; padding: 8px 0; }
+.reception-summary.is-ledger .reception-summary-details > span + span { border-top: 1px solid rgb(var(--border)); }
+.reception-summary.is-ledger .reception-summary-details b { order: 2; font-size: 15px; font-weight: 600; }
+.reception-summary.is-ledger .reception-summary-details > span > span { font-size: 12px; }
+.reception-summary.is-ledger .reception-summary-details > .is-ready b { color: var(--reception-active); }
+
+/* Step 1 · Ink — quiet white cards; the list on screen is the one card turned deep teal, like a pressed tab. */
+.reception-design-page[data-surface-style] .reception-summary.is-ink { border-radius: 16px; transition: background-color .2s ease-out, color .2s ease-out, box-shadow .2s ease-out; }
+.reception-design-page[data-surface-style] .reception-summary.is-ink.is-on { background: rgb(17 52 47); color: #fff; box-shadow: 0 12px 28px -14px rgb(17 52 47 / .6); }
+.reception-summary.is-ink .reception-summary-face { padding: 14px 16px 4px; }
+.reception-design-page .reception-summary.is-ink .reception-summary-heading > svg { box-sizing: content-box; width: 16px; height: 16px; padding: 7px; border-radius: 50%; background: rgb(var(--bg-group)); color: rgb(var(--fg-secondary)); }
+.reception-summary.is-ink .reception-summary-face > strong { margin-top: 2px; font-size: clamp(36px, 3.6cqw, 46px); }
+.reception-summary.is-ink .reception-summary-details { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 16px 14px; }
+.reception-summary.is-ink .reception-summary-details > span { flex-direction: row; align-items: baseline; gap: 5px; }
+.reception-summary.is-ink .reception-summary-details b { font-size: 13.5px; font-weight: 600; }
+.reception-summary.is-ink.is-on .reception-summary-face > strong, .reception-summary.is-ink.is-on .reception-summary-details b { color: #fff; }
+.reception-summary.is-ink.is-on .reception-summary-details > span > span { color: rgb(255 255 255 / .7); }
+.reception-design-page .reception-summary.is-ink.is-on .reception-summary-heading > svg { background: rgb(255 255 255 / .12); color: #fff; }
+
+/* Step 1 · Strip — the four counts joined into one bar with hairline dividers; the open list is underlined. */
+.reception-design-page[data-surface-style] .dk-tiles:has(> .reception-summary.is-strip) { gap: 0; padding: 0; margin-bottom: 18px; border: 1px solid var(--reception-surface-edge, rgb(var(--border))); border-radius: 16px; background: var(--reception-paper); box-shadow: var(--reception-surface-shadow, none); overflow: hidden; }
+.reception-design-page[data-surface-style] .reception-summary.is-strip { border: 0; border-radius: 0; background: transparent; box-shadow: none; transition: background-color .15s ease-out; }
+.reception-design-page[data-surface-style] .reception-summary.is-strip + .reception-summary.is-strip { border-inline-start: 1px solid rgb(var(--border)); }
+.reception-design-page[data-surface-style] .reception-summary.is-strip:hover { background: rgb(var(--bg-content)); box-shadow: none; }
+.reception-design-page[data-surface-style] .reception-summary.is-strip.is-on { background: rgb(var(--accent-50) / .55); box-shadow: inset 0 -2px 0 rgb(var(--accent-600)); }
+.reception-summary.is-strip .reception-summary-face { padding: 14px 18px 2px; }
+.reception-summary.is-strip .reception-summary-heading { font-size: 13px; color: rgb(var(--fg-secondary)); }
+.reception-summary.is-strip .reception-summary-face > strong { margin-top: 2px; font-size: clamp(30px, 3cqw, 38px); }
+.reception-summary.is-strip.is-on .reception-summary-face > strong { color: var(--reception-active); }
+.reception-summary.is-strip .reception-summary-details { display: flex; flex-wrap: wrap; gap: 2px 12px; padding: 4px 18px 14px; }
+.reception-summary.is-strip .reception-summary-details > span { flex-direction: row; align-items: baseline; gap: 5px; }
+.reception-summary.is-strip .reception-summary-details b { font-size: 13px; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .reception-design-page[data-surface-style] .reception-summary.is-glass, .reception-design-page[data-surface-style] .reception-summary.is-ink, .reception-design-page[data-surface-style] .reception-summary.is-strip { transition: none; } }
+
 /* Step 3 · Door — square door plaques: a huge number, the guest beneath, a status bar on top. */
 .reception-design-page[data-room-style="door"] .dk-rcard { --rc-tone: var(--fg-faint); }
 .reception-design-page[data-room-style="door"] .dk-rcard.is-ok { --rc-tone: var(--success); }

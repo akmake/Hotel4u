@@ -14,7 +14,7 @@ import QueueDialog from '../components/frontdesk/QueueDialog';
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const REFUND_ROLES = [...MANAGER_ROLES, 'finance_manager'];
 
-export default function DashboardPage({ summaryAppearance, rowAppearance }) {
+export default function DashboardPage({ summaryAppearance, rowAppearance, assignAppearance }) {
   const { propertyId, property } = useProperty() || {};
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
@@ -85,6 +85,7 @@ export default function DashboardPage({ summaryAppearance, rowAppearance }) {
       row={assignRow}
       onClose={() => { setAssignRow(null); setWizardReload(null); }}
       onAssigned={() => { setAssignRow(null); refresh(); wizardReload?.(); setWizardReload(null); }}
+      appearance={assignAppearance}
     />
     <QueueDialog
       open={!!queueRow}

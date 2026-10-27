@@ -25,7 +25,9 @@ import { audit } from './auditService.js';
 import { httpError, loadProperty, businessDateOf, IN_HOUSE_STATUSES, MANAGER_ROLES } from './frontDeskService.js';
 import { folioBalance } from './departureService.js';
 import { planNights, postNightsUntil } from './roomCharges.js';
-import { markNoShow } from './reservationService.js';
+import { markNoShow, withReservationTransaction } from './reservationService.js';
+import { withLocks } from './locks.js';
+import { runStayTransaction } from './stayTransaction.js';
 import { issueCreditNote } from './invoiceService.js';
 import { docCoverage, docDto } from './documentService.js';
 import { raiseWork } from './platformService.js';
@@ -640,9 +642,9 @@ async function claimRun({ propertyId, date, options, readiness, actor }) {
   return { run: claimed, resumed: true };
 }
 
-async function setStep(runId, key, patch) {
+async function setStep(runId, key, patch, session = null) {
   const set = Object.fromEntries(Object.entries(patch).map(([k, v]) => [`steps.$.${k}`, v]));
-  await DayCloseRun.updateOne({ _id: runId, 'steps.key': key }, { $set: { ...set, heartbeatAt: new Date() } });
+  await DayCloseRun.updateOne({ _id: runId, 'steps.key': key }, { $set: { ...set, heartbeatAt: new Date() } }, { session });
 }
 
 async function snapshotFor(propertyId, date) {
@@ -678,6 +680,10 @@ async function snapshotFor(propertyId, date) {
 
 export async function runDayClose({ propertyId, date, arrivals, reason, actor, ip }) {
   if (!NIGHT_ROLES.includes(actor.role) && actor.role !== 'system') throw httpError('סגירת יום מותרת למנהל משמרת/לילה או לכספים', 403);
+  return withLocks([`dayclose:${propertyId}`], (lease) => runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip, lease }));
+}
+
+async function runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip, lease }) {
   const { dateToClose, today } = await dayState(propertyId);
   if (!dateToClose) throw httpError('היום העסקי כבר נסגר — אין יום פתוח לסגירה', 409, { code: 'already_closed' });
   if (date && date !== dateToClose) throw httpError(date > today ? 'לא סוגרים יום עתידי' : `יש לסגור קודם את ${dateToClose} — ימים נסגרים לפי הסדר`, 409, { code: 'out_of_order' });
@@ -701,7 +707,7 @@ export async function runDayClose({ propertyId, date, arrivals, reason, actor, i
       let posted = 0;
       const errors = [];
       for (const r of stays) {
-        try { posted += await postNightsUntil({ reservation: r, until, source: 'night_audit', actorId: actor.id }); }
+        try { posted += await postNightsUntil({ reservation: r, until, source: 'night_audit', actorId: actor.id, guardLease: lease }); }
         catch (e) { errors.push(`${r.confirmationNumber}: ${e.message}`); }
       }
       if (errors.length) { const err = new Error(`${errors.length} שהיות לא חויבו: ${errors.slice(0, 3).join(' · ')}`); err.partial = { posted }; throw err; }
@@ -713,7 +719,13 @@ export async function runDayClose({ propertyId, date, arrivals, reason, actor, i
       let marked = 0;
       const errors = [];
       for (const r of pending) {
-        try { await markNoShow({ reservationId: r._id, actorId: actor.id, actorName: actor.name || 'day_close', ip }); marked += 1; }
+        try {
+          await withReservationTransaction({ reservationId: r._id, propertyId }, async (session, afterCommit) => {
+            await markNoShow({ reservationId: r._id, actorId: actor.id, actorName: actor.name || 'day_close', ip, session, afterCommit });
+            await lease.assertOwned(session);
+          });
+          marked += 1;
+        }
         catch (e) { errors.push(`${r.confirmationNumber}: ${e.message}`); }
       }
       if (errors.length) { const err = new Error(`${errors.length} הזמנות לא סומנו: ${errors.slice(0, 3).join(' · ')}`); err.partial = { marked }; throw err; }
@@ -727,32 +739,41 @@ export async function runDayClose({ propertyId, date, arrivals, reason, actor, i
       const checks = await ledgerChecks(propertyId, ledger);
       const broken = checks.filter((c) => c.ok === false);
       if (broken.length) {
-        await raiseWork({ propertyId, kind: 'finance', severity: 'urgent', title: `סגירת ${day}: ${broken.length} בדיקות כספיות נכשלו`, body: broken.map((c) => c.label).join(' · ').slice(0, 500), source: { type: 'day_close', id: String(run._id), label: run.runNo, link: `/pms/night-audit/report?date=${day}` }, dedupeKey: `ledger:${day}` });
+        await runStayTransaction((session) => raiseWork({ propertyId, session, kind: 'finance', severity: 'urgent', title: `סגירת ${day}: ${broken.length} בדיקות כספיות נכשלו`, body: broken.map((c) => c.label).join(' · ').slice(0, 500), source: { type: 'day_close', id: String(run._id), label: run.runNo, link: `/pms/night-audit/report?date=${day}` }, dedupeKey: `ledger:${day}` }), lease, { operation: 'תיעוד התראה כספית' });
       }
       return { ...storedFrom(ledger), checks: checks.map(({ key, ok, amount, label }) => ({ key, ok, amount: amount ?? null, label })) };
     },
-    advance: async () => {
-      await Property.updateOne({ _id: propertyId }, { $set: { 'dayClose.lastClosedDate': day, 'dayClose.lastRunId': run._id } });
-      return { closed: day };
-    },
   };
 
+  const fencedStep = (key, patch) => runStayTransaction((session) => setStep(run._id, key, patch, session), lease, { operation: 'עדכון שלב סגירת יום' });
+  const failStep = async (key, e) => {
+    await runStayTransaction(async (session, afterCommit) => {
+      await setStep(run._id, key, { status: 'failed', finishedAt: new Date(), error: String(e.message || e).slice(0, 500), result: e.partial || null }, session);
+      await DayCloseRun.updateOne({ _id: run._id }, { $set: { status: 'failed' } }, { session });
+      await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'day_close.failed', entityType: 'DayCloseRun', entityId: run._id, after: { businessDate: day, step: key, error: String(e.message || e).slice(0, 300) }, ip, session, afterCommit });
+      await raiseWork({ propertyId, session, kind: 'finance', severity: 'urgent', title: `סגירת היום ${day} נכשלה (${key})`, body: String(e.message || e).slice(0, 500), source: { type: 'day_close', id: String(run._id), label: run.runNo, link: '/pms/night-audit' }, dedupeKey: `dayclose:${day}` });
+    }, lease, { operation: 'תיעוד כשל סגירת יום' });
+    return runDto(await DayCloseRun.findById(run._id).lean());
+  };
   for (const s of run.steps) {
+    if (s.key === 'advance') continue; // Date, final checkpoint and audit commit together below.
     if (['done', 'skipped'].includes(s.status)) continue;
-    await setStep(run._id, s.key, { status: 'running', startedAt: new Date(), error: null });
     try {
+      await fencedStep(s.key, { status: 'running', startedAt: new Date(), error: null });
       const result = await steps[s.key]();
-      await setStep(run._id, s.key, { status: result?.skipped ? 'skipped' : 'done', finishedAt: new Date(), result });
+      await fencedStep(s.key, { status: result?.skipped ? 'skipped' : 'done', finishedAt: new Date(), result });
     } catch (e) {
-      await setStep(run._id, s.key, { status: 'failed', finishedAt: new Date(), error: String(e.message || e).slice(0, 500), result: e.partial || null });
-      await DayCloseRun.updateOne({ _id: run._id }, { $set: { status: 'failed' } });
-      await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'day_close.failed', entityType: 'DayCloseRun', entityId: run._id, after: { businessDate: day, step: s.key, error: String(e.message || e).slice(0, 300) }, ip });
-      await raiseWork({ propertyId, kind: 'finance', severity: 'urgent', title: `סגירת היום ${day} נכשלה (${s.key})`, body: String(e.message || e).slice(0, 500), source: { type: 'day_close', id: String(run._id), label: run.runNo, link: '/pms/night-audit' }, dedupeKey: `dayclose:${day}` });
-      return runDto(await DayCloseRun.findById(run._id).lean());
+      return failStep(s.key, e);
     }
   }
-  await DayCloseRun.updateOne({ _id: run._id }, { $set: { status: 'done', finishedAt: new Date() } });
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'day_close.completed', entityType: 'DayCloseRun', entityId: run._id, after: { businessDate: day, runNo: run.runNo }, ip });
+  try {
+    await runStayTransaction(async (session, afterCommit) => {
+      await Property.updateOne({ _id: propertyId }, { $set: { 'dayClose.lastClosedDate': day, 'dayClose.lastRunId': run._id } }, { session });
+      await setStep(run._id, 'advance', { status: 'done', finishedAt: new Date(), result: { closed: day } }, session);
+      await DayCloseRun.updateOne({ _id: run._id }, { $set: { status: 'done', finishedAt: new Date() } }, { session });
+      await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'day_close.completed', entityType: 'DayCloseRun', entityId: run._id, after: { businessDate: day, runNo: run.runNo }, ip, session, afterCommit });
+    }, lease, { operation: 'סיום סגירת יום' });
+  } catch (e) { return failStep('advance', e); }
   return runDto(await DayCloseRun.findById(run._id).lean());
 }
 

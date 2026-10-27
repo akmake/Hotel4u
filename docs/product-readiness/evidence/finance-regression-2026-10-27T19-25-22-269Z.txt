@@ -1,0 +1,39 @@
+PASS  FIN-01 stay view returns folio windows and the guarantee separately
+PASS  RBAC: housekeeper cannot read folios
+PASS  FIN-02 charge 2×59 gross: VAT extracted (100 + 18), posted once for the same key
+PASS  FIN-02 service date after the business day is refused
+PASS  FIN-02 receptionist cannot reverse a charge
+PASS  FIN-02 reversal requires a reason
+PASS  FIN-02 reversal is a linked counter line; nothing deleted; balance 0
+PASS  FIN-02 the same charge cannot be reversed twice
+PASS  FIN-02 a charge on an issued document cannot be reversed (T18)
+PASS  FIN-07 receptionist cannot issue a credit note
+PASS  FIN-07 credit note requires a reason
+FAIL  FIN-07 partial credits are capped cumulatively  → 409/409 מסמכים פיסקליים מופקים במערכת החשבוניות בלבד — Hotel4u אינו ממספר מסמכים
+FAIL  FIN-07 the original document is not changed (still issued, linked)
+PASS  FIN-03 payment above the balance is refused
+PASS  FIN-03 bank transfer requires a reference and a transfer date
+PASS  FIN-03 payment recorded once for the same key
+PASS  FIN-03 deposit before arrival is allowed up to the stay total
+PASS  FIN-03 cash is checked cumulatively per stay (T25 policy)
+PASS  FIN-04 refund above the approval threshold is blocked for a receptionist (T36)
+PASS  FIN-04 refund requires a reason
+PASS  FIN-04 partial refunds are capped cumulatively per payment (T16)
+PASS  FIN-04 a refund cannot turn a settled folio into a debt
+PASS  FIN-01 folio index lists folios
+PASS  FIN-12 readiness lists the pending arrival and the departure not checked out
+PASS  FIN-12 readiness previews the nights to post (does not charge)
+PASS  RBAC: receptionist cannot run day close
+PASS  FIN-12 open arrivals/departures require explicit decisions
+PASS  FIN-12 a future day cannot be closed
+PASS  FIN-12 run completes: steps done, nights posted through the business day
+PASS  FIN-12 "keep" leaves the arrival open (no silent no-show)
+PASS  FIN-12 snapshot report recorded for the day
+PASS  FIN-12 the same day cannot be closed twice
+PASS  FIN-12 the property records the last closed day
+PASS  FIN-12 a second operator is refused while a run is active
+PASS  FIN-12 resume continues from the failed step without posting nights twice (T33)
+PASS  FIN-12 no-show decision applied on resume
+FAIL  Legacy night audit write is closed (moved to FIN-12)  → 404
+
+Summary: PASS=34 FAIL=3

@@ -1000,7 +1000,6 @@ export async function noShowFromArrivals({ propertyId, reservationId, actor, ip 
   const active = await ArrivalQueueEntry.exists({ reservation: res._id, status: 'active' });
   if (active) throw httpError('האורח רשום בתור ההמתנה — כלומר הגיע. יש להסיר מהתור קודם', 409);
   const updated = await markNoShow({ reservationId: res._id, actorId: actor.id, actorName: actor.name, ip });
-  await ReservationRoom.updateMany({ reservation: res._id, status: { $in: UNIT_OPEN_STATUSES } }, { $set: { status: 'no_show' } });
   return { reservationId: String(updated._id), status: updated.status };
 }
 

@@ -11,6 +11,8 @@
 import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
+import StaySegment from '../models/StaySegment.js';
+import { runStayTransaction } from './stayTransaction.js';
 import Room from '../models/Room.js';
 import { resolveChargeCode, taxFor } from './chargeCodeService.js';
 import { vatForLine } from './touristService.js';
@@ -277,10 +279,10 @@ export async function setEtd({ propertyId, reservationId, etd, actor, ip }) {
 }
 
 // ── FD-08 context ───────────────────────────────────────────────────────────
-async function companyExposure(companyId, propertyId) {
-  const company = await Company.findOne({ _id: companyId, property: propertyId }).select('name creditLimit active').lean();
+async function companyExposure(companyId, propertyId, session = null) {
+  const company = await Company.findOne({ _id: companyId, property: propertyId }).session(session).select('name creditLimit active').lean();
   if (!company) return null;
-  const open = await Folio.find({ property: propertyId, ownerType: 'company', ownerRef: String(companyId), status: { $ne: 'closed' } }).select('lines').lean();
+  const open = await Folio.find({ property: propertyId, ownerType: 'company', ownerRef: String(companyId), status: { $ne: 'closed' } }).session(session).select('lines').lean();
   const exposure = round2(open.reduce((s, f) => s + Math.max(0, folioBalance(f)), 0));
   return { id: String(company._id), name: company.name, active: company.active !== false, creditLimit: Number(company.creditLimit || 0), exposure };
 }
@@ -456,37 +458,54 @@ export async function postServiceCharge({ propertyId, reservationId, input, acto
 // ── FD-08 complete ──────────────────────────────────────────────────────────
 export async function completeCheckOut(args) {
   if (!isId(String(args.reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
-  return withLocks([`res:${args.reservationId}`], () => checkOutLocked(args));
+  const res = await loadReservationInScope(args.reservationId, args.propertyId);
+  const units = await ReservationRoom.find({ reservation: res._id }).select('assignedRoom roomTypeBooked').lean();
+  const roomIds = [...new Set([res.assignedRoom, ...units.map((u) => u.assignedRoom)].filter(Boolean).map(String))];
+  const typeIds = [...new Set([res.roomType, ...units.map((u) => u.roomTypeBooked)].filter(Boolean).map(String))];
+  const keys = [`res:${args.reservationId}`, ...roomIds.map((r) => `room:${r}`), ...typeIds.map((t) => `inv:${args.propertyId}:${t}`)];
+  return withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => checkOutLocked({ ...args, session, afterCommit, lockedRooms: roomIds, lockedTypes: typeIds }), lease, { operation: 'יציאת אורח' }), { waitMs: 4000 });
 }
 
-async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes, settlements = [], early: earlyInput, actor, ip }) {
-  const property = await loadProperty(propertyId);
+async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes, settlements = [], early: earlyInput, actor, ip, session, afterCommit, lockedRooms, lockedTypes }) {
+  const property = await loadProperty(propertyId, session);
   const businessDate = businessDateOf(property);
-  const res = await loadReservationInScope(reservationId, propertyId);
+  const res = await loadReservationInScope(reservationId, propertyId, session);
   if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError(`לא ניתן לבצע יציאה מהזמנה במצב ${res.status}`, 409);
   const isManager = MANAGER_ROLES.includes(actor.role) || FINANCE_ROLES.includes(actor.role);
 
-  const units = await ensureUnits(res);
+  const units = await ensureUnits(res, session);
   const inHouse = units.filter((u) => ['in_house', 'checked_in'].includes(u.status));
   let wanted;
-  if (Array.isArray(unitIds) && unitIds.filter(Boolean).length) wanted = inHouse.filter((u) => unitIds.map(String).includes(String(u._id)));
-  else if (Array.isArray(unitIndexes) && unitIndexes.length) wanted = unitIndexes.map((i) => units[Number(i) - 1]).filter((u) => u && inHouse.includes(u));
+  if (unitIds !== undefined && unitIndexes !== undefined) throw httpError('יש לבחור אופן בחירה אחד ליחידות', 422);
+  if (unitIds !== undefined) {
+    if (!Array.isArray(unitIds) || !unitIds.length || new Set(unitIds.map(String)).size !== unitIds.length || unitIds.some((uid) => !inHouse.some((u) => String(u._id) === String(uid)))) throw httpError('בחירת יחידות לא תקינה', 422);
+    wanted = inHouse.filter((u) => unitIds.map(String).includes(String(u._id)));
+  } else if (unitIndexes !== undefined) {
+    if (!Array.isArray(unitIndexes) || !unitIndexes.length || new Set(unitIndexes).size !== unitIndexes.length || unitIndexes.some((i) => !Number.isInteger(i) || i < 1 || !inHouse.includes(units[i - 1]))) throw httpError('בחירת יחידות לא תקינה', 422);
+    wanted = unitIndexes.map((i) => units[i - 1]);
+  }
   else wanted = inHouse.length === 1 ? inHouse : [];
   if (!wanted.length) throw httpError('יש לבחור לפחות יחידה אחת שנמצאת בבית', 422);
-  const remaining = inHouse.length - wanted.length;
+  const remaining = units.filter((u) => ['reserved', 'tentative', 'in_house', 'checked_in'].includes(u.status)).length - wanted.length;
   const finalDeparture = remaining === 0;
+  for (const unit of wanted) {
+    if (!unit.assignedRoom || !lockedRooms.includes(String(unit.assignedRoom)) || !lockedTypes.includes(String(unit.roomTypeBooked || res.roomType))) throw httpError('שיבוץ החדר השתנה או חסר — יש לרענן', 409);
+  }
+  const selectedRooms = wanted.map((u) => String(u.assignedRoom));
+  if (await Room.countDocuments({ _id: { $in: selectedRooms }, property: propertyId }).session(session) !== selectedRooms.length) throw httpError('חדר משויך חסר או שייך לנכס אחר — נדרש תיקון', 409);
+  if (new Set(selectedRooms).size !== selectedRooms.length || await ReservationRoom.exists({ property: propertyId, assignedRoom: { $in: selectedRooms }, status: { $in: ['in_house', 'checked_in'] }, _id: { $nin: wanted.map((u) => u._id) } }).session(session)) throw httpError('חדר משויך גם ליחידה שוהה אחרת — נדרש תיקון', 409);
 
   // Nights the departing units used but that day close has not posted yet. They are part of the
   // balance being settled, and are posted only once the checkout passes.
   const wantedIds = new Set(wanted.map((u) => String(u._id)));
-  const nightPlan = await planNights({ reservation: res, until: businessDate, unitFilter: (u) => wantedIds.has(String(u._id)) });
-  const lodging = await lodgingFolio(res);
+  const nightPlan = await planNights({ reservation: res, until: businessDate, unitFilter: (u) => wantedIds.has(String(u._id)), session });
+  const lodging = await lodgingFolio(res, { session });
 
   // A leaving room whose guest pays for it gets its nights on its own account.
-  for (const uid of new Set(nightPlan.items.filter((i) => i.toUnit).map((i) => i.unitId))) await unitFolio(res, uid);
+  for (const uid of new Set(nightPlan.items.filter((i) => i.toUnit).map((i) => i.unitId))) await unitFolio(res, uid, { session });
   // Money: the final departure settles every folio (T11). A room that pays for itself settles its
   // own account when it leaves, even while the rest of the group stays.
-  const folios = await Folio.find({ reservation: res._id });
+  const folios = await Folio.find({ reservation: res._id }).session(session);
   const settles = (f) => finalDeparture || (f.ownerType === 'room' && wantedIds.has(String(f.ownerRef)));
   const plan = [];
   const problems = [];
@@ -507,8 +526,9 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
       }
       if (chosen?.mode === 'company_ar') {
         if (f.ownerType !== 'company' || !isId(String(f.ownerRef || ''))) { problems.push({ folioId: String(f._id), label: 'רק חשבון של חברה יכול לעבור לחייבים' }); continue; }
-        const exp = await companyExposure(f.ownerRef, propertyId);
+        const exp = await companyExposure(f.ownerRef, propertyId, session);
         if (!exp || !exp.active) { problems.push({ folioId: String(f._id), label: 'החברה אינה פעילה בנכס' }); continue; }
+        exp.exposure = round2(exp.exposure + folios.filter((other) => other.ownerType === 'company' && String(other.ownerRef) === String(f.ownerRef) && other.status !== 'closed').reduce((sum, other) => sum + Math.max(0, pendingGrossFor(other, nightPlan.items, lodging?._id)), 0));
         if (!(exp.creditLimit > 0)) {
           // T13 / "חברה ללא מסגרת": no credit line means no automatic receivable.
           if (!isManager || String(chosen.reason || '').trim().length < 3) { problems.push({ folioId: String(f._id), label: `ל${exp.name} אין מסגרת אשראי — העברה לחייבים דורשת מנהל וסיבה` }); continue; }
@@ -536,10 +556,10 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
   }
   if (problems.length) throw httpError('היציאה לא בוצעה — יש פריטים פתוחים', 409, { details: problems });
 
-  await postPlannedNights({ reservation: res, items: nightPlan.items, source: 'pms', actorId: actor.id });
-  if (nightPlan.count) {
+  await postPlannedNights({ reservation: res, items: nightPlan.items, source: 'pms', actorId: actor.id, session });
+  if (nightPlan.items.length) {
     // Folio documents in `plan` were loaded before posting: reload them so saves keep the new lines.
-    for (const p of plan) p.folio = await Folio.findById(p.folio._id);
+    for (const p of plan) p.folio = await Folio.findById(p.folio._id).session(session);
   }
 
   // Units, rooms and housekeeping move together.
@@ -549,20 +569,22 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
     await incrementInventory(res.property, u.roomTypeBooked || res.roomType, businessDate, to, -1, {
       propertyId: res.property, actorId: actor.id, actorName: actor.name, ip,
       action: 'inventory.early_departure', reason: `${res.confirmationNumber}: ${earlyReason}`,
-    });
+    }, { session, afterCommit });
     u.departureDate = businessDate;
-    await u.save();
+    await u.save({ session });
+    await StaySegment.updateMany({ reservationRoom: u._id, fromDate: { $lt: businessDate }, toDate: { $gt: businessDate } }, { $set: { toDate: businessDate } }, { session });
+    await StaySegment.deleteMany({ reservationRoom: u._id, fromDate: { $gte: businessDate } }, { session });
   }
   const roomIds = wanted.map((u) => u.assignedRoom).filter(Boolean);
-  await ReservationRoom.updateMany({ _id: { $in: wanted.map((u) => u._id) } }, { $set: { status: 'checked_out' } });
-  await Room.updateMany({ _id: { $in: roomIds } }, { $set: { occStatus: 'checked_out', cleanStatus: 'dirty' } });
+  await ReservationRoom.updateMany({ _id: { $in: wanted.map((u) => u._id) } }, { $set: { status: 'checked_out' } }, { session });
+  await Room.updateMany({ _id: { $in: roomIds }, property: propertyId }, { $set: { occStatus: 'checked_out', cleanStatus: 'dirty' } }, { session });
   for (const roomId of roomIds) {
-    const exists = await HousekeepingTask.exists({ room: roomId, reservation: res._id, type: 'checkout_clean', date: businessDate, status: { $ne: 'cancelled' } });
+    const exists = await HousekeepingTask.exists({ room: roomId, reservation: res._id, type: 'checkout_clean', date: businessDate, status: { $ne: 'cancelled' } }).session(session);
     if (!exists) {
-      await HousekeepingTask.create({
+      await HousekeepingTask.create([{
         property: res.property, room: roomId, reservation: res._id, type: 'checkout_clean', priority: 'high',
         status: 'new', date: businessDate, autoCreated: true, notes: `יציאה: ${res.confirmationNumber}`,
-      });
+      }], { session });
     }
   }
 
@@ -576,7 +598,7 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
       // Money still open: the folio stays open and visible with who decided and why.
       p.folio.settlement = { mode: p.mode, balance: p.balance, reason: p.reason, at: now, approvedBy: actor.id || undefined, approvedByName: actor.name };
     }
-    await p.folio.save();
+    await p.folio.save({ session });
   }
 
   const before = { status: res.status };
@@ -585,9 +607,10 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
   if (finalDeparture && res.departureDate > businessDate) {
     res.originalDepartureDate = res.departureDate;
     res.departureDate = businessDate;
+    res.nights = Math.max(0, Math.round((new Date(businessDate) - new Date(res.arrivalDate)) / 86400000));
   }
   res.updatedBy = actor.id || undefined;
-  await res.save();
+  await res.save({ session });
 
   await audit({
     property: res.property, actor: actor.id, actorName: actor.name,
@@ -599,15 +622,15 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
       early: earlyUnits.length ? { units: earlyUnits.length, originalDeparture: res.originalDepartureDate || null } : false,
     },
     reason: [earlyReason, ...plan.map((p) => p.reason)].filter(Boolean).join(' | ') || undefined,
-    ip,
+    ip, session, afterCommit,
   });
 
   if (finalDeparture) {
-    fireEvent('checkout.completed', {
+    afterCommit.push(() => fireEvent('checkout.completed', {
       property: String(res.property),
       reservation: res.toObject(),
       actor: { id: actor.id, name: actor.name },
-    }).catch(() => null);
+    }).catch(() => null));
   }
 
   return {
@@ -624,15 +647,15 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
 
 // Post the lodging nights already used (up to today) so the guest can pay the full amount now.
 export async function postPendingNights({ propertyId, reservationId, actor, ip }) {
-  const property = await loadProperty(propertyId);
-  const res = await loadReservationInScope(reservationId, propertyId);
-  if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('רישום לילות רק לשהייה פעילה', 409);
-  return withLocks([`res:${res._id}`], async () => {
-    await ensureUnits(res);
-    const posted = await postNightsUntil({ reservation: res, until: businessDateOf(property), source: 'pms', actorId: actor.id });
-    await audit({ property: res.property, actor: actor.id, actorName: actor.name, action: 'folio.nights_posted', entityType: 'Reservation', entityId: res._id, after: { nights: posted }, ip });
+  return withLocks([`res:${reservationId}`], (lease) => runStayTransaction(async (session, afterCommit) => {
+    const property = await loadProperty(propertyId, session);
+    const res = await loadReservationInScope(reservationId, propertyId, session);
+    if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('רישום לילות רק לשהייה פעילה', 409);
+    await ensureUnits(res, session);
+    const posted = await postNightsUntil({ reservation: res, until: businessDateOf(property), source: 'pms', actorId: actor.id, session });
+    await audit({ property: res.property, actor: actor.id, actorName: actor.name, action: 'folio.nights_posted', entityType: 'Reservation', entityId: res._id, after: { nights: posted }, ip, session, afterCommit });
     return { posted };
-  });
+  }, lease, { operation: 'רישום לילות' }));
 }
 
 export { addDays };

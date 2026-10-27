@@ -1,0 +1,4425 @@
+{
+  "startedAt": "2026-10-27T19:25:20.427Z",
+  "finishedAt": "2026-10-27T19:25:24.218Z",
+  "mode": "isolated local replica; synthetic fixtures; no external delivery",
+  "hashes": {
+    "../services/departureService.js": "30faae9538da8a16951da62197c1ad034026c7e530e25483d2a76ccd2db95ec0",
+    "../services/financeService.js": "dafdd507c53f0231e18e54449e09cb3a8e37aefba02c5adf2a75ed05d797829a",
+    "../services/roomCharges.js": "9158b78151e7333ac99ac873548e93a9572ba9427734c52d813bd88676416fd9",
+    "../services/touristService.js": "102bee2ffebe4f4cbbadb44d00bd5176fbdad237c3a0e80b849d8f170e5a20ce",
+    "../services/stayTransaction.js": "f7b5c974646b4137c45d630960b2c24da801d47d6a9736a988079554dcbbcedf",
+    "../services/locks.js": "c00a5085eb99c2932377a14dacef9a337998ff4383dccd1f3eccc2ff73bdc215",
+    "./departureReadiness.mjs": "7e3d704740e99857dde23dc2b5991c1e27b64e888332bad6460bab10e1d15e01"
+  },
+  "counts": {
+    "passed": 15,
+    "failed": 0,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "DP01",
+      "name": "early departure inventory failure restores charges dates units and rooms",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0def",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "confirmationNumber": "80ec4743-c5f3-4275-a87c-90376a4785e2",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa110d8cb0264ee0dee",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0df0"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0df1"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:21.768Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa110d8cb0264ee0df2"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df3",
+              "reservation": "6ae0faa110d8cb0264ee0def",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomTypeBooked": "6ae0faa110d8cb0264ee0ded",
+              "assignedRoom": "6ae0faa110d8cb0264ee0df2",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df4",
+              "reservationRoom": "6ae0faa110d8cb0264ee0df3",
+              "reservation": "6ae0faa110d8cb0264ee0def",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "room": "6ae0faa110d8cb0264ee0df2",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df5",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0df6",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0df7",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df2",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df8",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "reservation": "6ae0faa110d8cb0264ee0def",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_DEPARTURE_FAILURE"
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0def",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "confirmationNumber": "80ec4743-c5f3-4275-a87c-90376a4785e2",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa110d8cb0264ee0dee",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0df0"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0df1"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:21.768Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa110d8cb0264ee0df2"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df3",
+              "reservation": "6ae0faa110d8cb0264ee0def",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomTypeBooked": "6ae0faa110d8cb0264ee0ded",
+              "assignedRoom": "6ae0faa110d8cb0264ee0df2",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df4",
+              "reservationRoom": "6ae0faa110d8cb0264ee0df3",
+              "reservation": "6ae0faa110d8cb0264ee0def",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "room": "6ae0faa110d8cb0264ee0df2",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df5",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0df6",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0df7",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df2",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "roomType": "6ae0faa110d8cb0264ee0ded",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0df8",
+              "property": "6ae0faa110d8cb0264ee0dec",
+              "reservation": "6ae0faa110d8cb0264ee0def",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        }
+      }
+    },
+    {
+      "code": "DP02",
+      "name": "failed checkout cleaning task leaves the entire stay in house",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e06",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "confirmationNumber": "65ecfec6-420d-40b3-89f3-5d6ef8dcccd1",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa110d8cb0264ee0e05",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0e07"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0e08"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:21.870Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa110d8cb0264ee0e09"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0a",
+              "reservation": "6ae0faa110d8cb0264ee0e06",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomTypeBooked": "6ae0faa110d8cb0264ee0e04",
+              "assignedRoom": "6ae0faa110d8cb0264ee0e09",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0b",
+              "reservationRoom": "6ae0faa110d8cb0264ee0e0a",
+              "reservation": "6ae0faa110d8cb0264ee0e06",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "room": "6ae0faa110d8cb0264ee0e09",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0c",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0d",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0e",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e09",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0f",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "reservation": "6ae0faa110d8cb0264ee0e06",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_DEPARTURE_FAILURE"
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e06",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "confirmationNumber": "65ecfec6-420d-40b3-89f3-5d6ef8dcccd1",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa110d8cb0264ee0e05",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0e07"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0e08"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:21.870Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa110d8cb0264ee0e09"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0a",
+              "reservation": "6ae0faa110d8cb0264ee0e06",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomTypeBooked": "6ae0faa110d8cb0264ee0e04",
+              "assignedRoom": "6ae0faa110d8cb0264ee0e09",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0b",
+              "reservationRoom": "6ae0faa110d8cb0264ee0e0a",
+              "reservation": "6ae0faa110d8cb0264ee0e06",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "room": "6ae0faa110d8cb0264ee0e09",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0c",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0d",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0e",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e09",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "roomType": "6ae0faa110d8cb0264ee0e04",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e0f",
+              "property": "6ae0faa110d8cb0264ee0e03",
+              "reservation": "6ae0faa110d8cb0264ee0e06",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        }
+      }
+    },
+    {
+      "code": "DP03",
+      "name": "checkout audit failure rolls back posting settlement and departure",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e1e",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "confirmationNumber": "39b6f1de-881b-4bcf-9d21-097d53cfa176",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa110d8cb0264ee0e1d",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0e1f"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0e20"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:21.958Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa110d8cb0264ee0e21"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e22",
+              "reservation": "6ae0faa110d8cb0264ee0e1e",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomTypeBooked": "6ae0faa110d8cb0264ee0e1c",
+              "assignedRoom": "6ae0faa110d8cb0264ee0e21",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e23",
+              "reservationRoom": "6ae0faa110d8cb0264ee0e22",
+              "reservation": "6ae0faa110d8cb0264ee0e1e",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "room": "6ae0faa110d8cb0264ee0e21",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e24",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0e25",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0e26",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e21",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e27",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "reservation": "6ae0faa110d8cb0264ee0e1e",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_DEPARTURE_FAILURE"
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e1e",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "confirmationNumber": "39b6f1de-881b-4bcf-9d21-097d53cfa176",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa110d8cb0264ee0e1d",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0e1f"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa110d8cb0264ee0e20"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:21.958Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa110d8cb0264ee0e21"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e22",
+              "reservation": "6ae0faa110d8cb0264ee0e1e",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomTypeBooked": "6ae0faa110d8cb0264ee0e1c",
+              "assignedRoom": "6ae0faa110d8cb0264ee0e21",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e23",
+              "reservationRoom": "6ae0faa110d8cb0264ee0e22",
+              "reservation": "6ae0faa110d8cb0264ee0e1e",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "room": "6ae0faa110d8cb0264ee0e21",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e24",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0e25",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa110d8cb0264ee0e26",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e21",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "roomType": "6ae0faa110d8cb0264ee0e1c",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa110d8cb0264ee0e27",
+              "property": "6ae0faa110d8cb0264ee0e1b",
+              "reservation": "6ae0faa110d8cb0264ee0e1e",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        }
+      }
+    },
+    {
+      "code": "DP04",
+      "name": "failed folio settlement save restores the physical stay and inventory",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e37",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "confirmationNumber": "2ca395ac-e686-4d4b-bd42-3bed8afe13b5",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa210d8cb0264ee0e36",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e38"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e39"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.060Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0e3a"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3b",
+              "reservation": "6ae0faa210d8cb0264ee0e37",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e35",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e3a",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3c",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e3b",
+              "reservation": "6ae0faa210d8cb0264ee0e37",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "room": "6ae0faa210d8cb0264ee0e3a",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3d",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3e",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3f",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3a",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e40",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "reservation": "6ae0faa210d8cb0264ee0e37",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_DEPARTURE_FAILURE"
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e37",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "confirmationNumber": "2ca395ac-e686-4d4b-bd42-3bed8afe13b5",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa210d8cb0264ee0e36",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e38"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e39"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.060Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0e3a"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3b",
+              "reservation": "6ae0faa210d8cb0264ee0e37",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e35",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e3a",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3c",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e3b",
+              "reservation": "6ae0faa210d8cb0264ee0e37",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "room": "6ae0faa210d8cb0264ee0e3a",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3d",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3e",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3f",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e3a",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "roomType": "6ae0faa210d8cb0264ee0e35",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e40",
+              "property": "6ae0faa210d8cb0264ee0e34",
+              "reservation": "6ae0faa210d8cb0264ee0e37",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        }
+      }
+    },
+    {
+      "code": "DP05",
+      "name": "unknown unit in a mixed checkout selection rejects the whole request",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "confirmationNumber": "b5e4e20b-5756-4038-877e-95723ac423b8",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa210d8cb0264ee0e4f",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 2,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "ratePerNight": 500,
+              "totalAmount": 2000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e51"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e52"
+                  }
+                ],
+                "total": 2000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.142Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0e53"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e54",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e4e",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e53",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e57",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e4e",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e56",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e55",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e54",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "room": "6ae0faa210d8cb0264ee0e53",
+              "ratePerNight": 500
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e58",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e57",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "room": "6ae0faa210d8cb0264ee0e56",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e59",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e5a",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e5b",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e53",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e56",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "number": "102",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e5c",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "בחירת יחידות לא תקינה",
+            "status": 422
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "confirmationNumber": "b5e4e20b-5756-4038-877e-95723ac423b8",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa210d8cb0264ee0e4f",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 2,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "ratePerNight": 500,
+              "totalAmount": 2000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e51"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e52"
+                  }
+                ],
+                "total": 2000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.142Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0e53"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e54",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e4e",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e53",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e57",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e4e",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e56",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e55",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e54",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "room": "6ae0faa210d8cb0264ee0e53",
+              "ratePerNight": 500
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e58",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e57",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "room": "6ae0faa210d8cb0264ee0e56",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e59",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e5a",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e5b",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e53",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e56",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "roomType": "6ae0faa210d8cb0264ee0e4e",
+              "number": "102",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e5c",
+              "property": "6ae0faa210d8cb0264ee0e4d",
+              "reservation": "6ae0faa210d8cb0264ee0e50",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        }
+      }
+    },
+    {
+      "code": "DP06",
+      "name": "duplicate checkout indexes cannot release a unit twice",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "confirmationNumber": "ca65518c-b944-4755-af7f-33e9abd38ad8",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa210d8cb0264ee0e69",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 2,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "ratePerNight": 500,
+              "totalAmount": 2000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e6b"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e6c"
+                  }
+                ],
+                "total": 2000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.237Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0e6d"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e6e",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e68",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e6d",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e71",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e68",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e70",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e6f",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e6e",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "room": "6ae0faa210d8cb0264ee0e6d",
+              "ratePerNight": 500
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e72",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e71",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "room": "6ae0faa210d8cb0264ee0e70",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e73",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e74",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e75",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e6d",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e70",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "number": "102",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e76",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "בחירת יחידות לא תקינה",
+            "status": 422
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "confirmationNumber": "ca65518c-b944-4755-af7f-33e9abd38ad8",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa210d8cb0264ee0e69",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 2,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "ratePerNight": 500,
+              "totalAmount": 2000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e6b"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e6c"
+                  }
+                ],
+                "total": 2000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.237Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0e6d"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e6e",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e68",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e6d",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e71",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e68",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e70",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e6f",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e6e",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "room": "6ae0faa210d8cb0264ee0e6d",
+              "ratePerNight": 500
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e72",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e71",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "room": "6ae0faa210d8cb0264ee0e70",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e73",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e74",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e75",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e6d",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e70",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "roomType": "6ae0faa210d8cb0264ee0e68",
+              "number": "102",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e76",
+              "property": "6ae0faa210d8cb0264ee0e67",
+              "reservation": "6ae0faa210d8cb0264ee0e6a",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": []
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        }
+      }
+    },
+    {
+      "code": "DP07",
+      "name": "departure keeps the reservation partial while a reserved sibling has not arrived",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0faa210d8cb0264ee0e83",
+            "status": "partially_checked_out",
+            "checkedOutUnits": [
+              "6ae0faa210d8cb0264ee0e87"
+            ],
+            "remainingUnits": 1,
+            "housekeepingTasks": 1,
+            "nightsPosted": 1,
+            "openFolios": [],
+            "early": true
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e83",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "confirmationNumber": "0030cd45-8052-4cb6-bdfc-78050b7e5751",
+              "status": "partially_checked_out",
+              "primaryGuest": "6ae0faa210d8cb0264ee0e82",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 2,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0e81",
+              "ratePerNight": 500,
+              "totalAmount": 2000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e84"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0e85"
+                  }
+                ],
+                "total": 2000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.323Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0e86",
+              "updatedBy": "6ae0faa010d8cb0264ee0deb"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e87",
+              "reservation": "6ae0faa210d8cb0264ee0e83",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e81",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e86",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-27",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "checked_out",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e8a",
+              "reservation": "6ae0faa210d8cb0264ee0e83",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e81",
+              "assignedRoom": "6ae0faa210d8cb0264ee0e89",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "reserved",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e88",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e87",
+              "reservation": "6ae0faa210d8cb0264ee0e83",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-27",
+              "roomType": "6ae0faa210d8cb0264ee0e81",
+              "room": "6ae0faa210d8cb0264ee0e86",
+              "ratePerNight": 500
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e8b",
+              "reservationRoom": "6ae0faa210d8cb0264ee0e8a",
+              "reservation": "6ae0faa210d8cb0264ee0e83",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0e81",
+              "room": "6ae0faa210d8cb0264ee0e89",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e8c",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "roomType": "6ae0faa210d8cb0264ee0e81",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 2,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e8d",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "roomType": "6ae0faa210d8cb0264ee0e81",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e8e",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "roomType": "6ae0faa210d8cb0264ee0e81",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e86",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "roomType": "6ae0faa210d8cb0264ee0e81",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "dirty",
+              "occStatus": "checked_out",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e89",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "roomType": "6ae0faa210d8cb0264ee0e81",
+              "number": "102",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e8f",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "reservation": "6ae0faa210d8cb0264ee0e83",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "לינה 2026-10-26 · חדר 101",
+                  "amount": 423.73,
+                  "taxAmount": 76.27,
+                  "department": "rooms",
+                  "serviceDate": "2026-10-26",
+                  "source": "pms",
+                  "status": "posted",
+                  "reference": "night:6ae0faa210d8cb0264ee0e87:2026-10-26",
+                  "createdBy": "6ae0faa010d8cb0264ee0deb",
+                  "vatRate": 18,
+                  "_id": "6ae0faa210d8cb0264ee0e99",
+                  "postedAt": "2026-10-27T19:25:22.386Z"
+                }
+              ]
+            }
+          ],
+          "HousekeepingTask": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e9b",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "room": "6ae0faa210d8cb0264ee0e86",
+              "reservation": "6ae0faa210d8cb0264ee0e83",
+              "type": "checkout_clean",
+              "priority": "high",
+              "status": "new",
+              "date": "2026-10-27",
+              "notes": "יציאה: 0030cd45-8052-4cb6-bdfc-78050b7e5751",
+              "photos": [],
+              "isDND": false,
+              "isNoService": false,
+              "autoCreated": true,
+              "supplies": [],
+              "checklist": [],
+              "inspectionChecklist": [],
+              "defects": [],
+              "lostFound": []
+            }
+          ],
+          "AuditLog": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0e9a",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "actor": "6ae0faa010d8cb0264ee0deb",
+              "actorName": "Synthetic QA",
+              "action": "inventory.early_departure",
+              "entityType": "InventoryDate",
+              "entityId": "6ae0faa210d8cb0264ee0e81",
+              "after": {
+                "roomTypeId": "6ae0faa210d8cb0264ee0e81",
+                "arrivalDate": "2026-10-27",
+                "departureDate": "2026-10-28",
+                "delta": -1
+              },
+              "reason": "0030cd45-8052-4cb6-bdfc-78050b7e5751: Synthetic early departure"
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0e9c",
+              "property": "6ae0faa210d8cb0264ee0e80",
+              "actor": "6ae0faa010d8cb0264ee0deb",
+              "actorName": "Synthetic QA",
+              "action": "reservation.units_check_out",
+              "entityType": "Reservation",
+              "entityId": "6ae0faa210d8cb0264ee0e83",
+              "before": {
+                "status": "partially_checked_in"
+              },
+              "after": {
+                "status": "partially_checked_out",
+                "unitIds": [
+                  "6ae0faa210d8cb0264ee0e87"
+                ],
+                "settlements": [],
+                "early": {
+                  "units": 1,
+                  "originalDeparture": null
+                }
+              },
+              "reason": "Synthetic early departure"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "DP08",
+      "name": "successful early departure truncates stay segments and releases only unused nights",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0faa210d8cb0264ee0ea0",
+            "status": "checked_out",
+            "checkedOutUnits": [
+              "6ae0faa210d8cb0264ee0ea4"
+            ],
+            "remainingUnits": 0,
+            "housekeepingTasks": 1,
+            "nightsPosted": 1,
+            "openFolios": [
+              {
+                "folioId": "6ae0faa210d8cb0264ee0ea9",
+                "mode": "approved_open",
+                "balance": 500
+              }
+            ],
+            "early": true
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ea0",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "confirmationNumber": "429ce8ae-4a8c-48ed-af9e-6d60eca830b7",
+              "status": "checked_out",
+              "primaryGuest": "6ae0faa210d8cb0264ee0e9f",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-27",
+              "nights": 1,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0e9e",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0ea1"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0ea2"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.423Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0ea3",
+              "checkedOutAt": "2026-10-27T19:25:22.476Z",
+              "originalDepartureDate": "2026-10-28",
+              "updatedBy": "6ae0faa010d8cb0264ee0deb"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ea4",
+              "reservation": "6ae0faa210d8cb0264ee0ea0",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0e9e",
+              "assignedRoom": "6ae0faa210d8cb0264ee0ea3",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-27",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "checked_out",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ea5",
+              "reservationRoom": "6ae0faa210d8cb0264ee0ea4",
+              "reservation": "6ae0faa210d8cb0264ee0ea0",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-27",
+              "roomType": "6ae0faa210d8cb0264ee0e9e",
+              "room": "6ae0faa210d8cb0264ee0ea3",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ea6",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "roomType": "6ae0faa210d8cb0264ee0e9e",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0ea7",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "roomType": "6ae0faa210d8cb0264ee0e9e",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0ea8",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "roomType": "6ae0faa210d8cb0264ee0e9e",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ea3",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "roomType": "6ae0faa210d8cb0264ee0e9e",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "dirty",
+              "occStatus": "checked_out",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ea9",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "reservation": "6ae0faa210d8cb0264ee0ea0",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "לינה 2026-10-26 · חדר 101",
+                  "amount": 423.73,
+                  "taxAmount": 76.27,
+                  "department": "rooms",
+                  "serviceDate": "2026-10-26",
+                  "source": "pms",
+                  "status": "posted",
+                  "reference": "night:6ae0faa210d8cb0264ee0ea4:2026-10-26",
+                  "createdBy": "6ae0faa010d8cb0264ee0deb",
+                  "vatRate": 18,
+                  "_id": "6ae0faa210d8cb0264ee0eb2",
+                  "postedAt": "2026-10-27T19:25:22.475Z"
+                }
+              ],
+              "settlement": {
+                "mode": "approved_open",
+                "balance": 500,
+                "reason": "Synthetic manager approval",
+                "approvedBy": "6ae0faa010d8cb0264ee0deb",
+                "approvedByName": "Synthetic QA",
+                "at": "2026-10-27T19:25:22.476Z"
+              }
+            }
+          ],
+          "HousekeepingTask": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0eb5",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "room": "6ae0faa210d8cb0264ee0ea3",
+              "reservation": "6ae0faa210d8cb0264ee0ea0",
+              "type": "checkout_clean",
+              "priority": "high",
+              "status": "new",
+              "date": "2026-10-27",
+              "notes": "יציאה: 429ce8ae-4a8c-48ed-af9e-6d60eca830b7",
+              "photos": [],
+              "isDND": false,
+              "isNoService": false,
+              "autoCreated": true,
+              "supplies": [],
+              "checklist": [],
+              "inspectionChecklist": [],
+              "defects": [],
+              "lostFound": []
+            }
+          ],
+          "AuditLog": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0eb4",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "actor": "6ae0faa010d8cb0264ee0deb",
+              "actorName": "Synthetic QA",
+              "action": "inventory.early_departure",
+              "entityType": "InventoryDate",
+              "entityId": "6ae0faa210d8cb0264ee0e9e",
+              "after": {
+                "roomTypeId": "6ae0faa210d8cb0264ee0e9e",
+                "arrivalDate": "2026-10-27",
+                "departureDate": "2026-10-28",
+                "delta": -1
+              },
+              "reason": "429ce8ae-4a8c-48ed-af9e-6d60eca830b7: Synthetic early departure"
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0eb6",
+              "property": "6ae0faa210d8cb0264ee0e9d",
+              "actor": "6ae0faa010d8cb0264ee0deb",
+              "actorName": "Synthetic QA",
+              "action": "reservation.check_out",
+              "entityType": "Reservation",
+              "entityId": "6ae0faa210d8cb0264ee0ea0",
+              "before": {
+                "status": "in_house"
+              },
+              "after": {
+                "status": "checked_out",
+                "unitIds": [
+                  "6ae0faa210d8cb0264ee0ea4"
+                ],
+                "settlements": [
+                  {
+                    "folio": "6ae0faa210d8cb0264ee0ea9",
+                    "mode": "approved_open",
+                    "balance": 500
+                  }
+                ],
+                "early": {
+                  "units": 1,
+                  "originalDeparture": "2026-10-28"
+                }
+              },
+              "reason": "Synthetic early departure | Synthetic manager approval"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "DP09",
+      "name": "credit check includes the nights that checkout is about to post",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0eba",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "confirmationNumber": "54085566-8683-4536-a616-785796c9b2ca",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa210d8cb0264ee0eb9",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0ebb"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0ebc"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.510Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0ebd"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ebe",
+              "reservation": "6ae0faa210d8cb0264ee0eba",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0eb8",
+              "assignedRoom": "6ae0faa210d8cb0264ee0ebd",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ebf",
+              "reservationRoom": "6ae0faa210d8cb0264ee0ebe",
+              "reservation": "6ae0faa210d8cb0264ee0eba",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "room": "6ae0faa210d8cb0264ee0ebd",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ec0",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0ec1",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0ec2",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ebd",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ec3",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "reservation": "6ae0faa210d8cb0264ee0eba",
+              "ownerType": "company",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "ownerRef": "6ae0faa210d8cb0264ee0ec4"
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "היציאה לא בוצעה — יש פריטים פתוחים",
+            "status": 409
+          }
+        },
+        "after": {
+          "Reservation": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0eba",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "confirmationNumber": "54085566-8683-4536-a616-785796c9b2ca",
+              "status": "in_house",
+              "primaryGuest": "6ae0faa210d8cb0264ee0eb9",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "nightly": [
+                  {
+                    "date": "2026-10-26",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0ebb"
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0faa210d8cb0264ee0ebc"
+                  }
+                ],
+                "total": 1000,
+                "board": {
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "checkedInAt": "2026-10-27T19:25:22.510Z",
+              "reversals": [],
+              "assignedRoom": "6ae0faa210d8cb0264ee0ebd"
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ebe",
+              "reservation": "6ae0faa210d8cb0264ee0eba",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomTypeBooked": "6ae0faa210d8cb0264ee0eb8",
+              "assignedRoom": "6ae0faa210d8cb0264ee0ebd",
+              "arrivalDate": "2026-10-26",
+              "departureDate": "2026-10-28",
+              "nightlyRate": 500,
+              "guests": [],
+              "status": "in_house",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "guaranteeType": "none"
+            }
+          ],
+          "StaySegment": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ebf",
+              "reservationRoom": "6ae0faa210d8cb0264ee0ebe",
+              "reservation": "6ae0faa210d8cb0264ee0eba",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "fromDate": "2026-10-26",
+              "toDate": "2026-10-28",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "room": "6ae0faa210d8cb0264ee0ebd",
+              "ratePerNight": 500
+            }
+          ],
+          "InventoryDate": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ec0",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "date": "2026-10-26",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0ec1",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "date": "2026-10-27",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 1,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            },
+            {
+              "_id": "6ae0faa210d8cb0264ee0ec2",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "date": "2026-10-28",
+              "physicalCount": 2,
+              "blockedCount": 0,
+              "oooCount": 0,
+              "bookedCount": 0,
+              "tentativeCount": 0,
+              "lockedCount": 0,
+              "allotmentCount": 0,
+              "releasedAllotmentCount": 0,
+              "overbookingLimit": 0,
+              "stopSell": false,
+              "minLos": 1,
+              "closedToArrival": false,
+              "closedToDeparture": false
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ebd",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "roomType": "6ae0faa210d8cb0264ee0eb8",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "occupied",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae0faa210d8cb0264ee0ec3",
+              "property": "6ae0faa210d8cb0264ee0eb7",
+              "reservation": "6ae0faa210d8cb0264ee0eba",
+              "ownerType": "company",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "ownerRef": "6ae0faa210d8cb0264ee0ec4"
+            }
+          ],
+          "HousekeepingTask": [],
+          "AuditLog": []
+        }
+      }
+    },
+    {
+      "code": "RF01",
+      "name": "a missing meal line is recovered even when the room night was already posted",
+      "status": "passed",
+      "evidence": {
+        "posted": 1
+      }
+    },
+    {
+      "code": "RF02",
+      "name": "explicit zero nightly price is preserved rather than replaced by a flat fallback",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "posted": 1
+          }
+        }
+      }
+    },
+    {
+      "code": "DC01",
+      "name": "day close failing after one routed folio can resume without leaving a half-posted stay",
+      "status": "passed",
+      "evidence": {
+        "first": {
+          "ok": true,
+          "value": {
+            "id": "6ae0faa210d8cb0264ee0f07",
+            "runNo": "DC-20261027",
+            "businessDate": "2026-10-27",
+            "status": "failed",
+            "attempts": 1,
+            "options": {
+              "arrivals": "none",
+              "reason": "Synthetic day review"
+            },
+            "startedBy": "Synthetic QA",
+            "createdAt": "2026-10-27T19:25:22.752Z",
+            "finishedAt": null,
+            "steps": [
+              {
+                "key": "post_nights",
+                "status": "failed",
+                "startedAt": "2026-10-27T19:25:22.757Z",
+                "finishedAt": "2026-10-27T19:25:22.777Z",
+                "result": {
+                  "posted": 0
+                },
+                "error": "1 שהיות לא חויבו: f3f410c0-c517-4978-93e8-9fdc13e95a22: QA_ROUTED_POST"
+              },
+              {
+                "key": "no_shows",
+                "status": "pending",
+                "startedAt": null,
+                "finishedAt": null,
+                "result": null,
+                "error": null
+              },
+              {
+                "key": "snapshot",
+                "status": "pending",
+                "startedAt": null,
+                "finishedAt": null,
+                "result": null,
+                "error": null
+              },
+              {
+                "key": "ledgers",
+                "status": "pending",
+                "startedAt": null,
+                "finishedAt": null,
+                "result": null,
+                "error": null
+              },
+              {
+                "key": "advance",
+                "status": "pending",
+                "startedAt": null,
+                "finishedAt": null,
+                "result": null,
+                "error": null
+              }
+            ],
+            "readiness": {
+              "arrivals": 0,
+              "departures": 0,
+              "queueOpen": 0
+            }
+          }
+        },
+        "second": {
+          "ok": true,
+          "value": {
+            "id": "6ae0faa210d8cb0264ee0f07",
+            "runNo": "DC-20261027",
+            "businessDate": "2026-10-27",
+            "status": "done",
+            "attempts": 2,
+            "options": {
+              "arrivals": "none",
+              "reason": "Synthetic day review"
+            },
+            "startedBy": "Synthetic QA",
+            "createdAt": "2026-10-27T19:25:22.752Z",
+            "finishedAt": "2026-10-27T19:25:22.895Z",
+            "steps": [
+              {
+                "key": "post_nights",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:22.808Z",
+                "finishedAt": "2026-10-27T19:25:22.834Z",
+                "result": {
+                  "posted": 4,
+                  "stays": 1
+                },
+                "error": null
+              },
+              {
+                "key": "no_shows",
+                "status": "skipped",
+                "startedAt": "2026-10-27T19:25:22.838Z",
+                "finishedAt": "2026-10-27T19:25:22.842Z",
+                "result": {
+                  "skipped": true
+                },
+                "error": null
+              },
+              {
+                "key": "snapshot",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:22.846Z",
+                "finishedAt": "2026-10-27T19:25:22.854Z",
+                "result": {
+                  "rooms": 2,
+                  "sellable": 2,
+                  "roomNights": 2,
+                  "occupancyPct": 100,
+                  "roomRevenue": 1000,
+                  "otherRevenue": 0,
+                  "adr": 500,
+                  "payments": 0,
+                  "refunds": 0,
+                  "arrived": 0,
+                  "departed": 0,
+                  "noShows": 0
+                },
+                "error": null
+              },
+              {
+                "key": "ledgers",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:22.858Z",
+                "finishedAt": "2026-10-27T19:25:22.886Z",
+                "result": {
+                  "trial": {
+                    "opening": 0,
+                    "charges": 2000,
+                    "adjustments": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "closing": 2000,
+                    "difference": 0
+                  },
+                  "ledgers": {
+                    "guest": {
+                      "balance": 2000,
+                      "folios": 2
+                    },
+                    "deposit": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "ar": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "void": {
+                      "balance": 0,
+                      "folios": 0
+                    }
+                  },
+                  "revenue": {
+                    "groups": [
+                      {
+                        "key": "rooms",
+                        "label": "לינה",
+                        "net": 1694.92,
+                        "tax": 305.08,
+                        "gross": 2000
+                      }
+                    ],
+                    "total": {
+                      "net": 1694.92,
+                      "tax": 305.08,
+                      "gross": 2000
+                    }
+                  },
+                  "payments": [],
+                  "refunds": [],
+                  "unmappedCodes": [],
+                  "checks": [
+                    {
+                      "key": "opening",
+                      "ok": null,
+                      "amount": null,
+                      "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                    },
+                    {
+                      "key": "trial",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "מאזן הבוחן מאוזן"
+                    },
+                    {
+                      "key": "codes",
+                      "ok": true,
+                      "amount": null,
+                      "label": "כל החיובים בקודים מהקטלוג"
+                    },
+                    {
+                      "key": "void",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "אין יתרות בהזמנות שבוטלו"
+                    }
+                  ]
+                },
+                "error": null
+              },
+              {
+                "key": "advance",
+                "status": "done",
+                "startedAt": null,
+                "finishedAt": "2026-10-27T19:25:22.893Z",
+                "result": {
+                  "closed": "2026-10-27"
+                },
+                "error": null
+              }
+            ],
+            "readiness": {
+              "arrivals": 0,
+              "departures": 0,
+              "queueOpen": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "DC02",
+      "name": "failure recording the advance step cannot advance the property date",
+      "status": "passed",
+      "evidence": {
+        "first": {
+          "ok": true,
+          "value": {
+            "id": "6ae0faa210d8cb0264ee0f34",
+            "runNo": "DC-20261027",
+            "businessDate": "2026-10-27",
+            "status": "failed",
+            "attempts": 1,
+            "options": {
+              "arrivals": "none",
+              "reason": "Synthetic day review"
+            },
+            "startedBy": "Synthetic QA",
+            "createdAt": "2026-10-27T19:25:22.969Z",
+            "finishedAt": null,
+            "steps": [
+              {
+                "key": "post_nights",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:22.975Z",
+                "finishedAt": "2026-10-27T19:25:23.007Z",
+                "result": {
+                  "posted": 2,
+                  "stays": 1
+                },
+                "error": null
+              },
+              {
+                "key": "no_shows",
+                "status": "skipped",
+                "startedAt": "2026-10-27T19:25:23.013Z",
+                "finishedAt": "2026-10-27T19:25:23.020Z",
+                "result": {
+                  "skipped": true
+                },
+                "error": null
+              },
+              {
+                "key": "snapshot",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.027Z",
+                "finishedAt": "2026-10-27T19:25:23.038Z",
+                "result": {
+                  "rooms": 1,
+                  "sellable": 1,
+                  "roomNights": 1,
+                  "occupancyPct": 100,
+                  "roomRevenue": 500,
+                  "otherRevenue": 0,
+                  "adr": 500,
+                  "payments": 0,
+                  "refunds": 0,
+                  "arrived": 0,
+                  "departed": 0,
+                  "noShows": 0
+                },
+                "error": null
+              },
+              {
+                "key": "ledgers",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.043Z",
+                "finishedAt": "2026-10-27T19:25:23.060Z",
+                "result": {
+                  "trial": {
+                    "opening": 0,
+                    "charges": 1000,
+                    "adjustments": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "closing": 1000,
+                    "difference": 0
+                  },
+                  "ledgers": {
+                    "guest": {
+                      "balance": 1000,
+                      "folios": 1
+                    },
+                    "deposit": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "ar": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "void": {
+                      "balance": 0,
+                      "folios": 0
+                    }
+                  },
+                  "revenue": {
+                    "groups": [
+                      {
+                        "key": "rooms",
+                        "label": "לינה",
+                        "net": 847.46,
+                        "tax": 152.54,
+                        "gross": 1000
+                      }
+                    ],
+                    "total": {
+                      "net": 847.46,
+                      "tax": 152.54,
+                      "gross": 1000
+                    }
+                  },
+                  "payments": [],
+                  "refunds": [],
+                  "unmappedCodes": [],
+                  "checks": [
+                    {
+                      "key": "opening",
+                      "ok": null,
+                      "amount": null,
+                      "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                    },
+                    {
+                      "key": "trial",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "מאזן הבוחן מאוזן"
+                    },
+                    {
+                      "key": "codes",
+                      "ok": true,
+                      "amount": null,
+                      "label": "כל החיובים בקודים מהקטלוג"
+                    },
+                    {
+                      "key": "void",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "אין יתרות בהזמנות שבוטלו"
+                    }
+                  ]
+                },
+                "error": null
+              },
+              {
+                "key": "advance",
+                "status": "failed",
+                "startedAt": null,
+                "finishedAt": "2026-10-27T19:25:23.067Z",
+                "result": null,
+                "error": "QA_ADVANCE_STEP"
+              }
+            ],
+            "readiness": {
+              "arrivals": 0,
+              "departures": 0,
+              "queueOpen": 0
+            }
+          }
+        },
+        "second": {
+          "ok": true,
+          "value": {
+            "id": "6ae0faa210d8cb0264ee0f34",
+            "runNo": "DC-20261027",
+            "businessDate": "2026-10-27",
+            "status": "done",
+            "attempts": 2,
+            "options": {
+              "arrivals": "none",
+              "reason": "Synthetic day review"
+            },
+            "startedBy": "Synthetic QA",
+            "createdAt": "2026-10-27T19:25:22.969Z",
+            "finishedAt": "2026-10-27T19:25:23.113Z",
+            "steps": [
+              {
+                "key": "post_nights",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:22.975Z",
+                "finishedAt": "2026-10-27T19:25:23.007Z",
+                "result": {
+                  "posted": 2,
+                  "stays": 1
+                },
+                "error": null
+              },
+              {
+                "key": "no_shows",
+                "status": "skipped",
+                "startedAt": "2026-10-27T19:25:23.013Z",
+                "finishedAt": "2026-10-27T19:25:23.020Z",
+                "result": {
+                  "skipped": true
+                },
+                "error": null
+              },
+              {
+                "key": "snapshot",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.027Z",
+                "finishedAt": "2026-10-27T19:25:23.038Z",
+                "result": {
+                  "rooms": 1,
+                  "sellable": 1,
+                  "roomNights": 1,
+                  "occupancyPct": 100,
+                  "roomRevenue": 500,
+                  "otherRevenue": 0,
+                  "adr": 500,
+                  "payments": 0,
+                  "refunds": 0,
+                  "arrived": 0,
+                  "departed": 0,
+                  "noShows": 0
+                },
+                "error": null
+              },
+              {
+                "key": "ledgers",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.043Z",
+                "finishedAt": "2026-10-27T19:25:23.060Z",
+                "result": {
+                  "trial": {
+                    "opening": 0,
+                    "charges": 1000,
+                    "adjustments": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "closing": 1000,
+                    "difference": 0
+                  },
+                  "ledgers": {
+                    "guest": {
+                      "balance": 1000,
+                      "folios": 1
+                    },
+                    "deposit": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "ar": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "void": {
+                      "balance": 0,
+                      "folios": 0
+                    }
+                  },
+                  "revenue": {
+                    "groups": [
+                      {
+                        "key": "rooms",
+                        "label": "לינה",
+                        "net": 847.46,
+                        "tax": 152.54,
+                        "gross": 1000
+                      }
+                    ],
+                    "total": {
+                      "net": 847.46,
+                      "tax": 152.54,
+                      "gross": 1000
+                    }
+                  },
+                  "payments": [],
+                  "refunds": [],
+                  "unmappedCodes": [],
+                  "checks": [
+                    {
+                      "key": "opening",
+                      "ok": null,
+                      "amount": null,
+                      "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                    },
+                    {
+                      "key": "trial",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "מאזן הבוחן מאוזן"
+                    },
+                    {
+                      "key": "codes",
+                      "ok": true,
+                      "amount": null,
+                      "label": "כל החיובים בקודים מהקטלוג"
+                    },
+                    {
+                      "key": "void",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "אין יתרות בהזמנות שבוטלו"
+                    }
+                  ]
+                },
+                "error": null
+              },
+              {
+                "key": "advance",
+                "status": "done",
+                "startedAt": null,
+                "finishedAt": "2026-10-27T19:25:23.112Z",
+                "result": {
+                  "closed": "2026-10-27"
+                },
+                "error": "QA_ADVANCE_STEP"
+              }
+            ],
+            "readiness": {
+              "arrivals": 0,
+              "departures": 0,
+              "queueOpen": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "DC03",
+      "name": "failed completion audit leaves day close resumable without advancing the property",
+      "status": "passed",
+      "evidence": {
+        "first": {
+          "ok": true,
+          "value": {
+            "id": "6ae0faa310d8cb0264ee0f54",
+            "runNo": "DC-20261027",
+            "businessDate": "2026-10-27",
+            "status": "failed",
+            "attempts": 1,
+            "options": {
+              "arrivals": "none",
+              "reason": "Synthetic day review"
+            },
+            "startedBy": "Synthetic QA",
+            "createdAt": "2026-10-27T19:25:23.189Z",
+            "finishedAt": null,
+            "steps": [
+              {
+                "key": "post_nights",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.196Z",
+                "finishedAt": "2026-10-27T19:25:23.226Z",
+                "result": {
+                  "posted": 2,
+                  "stays": 1
+                },
+                "error": null
+              },
+              {
+                "key": "no_shows",
+                "status": "skipped",
+                "startedAt": "2026-10-27T19:25:23.232Z",
+                "finishedAt": "2026-10-27T19:25:23.237Z",
+                "result": {
+                  "skipped": true
+                },
+                "error": null
+              },
+              {
+                "key": "snapshot",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.241Z",
+                "finishedAt": "2026-10-27T19:25:23.252Z",
+                "result": {
+                  "rooms": 1,
+                  "sellable": 1,
+                  "roomNights": 1,
+                  "occupancyPct": 100,
+                  "roomRevenue": 500,
+                  "otherRevenue": 0,
+                  "adr": 500,
+                  "payments": 0,
+                  "refunds": 0,
+                  "arrived": 0,
+                  "departed": 0,
+                  "noShows": 0
+                },
+                "error": null
+              },
+              {
+                "key": "ledgers",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.257Z",
+                "finishedAt": "2026-10-27T19:25:23.276Z",
+                "result": {
+                  "trial": {
+                    "opening": 0,
+                    "charges": 1000,
+                    "adjustments": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "closing": 1000,
+                    "difference": 0
+                  },
+                  "ledgers": {
+                    "guest": {
+                      "balance": 1000,
+                      "folios": 1
+                    },
+                    "deposit": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "ar": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "void": {
+                      "balance": 0,
+                      "folios": 0
+                    }
+                  },
+                  "revenue": {
+                    "groups": [
+                      {
+                        "key": "rooms",
+                        "label": "לינה",
+                        "net": 847.46,
+                        "tax": 152.54,
+                        "gross": 1000
+                      }
+                    ],
+                    "total": {
+                      "net": 847.46,
+                      "tax": 152.54,
+                      "gross": 1000
+                    }
+                  },
+                  "payments": [],
+                  "refunds": [],
+                  "unmappedCodes": [],
+                  "checks": [
+                    {
+                      "key": "opening",
+                      "ok": null,
+                      "amount": null,
+                      "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                    },
+                    {
+                      "key": "trial",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "מאזן הבוחן מאוזן"
+                    },
+                    {
+                      "key": "codes",
+                      "ok": true,
+                      "amount": null,
+                      "label": "כל החיובים בקודים מהקטלוג"
+                    },
+                    {
+                      "key": "void",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "אין יתרות בהזמנות שבוטלו"
+                    }
+                  ]
+                },
+                "error": null
+              },
+              {
+                "key": "advance",
+                "status": "failed",
+                "startedAt": null,
+                "finishedAt": "2026-10-27T19:25:23.288Z",
+                "result": null,
+                "error": "QA_DAY_AUDIT"
+              }
+            ],
+            "readiness": {
+              "arrivals": 0,
+              "departures": 0,
+              "queueOpen": 0
+            }
+          }
+        },
+        "second": {
+          "ok": true,
+          "value": {
+            "id": "6ae0faa310d8cb0264ee0f54",
+            "runNo": "DC-20261027",
+            "businessDate": "2026-10-27",
+            "status": "done",
+            "attempts": 2,
+            "options": {
+              "arrivals": "none",
+              "reason": "Synthetic day review"
+            },
+            "startedBy": "Synthetic QA",
+            "createdAt": "2026-10-27T19:25:23.189Z",
+            "finishedAt": "2026-10-27T19:25:23.331Z",
+            "steps": [
+              {
+                "key": "post_nights",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.196Z",
+                "finishedAt": "2026-10-27T19:25:23.226Z",
+                "result": {
+                  "posted": 2,
+                  "stays": 1
+                },
+                "error": null
+              },
+              {
+                "key": "no_shows",
+                "status": "skipped",
+                "startedAt": "2026-10-27T19:25:23.232Z",
+                "finishedAt": "2026-10-27T19:25:23.237Z",
+                "result": {
+                  "skipped": true
+                },
+                "error": null
+              },
+              {
+                "key": "snapshot",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.241Z",
+                "finishedAt": "2026-10-27T19:25:23.252Z",
+                "result": {
+                  "rooms": 1,
+                  "sellable": 1,
+                  "roomNights": 1,
+                  "occupancyPct": 100,
+                  "roomRevenue": 500,
+                  "otherRevenue": 0,
+                  "adr": 500,
+                  "payments": 0,
+                  "refunds": 0,
+                  "arrived": 0,
+                  "departed": 0,
+                  "noShows": 0
+                },
+                "error": null
+              },
+              {
+                "key": "ledgers",
+                "status": "done",
+                "startedAt": "2026-10-27T19:25:23.257Z",
+                "finishedAt": "2026-10-27T19:25:23.276Z",
+                "result": {
+                  "trial": {
+                    "opening": 0,
+                    "charges": 1000,
+                    "adjustments": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "closing": 1000,
+                    "difference": 0
+                  },
+                  "ledgers": {
+                    "guest": {
+                      "balance": 1000,
+                      "folios": 1
+                    },
+                    "deposit": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "ar": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "void": {
+                      "balance": 0,
+                      "folios": 0
+                    }
+                  },
+                  "revenue": {
+                    "groups": [
+                      {
+                        "key": "rooms",
+                        "label": "לינה",
+                        "net": 847.46,
+                        "tax": 152.54,
+                        "gross": 1000
+                      }
+                    ],
+                    "total": {
+                      "net": 847.46,
+                      "tax": 152.54,
+                      "gross": 1000
+                    }
+                  },
+                  "payments": [],
+                  "refunds": [],
+                  "unmappedCodes": [],
+                  "checks": [
+                    {
+                      "key": "opening",
+                      "ok": null,
+                      "amount": null,
+                      "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                    },
+                    {
+                      "key": "trial",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "מאזן הבוחן מאוזן"
+                    },
+                    {
+                      "key": "codes",
+                      "ok": true,
+                      "amount": null,
+                      "label": "כל החיובים בקודים מהקטלוג"
+                    },
+                    {
+                      "key": "void",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "אין יתרות בהזמנות שבוטלו"
+                    }
+                  ]
+                },
+                "error": null
+              },
+              {
+                "key": "advance",
+                "status": "done",
+                "startedAt": null,
+                "finishedAt": "2026-10-27T19:25:23.330Z",
+                "result": {
+                  "closed": "2026-10-27"
+                },
+                "error": "QA_DAY_AUDIT"
+              }
+            ],
+            "readiness": {
+              "arrivals": 0,
+              "departures": 0,
+              "queueOpen": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "DC04",
+      "name": "two concurrent day closes produce one completed run and unique night references",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "id": "6ae0faa310d8cb0264ee0f75",
+              "runNo": "DC-20261027",
+              "businessDate": "2026-10-27",
+              "status": "done",
+              "attempts": 1,
+              "options": {
+                "arrivals": "none",
+                "reason": "Synthetic day review"
+              },
+              "startedBy": "Synthetic QA",
+              "createdAt": "2026-10-27T19:25:23.403Z",
+              "finishedAt": "2026-10-27T19:25:23.502Z",
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done",
+                  "startedAt": "2026-10-27T19:25:23.410Z",
+                  "finishedAt": "2026-10-27T19:25:23.439Z",
+                  "result": {
+                    "posted": 2,
+                    "stays": 1
+                  },
+                  "error": null
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped",
+                  "startedAt": "2026-10-27T19:25:23.444Z",
+                  "finishedAt": "2026-10-27T19:25:23.448Z",
+                  "result": {
+                    "skipped": true
+                  },
+                  "error": null
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done",
+                  "startedAt": "2026-10-27T19:25:23.453Z",
+                  "finishedAt": "2026-10-27T19:25:23.463Z",
+                  "result": {
+                    "rooms": 1,
+                    "sellable": 1,
+                    "roomNights": 1,
+                    "occupancyPct": 100,
+                    "roomRevenue": 500,
+                    "otherRevenue": 0,
+                    "adr": 500,
+                    "payments": 0,
+                    "refunds": 0,
+                    "arrived": 0,
+                    "departed": 0,
+                    "noShows": 0
+                  },
+                  "error": null
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "startedAt": "2026-10-27T19:25:23.467Z",
+                  "finishedAt": "2026-10-27T19:25:23.488Z",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 1000,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 1000,
+                      "difference": 0
+                    },
+                    "ledgers": {
+                      "guest": {
+                        "balance": 1000,
+                        "folios": 1
+                      },
+                      "deposit": {
+                        "balance": 0,
+                        "folios": 0
+                      },
+                      "ar": {
+                        "balance": 0,
+                        "folios": 0
+                      },
+                      "void": {
+                        "balance": 0,
+                        "folios": 0
+                      }
+                    },
+                    "revenue": {
+                      "groups": [
+                        {
+                          "key": "rooms",
+                          "label": "לינה",
+                          "net": 847.46,
+                          "tax": 152.54,
+                          "gross": 1000
+                        }
+                      ],
+                      "total": {
+                        "net": 847.46,
+                        "tax": 152.54,
+                        "gross": 1000
+                      }
+                    },
+                    "payments": [],
+                    "refunds": [],
+                    "unmappedCodes": [],
+                    "checks": [
+                      {
+                        "key": "opening",
+                        "ok": null,
+                        "amount": null,
+                        "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                      },
+                      {
+                        "key": "trial",
+                        "ok": true,
+                        "amount": 0,
+                        "label": "מאזן הבוחן מאוזן"
+                      },
+                      {
+                        "key": "codes",
+                        "ok": true,
+                        "amount": null,
+                        "label": "כל החיובים בקודים מהקטלוג"
+                      },
+                      {
+                        "key": "void",
+                        "ok": true,
+                        "amount": 0,
+                        "label": "אין יתרות בהזמנות שבוטלו"
+                      }
+                    ]
+                  },
+                  "error": null
+                },
+                {
+                  "key": "advance",
+                  "status": "done",
+                  "startedAt": null,
+                  "finishedAt": "2026-10-27T19:25:23.500Z",
+                  "result": {
+                    "closed": "2026-10-27"
+                  },
+                  "error": null
+                }
+              ],
+              "readiness": {
+                "arrivals": 0,
+                "departures": 0,
+                "queueOpen": 0
+              }
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+              "status": 409,
+              "code": "busy"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

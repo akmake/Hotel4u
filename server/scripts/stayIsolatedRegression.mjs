@@ -12,11 +12,13 @@ import stayRouter from '../routes/stay.js';
 import reservationsRouter from '../routes/reservations.js';
 import bookingRouter from '../routes/booking.js';
 import frontdeskRouter from '../routes/frontdesk.js';
+import financeRouter from '../routes/finance.js';
+import reportsRouter from '../routes/reports.js';
 import Property from '../models/Property.js';
 import RoomType from '../models/RoomType.js';
 
 const suite = process.argv[2] || 'stay';
-if (!['stay', 'booking', 'frontdesk'].includes(suite)) throw new Error('Unknown isolated suite');
+if (!['stay', 'booking', 'frontdesk', 'departure', 'finance'].includes(suite)) throw new Error('Unknown isolated suite');
 
 let replica, server;
 let output = '', exitCode = 1;
@@ -27,13 +29,15 @@ try {
   const uri = replica.getUri(`stay_regression_${Date.now()}`);
   await mongoose.connect(uri);
   await Promise.all(Object.values(mongoose.models).map((m) => m.init()));
-  if (suite === 'frontdesk') {
+  if (['frontdesk', 'departure'].includes(suite)) {
     const property = await Property.create({ name: 'Synthetic frontdesk QA', timezone: 'Asia/Jerusalem', checkInPolicy: { requireGuarantee: true, requireRegistration: true } });
     await RoomType.create({ property: property._id, code: 'STD', name: 'Synthetic standard', baseRate: 400, capacityMax: 6, adultsMax: 6 });
   }
   const app = express(); app.use(express.json()); app.use(attachActor, requireActor);
   app.use('/api/pms/stay', stayRouter); app.use('/api/pms/reservations', reservationsRouter);
   app.use('/api/pms/booking', bookingRouter); app.use('/api/pms/frontdesk', frontdeskRouter);
+  app.use('/api/pms/finance', financeRouter);
+  app.use('/api/pms/reports', reportsRouter);
   server = await new Promise((resolve) => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
   const child = spawn(process.execPath, [fileURLToPath(new URL(`./${suite}Integration.mjs`, import.meta.url)), `--baseUrl=http://127.0.0.1:${server.address().port}/api/pms`], {
     cwd: fileURLToPath(new URL('../', import.meta.url)),

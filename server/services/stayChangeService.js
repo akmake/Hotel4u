@@ -367,7 +367,7 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
 
 // ── FD-10 extension ─────────────────────────────────────────────────────────
 async function extensionPlan({ propertyId, res, newDeparture, session = null }) {
-  const units = await ReservationRoom.find({ reservation: res._id, status: { $in: ['in_house', 'checked_in'] } }).session(session).populate('assignedRoom', 'number opsStatus');
+  const units = await ReservationRoom.find({ reservation: res._id, status: { $in: ['in_house', 'checked_in'] } }).session(session).populate('assignedRoom', 'number opsStatus roomType property active');
   if (!units.length) throw httpError('אין יחידה שוהה להארכה', 409);
   const openUnits = await ReservationRoom.countDocuments({ reservation: res._id, status: { $in: ['reserved', 'tentative', 'in_house', 'checked_in'] } }).session(session);
   if (openUnits !== units.length || (res.roomsCount || 1) !== units.length || new Set(units.map((u) => String(u.roomTypeBooked))).size !== 1 || units.some((u) => u.departureDate !== res.departureDate)) throw httpError('נדרשת הארכה לפי יחידה להרכב שהייה מעורב או חלקי', 409);
@@ -377,8 +377,12 @@ async function extensionPlan({ propertyId, res, newDeparture, session = null }) 
   if (dates.length > 60) throw httpError('הארכה של עד 60 לילות', 422, { fields: { newDeparture: 'ארוך מדי' } });
   const conflicts = await conflictingRoomIds({ propertyId, from: oldDep, to: newDeparture, excludeReservationId: res._id, session });
   const blockers = [];
+  const assigned = new Set();
   for (const u of units) {
     if (!u.assignedRoom) { blockers.push({ code: 'no_room', label: 'יחידה שוהה ללא חדר משויך — נדרש תיקון לפני הארכה' }); continue; }
+    const roomId = String(u.assignedRoom._id);
+    if (assigned.has(roomId) || String(u.assignedRoom.property) !== String(propertyId) || String(u.assignedRoom.roomType) !== String(u.roomTypeBooked) || u.assignedRoom.active === false) blockers.push({ code: 'invalid_room', label: 'שיבוץ החדר אינו תקין — נדרש תיקון לפני הארכה' });
+    assigned.add(roomId);
     if (conflicts.has(String(u.assignedRoom._id))) blockers.push({ code: 'room_taken', label: `חדר ${u.assignedRoom.number} תפוס בלילות הנוספים (${conflicts.get(String(u.assignedRoom._id))})` });
     if (u.assignedRoom.opsStatus !== 'available') blockers.push({ code: 'room_blocked', label: `חדר ${u.assignedRoom.number} חסום תפעולית בלילות הנוספים` });
   }
@@ -427,7 +431,7 @@ export async function extendStay({ propertyId, reservationId, input, actor, ip }
   const manual = input.manualRate === undefined || input.manualRate === null || input.manualRate === '' ? null : round2(input.manualRate);
   if (manual !== null) {
     if (!PRICE_ROLES.includes(actor.role)) throw httpError('מחיר ידני להארכה מותר למנהל', 403);
-    if (!(manual > 0)) fields.manualRate = 'מחיר חיובי';
+    if (!(Number.isFinite(manual) && manual > 0)) fields.manualRate = 'מחיר חיובי';
     if (String(input.reason || '').trim().length < 3) fields.reason = 'סיבת חריג מחיר';
   }
   if (Object.keys(fields).length) throw httpError('יש לתקן את פרטי ההארכה', 422, { fields });

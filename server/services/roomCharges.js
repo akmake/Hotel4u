@@ -10,6 +10,9 @@
 import Folio from '../models/Folio.js';
 import Property from '../models/Property.js';
 import ReservationRoom from '../models/ReservationRoom.js';
+import Reservation from '../models/Reservation.js';
+import { withLocks } from './locks.js';
+import { runStayTransaction } from './stayTransaction.js';
 import { vatForLine } from './touristService.js';
 
 const BOARD_LABEL = { breakfast: 'ארוחת בוקר', half_board: 'חצי פנסיון', full_board: 'פנסיון מלא' };
@@ -35,43 +38,43 @@ export function splitGross(gross, vatRatePct) {
 }
 
 // The guest folio the lodging goes to (routing to a company happens through FIN-05 rules).
-export async function lodgingFolio(reservation, { create = true } = {}) {
-  let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'guest', status: { $ne: 'closed' } });
-  if (!folio) folio = await Folio.findOne({ reservation: reservation._id, ownerType: { $ne: 'room' }, status: { $ne: 'closed' } });
+export async function lodgingFolio(reservation, { create = true, session = null } = {}) {
+  let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'guest', status: { $ne: 'closed' } }).session(session);
+  if (!folio) folio = await Folio.findOne({ reservation: reservation._id, ownerType: { $ne: 'room' }, status: { $ne: 'closed' } }).session(session);
   if (!folio && create) {
-    folio = await Folio.create({
+    [folio] = await Folio.create([{
       property: reservation.property, reservation: reservation._id, ownerType: 'guest',
       currency: reservation.currency || 'ILS', lines: [],
-    });
+    }], { session });
   }
   return folio;
 }
 
 // The own account of one room of a group (a room whose guest pays for themselves).
-export async function unitFolio(reservation, unitId, { create = true } = {}) {
+export async function unitFolio(reservation, unitId, { create = true, session = null } = {}) {
   const ref = String(unitId);
-  let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'room', ownerRef: ref, status: { $ne: 'closed' } });
+  let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'room', ownerRef: ref, status: { $ne: 'closed' } }).session(session);
   if (!folio && create) {
-    folio = await Folio.create({
+    [folio] = await Folio.create([{
       property: reservation.property, reservation: reservation._id, ownerType: 'room', ownerRef: ref,
       currency: reservation.currency || 'ILS', lines: [],
-    });
+    }], { session });
   }
   return folio;
 }
 
 // Nights not yet posted for the reservation's in-house (or given) units, up to `until`
 // (exclusive). Pure read — nothing is written.
-export async function planNights({ reservation, until, unitFilter, includeStatuses = ['in_house', 'checked_in'] }) {
-  const units = await ReservationRoom.find({ reservation: reservation._id }).populate('assignedRoom', 'number').sort({ createdAt: 1, _id: 1 }).lean();
-  const propertyVat = (await Property.findById(reservation.property).select('vatRate').lean())?.vatRate;
+export async function planNights({ reservation, until, unitFilter, includeStatuses = ['in_house', 'checked_in'], session = null }) {
+  const units = await ReservationRoom.find({ reservation: reservation._id }).session(session).populate('assignedRoom', 'number').sort({ createdAt: 1, _id: 1 }).lean();
+  const propertyVat = (await Property.findById(reservation.property).session(session).select('vatRate').lean())?.vatRate;
   // Lodging of an eligible tourist under the property's approved rule is zero-rated (EXT-04).
-  const vat = await vatForLine({ reservation, code: 'rooms', propertyVatRate: propertyVat ?? 18 });
+  const vat = await vatForLine({ reservation, code: 'rooms', propertyVatRate: propertyVat ?? 18, session });
   const vatRate = vat.rate;
-  const boardVat = await vatForLine({ reservation, code: 'board', propertyVatRate: propertyVat ?? 18 });
+  const boardVat = await vatForLine({ reservation, code: 'board', propertyVatRate: propertyVat ?? 18, session });
   const boardByDate = reservation.priceSnapshot?.board?.source === 'supplement' ? new Map((reservation.priceSnapshot.board.nightly || []).map((n) => [n.date, Number(n.price)])) : new Map();
   const split = (gross, v) => (v.rate === 0 ? { net: v.strip ? splitGross(gross, propertyVat ?? 18).net : round2(gross), tax: 0 } : splitGross(gross, v.rate));
-  const all = await Folio.find({ reservation: reservation._id }).select('lines').lean();
+  const all = await Folio.find({ reservation: reservation._id }).session(session).select('lines').lean();
   const live = all.flatMap((f) => f.lines.filter((l) => l.status !== 'voided'));
   const posted = new Set(live.filter((l) => l.reference).map((l) => l.reference));
   // Lodging posted before this model (no night reference) still covers its night: count those
@@ -83,7 +86,7 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
     legacyByDate.set(l.serviceDate, (legacyByDate.get(l.serviceDate) || 0) + 1);
   }
   const items = [];
-  const agreed = new Map((reservation.priceSnapshot?.nightly || []).filter((n) => n?.date && Number(n.price) > 0).map((n) => [n.date, Number(n.price)]));
+  const agreed = new Map((reservation.priceSnapshot?.nightly || []).filter((n) => n?.date && n.price != null && Number.isFinite(Number(n.price)) && Number(n.price) >= 0).map((n) => [n.date, Number(n.price)]));
   const list = units.length ? units : [null];
   for (const u of list) {
     if (u && unitFilter && !unitFilter(u)) continue;
@@ -99,9 +102,9 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
       const gross = agreed.has(date) ? agreed.get(date) : flat;
       const { net, tax } = split(gross, vat);
       const reference = `night:${unitKey}:${date}`;
-      if (posted.has(reference)) continue;
-      if ((legacyByDate.get(date) || 0) > 0) { legacyByDate.set(date, legacyByDate.get(date) - 1); continue; }
-      items.push({
+      const legacyCovered = !posted.has(reference) && (legacyByDate.get(date) || 0) > 0;
+      if (legacyCovered) legacyByDate.set(date, legacyByDate.get(date) - 1);
+      if (!posted.has(reference) && !legacyCovered) items.push({
         ...route,
         reference, date, net, tax, gross: round2(net + tax), vatRate, taxReason: vat.reason || undefined, code: 'rooms',
         description: `לינה ${date}${u?.assignedRoom?.number ? ` · חדר ${u.assignedRoom.number}` : ''}`,
@@ -128,7 +131,7 @@ export function pendingGrossFor(folio, items, lodgingId) {
   return round2(mine.reduce((s, i) => s + i.gross, 0));
 }
 
-export async function postPlannedNights({ reservation, items, source = 'night_audit', actorId }) {
+export async function postPlannedNights({ reservation, items, source = 'night_audit', actorId, session = null }) {
   if (!items.length) return 0;
   const groups = new Map();
   for (const it of items) {
@@ -138,7 +141,7 @@ export async function postPlannedNights({ reservation, items, source = 'night_au
   }
   let added = 0;
   for (const [key, list] of groups) {
-    const folio = key === 'lodging' ? await lodgingFolio(reservation) : await unitFolio(reservation, key.slice(5));
+    const folio = key === 'lodging' ? await lodgingFolio(reservation, { session }) : await unitFolio(reservation, key.slice(5), { session });
     const existing = new Set(folio.lines.map((l) => l.reference).filter(Boolean));
     let here = 0;
     for (const it of list) {
@@ -149,13 +152,20 @@ export async function postPlannedNights({ reservation, items, source = 'night_au
       });
       here += 1;
     }
-    if (here) await folio.save();
+    if (here) await folio.save({ session });
     added += here;
   }
   return added;
 }
 
-export async function postNightsUntil({ reservation, until, source, actorId, unitFilter, includeStatuses }) {
-  const plan = await planNights({ reservation, until, unitFilter, includeStatuses });
-  return postPlannedNights({ reservation, items: plan.items, source, actorId });
+export async function postNightsUntil({ reservation, until, source, actorId, unitFilter, includeStatuses, session = null, guardLease = null }) {
+  if (!session) return withLocks([`res:${reservation._id}`], (lease) => runStayTransaction(async (session) => {
+    const current = await Reservation.findById(reservation._id).session(session);
+    if (!current) throw Object.assign(new Error('Reservation not found'), { status: 404 });
+    const posted = await postNightsUntil({ reservation: current, until, source, actorId, unitFilter, includeStatuses, session });
+    if (guardLease) await guardLease.assertOwned(session);
+    return posted;
+  }, lease, { operation: 'רישום לילות' }), { waitMs: 4000 });
+  const plan = await planNights({ reservation, until, unitFilter, includeStatuses, session });
+  return postPlannedNights({ reservation, items: plan.items, source, actorId, session });
 }

@@ -31,7 +31,7 @@ import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { postNightsUntil } from '../services/roomCharges.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+if (process.env.PMS_ISOLATED_QA !== '1') dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const args = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith('--')).map((a) => { const [k, v] = a.slice(2).split('='); return [k, v ?? '1']; }));
 const BASE = (args.baseUrl || process.env.PMS_BASE_URL || 'http://localhost:4000/api/pms').replace(/\/+$/, '');
 const SECRET = process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET;
@@ -127,6 +127,8 @@ async function main() {
     check('FIN-02 a charge on an issued document cannot be reversed (T18)', r.status === 409 && r.code === 'on_document', r.status);
 
     // ── FIN-07 credit note ──────────────────────────────────────────────────
+    const invBeforeCredit = await Invoice.findById(inv._id).lean();
+    const creditCountBefore = await Invoice.countDocuments({ property: P, type: 'credit_note' });
     r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, R, { propertyId: P, idempotencyKey: key(), amount: 100, reason: 'החזר' });
     check('FIN-07 receptionist cannot issue a credit note', r.status === 403, r.status);
     r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, idempotencyKey: key(), amount: 100 });
@@ -134,8 +136,8 @@ async function main() {
     r = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, idempotencyKey: key(), amount: 700, reason: 'שירות חלקי' });
     const r2b = await call('POST', `/finance/invoices/${inv._id}/credit-note`, F, { propertyId: P, idempotencyKey: key(), amount: 700, reason: 'שוב' });
     const invAfter = await Invoice.findById(inv._id).lean();
-    check('FIN-07 partial credits are capped cumulatively', r.status === 200 && r2b.status === 422, `${r.status}/${r2b.status} ${r2b.error || ''}`);
-    check('FIN-07 the original document is not changed (still issued, linked)', invAfter.status === 'issued' && invAfter.totalGross === 1180 && invAfter.creditedBy.length === 1);
+    check('FIN-07 local credit issuance is refused with an explicit external-issuer gate', r.status === 409 && r.code === 'managed_by_invoicer' && r2b.status === 409 && r2b.code === 'managed_by_invoicer', `${r.status}/${r2b.status} ${r2b.error || ''}`);
+    check('FIN-07 refused local credits leave the original document and credit count unchanged', JSON.stringify(invAfter) === JSON.stringify(invBeforeCredit) && await Invoice.countDocuments({ property: P, type: 'credit_note' }) === creditCountBefore);
 
     // ── FIN-03 payment / deposit ────────────────────────────────────────────
     const s2 = await mkStay(A, { room: A.rooms[1] });
