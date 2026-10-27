@@ -163,10 +163,12 @@ export async function noteWork({ propertyId, id, text, actor }) {
 }
 
 // System sources raise an item once per event (dedupeKey); a repeat while open is ignored.
-export async function raiseWork({ propertyId, kind, severity, title, body, source, dedupeKey }) {
+export async function raiseWork({ propertyId, kind, severity, title, body, source, dedupeKey, session = null }) {
+  if (session && dedupeKey && await WorkItem.exists({ property: propertyId, dedupeKey, status: { $in: ['new', 'in_progress'] } }).session(session)) return;
   try {
-    await WorkItem.create({ property: propertyId, kind, severity, title: String(title).slice(0, 200), body: body ? String(body).slice(0, 2000) : undefined, source, dedupeKey, createdBy: 'system', notes: [{ by: 'system', kind: 'note', text: 'נפתח אוטומטית' }] });
+    await WorkItem.create([{ property: propertyId, kind, severity, title: String(title).slice(0, 200), body: body ? String(body).slice(0, 2000) : undefined, source, dedupeKey, createdBy: 'system', notes: [{ by: 'system', kind: 'note', text: 'נפתח אוטומטית' }] }], { session });
   } catch (e) {
+    if (session) throw e;
     if (e?.code !== 11000) console.error('[work] raise failed:', e.message);
   }
 }

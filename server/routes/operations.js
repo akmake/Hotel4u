@@ -168,7 +168,7 @@ router.post('/rooms/:id/blocks', handle(async (req) => createBlock({ propertyId:
 router.post('/room-blocks/:id/release', handle(async (req) => releaseBlock({ propertyId: scope(req), blockId: req.params.id, reason: req.body?.reason, actor: actorOf(req), ip: req.ip })));
 router.get('/availability', handle(async (req) => {
   requireRoles(req, ROOM_STATUS_READ, 'אין הרשאה');
-  return availabilityGrid({ propertyId: scope(req), from: req.query.from, days: req.query.days });
+  return availabilityGrid({ propertyId: scope(req), from: req.query.from, days: req.query.days, month: req.query.month });
 }));
 
 // Kitchen report: names, allergies and requests of guests — not for room-level staff.

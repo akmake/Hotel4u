@@ -1,0 +1,3273 @@
+{
+  "startedAt": "2026-10-27T18:15:23.073Z",
+  "finishedAt": "2026-10-27T18:15:28.063Z",
+  "mode": "synthetic fixtures; isolated local replica; services; no payment capture",
+  "hashes": {
+    "../services/frontDeskService.js": "3754515f97e06e9095f278cedd94a1a4fb49649c18acd792715a742a138dfe30",
+    "../services/bookingService.js": "ea724008e13b7bb2ea3e2d3cf409cc6fab700a05a370387534db30f78f3891fd",
+    "../services/reservationService.js": "6016f23074f247372735caab8357367cccf01441fc9c781f91fb80a81e558dae",
+    "./arrivalReadiness.mjs": "9ecac34e694c2c4f8a164201b5ccb8916e4b66263662adce36235c67958a71e0"
+  },
+  "counts": {
+    "passed": 16,
+    "failed": 0,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "AR01",
+      "name": "booking registration partial deposit and entry keep outstanding amount",
+      "status": "passed",
+      "evidence": {
+        "context": {
+          "businessDate": "2026-10-27",
+          "policy": {
+            "requireInspection": false,
+            "requireGuarantee": true,
+            "requireRegistration": true,
+            "requireSignature": false,
+            "termsVersion": "he-1",
+            "termsText": ""
+          },
+          "reservation": {
+            "id": "6ae0ea3c888c52b47f5467dd",
+            "confirmationNumber": "3dc46ddf-1001",
+            "status": "confirmed",
+            "arrivalDate": "2026-10-27",
+            "departureDate": "2026-10-29",
+            "nights": 2,
+            "adults": 2,
+            "children": 0,
+            "totalAmount": 1000,
+            "currency": "ILS",
+            "eta": null,
+            "specialRequests": null,
+            "company": null,
+            "guaranteeType": "none",
+            "folioId": "6ae0ea3c888c52b47f5467de"
+          },
+          "guest": {
+            "id": "6ae0ea3c888c52b47f5467da",
+            "firstName": "Synthetic",
+            "lastName": "Guest",
+            "email": "qa-28593607-0f54-48a8-920f-15524ef257f9@example.invalid",
+            "phone": null,
+            "country": null,
+            "dateOfBirth": "1990-01-01T00:00:00.000Z",
+            "nationality": "IL",
+            "knownDoc": {
+              "idDocType": "passport",
+              "last4": "4567",
+              "expiry": null,
+              "source": "previous_stay"
+            },
+            "blacklisted": false,
+            "marketingConsent": false
+          },
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 200,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "registration": {
+            "id": "6ae0ea3c888c52b47f5467ea",
+            "status": "pending",
+            "idVerified": true,
+            "termsVersion": "he-1",
+            "idDocType": "passport",
+            "nationality": "IL"
+          },
+          "units": [
+            {
+              "unitId": "6ae0ea3c888c52b47f5467e0",
+              "index": 1,
+              "status": "reserved",
+              "roomType": {
+                "id": "6ae0ea3c888c52b47f5467d0",
+                "name": "Synthetic standard"
+              },
+              "room": {
+                "id": "6ae0ea3c888c52b47f5467d1",
+                "number": "101",
+                "floor": 1,
+                "cleanStatus": "clean",
+                "opsStatus": "available"
+              },
+              "arrivalDate": "2026-10-27",
+              "departureDate": "2026-10-29",
+              "readiness": {
+                "state": "ready",
+                "reasons": [
+                  {
+                    "code": "guarantee",
+                    "label": "לא נרשמה ערבות",
+                    "severity": "info",
+                    "action": "guarantee"
+                  }
+                ]
+              },
+              "billing": {
+                "roomPayer": "booker",
+                "extrasPayer": "booker",
+                "occupantName": null,
+                "occupantPhone": null,
+                "guaranteeType": "none"
+              },
+              "guarantee": null,
+              "folioId": null,
+              "queue": null
+            }
+          ]
+        },
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0ea3c888c52b47f5467dd",
+            "confirmationNumber": "3dc46ddf-1001",
+            "status": "in_house",
+            "checkedInUnits": [
+              "6ae0ea3c888c52b47f5467e0"
+            ],
+            "remainingUnits": 0,
+            "overridden": [],
+            "key": {
+              "status": "not_connected",
+              "label": "לא מחובר ספק מפתחות — מסירה ידנית"
+            }
+          }
+        },
+        "after": {
+          "auditCount": 5,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3c888c52b47f5467dd",
+              "status": "in_house",
+              "room": "6ae0ea3c888c52b47f5467d1",
+              "total": 1000,
+              "guarantee": "deposit",
+              "checkedInAt": "2026-10-27T18:15:24.721Z",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3c888c52b47f5467e4"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3c888c52b47f5467e5"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:24.629Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3c888c52b47f5467e0",
+              "room": "6ae0ea3c888c52b47f5467d1",
+              "status": "in_house",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3c888c52b47f5467e1",
+              "room": "6ae0ea3c888c52b47f5467d1",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3c888c52b47f5467da",
+              "stays": 1,
+              "revenue": 1000
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3c888c52b47f5467de",
+              "reservation": "6ae0ea3c888c52b47f5467dd",
+              "lines": [
+                {
+                  "type": "deposit",
+                  "amount": -200,
+                  "status": "posted"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR02",
+      "name": "partial entry followed by cleaned room counts the stay once",
+      "status": "passed",
+      "evidence": {
+        "blocked": {
+          "ok": false,
+          "error": {
+            "message": "הכניסה לא בוצעה — יש סיבות פתוחות",
+            "status": 409
+          }
+        },
+        "first": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0ea3c888c52b47f54680b",
+            "confirmationNumber": "9c1fb71f-1001",
+            "status": "partially_checked_in",
+            "checkedInUnits": [
+              "6ae0ea3c888c52b47f54680e"
+            ],
+            "remainingUnits": 1,
+            "overridden": [],
+            "key": {
+              "status": "not_connected",
+              "label": "לא מחובר ספק מפתחות — מסירה ידנית"
+            }
+          }
+        },
+        "mid": {
+          "auditCount": 3,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3c888c52b47f54680b",
+              "status": "partially_checked_in",
+              "room": "6ae0ea3c888c52b47f5467ff",
+              "total": 2000,
+              "guarantee": "none",
+              "checkedInAt": "2026-10-27T18:15:24.890Z",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3c888c52b47f546814"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3c888c52b47f546815"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:24.817Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3c888c52b47f54680e",
+              "room": "6ae0ea3c888c52b47f5467ff",
+              "status": "in_house",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3c888c52b47f54680f",
+              "room": "6ae0ea3c888c52b47f546800",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3c888c52b47f546810",
+              "room": "6ae0ea3c888c52b47f5467ff",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3c888c52b47f546811",
+              "room": "6ae0ea3c888c52b47f546800",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "dirty"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3c888c52b47f546808",
+              "stays": 1,
+              "revenue": 2000
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3c888c52b47f54680c",
+              "reservation": "6ae0ea3c888c52b47f54680b",
+              "lines": []
+            }
+          ]
+        },
+        "second": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0ea3c888c52b47f54680b",
+            "confirmationNumber": "9c1fb71f-1001",
+            "status": "in_house",
+            "checkedInUnits": [
+              "6ae0ea3c888c52b47f54680f"
+            ],
+            "remainingUnits": 0,
+            "overridden": [],
+            "key": {
+              "status": "not_connected",
+              "label": "לא מחובר ספק מפתחות — מסירה ידנית"
+            }
+          }
+        },
+        "after": {
+          "auditCount": 4,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3c888c52b47f54680b",
+              "status": "in_house",
+              "room": "6ae0ea3c888c52b47f5467ff",
+              "total": 2000,
+              "guarantee": "none",
+              "checkedInAt": "2026-10-27T18:15:24.890Z",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3c888c52b47f546814"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3c888c52b47f546815"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:24.817Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3c888c52b47f54680e",
+              "room": "6ae0ea3c888c52b47f5467ff",
+              "status": "in_house",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3c888c52b47f54680f",
+              "room": "6ae0ea3c888c52b47f546800",
+              "status": "in_house",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3c888c52b47f546810",
+              "room": "6ae0ea3c888c52b47f5467ff",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3c888c52b47f546811",
+              "room": "6ae0ea3c888c52b47f546800",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3c888c52b47f546808",
+              "stays": 1,
+              "revenue": 2000
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3c888c52b47f54680c",
+              "reservation": "6ae0ea3c888c52b47f54680b",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR03",
+      "name": "same booking key with changed guest count is rejected",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f54683d",
+              "status": "confirmed",
+              "room": "6ae0ea3c888c52b47f546831",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546844"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546845"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.019Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f546840",
+              "room": "6ae0ea3c888c52b47f546831",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f546841",
+              "room": "6ae0ea3c888c52b47f546831",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3c888c52b47f54683a",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f54683e",
+              "reservation": "6ae0ea3d888c52b47f54683d",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "מזהה הפעולה כבר שימש להזמנה עם פרטים אחרים או ללא זיהוי תוכן — יש לפתוח את ההזמנה הקיימת",
+            "code": "request_conflict",
+            "status": 409
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f54683d",
+              "status": "confirmed",
+              "room": "6ae0ea3c888c52b47f546831",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546844"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546845"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.019Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f546840",
+              "room": "6ae0ea3c888c52b47f546831",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f546841",
+              "room": "6ae0ea3c888c52b47f546831",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3c888c52b47f54683a",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f54683e",
+              "reservation": "6ae0ea3d888c52b47f54683d",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR04",
+      "name": "failure saving frozen booking price leaves no partial booking",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 0,
+          "channelCount": 0,
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f546855",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_BOOKING_SNAPSHOT"
+          }
+        },
+        "after": {
+          "auditCount": 0,
+          "channelCount": 0,
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f546855",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": []
+        }
+      }
+    },
+    {
+      "code": "AR05",
+      "name": "failure creating booking segments leaves no partial booking",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 0,
+          "channelCount": 0,
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54686a",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_BOOKING_SEGMENTS"
+          }
+        },
+        "after": {
+          "auditCount": 0,
+          "channelCount": 0,
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54686a",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": []
+        }
+      }
+    },
+    {
+      "code": "AR06",
+      "name": "single-room entry rolls back when occupancy update fails",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f54687f",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f546873",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546886"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546887"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.259Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f546882",
+              "room": "6ae0ea3d888c52b47f546873",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f546883",
+              "room": "6ae0ea3d888c52b47f546873",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54687c",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f546880",
+              "reservation": "6ae0ea3d888c52b47f54687f",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_CHECKIN_ROOM"
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f54687f",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f546873",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546886"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546887"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.259Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f546882",
+              "room": "6ae0ea3d888c52b47f546873",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f546883",
+              "room": "6ae0ea3d888c52b47f546873",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54687c",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f546880",
+              "reservation": "6ae0ea3d888c52b47f54687f",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR07",
+      "name": "multi-room entry rolls back when guest statistics update fails",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f5468a2",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f546896",
+              "total": 2000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468ab"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468ac"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.368Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f5468a5",
+              "room": "6ae0ea3d888c52b47f546896",
+              "status": "reserved",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f5468a6",
+              "room": "6ae0ea3d888c52b47f546897",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f5468a7",
+              "room": "6ae0ea3d888c52b47f546896",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f5468a8",
+              "room": "6ae0ea3d888c52b47f546897",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54689f",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f5468a3",
+              "reservation": "6ae0ea3d888c52b47f5468a2",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_CHECKIN_GUEST"
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f5468a2",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f546896",
+              "total": 2000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468ab"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468ac"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.368Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f5468a5",
+              "room": "6ae0ea3d888c52b47f546896",
+              "status": "reserved",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f5468a6",
+              "room": "6ae0ea3d888c52b47f546897",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f5468a7",
+              "room": "6ae0ea3d888c52b47f546896",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f5468a8",
+              "room": "6ae0ea3d888c52b47f546897",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54689f",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f5468a3",
+              "reservation": "6ae0ea3d888c52b47f5468a2",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR08",
+      "name": "failed queue resolution does not leave an entered guest still waiting",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c4",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f5468b8",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468cb"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468cc"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.485Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c7",
+              "room": "6ae0ea3d888c52b47f5468b8",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c8",
+              "room": "6ae0ea3d888c52b47f5468b8",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c1",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [
+            {
+              "id": "6ae0ea3d888c52b47f5468cf",
+              "unit": "6ae0ea3d888c52b47f5468c7",
+              "status": "active"
+            }
+          ],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c5",
+              "reservation": "6ae0ea3d888c52b47f5468c4",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_CHECKIN_QUEUE"
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c4",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f5468b8",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468cb"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468cc"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.485Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c7",
+              "room": "6ae0ea3d888c52b47f5468b8",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c8",
+              "room": "6ae0ea3d888c52b47f5468b8",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c1",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [
+            {
+              "id": "6ae0ea3d888c52b47f5468cf",
+              "unit": "6ae0ea3d888c52b47f5468c7",
+              "status": "active"
+            }
+          ],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f5468c5",
+              "reservation": "6ae0ea3d888c52b47f5468c4",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR09",
+      "name": "unknown unit in a mixed selection rejects the entire request",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f5468e9",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f5468dd",
+              "total": 2000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468f2"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468f3"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.604Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f5468ec",
+              "room": "6ae0ea3d888c52b47f5468dd",
+              "status": "reserved",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f5468ed",
+              "room": "6ae0ea3d888c52b47f5468de",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f5468ee",
+              "room": "6ae0ea3d888c52b47f5468dd",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f5468ef",
+              "room": "6ae0ea3d888c52b47f5468de",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f5468e6",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f5468ea",
+              "reservation": "6ae0ea3d888c52b47f5468e9",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "בחירת יחידות לא תקינה — רעננו את המסך",
+            "status": 422
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f5468e9",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f5468dd",
+              "total": 2000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468f2"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f5468f3"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.604Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f5468ec",
+              "room": "6ae0ea3d888c52b47f5468dd",
+              "status": "reserved",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f5468ed",
+              "room": "6ae0ea3d888c52b47f5468de",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f5468ee",
+              "room": "6ae0ea3d888c52b47f5468dd",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f5468ef",
+              "room": "6ae0ea3d888c52b47f5468de",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f5468e6",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f5468ea",
+              "reservation": "6ae0ea3d888c52b47f5468e9",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR10",
+      "name": "duplicate assigned room across two units blocks check-in",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f54690c",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f546900",
+              "total": 2000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546915"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546916"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.710Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f54690f",
+              "room": "6ae0ea3d888c52b47f546900",
+              "status": "reserved",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f546910",
+              "room": "6ae0ea3d888c52b47f546900",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f546911",
+              "room": "6ae0ea3d888c52b47f546900",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f546912",
+              "room": "6ae0ea3d888c52b47f546901",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f546909",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f54690d",
+              "reservation": "6ae0ea3d888c52b47f54690c",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "אותו חדר משויך ליותר מיחידה אחת — יש לתקן את השיבוץ לפני כניסה",
+            "code": "duplicate_room",
+            "status": 409
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f54690c",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f546900",
+              "total": 2000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546915"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546916"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.710Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f54690f",
+              "room": "6ae0ea3d888c52b47f546900",
+              "status": "reserved",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f546910",
+              "room": "6ae0ea3d888c52b47f546900",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f546911",
+              "room": "6ae0ea3d888c52b47f546900",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3d888c52b47f546912",
+              "room": "6ae0ea3d888c52b47f546901",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f546909",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f54690d",
+              "reservation": "6ae0ea3d888c52b47f54690c",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR11",
+      "name": "booking failure rolls back a newly created guest and can retry",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 0,
+          "channelCount": 0,
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54692a",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": []
+        },
+        "failure": {
+          "ok": false,
+          "error": {
+            "message": "QA_NEW_GUEST_BOOKING"
+          }
+        },
+        "afterFailure": {
+          "auditCount": 0,
+          "channelCount": 0,
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54692a",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": []
+        },
+        "retry": {
+          "ok": true,
+          "value": {
+            "id": "6ae0ea3d888c52b47f546937",
+            "confirmationNumber": "085e3d4c-1001",
+            "status": "confirmed",
+            "total": 1000,
+            "duplicate": false
+          }
+        }
+      }
+    },
+    {
+      "code": "AR12",
+      "name": "identical booking retry ignores untrusted client price fields",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f54694e",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f546942",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546955"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546956"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.923Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f546951",
+              "room": "6ae0ea3d888c52b47f546942",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f546952",
+              "room": "6ae0ea3d888c52b47f546942",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54694b",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f54694f",
+              "reservation": "6ae0ea3d888c52b47f54694e",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": true,
+          "value": {
+            "id": "6ae0ea3d888c52b47f54694e",
+            "confirmationNumber": "0f3ad3d1-1001",
+            "status": "confirmed",
+            "total": 1000,
+            "duplicate": true
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3d888c52b47f54694e",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f546942",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546955"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3d888c52b47f546956"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:25.923Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3d888c52b47f546951",
+              "room": "6ae0ea3d888c52b47f546942",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3d888c52b47f546952",
+              "room": "6ae0ea3d888c52b47f546942",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f54694b",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3d888c52b47f54694f",
+              "reservation": "6ae0ea3d888c52b47f54694e",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR13",
+      "name": "check-in audit failure rolls back guarantee, guest statistics and occupancy",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3e888c52b47f546969",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f54695d",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f546970"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f546971"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:26.009Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3e888c52b47f54696c",
+              "room": "6ae0ea3d888c52b47f54695d",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3e888c52b47f54696d",
+              "room": "6ae0ea3d888c52b47f54695d",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f546966",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3e888c52b47f54696a",
+              "reservation": "6ae0ea3e888c52b47f546969",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_CHECKIN_AUDIT"
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3e888c52b47f546969",
+              "status": "confirmed",
+              "room": "6ae0ea3d888c52b47f54695d",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f546970"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f546971"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:26.009Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3e888c52b47f54696c",
+              "room": "6ae0ea3d888c52b47f54695d",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3e888c52b47f54696d",
+              "room": "6ae0ea3d888c52b47f54695d",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3d888c52b47f546966",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3e888c52b47f54696a",
+              "reservation": "6ae0ea3e888c52b47f546969",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR14",
+      "name": "duplicate or out-of-range unit indexes are rejected without changes",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3e888c52b47f54698d",
+              "status": "confirmed",
+              "room": "6ae0ea3e888c52b47f546981",
+              "total": 2000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f546996"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f546997"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:26.117Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3e888c52b47f546990",
+              "room": "6ae0ea3e888c52b47f546981",
+              "status": "reserved",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3e888c52b47f546991",
+              "room": "6ae0ea3e888c52b47f546982",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3e888c52b47f546992",
+              "room": "6ae0ea3e888c52b47f546981",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3e888c52b47f546993",
+              "room": "6ae0ea3e888c52b47f546982",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3e888c52b47f54698a",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3e888c52b47f54698e",
+              "reservation": "6ae0ea3e888c52b47f54698d",
+              "lines": []
+            }
+          ]
+        },
+        "duplicate": {
+          "ok": false,
+          "error": {
+            "message": "בחירת יחידות לא תקינה — רעננו את המסך",
+            "status": 422
+          }
+        },
+        "unknown": {
+          "ok": false,
+          "error": {
+            "message": "בחירת יחידות לא תקינה — רעננו את המסך",
+            "status": 422
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3e888c52b47f54698d",
+              "status": "confirmed",
+              "room": "6ae0ea3e888c52b47f546981",
+              "total": 2000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f546996"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f546997"
+                  }
+                ],
+                "total": 2000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:26.117Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3e888c52b47f546990",
+              "room": "6ae0ea3e888c52b47f546981",
+              "status": "reserved",
+              "guarantee": "none"
+            },
+            {
+              "id": "6ae0ea3e888c52b47f546991",
+              "room": "6ae0ea3e888c52b47f546982",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3e888c52b47f546992",
+              "room": "6ae0ea3e888c52b47f546981",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0ea3e888c52b47f546993",
+              "room": "6ae0ea3e888c52b47f546982",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 2
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3e888c52b47f54698a",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3e888c52b47f54698e",
+              "reservation": "6ae0ea3e888c52b47f54698d",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR15",
+      "name": "two identical concurrent booking requests create one booking and one inventory allocation",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "id": "6ae0ea3e888c52b47f5469b7",
+              "confirmationNumber": "7c3decd1-1001",
+              "status": "confirmed",
+              "total": 1000,
+              "duplicate": false
+            }
+          },
+          {
+            "ok": true,
+            "value": {
+              "id": "6ae0ea3e888c52b47f5469b7",
+              "confirmationNumber": "7c3decd1-1001",
+              "status": "confirmed",
+              "total": 1000,
+              "duplicate": true
+            }
+          }
+        ],
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3e888c52b47f5469b7",
+              "status": "confirmed",
+              "room": "6ae0ea3e888c52b47f5469aa",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f5469be"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f5469bf"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:26.448Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3e888c52b47f5469ba",
+              "room": "6ae0ea3e888c52b47f5469aa",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3e888c52b47f5469bb",
+              "room": "6ae0ea3e888c52b47f5469aa",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3e888c52b47f5469b3",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3e888c52b47f5469b8",
+              "reservation": "6ae0ea3e888c52b47f5469b7",
+              "lines": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "AR16",
+      "name": "expired check-in lease cannot commit partially completed entry",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3e888c52b47f5469d0",
+              "status": "confirmed",
+              "room": "6ae0ea3e888c52b47f5469c4",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f5469d7"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f5469d8"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:26.818Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3e888c52b47f5469d3",
+              "room": "6ae0ea3e888c52b47f5469c4",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3e888c52b47f5469d4",
+              "room": "6ae0ea3e888c52b47f5469c4",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3e888c52b47f5469cd",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3e888c52b47f5469d1",
+              "reservation": "6ae0ea3e888c52b47f5469d0",
+              "lines": []
+            }
+          ]
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+            "code": "lock_expired",
+            "status": 409
+          }
+        },
+        "after": {
+          "auditCount": 2,
+          "channelCount": 1,
+          "reservations": [
+            {
+              "id": "6ae0ea3e888c52b47f5469d0",
+              "status": "confirmed",
+              "room": "6ae0ea3e888c52b47f5469c4",
+              "total": 1000,
+              "guarantee": "none",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-27",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f5469d7"
+                  },
+                  {
+                    "date": "2026-10-28",
+                    "price": 500,
+                    "_id": "6ae0ea3e888c52b47f5469d8"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 17,
+                "refundable": true,
+                "computedAt": "2026-10-27T18:15:26.818Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0ea3e888c52b47f5469d3",
+              "room": "6ae0ea3e888c52b47f5469c4",
+              "status": "reserved",
+              "guarantee": "none"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0ea3e888c52b47f5469d4",
+              "room": "6ae0ea3e888c52b47f5469c4",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "rooms": [
+            {
+              "number": "101",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "103",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "number": "104",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "guests": [
+            {
+              "id": "6ae0ea3e888c52b47f5469cd",
+              "stays": 0,
+              "revenue": 0
+            }
+          ],
+          "queues": [],
+          "folios": [
+            {
+              "id": "6ae0ea3e888c52b47f5469d1",
+              "reservation": "6ae0ea3e888c52b47f5469d0",
+              "lines": []
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

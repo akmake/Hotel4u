@@ -1,0 +1,587 @@
+/* An isolated working page. Future approved decisions accumulate here. */
+.reception-design-page {
+  --reception-ink: rgb(var(--fg));
+  --reception-muted: rgb(var(--fg-muted));
+  --reception-paper: rgb(var(--bg-elevated));
+  --reception-layer: rgb(var(--bg-group));
+  --reception-line: rgb(var(--border-strong));
+  --reception-active: rgb(var(--accent-700));
+  --reception-display: 'Rubik', 'Heebo', sans-serif;
+  container: reception-design / inline-size;
+  min-width: 0;
+  font-family: 'Heebo', sans-serif;
+}
+/* Design choices live behind a floating button (bottom-left), as on the room-calendar design page; the screen shows only the real data. */
+.reception-design-fab { position: fixed; left: 16px; bottom: 72px; z-index: 45; display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 24px; background: #253d37; color: white; font-size: 13px; box-shadow: 0 4px 18px #183b322b; border: 1px solid #ffffff30; }
+.reception-design-fab:hover { background: #207c74; }
+.reception-design-fab:focus-visible { outline: 2px solid #207c74; outline-offset: 3px; }
+.reception-design-settings { position: fixed; left: 16px; bottom: 126px; z-index: 45; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 146px); overflow-y: auto; border: 1px solid #dfe6e2; border-radius: 16px; background: #fff; box-shadow: 0 12px 48px #183b3226; }
+.reception-design-settings-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 18px 16px 14px; border-bottom: 1px solid #edf0ee; }
+.reception-design-settings-heading h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.reception-design-settings-heading p { margin: 4px 0 0; color: #7a847f; font-size: 11px; }
+.reception-design-settings-heading > button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #f3f5f4; flex-shrink: 0; }
+.reception-design-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 16px; font-size: 12px; }
+.reception-design-options + .reception-design-options { border-top: 1px solid #edf0ee; }
+.reception-design-options > span { grid-column: 1 / -1; color: #74747b; margin-bottom: 4px; }
+.reception-design-options > button { padding: 10px 12px; border: 1px solid #e2e7e5; border-radius: 10px; color: #374440; background: #fff; text-align: start; font-size: 13px; font-weight: 600; }
+.reception-design-options > button[aria-pressed="true"] { border-color: #207c74; background: #eff8f5; box-shadow: inset 0 0 0 1px #207c74; }
+.reception-design-options > button:focus-visible { outline: 2px solid #207c74; outline-offset: 2px; }
+.reception-design-settings-note { margin: 0; padding: 0 16px 16px; font-size: 11px; line-height: 1.8; color: #7a847f; }
+.reception-design-page .dk { height: auto; overflow: visible; padding: 0; background: transparent; }
+.reception-design-page .dk-head { flex-wrap: wrap; margin-bottom: 22px; }
+.reception-design-page .dk-head h1 { font-weight: 500; }
+.reception-design-page .dk-body { flex: none; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+.reception-design-page .dk-activity { background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.reception-design-page .dk-tiles { padding: 0 0 18px; gap: 10px; }
+.reception-design-page .dk-activity > .dk-bar { padding: 15px 16px; background: var(--reception-paper); border: 1px solid rgb(var(--border)); border-bottom: 0; border-radius: 12px 12px 0 0; flex-wrap: wrap; }
+.reception-design-page .dk-activity > .dk-scroll { overflow: auto; background: var(--reception-paper); border: 1px solid rgb(var(--border)); border-radius: 0 0 12px 12px; }
+.reception-design-page .dk-rooms { max-height: none; }
+.reception-design-page .reception-summary { display: flex; flex-direction: column; align-items: stretch; min-width: 0; padding: 0; text-align: start; color: var(--reception-ink); background: var(--reception-paper); border: 0; box-shadow: 0 5px 22px rgb(var(--fg) / .035); overflow: hidden; transition: box-shadow .16s; }
+.reception-design-page .reception-summary:hover { box-shadow: 0 7px 26px rgb(var(--fg) / .07); }
+.reception-design-page .reception-summary.is-on { box-shadow: 0 0 0 1.5px rgb(var(--accent-600) / .55), 0 5px 22px rgb(var(--fg) / .035); }
+.reception-design-page .reception-summary:focus-visible { outline: 2px solid rgb(var(--accent-700)); outline-offset: 4px; }
+.reception-summary-face { display: flex; flex-direction: column; padding: 14px 16px 10px; }
+.reception-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; font-size: 13px; font-weight: 500; }
+.reception-summary-heading > svg { flex-shrink: 0; color: var(--reception-muted); }
+.reception-summary-face > strong { display: block; font-family: var(--reception-display); font-size: clamp(34px, 3.5cqw, 44px); font-weight: 500; line-height: 1.1; letter-spacing: -1px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.reception-summary-details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto; }
+.reception-summary-details > span { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.reception-summary-details b { font-size: 18px; line-height: 1.2; font-weight: 500; font-variant-numeric: tabular-nums; }
+.reception-summary-details > span > span { font-size: 11px; color: var(--reception-muted); overflow-wrap: anywhere; }
+.reception-design-page .reception-summary.is-soft { border-radius: 20px; }
+.reception-summary.is-soft .reception-summary-details { padding: 0 16px 14px; }
+.reception-summary.is-soft .reception-summary-details b { font-size: 13px; }
+.reception-summary.is-soft .reception-summary-details > .is-ready { background: rgb(var(--accent-50)); padding: 4px 7px; border-radius: 10px; color: var(--reception-active); }
+.reception-summary.is-soft .reception-summary-details > .is-ready > span { color: var(--reception-active); }
+.reception-summary.is-soft .reception-summary-details > span:not(.is-ready) { padding-block: 4px; }
+.reception-design-page .reception-summary.is-layered { border-radius: 18px; background: var(--reception-layer); }
+.reception-summary.is-layered .reception-summary-face { border-radius: 0 0 16px 16px; background: var(--reception-paper); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 88px; }
+.reception-summary.is-layered .reception-summary-heading { flex-direction: column; align-items: flex-start; gap: 8px; }
+.reception-summary.is-layered .reception-summary-face > strong { margin: 0; }
+.reception-summary.is-layered .reception-summary-details { padding: 10px 16px 12px; }
+.reception-summary.is-layered .reception-summary-details > span + span { padding-inline-start: 12px; border-inline-start: 1px solid var(--reception-line); }
+
+/* Step 2: two treatments of the same live tables, with their existing controls. */
+.reception-design-page .dk-table .dk-guest b { font-size: 14px; font-weight: 500; }
+.reception-design-page .dk-table .dk-guest small { margin-top: 4px; font-size: 11px; }
+.reception-design-page .dk-table .dk-av { width: 30px; height: 30px; background: rgb(var(--bg-group)); color: var(--reception-muted); font-weight: 500; }
+.reception-design-page .dk-table .dk-room b { font-family: var(--reception-display); font-size: 16px; font-weight: 500; }
+.reception-design-page .dk-table .dk-room span { margin-top: 3px; font-size: 11px; }
+.reception-design-page .dk-table .dk-chip { height: 22px; padding-inline: 8px; border-radius: 7px; font-size: 11px; font-weight: 500; }
+.reception-design-page .dk-table .dk-chip.bad { background: rgb(var(--danger) / .065); }
+.reception-design-page .dk-table .dk-chip.warn { background: rgb(var(--warning) / .08); }
+.reception-design-page .dk-table .dk-chip.ok { background: rgb(var(--success) / .07); }
+.reception-design-page .dk-table .dk-state-tag { font-size: 12px; font-weight: 500; }
+.reception-design-page .dk-table .dk-state-tag::before { width: 5px; height: 5px; }
+.reception-design-page .dk-table .dk-why { margin-top: 5px; font-size: 11px; }
+.reception-design-page .dk-table .dk-btn { height: 32px; padding-inline: 12px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+.reception-design-page .dk-table th { font-size: 11px; font-weight: 400; }
+.reception-design-page[data-row-style="soft"] .dk-activity > .dk-scroll:has(> .dk-table) { background: rgb(var(--bg)); border: 0; border-radius: 0 0 20px 20px; padding: 0 12px 6px; }
+.reception-design-page[data-row-style="soft"] .dk-table { border-collapse: separate; border-spacing: 0 14px; }
+.reception-design-page[data-row-style="soft"] .dk-table thead th { padding: 0 16px; border: 0; background: rgb(var(--bg)); }
+.reception-design-page[data-row-style="soft"] .dk-table tbody td { padding: 19px 16px; border: 0; background: var(--reception-paper); box-shadow: 0 3px 0 rgb(var(--fg) / .025); }
+.reception-design-page[data-row-style="soft"] .dk-table tbody td:first-child { border-start-start-radius: 18px; border-end-start-radius: 18px; }
+.reception-design-page[data-row-style="soft"] .dk-table tbody td:last-child { border-start-end-radius: 18px; border-end-end-radius: 18px; }
+.reception-design-page[data-row-style="soft"] .dk-table .dk-av { width: 40px; height: 40px; background: rgb(var(--accent-50)); color: var(--reception-active); font-size: 13px; }
+.reception-design-page[data-row-style="soft"] .dk-table .dk-guest { gap: 12px; }
+.reception-design-page[data-row-style="soft"] .dk-table .dk-guest b { font-size: 15px; }
+.reception-design-page[data-row-style="soft"] .dk-table tbody tr:not(.dk-detail):hover td { background: rgb(var(--accent-50) / .65); }
+.reception-design-page[data-row-style="soft"] .dk-table tbody tr.is-open td { background: rgb(var(--accent-50)); }
+.reception-design-page[data-row-style="soft"] .dk-table .dk-detail td { padding: 0; background: rgb(var(--bg-group)); border-radius: 14px; }
+.reception-design-page[data-row-style="soft"] .dk-table .dk-group td { background: rgb(var(--bg-group)); }
+.reception-design-page[data-row-style="continuous"] .dk-activity > .dk-scroll:has(> .dk-table) { border: 0; border-radius: 0 0 16px 16px; }
+.reception-design-page[data-row-style="continuous"] .dk-table thead th { padding: 12px 16px; background: var(--reception-paper); border-bottom: 1px solid rgb(var(--border)); }
+.reception-design-page[data-row-style="continuous"] .dk-table tbody td { padding: 9px 16px; border-bottom-color: rgb(var(--border) / .75); }
+.reception-design-page[data-row-style="continuous"] .dk-table .dk-av { display: none; }
+.reception-design-page[data-row-style="continuous"] .dk-table .dk-stay2 { display: grid; grid-template-columns: repeat(2, max-content); gap: 3px 10px; }
+.reception-design-page[data-row-style="continuous"] .dk-table .dk-chip { background: transparent; padding: 0; border-radius: 0; }
+.reception-design-page[data-row-style="continuous"] .dk-table .dk-chips { gap: 5px 10px; }
+.reception-design-page[data-row-style="continuous"] .dk-table .dk-btn { border-radius: 6px; }
+.reception-design-page[data-row-style="continuous"] .dk-table tbody tr:not(.dk-detail):hover { background: rgb(var(--bg-content)); }
+.reception-design-page[data-row-style="continuous"] .dk-table .dk-detail td { padding: 0; }
+@container reception-design (max-width: 1100px) { .reception-design-page .dk-body { grid-template-columns: minmax(0, 1fr); } }
+@container reception-design (max-width: 650px) {
+  .reception-design-page .dk-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reception-design-page .dk-head nav { flex-wrap: wrap; }
+  .reception-summary-face { padding: 12px 14px 9px; }
+  .reception-summary-face > strong { font-size: 38px; }
+  .reception-summary.is-soft .reception-summary-details, .reception-summary.is-layered .reception-summary-details { padding-inline: 14px; }
+}
+@container reception-design (max-width: 360px) {
+  .reception-design-page .dk-tiles { gap: 10px; }
+  .reception-summary-face { padding: 12px; }
+  .reception-summary-heading { font-size: 12px; }
+  .reception-summary.is-layered .reception-summary-face { gap: 6px; }
+  .reception-summary.is-soft .reception-summary-details, .reception-summary.is-layered .reception-summary-details { padding-inline: 12px; gap: 6px; }
+}
+@media (max-width: 1023px) { .app-shell:has(.reception-design-page) > .sidebar { position: fixed; } }
+@media (prefers-reduced-motion: reduce) { .reception-design-page .reception-summary, .reception-design-options button { transition: none; } }
+
+/* Five arrangements of the same cells: content and live actions are shared. */
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table { display: block; border-collapse: separate; border-spacing: 0; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table > tbody { display: grid; gap: 12px; padding: 14px 0; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-activity > .dk-scroll:has(> .dk-table) { border: 0; border-radius: 0 0 18px 18px; background: transparent; overflow-x: auto; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row { display: grid; align-items: center; gap: 12px 22px; padding: 20px; background: var(--reception-paper); border-radius: 18px; box-shadow: 0 2px 7px rgb(var(--fg) / .035); }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row > td { display: block; padding: 0; min-width: 0; width: auto; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row > td:first-child { grid-area: guest; min-width: 0; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row > td:nth-child(2) { grid-area: room; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row > td:nth-child(3) { grid-area: stay; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row > td.dk-wide { grid-area: status; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row > td.dk-act { grid-area: actions; text-align: start; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row:hover > td { background: transparent; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row.is-open { background: rgb(var(--accent-50)); }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table :is(.dk-detail, .dk-group) { display: block; grid-column: 1 / -1; min-width: 0; }
+.reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grid"], [data-row-style="grouped"], [data-row-style="ticket"], [data-row-style="people"], [data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table :is(.dk-detail, .dk-group) > td { display: block; width: 100%; }
+.reception-design-page .dk-table .dk-group-bar { flex-wrap: wrap; }
+/* Step 2 · Finished table — table columns under one header, but every guest is its own card:
+   white rows with a 1px edge and 12px corners, 8px apart on a quiet grey field inside the panel. */
+.reception-design-page[data-row-style="table"] .dk-activity > .dk-scroll:has(> .dk-table) { padding: 0 12px 4px; background: rgb(var(--bg-group)); }
+.reception-design-page[data-row-style="table"] .dk-table { min-width: 760px; border-collapse: separate; border-spacing: 0 8px; }
+.reception-design-page[data-row-style="table"] .dk-table thead th { padding: 12px 16px 0; background: rgb(var(--bg-group)); border: 0; color: rgb(var(--fg-muted)); font-size: 12px; font-weight: 500; }
+.reception-design-page[data-row-style="table"] .dk-table thead th:first-child { width: 30%; }
+.reception-design-page[data-row-style="table"] .dk-table thead th:nth-child(2) { width: 13%; }
+.reception-design-page[data-row-style="table"] .dk-table thead th:last-child { width: 1%; }
+.reception-design-page[data-row-style="table"] .dk-table tbody td { padding: 14px 16px; background: var(--reception-paper); border: 0; border-block: 1px solid var(--reception-surface-edge, rgb(var(--border))); transition: background-color .15s ease-out, border-color .15s ease-out; }
+.reception-design-page[data-row-style="table"] .dk-table tbody td:first-child { border-inline-start: 1px solid var(--reception-surface-edge, rgb(var(--border))); border-start-start-radius: 12px; border-end-start-radius: 12px; }
+.reception-design-page[data-row-style="table"] .dk-table tbody td:last-child { border-inline-end: 1px solid var(--reception-surface-edge, rgb(var(--border))); border-start-end-radius: 12px; border-end-end-radius: 12px; }
+.reception-design-page[data-row-style="table"] .dk-table tbody tr:not(.dk-detail, .dk-group):hover > td { background: rgb(var(--bg-content)); border-color: rgb(var(--border-strong)); }
+.reception-design-page[data-row-style="table"] .dk-table tbody tr.is-open > td { background: rgb(var(--accent-50) / .7); border-color: rgb(var(--accent-600) / .55); }
+.reception-design-page[data-row-style="table"] .dk-table tr.is-done { opacity: .55; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-guest { gap: 12px; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-av { width: 34px; height: 34px; background: rgb(var(--accent-50)); color: var(--reception-active); font-size: 12px; font-weight: 600; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-guest b { font-size: 14px; font-weight: 600; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-guest small { margin-top: 2px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-room b { font-family: inherit; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-room span { margin-top: 2px; font-size: 12px; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-stay2 { display: grid; grid-template-columns: repeat(2, max-content); gap: 3px 14px; font-size: 12px; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-chips { align-items: baseline; gap: 0; max-width: none; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-state-tag { flex-basis: 100%; margin-bottom: 3px; font-size: 13px; font-weight: 600; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-state-tag::before { width: 7px; height: 7px; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-chip { height: auto; padding: 0; border-radius: 0; background: none; color: rgb(var(--fg-secondary)); font-size: 12.5px; font-weight: 400; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-chip + .dk-chip::before { content: '·'; margin-inline: 6px; color: rgb(var(--fg-faint)); }
+.reception-design-page[data-row-style="table"] .dk-table .dk-chip.bad { background: none; color: rgb(185 28 28); }
+.reception-design-page[data-row-style="table"] .dk-table .dk-chip.warn { background: none; color: rgb(180 83 9); }
+.reception-design-page[data-row-style="table"] .dk-table .dk-chip.ok { background: none; color: rgb(var(--fg-secondary)); }
+.reception-design-page[data-row-style="table"] .dk-table .dk-why { margin-top: 3px; font-size: 12.5px; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-act { text-align: end; white-space: nowrap; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-btns { flex-direction: row; align-items: center; gap: 4px; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-btn { height: 32px; padding-inline: 14px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-btn.is-ghost { padding-inline: 10px; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-group > td { padding: 10px 16px; background: rgb(var(--bg-content)); }
+.reception-design-page[data-row-style="table"] .dk-table .dk-detail > td { padding: 0; overflow: hidden; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-facts > div { padding: 12px 16px 14px; font-size: 13px; }
+.reception-design-page[data-row-style="table"] .dk-table .dk-facts > div > span { font-size: 12px; font-weight: 500; }
+@media (prefers-reduced-motion: reduce) { .reception-design-page[data-row-style="table"] .dk-table tbody td { transition: none; } }
+/* Finished table actions: one control per row, identical size; check-in/out green, needs-handling orange.
+   Extra actions sit behind the attached arrow. */
+.reception-design-page[data-row-style="table"] .dk-table .dk-act { width: 1%; }
+.dk-split { --split-bg: 21 128 61; --split-hover: 17 107 51; display: inline-flex; width: 156px; height: 38px; border-radius: 9px; overflow: hidden; vertical-align: middle; }
+.dk-split.is-assign { --split-bg: 194 87 12; --split-hover: 168 74 10; }
+.dk-split button { display: inline-flex; align-items: center; justify-content: center; height: 100%; border: 0; background: rgb(var(--split-bg)); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .15s ease-out; }
+.dk-split button:hover, .dk-split button[aria-expanded="true"] { background: rgb(var(--split-hover)); }
+.dk-split button:focus-visible { outline: 2px solid rgb(var(--split-bg)); outline-offset: -4px; }
+.dk-split-main { flex: 1; min-width: 0; padding: 0 12px; }
+.dk-split .dk-split-arrow { flex: none; width: 36px; border-inline-start: 1px solid rgb(255 255 255 / .3); }
+.dk-split.is-plain { box-shadow: inset 0 0 0 1px rgb(var(--border-strong)); }
+.dk-split.is-plain button { background: transparent; color: rgb(var(--fg)); font-weight: 500; }
+.dk-split.is-plain button:hover { background: rgb(var(--bg-hover)); }
+.dk-split.is-plain button:focus-visible { outline-color: rgb(var(--accent-600)); }
+.dk-split-menu { position: fixed; z-index: 60; display: grid; padding: 4px; border: 1px solid rgb(var(--border)); border-radius: 10px; background: rgb(var(--bg-elevated)); box-shadow: 0 10px 28px rgb(var(--fg) / .12), 0 2px 6px rgb(var(--fg) / .06); font-family: 'Heebo', sans-serif; }
+.dk-split-menu button { height: 38px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: rgb(var(--fg)); font: inherit; font-size: 14px; text-align: start; cursor: pointer; }
+.dk-split-menu button:hover, .dk-split-menu button:focus-visible { background: rgb(var(--bg-hover)); outline: none; }
+@media (prefers-reduced-motion: reduce) { .dk-split button { transition: none; } }
+
+/* Horizontal: identity anchors the right; room/stay and status/action form pairs. */
+.reception-design-page[data-row-style="soft"] .dk-table .reception-guest-row { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr) minmax(0, 1.2fr); grid-template-areas: 'guest room status' 'guest stay actions'; }
+.reception-design-page[data-row-style="soft"] .dk-table .reception-guest-row .dk-room { flex-direction: row; align-items: baseline; gap: 8px; }
+.reception-design-page[data-row-style="soft"] .dk-table .reception-guest-row .dk-room b { font-size: 23px; }
+.reception-design-page[data-row-style="soft"] .reception-table-departures .reception-guest-row { grid-template-areas: 'guest room status' 'guest room actions'; }
+
+/* Two lines: name and action above; room, stay and status below, on a flat surface. */
+.reception-design-page[data-row-style="two-line"] .dk-table > tbody { gap: 0; padding: 0; background: var(--reception-paper); border-radius: 0 0 16px 16px; }
+.reception-design-page[data-row-style="two-line"] .dk-table .reception-guest-row { grid-template-columns: minmax(0, .7fr) minmax(0, 1fr) minmax(0, 1.3fr); grid-template-areas: 'guest guest actions' 'room stay status'; gap: 14px 24px; padding: 19px 22px; border-radius: 0; box-shadow: none; border-bottom: 1px solid rgb(var(--border)); }
+.reception-design-page[data-row-style="two-line"] .dk-table .reception-guest-row > td.dk-act { justify-self: end; }
+.reception-design-page[data-row-style="two-line"] .dk-table .reception-guest-row .dk-av { width: 26px; height: 26px; }
+.reception-design-page[data-row-style="two-line"] .dk-table .dk-stay2 { display: grid; grid-template-columns: repeat(2, max-content); gap: 4px 12px; }
+.reception-design-page[data-row-style="two-line"] .reception-table-departures .reception-guest-row { grid-template-areas: 'guest guest actions' 'room status status'; }
+
+/* Grid: each guest is a complete vertical card, with actions at the bottom. */
+.reception-design-page[data-row-style="grid"] .dk-table > tbody { grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 14px; }
+.reception-design-page[data-row-style="grid"] .dk-table .reception-guest-row { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); grid-template-areas: 'guest guest' 'status status' 'room stay' 'actions actions'; gap: 19px 16px; align-items: start; padding: 22px; border-radius: 20px; }
+.reception-design-page[data-row-style="grid"] .dk-table .reception-guest-row > td:first-child { padding-bottom: 16px; border-bottom: 1px solid rgb(var(--border)); }
+.reception-design-page[data-row-style="grid"] .dk-table .reception-guest-row > td.dk-act { align-self: end; }
+.reception-design-page[data-row-style="grid"] .dk-table .dk-act > .dk-btn { width: 100%; justify-content: center; }
+.reception-design-page[data-row-style="grid"] .dk-table .dk-btns { display: flex; flex-wrap: wrap; }
+.reception-design-page[data-row-style="grid"] .dk-table .dk-room::before { content: 'חדר'; font-size: 11px; color: var(--reception-muted); margin-bottom: 4px; }
+.reception-design-page[data-row-style="grid"] .dk-table .dk-room b { font-size: 28px; }
+.reception-design-page[data-row-style="grid"] .reception-table-departures .reception-guest-row { grid-template-areas: 'guest guest' 'status status' 'room room' 'actions actions'; }
+
+/* Grouped: a status heading, then a leading room block and a two-line identity. */
+.reception-design-page[data-row-style="grouped"] .dk-table > tbody { gap: 8px; }
+.reception-design-page[data-row-style="grouped"] .dk-table .reception-guest-row { grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1.1fr) auto; grid-template-areas: 'room guest status actions' 'room stay status actions'; gap: 9px 16px; padding: 14px 16px; border-radius: 12px; box-shadow: none; }
+.reception-design-page[data-row-style="grouped"] .dk-table .reception-guest-row > td:nth-child(2) { align-self: stretch; display: flex; align-items: center; padding: 10px; border-radius: 10px; background: rgb(var(--bg-group)); }
+.reception-design-page[data-row-style="grouped"] .dk-table .dk-room b { font-size: 24px; }
+.reception-design-page[data-row-style="grouped"] .dk-table .dk-av { display: none; }
+.reception-design-page[data-row-style="grouped"] .dk-table .dk-stay2 { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; white-space: normal; }
+.reception-design-page[data-row-style="grouped"] .reception-table-departures .reception-guest-row { grid-template-areas: 'room guest status actions'; }
+.reception-status-heading { display: block; grid-column: 1 / -1; }
+.reception-design-page .dk-table .reception-status-heading > td { display: flex; align-items: center; gap: 10px; width: 100%; padding: 17px 4px 6px; border: 0; background: transparent; }
+.reception-status-heading span { font-size: 15px; font-weight: 500; }
+.reception-status-heading b { min-width: 25px; padding: 2px 7px; border-radius: 7px; background: rgb(var(--accent-50)); color: var(--reception-active); font-size: 12px; font-weight: 500; }
+
+@container reception-design (max-width: 700px) {
+  .reception-design-page:is([data-row-style="soft"], [data-row-style="grouped"]) .dk-table .reception-guest-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'guest guest' 'room stay' 'status status' 'actions actions'; }
+  .reception-design-page[data-row-style="two-line"] .dk-table .reception-guest-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'guest guest' 'room stay' 'status actions'; gap: 14px; padding: 16px; }
+  .reception-design-page:is([data-row-style="soft"], [data-row-style="two-line"], [data-row-style="grouped"]) .reception-table-departures .reception-guest-row { grid-template-areas: 'guest guest' 'room status' 'actions actions'; }
+  .reception-design-page .dk-table .reception-guest-row .dk-btns { display: flex; flex-wrap: wrap; }
+  .reception-design-page .dk-table .reception-guest-row .dk-stay2 { white-space: normal; }
+  .reception-design-page .dk-table .reception-guest-row .dk-guest small { overflow-wrap: anywhere; }
+}
+@container reception-design (max-width: 360px) {
+  .reception-design-page[data-row-style="two-line"] .dk-table .reception-guest-row { grid-template-areas: 'guest guest' 'room stay' 'status status' 'actions actions'; }
+}
+
+/* Step 3: live room readiness, in three distinct arrangements. */
+.reception-design-jump { margin-inline-start: 8px; color: var(--reception-active); font-size: 11px; text-underline-offset: 3px; }
+.reception-design-jump:hover { text-decoration: underline; }
+.reception-design-page .dk-rooms { scroll-margin-block-start: 18px; border: 0; border-radius: 20px; box-shadow: none; background: transparent; }
+.reception-design-page .dk-rooms-head { padding: 17px 18px; background: var(--reception-paper); border-radius: 18px 18px 0 0; }
+.reception-design-page .dk-rooms-head h2 { font-size: 15px; font-weight: 500; }
+.reception-design-page .dk-rooms-head > span { margin-top: 5px; font-size: 11px; }
+.reception-design-page .dk-rooms .dk-cardlist { border: 0; background: transparent; padding: 12px 0 0; gap: 12px; overflow: visible; }
+.reception-design-page .dk-rooms .dk-rcard { margin: 0; min-width: 0; background: var(--reception-paper); border: 0; box-shadow: 0 3px 15px rgb(var(--fg) / .035); transition: background .15s; }
+.reception-design-page .dk-rooms .dk-rcard:hover { transform: none; background: rgb(var(--accent-50)); box-shadow: 0 3px 15px rgb(var(--fg) / .035); }
+.reception-design-page .dk-rooms .dk-rc-room { border: 0; padding: 0; min-width: 0; gap: 5px; }
+.reception-design-page .dk-rooms .dk-rc-room small { font-size: 11px; letter-spacing: 0; font-weight: 400; }
+.reception-design-page .dk-rooms .dk-rc-room b { font-family: var(--reception-display); font-size: 30px; font-weight: 500; }
+.reception-design-page .dk-rooms .dk-rc-who b { font-size: 13px; font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
+.reception-design-page .dk-rooms .dk-rc-who > span { font-size: 11px; }
+.reception-design-page .dk-rooms .dk-rc-pill { height: 24px; padding: 0 8px; gap: 5px; border-radius: 8px; font-size: 11px; font-weight: 500; }
+.reception-design-page .dk-rooms .dk-rc-pill::before { width: 5px; height: 5px; box-shadow: none; }
+.reception-design-page .dk-rooms .dk-rc-meters { gap: 10px; }
+.reception-design-page .dk-rooms .dk-rc-meters i { display: none; }
+.reception-design-page .dk-rooms .dk-rc-meters span { font-size: 11px; font-weight: 400; }
+.reception-design-page .dk-rooms .dk-rc-meters b { font-size: 11px; font-weight: 500; }
+.reception-design-page .dk-rooms .dk-rc-meters > div:only-child { grid-column: 1 / -1; }
+.reception-design-page .dk-rooms .dk-rc-tk { margin-top: 0; padding: 8px 10px; border-radius: 8px; font-size: 11px; }
+
+.reception-design-page[data-room-style="soft"] .dk-rcard { padding: 18px; gap: 16px; border-radius: 20px; }
+.reception-design-page[data-room-style="soft"] .dk-rc-top { gap: 14px; }
+.reception-design-page[data-room-style="soft"] .dk-rc-room { padding: 11px 12px; min-width: 64px; border-radius: 14px; background: rgb(var(--bg-group)); }
+.reception-design-page[data-room-style="soft"] .dk-rc-meters > div { padding: 9px 11px; border-radius: 10px; background: rgb(var(--bg-content)); }
+
+.reception-design-page[data-room-style="compact"] .dk-rooms .dk-cardlist { gap: 0; padding: 0; background: var(--reception-paper); border-radius: 0 0 16px 16px; }
+.reception-design-page[data-room-style="compact"] .dk-rooms .dk-rcard { padding: 13px 16px; gap: 9px; border-radius: 0; border-bottom: 1px solid rgb(var(--border)); box-shadow: none; }
+.reception-design-page[data-room-style="compact"] .dk-rc-top { display: grid; grid-template-columns: 43px minmax(0, 1fr) auto; gap: 10px; }
+.reception-design-page[data-room-style="compact"] .dk-rc-room b { font-size: 22px; }
+.reception-design-page[data-room-style="compact"] .dk-rc-room small { display: none; }
+.reception-design-page[data-room-style="compact"] .dk-rooms .dk-rc-pill { padding: 0; background: transparent; }
+.reception-design-page[data-room-style="compact"] .dk-rc-meters { margin-inline-start: 53px; }
+.reception-design-page[data-room-style="compact"] .dk-rc-tk { margin-inline-start: 53px; }
+
+.reception-design-page[data-room-style="tiles"] .dk-rooms .dk-cardlist { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 12px; }
+.reception-design-page[data-room-style="tiles"] .dk-rooms .dk-rcard { padding: 16px; gap: 16px; border-radius: 16px; }
+.reception-design-page[data-room-style="tiles"] .dk-rc-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'room status' 'guest guest'; align-items: start; gap: 15px 8px; }
+.reception-design-page[data-room-style="tiles"] .dk-rc-room { grid-area: room; }
+.reception-design-page[data-room-style="tiles"] .dk-rc-room b { font-size: 40px; letter-spacing: -1px; }
+.reception-design-page[data-room-style="tiles"] .dk-rc-who { grid-area: guest; }
+.reception-design-page[data-room-style="tiles"] .dk-rc-pill { grid-area: status; }
+.reception-design-page[data-room-style="tiles"] .dk-rc-meters { grid-template-columns: 1fr; border-top: 1px solid rgb(var(--border)); padding-top: 12px; margin-top: auto; }
+@media (prefers-reduced-motion: reduce) { .reception-design-page .dk-rooms .dk-rcard { transition: none; } }
+
+/* Step 4: a close key shadow defines the edge; a short ambient shadow adds depth.
+   Keep the same white background, card fills and user-selected arrangements. */
+.page-content:has(> .reception-design-page[data-surface-style]) { background: rgb(var(--bg-elevated)); }
+.reception-design-page[data-surface-style="structured"] {
+  --reception-surface-edge: rgb(var(--fg) / .18);
+  --reception-surface-shadow: 0 1px 2px rgb(var(--fg) / .05);
+}
+.reception-design-page[data-surface-style="plain"] { --reception-surface-edge: transparent; --reception-surface-shadow: 0 0 0 transparent; }
+.reception-design-page[data-surface-style] .reception-summary,
+.reception-design-page[data-surface-style] .dk-rooms-head,
+.reception-design-page[data-surface-style]:not([data-room-style="compact"]) .dk-rooms .dk-rcard,
+.reception-design-page[data-surface-style][data-row-style="grid"] .dk-table .reception-guest-row,
+.reception-design-page[data-surface-style][data-row-style="grouped"] .dk-table .reception-guest-row,
+.reception-design-page[data-surface-style][data-row-style="board"] .dk-table .reception-guest-row,
+.reception-design-page[data-surface-style][data-row-style="split"] .dk-table .reception-guest-row {
+  border: 1px solid var(--reception-surface-edge);
+  box-shadow: var(--reception-surface-shadow);
+}
+.reception-design-page[data-surface-style] .reception-summary.is-on { box-shadow: 0 0 0 1.5px rgb(var(--accent-600) / .7), var(--reception-surface-shadow, 0 0 0 transparent); }
+.reception-design-page[data-surface-style][data-row-style="continuous"] .dk-activity > .dk-scroll,
+.reception-design-page[data-surface-style][data-row-style="table"] .dk-activity > .dk-scroll,
+.reception-design-page[data-surface-style][data-room-style="compact"] .dk-rooms .dk-cardlist {
+  border: 1px solid var(--reception-surface-edge);
+  box-shadow: var(--reception-surface-shadow);
+}
+
+.reception-activity-caption { color: var(--reception-active); font-size: 14px; font-weight: 500; white-space: nowrap; }
+.reception-design-page[data-surface-style="structured"] .dk-activity > .dk-bar {
+  border: 1px solid var(--reception-surface-edge);
+  border-top: 3px solid rgb(var(--accent-700));
+  border-bottom: 1px solid rgb(var(--border));
+  border-radius: 18px 18px 0 0;
+  padding: 17px 20px;
+  background: var(--reception-paper);
+}
+.reception-design-page[data-surface-style="structured"] .dk-activity > .dk-scroll:has(> .dk-table) {
+  border: 1px solid var(--reception-surface-edge);
+  border-top: 0;
+  border-radius: 0 0 18px 18px;
+  padding: 4px 16px 16px;
+  background: var(--reception-paper);
+  box-shadow: none;
+}
+.reception-design-page[data-surface-style="structured"] .dk-rooms {
+  border: 1px solid var(--reception-surface-edge);
+  border-top: 3px solid rgb(var(--accent-700));
+  border-radius: 18px;
+  background: var(--reception-paper);
+  overflow: hidden;
+}
+.reception-design-page[data-surface-style="structured"] .dk-rooms-head {
+  border: 0;
+  border-bottom: 1px solid rgb(var(--border));
+  border-radius: 0;
+  padding: 20px;
+  box-shadow: none;
+}
+.reception-design-page[data-surface-style="structured"][data-room-style] .dk-rooms .dk-cardlist {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.reception-design-page[data-surface-style="structured"]:not([data-room-style="compact"]) .dk-rooms .dk-cardlist { padding: 14px; }
+@container reception-design (max-width: 650px) {
+  .reception-design-page[data-surface-style="structured"] .dk-activity > .dk-scroll:has(> .dk-table) { padding: 4px 10px 10px; }
+}
+
+/* Page background control: how strongly the tint is mixed into white, and which tint. */
+.reception-design-canvas { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; min-height: 44px; padding: 4px 12px; background: rgb(var(--bg-hover)); border-radius: 12px; }
+.reception-design-canvas label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--reception-muted); }
+.reception-design-canvas input[type="range"] { width: 110px; accent-color: rgb(var(--accent-600)); }
+.reception-design-canvas input[type="color"] { width: 30px; height: 26px; padding: 0; border: 1px solid rgb(var(--border-strong)); border-radius: 6px; background: transparent; cursor: pointer; }
+.reception-design-canvas b { min-width: 22px; font-weight: 500; color: var(--reception-ink); font-variant-numeric: tabular-nums; }
+.reception-design-canvas button { padding: 5px 10px; border-radius: 8px; font-size: 12px; color: var(--reception-muted); }
+.reception-design-canvas button:hover { background: rgb(var(--bg-elevated)); color: var(--reception-ink); }
+
+/* ───────── Three more treatments for each step. They differ in structure, not in colour. ───────── */
+
+/* Step 1 · Flag — the figure sits in its own block beside the label. */
+.reception-design-page[data-surface-style] .reception-summary.is-flag { border-radius: 16px; }
+.reception-summary.is-flag .reception-summary-face { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'value label'; align-items: center; gap: 14px; padding: 14px 14px 8px; }
+.reception-summary.is-flag .reception-summary-face > strong { grid-area: value; margin: 0; min-width: 76px; padding: 8px 14px; border-radius: 12px; background: rgb(var(--accent-50)); color: var(--reception-active); text-align: center; font-size: 38px; }
+.reception-summary.is-flag .reception-summary-heading { grid-area: label; font-size: 14px; }
+.reception-summary.is-flag .reception-summary-details { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 0 16px 14px; }
+.reception-summary.is-flag .reception-summary-details > span { flex-direction: row; align-items: baseline; gap: 5px; }
+.reception-summary.is-flag .reception-summary-details b { font-size: 13px; }
+
+/* Step 1 · Bar — no boxes: flat tabs on one line, the open one underlined. */
+.reception-design-page[data-surface-style] .reception-summary.is-bar { background: transparent; border: 0; border-bottom: 3px solid rgb(var(--border)); border-radius: 0; box-shadow: none; }
+.reception-design-page[data-surface-style] .reception-summary.is-bar.is-on { border-bottom-color: rgb(var(--accent-600)); box-shadow: none; }
+.reception-design-page[data-surface-style] .reception-summary.is-bar:hover { box-shadow: none; background: rgb(var(--fg) / .02); }
+.reception-summary.is-bar .reception-summary-face { padding: 4px 4px 6px; }
+.reception-summary.is-bar .reception-summary-heading { font-size: 12px; font-weight: 400; color: var(--reception-muted); }
+.reception-summary.is-bar .reception-summary-face > strong { font-size: clamp(40px, 4.4cqw, 58px); font-weight: 300; letter-spacing: -2px; margin-top: 2px; }
+.reception-summary.is-bar .reception-summary-details { display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 0 4px 12px; }
+.reception-summary.is-bar .reception-summary-details > span { flex-direction: row; align-items: baseline; gap: 5px; }
+.reception-summary.is-bar .reception-summary-details b { font-size: 13px; }
+
+/* Step 1 · Poster — centred: icon medallion, huge figure, label beneath. */
+.reception-design-page[data-surface-style] .reception-summary.is-poster { border-radius: 22px; text-align: center; }
+.reception-summary.is-poster .reception-summary-face { align-items: center; padding: 18px 14px 6px; }
+.reception-summary.is-poster .reception-summary-heading { flex-direction: column-reverse; justify-content: center; gap: 8px; font-size: 13px; color: var(--reception-muted); }
+.reception-design-page .reception-summary.is-poster .reception-summary-heading > svg { box-sizing: content-box; width: 20px; height: 20px; padding: 9px; border-radius: 50%; background: rgb(var(--accent-50)); color: var(--reception-active); }
+.reception-summary.is-poster .reception-summary-face > strong { font-size: clamp(44px, 4.8cqw, 64px); font-weight: 300; letter-spacing: -2.5px; margin-top: 8px; }
+.reception-summary.is-poster .reception-summary-details { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 16px; padding: 4px 14px 16px; }
+.reception-summary.is-poster .reception-summary-details > span { flex-direction: row; align-items: baseline; gap: 5px; }
+.reception-summary.is-poster .reception-summary-details b { font-size: 13px; }
+
+/* Step 2 · Ticket — a wide ticket: the room as a big stub, a dashed tear line before status and action. */
+.reception-design-page[data-row-style="ticket"] .dk-table > tbody { grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr)); gap: 16px; }
+.reception-design-page[data-row-style="ticket"] .dk-table .reception-guest-row { grid-template-columns: 112px minmax(0, 1fr); grid-template-areas: 'room guest' 'room stay' 'status status' 'actions actions'; gap: 10px 20px; padding: 18px 20px 16px; border-radius: 18px; }
+.reception-design-page[data-row-style="ticket"] .dk-table .reception-guest-row > td:nth-child(2) { align-self: stretch; display: flex; align-items: center; justify-content: center; padding-inline-end: 18px; border-inline-end: 2px dashed rgb(var(--border-strong)); text-align: center; }
+.reception-design-page[data-row-style="ticket"] .dk-table .dk-room { align-items: center; }
+.reception-design-page[data-row-style="ticket"] .dk-table .dk-room b { font-size: 44px; font-weight: 300; letter-spacing: -2px; line-height: 1; }
+.reception-design-page[data-row-style="ticket"] .dk-table .reception-guest-row > td.dk-wide { padding-top: 12px; border-top: 2px dashed rgb(var(--border-strong)); }
+.reception-design-page[data-row-style="ticket"] .dk-table .reception-guest-row > td.dk-act { text-align: end; }
+.reception-design-page[data-row-style="ticket"] .dk-table .dk-av { display: none; }
+.reception-design-page[data-row-style="ticket"] .dk-table .dk-stay2 { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+
+/* Step 2 · People — centred profile cards: large avatar, name, then everything stacked. */
+.reception-design-page[data-row-style="people"] .dk-table > tbody { grid-template-columns: repeat(auto-fill, minmax(min(100%, 235px), 1fr)); gap: 14px; }
+.reception-design-page[data-row-style="people"] .dk-table .reception-guest-row { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'guest' 'room' 'stay' 'status' 'actions'; justify-items: center; text-align: center; gap: 12px; padding: 24px 16px 18px; border-radius: 24px; }
+.reception-design-page[data-row-style="people"] .dk-table .reception-guest-row > td { width: 100%; }
+.reception-design-page[data-row-style="people"] .dk-table .dk-guest { flex-direction: column; align-items: center; gap: 10px; }
+.reception-design-page[data-row-style="people"] .dk-table .dk-av { display: grid; width: 68px; height: 68px; font-size: 22px; background: rgb(var(--accent-50)); color: var(--reception-active); }
+.reception-design-page[data-row-style="people"] .dk-table .dk-guest b { justify-content: center; font-size: 16px; }
+.reception-design-page[data-row-style="people"] .dk-table .dk-room { flex-direction: row; justify-content: center; align-items: baseline; gap: 8px; width: fit-content; margin-inline: auto; padding: 5px 16px; border-radius: 999px; background: rgb(var(--bg-group)); }
+.reception-design-page[data-row-style="people"] .dk-table .dk-room b { font-size: 18px; }
+.reception-design-page[data-row-style="people"] .dk-table .dk-stay2 { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; }
+.reception-design-page[data-row-style="people"] .dk-table .dk-chips, .reception-design-page[data-row-style="people"] .dk-table .dk-btns, .reception-design-page[data-row-style="people"] .dk-table .dk-why { justify-content: center; }
+.reception-design-page[data-row-style="people"] .dk-table .reception-guest-row > td.dk-act { text-align: center; }
+
+/* Step 2 · Board, Rail, Split — one shared vocabulary: 1px hairlines, 12px radius, no resting shadow,
+   a 12/13/14/17px type scale, and one status tone per row (and per board lane) read from the row's own tags. */
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) :is(.reception-guest-row, .reception-lane) { --row-tone: var(--success); }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) :is(.reception-guest-row, .reception-lane):has(.dk-why, .dk-chip.warn) { --row-tone: var(--warning); }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) :is(.reception-guest-row, .reception-lane):has(.dk-chip.bad) { --row-tone: var(--danger); }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) :is(.reception-guest-row, .reception-lane):has(.dk-state-tag.ok) { --row-tone: var(--success); }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) :is(.reception-guest-row, .reception-lane):has(.dk-state-tag.warn) { --row-tone: var(--warning); }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) :is(.reception-guest-row, .reception-lane):has(.dk-state-tag.bad) { --row-tone: var(--danger); }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .reception-guest-row.is-done, .reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .reception-lane:not(:has(.reception-guest-row:not(.is-done))) { --row-tone: var(--fg-faint); }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row { transition: background-color .16s ease-out, box-shadow .16s ease-out, border-color .16s ease-out; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-guest b { font-size: 14px; font-weight: 600; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-guest small { margin-top: 2px; font-size: 12px; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-room b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-chips { max-width: none; gap: 4px; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-chip { height: 22px; padding-inline: 8px; font-size: 12px; font-weight: 500; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-state-tag { font-size: 13px; font-weight: 600; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-why { font-size: 12px; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-btns { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-btn { height: 30px; padding-inline: 12px; border-radius: 8px; font-size: 12.5px; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-btn.is-ghost { padding-inline: 8px; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-detail > td { padding: 0; border: 0; }
+.reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .dk-facts { border: 1px solid rgb(var(--border)); border-radius: 12px; background: var(--reception-paper); overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .reception-design-page:is([data-row-style="board"], [data-row-style="rail"], [data-row-style="split"]) .dk-table .reception-guest-row { transition: none; } }
+
+/* Step 2 · Board — status lanes side by side, like a task board. The lane names the state, so a card only
+   carries who, which room, the stay, money and the next action. */
+.reception-design-page[data-row-style="board"] .dk-table { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0 4px; }
+.reception-design-page[data-row-style="board"] .dk-table > tbody.reception-lane { flex: 1 1 0; min-width: 264px; gap: 8px; padding: 6px 8px 8px; border-radius: 14px; background: rgb(var(--fg) / .035); }
+.reception-design-page[data-row-style="board"] .dk-table .reception-status-heading > td { gap: 8px; padding: 6px 6px 4px; }
+.reception-design-page[data-row-style="board"] .reception-status-heading span { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.reception-design-page[data-row-style="board"] .reception-status-heading span::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--row-tone)); }
+.reception-design-page[data-row-style="board"] .reception-status-heading b { min-width: 0; padding: 0; background: none; color: var(--reception-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.reception-design-page[data-row-style="board"] .dk-table .reception-guest-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'guest room' 'stay stay' 'status status' 'actions actions'; align-items: start; gap: 10px 12px; padding: 12px 14px; border: 1px solid rgb(var(--border)); border-radius: 12px; box-shadow: none; }
+.reception-design-page[data-row-style="board"] .dk-table .reception-guest-row:hover { border-color: rgb(var(--border-strong)); box-shadow: 0 2px 8px rgb(var(--fg) / .06); }
+.reception-design-page[data-row-style="board"] .dk-table .reception-guest-row.is-open { border-color: rgb(var(--accent-600)); background: var(--reception-paper); box-shadow: 0 0 0 1px rgb(var(--accent-600)); }
+.reception-design-page[data-row-style="board"] .dk-table .dk-av { display: none; }
+.reception-design-page[data-row-style="board"] .dk-table .dk-guest small { white-space: normal; }
+.reception-design-page[data-row-style="board"] .dk-table .dk-room { align-items: flex-end; min-width: 0; text-align: end; }
+.reception-design-page[data-row-style="board"] .dk-table .dk-room b { font-size: 17px; }
+.reception-design-page[data-row-style="board"] .dk-table .dk-room span { font-size: 12px; }
+.reception-design-page[data-row-style="board"] .dk-table .dk-stay2 { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.reception-design-page[data-row-style="board"] .reception-lane > .reception-guest-row:not(.is-unit) .dk-state-tag { display: none; }
+.reception-design-page[data-row-style="board"] .dk-table .reception-guest-row > td.dk-act:not(:empty) { padding-top: 10px; border-top: 1px solid rgb(var(--border)); }
+.reception-design-page[data-row-style="board"] .dk-table .reception-guest-row > td.dk-act:empty { display: none; }
+.reception-design-page[data-row-style="board"] .dk-table .reception-guest-row.is-unit { margin-inline-start: 10px; }
+.reception-design-page[data-row-style="board"] .dk-table .dk-group > td { padding: 10px 12px; border: 1px solid rgb(var(--border)); border-radius: 12px; background: rgb(var(--bg-content)); }
+.reception-design-page[data-row-style="board"] .dk-table .dk-group-bar { gap: 8px; }
+.reception-design-page[data-row-style="board"] .dk-table .dk-group-bar .dk-grow { display: none; }
+.reception-design-page[data-row-style="board"] .dk-table .dk-facts { grid-template-columns: minmax(0, 1fr); }
+.reception-design-page[data-row-style="board"] .dk-table .dk-facts > div + div { border-inline-start: 0; border-top: 1px solid rgb(var(--border)); }
+
+/* Step 2 · Rail — one continuous dense surface, one line per guest. The room leads as a tile tinted by the
+   row's state, so the column of tiles reads as a status scan down the edge of the list. */
+.reception-design-page[data-row-style="rail"] .dk-table > tbody { gap: 0; padding: 0; background: var(--reception-paper); border-radius: 0 0 14px 14px; overflow: hidden; }
+.reception-design-page[data-row-style="rail"] .dk-table .reception-guest-row { grid-template-columns: 84px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.4fr) auto; grid-template-areas: 'room guest stay status actions'; gap: 0 20px; padding: 8px 16px; border-radius: 0; box-shadow: none; border-bottom: 1px solid rgb(var(--border)); }
+.reception-design-page[data-row-style="rail"] .reception-table-departures .reception-guest-row { grid-template-columns: 84px minmax(0, 1.4fr) minmax(0, 1.8fr) auto; grid-template-areas: 'room guest status actions'; }
+.reception-design-page[data-row-style="rail"] .dk-table .reception-guest-row:hover { background: rgb(var(--bg-content)); }
+.reception-design-page[data-row-style="rail"] .dk-table .reception-guest-row.is-open { background: rgb(var(--accent-50)); }
+.reception-design-page[data-row-style="rail"] .dk-table .reception-guest-row > td:nth-child(2) { align-self: stretch; display: flex; }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-room { flex: 1; justify-content: center; align-items: center; gap: 0; min-width: 0; min-height: 44px; padding: 4px 6px; border-radius: 8px; background: rgb(var(--row-tone) / .12); text-align: center; }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-room b { font-size: 16px; line-height: 1.2; }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-room b.is-none { color: rgb(var(--fg-muted)); }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-room span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: rgb(var(--fg-secondary)); }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-av { display: none; }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-stay2 { display: grid; grid-template-columns: repeat(2, max-content); gap: 2px 12px; font-size: 12px; }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-chips { align-items: center; gap: 4px 8px; }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-why { margin-top: 3px; }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-group > td { padding: 10px 16px; border-bottom: 1px solid rgb(var(--border)); background: rgb(var(--bg-content)); }
+.reception-design-page[data-row-style="rail"] .dk-table .dk-detail > td { padding: 8px 16px 12px; border-bottom: 1px solid rgb(var(--border)); background: rgb(var(--bg-content)); }
+
+/* Step 2 · Split — who and where on white; the card's end is a quiet panel tinted by the state,
+   holding the state, what is missing and the next action. */
+.reception-design-page[data-row-style="split"] .dk-table > tbody { gap: 8px; }
+.reception-design-page[data-row-style="split"] .dk-table .reception-guest-row { grid-template-columns: minmax(0, 1.3fr) 76px minmax(0, 1fr) minmax(240px, 1.2fr); grid-template-areas: 'guest room stay status' 'guest room stay actions'; grid-template-rows: auto 1fr; gap: 0 20px; padding: 0; padding-inline-start: 18px; border: 1px solid rgb(var(--border)); border-radius: 12px; box-shadow: none; overflow: hidden; }
+.reception-design-page[data-row-style="split"] .reception-table-departures .reception-guest-row { grid-template-columns: minmax(0, 1.3fr) minmax(76px, .7fr) minmax(260px, 1.4fr); grid-template-areas: 'guest room status' 'guest room actions'; }
+.reception-design-page[data-row-style="split"] .dk-table .reception-guest-row:hover { border-color: rgb(var(--border-strong)); box-shadow: 0 2px 8px rgb(var(--fg) / .05); }
+.reception-design-page[data-row-style="split"] .dk-table .reception-guest-row.is-open { background: var(--reception-paper); border-color: rgb(var(--accent-600)); box-shadow: 0 0 0 1px rgb(var(--accent-600)); }
+.reception-design-page[data-row-style="split"] .dk-table .reception-guest-row > td:is(:first-child, :nth-child(2), :nth-child(3):not(.dk-wide)) { align-self: center; padding-block: 16px; }
+.reception-design-page[data-row-style="split"] .dk-table .reception-guest-row > td:is(.dk-wide, .dk-act) { align-self: stretch; padding-inline: 16px; background: rgb(var(--row-tone) / .07); }
+.reception-design-page[data-row-style="split"] .dk-table .reception-guest-row > td.dk-wide { padding-block: 14px 8px; }
+.reception-design-page[data-row-style="split"] .dk-table .reception-guest-row > td.dk-act { display: flex; align-items: flex-end; padding-block: 0 14px; }
+.reception-design-page[data-row-style="split"] .dk-table .dk-av { width: 36px; height: 36px; font-size: 12px; }
+.reception-design-page[data-row-style="split"] .dk-table .dk-guest { gap: 12px; }
+.reception-design-page[data-row-style="split"] .dk-table .dk-room { gap: 2px; }
+.reception-design-page[data-row-style="split"] .dk-table .dk-room::before { content: 'חדר'; font-size: 12px; color: var(--reception-muted); }
+.reception-design-page[data-row-style="split"] .dk-table .dk-room b { font-size: 17px; }
+.reception-design-page[data-row-style="split"] .dk-table .dk-stay2 { grid-template-columns: repeat(2, max-content); gap: 4px 14px; }
+.reception-design-page[data-row-style="split"] .dk-table .dk-state-tag { margin-bottom: 6px; }
+.reception-design-page[data-row-style="split"] .dk-table .dk-chip:not(.ok, .warn, .bad) { background: var(--reception-paper); }
+.reception-design-page[data-row-style="split"] .dk-table .dk-btn:not(.is-primary, .is-ghost) { background: var(--reception-paper); }
+.reception-design-page[data-row-style="split"] .dk-table .dk-group > td { padding: 12px 18px; border: 1px solid rgb(var(--border)); border-radius: 12px; background: rgb(var(--bg-content)); }
+
+@container reception-design (max-width: 700px) {
+  .reception-design-page[data-row-style="rail"] .dk-table .reception-guest-row { grid-template-columns: 72px minmax(0, 1fr); grid-template-areas: 'room guest' 'room stay' 'room status' 'room actions'; gap: 8px 14px; padding-block: 12px; }
+  .reception-design-page[data-row-style="rail"] .reception-table-departures .reception-guest-row { grid-template-columns: 72px minmax(0, 1fr); grid-template-areas: 'room guest' 'room status' 'room actions'; }
+  .reception-design-page[data-row-style="split"] .dk-table .reception-guest-row, .reception-design-page[data-row-style="split"] .reception-table-departures .reception-guest-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'guest room' 'stay stay' 'status status' 'actions actions'; grid-template-rows: none; padding-inline-start: 0; }
+  .reception-design-page[data-row-style="split"] .reception-table-departures .reception-guest-row { grid-template-areas: 'guest room' 'status status' 'actions actions'; }
+  .reception-design-page[data-row-style="split"] .dk-table .reception-guest-row > td:is(:first-child, :nth-child(2), :nth-child(3):not(.dk-wide)) { padding: 14px 16px 10px; }
+  .reception-design-page[data-row-style="split"] .dk-table .reception-guest-row > td:nth-child(2) { text-align: end; }
+}
+
+/* Step 3 · Door — square door plaques: a huge number, the guest beneath, a status bar on top. */
+.reception-design-page[data-room-style="door"] .dk-rcard { --rc-tone: var(--fg-faint); }
+.reception-design-page[data-room-style="door"] .dk-rcard.is-ok { --rc-tone: var(--success); }
+.reception-design-page[data-room-style="door"] .dk-rcard.is-warn { --rc-tone: var(--warning); }
+.reception-design-page[data-room-style="door"] .dk-rcard.is-bad { --rc-tone: var(--danger); }
+.reception-design-page[data-room-style="door"] .dk-rooms .dk-cardlist { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 12px; }
+.reception-design-page[data-room-style="door"] .dk-rooms .dk-rcard { padding: 20px 12px 14px; gap: 14px; border-radius: 22px; text-align: center; border-top: 5px solid rgb(var(--rc-tone)); }
+.reception-design-page[data-room-style="door"] .dk-rc-top { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.reception-design-page[data-room-style="door"] .dk-rooms .dk-rc-room { align-items: center; }
+.reception-design-page[data-room-style="door"] .dk-rooms .dk-rc-room b { font-size: 54px; font-weight: 300; letter-spacing: -3px; line-height: 1; }
+.reception-design-page[data-room-style="door"] .dk-rc-meters { grid-template-columns: 1fr; border-top: 1px solid rgb(var(--border)); padding-top: 10px; text-align: start; }
+
+/* Step 3 · Carousel — large cards that scroll sideways, one and a bit in view. */
+.reception-design-page[data-room-style="carousel"] .dk-rooms .dk-cardlist { display: flex; flex-direction: row; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 12px 2px 14px; }
+.reception-design-page[data-room-style="carousel"] .dk-rooms .dk-rcard { flex: 0 0 82%; scroll-snap-align: start; padding: 22px; gap: 22px; border-radius: 22px; }
+.reception-design-page[data-room-style="carousel"] .dk-rc-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'room status' 'guest guest'; align-items: start; gap: 18px 8px; }
+.reception-design-page[data-room-style="carousel"] .dk-rc-room { grid-area: room; }
+.reception-design-page[data-room-style="carousel"] .dk-rc-who { grid-area: guest; }
+.reception-design-page[data-room-style="carousel"] .dk-rc-pill { grid-area: status; }
+.reception-design-page[data-room-style="carousel"] .dk-rooms .dk-rc-room b { font-size: 64px; font-weight: 300; letter-spacing: -3px; line-height: 1; }
+.reception-design-page[data-room-style="carousel"] .dk-rooms .dk-rc-who b { font-size: 17px; }
+.reception-design-page[data-room-style="carousel"] .dk-rc-meters { padding-top: 14px; border-top: 1px solid rgb(var(--border)); }
+
+/* Step 3 · Spine — a solid status-coloured block carries the number; the details sit beside it. */
+.reception-design-page[data-room-style="spine"] .dk-rooms .dk-cardlist { gap: 10px; }
+.reception-design-page[data-room-style="spine"] .dk-rooms .dk-rcard { display: grid; grid-template-columns: 82px minmax(0, 1fr); grid-template-rows: auto auto auto; padding: 0; gap: 0; border-radius: 16px; overflow: hidden; text-align: start; }
+.reception-design-page[data-room-style="spine"] .dk-rc-top { display: contents; }
+.reception-design-page[data-room-style="spine"] .dk-rooms .dk-rc-room { grid-column: 1; grid-row: 1 / span 3; align-items: center; justify-content: center; padding: 14px 6px; background: rgb(var(--fg-faint)); color: rgb(var(--bg-elevated)); }
+.reception-design-page[data-room-style="spine"] .dk-rcard.is-ok .dk-rc-room { background: rgb(var(--success)); }
+.reception-design-page[data-room-style="spine"] .dk-rcard.is-warn .dk-rc-room { background: rgb(var(--warning)); }
+.reception-design-page[data-room-style="spine"] .dk-rcard.is-bad .dk-rc-room { background: rgb(var(--danger)); }
+.reception-design-page[data-room-style="spine"] .dk-rooms .dk-rc-room b { font-size: 34px; font-weight: 400; color: inherit; }
+.reception-design-page[data-room-style="spine"] .dk-rooms .dk-rc-room small { display: block; color: inherit; opacity: .8; }
+.reception-design-page[data-room-style="spine"] .dk-rc-who { grid-column: 2; grid-row: 1; padding: 12px 14px 4px; }
+.reception-design-page[data-room-style="spine"] .dk-rc-pill { grid-column: 2; grid-row: 1; justify-self: end; align-self: start; margin: 10px 12px 0; }
+.reception-design-page[data-room-style="spine"] .dk-rc-meters { grid-column: 2; grid-row: 2; padding: 4px 14px 12px; }
+.reception-design-page[data-room-style="spine"] .dk-rc-tk { grid-column: 2; grid-row: 3; margin: 0 14px 12px; }
+
+/* Step 4 · Floating — no edges: wide, soft shadows lift every panel off the page. */
+.reception-design-page[data-surface-style="floating"] { --reception-surface-edge: transparent; --reception-surface-shadow: 0 14px 34px rgb(var(--fg) / .1), 0 2px 6px rgb(var(--fg) / .06); }
+.reception-design-page[data-surface-style="floating"] .dk-activity > .dk-bar { border: 0; border-bottom: 1px solid rgb(var(--border)); border-radius: 20px 20px 0 0; box-shadow: 0 14px 34px rgb(var(--fg) / .1); position: relative; z-index: 1; }
+.reception-design-page[data-surface-style="floating"] .dk-activity > .dk-scroll { border: 0; border-radius: 0 0 20px 20px; box-shadow: 0 14px 34px rgb(var(--fg) / .1); }
+.reception-design-page[data-surface-style="floating"] .dk-rooms { border: 0; border-radius: 20px; box-shadow: 0 14px 34px rgb(var(--fg) / .1); background: var(--reception-paper); overflow: hidden; }
+.reception-design-page[data-surface-style="floating"] .dk-rooms .dk-cardlist { padding: 14px; }
+.reception-design-page[data-surface-style="floating"] .dk-rooms .dk-rcard { box-shadow: 0 2px 8px rgb(var(--fg) / .08); }
+
+/* Step 4 · Tray — each region sits in a recessed tinted tray, with the cards inside it. */
+.reception-design-page[data-surface-style="tray"] { --reception-surface-edge: transparent; --reception-surface-shadow: 0 1px 2px rgb(var(--fg) / .06); }
+.reception-design-page[data-surface-style="tray"] .dk-activity, .reception-design-page[data-surface-style="tray"] .dk-rooms { padding: 12px; border: 1px solid rgb(var(--border-strong)); border-radius: 26px; background: rgb(var(--fg) / .045); box-shadow: inset 0 2px 5px rgb(var(--fg) / .05); }
+.reception-design-page[data-surface-style="tray"] .dk-activity > .dk-bar { border: 0; border-radius: 16px 16px 0 0; }
+.reception-design-page[data-surface-style="tray"] .dk-activity > .dk-scroll { border: 0; border-radius: 0 0 16px 16px; }
+.reception-design-page[data-surface-style="tray"] .dk-rooms-head { border-radius: 16px; margin-bottom: 0; }
+.reception-design-page[data-surface-style="tray"] .dk-rooms .dk-cardlist { padding-top: 10px; }
+
+/* Step 4 · Ruled — no boxes at all: panels are carried by heavy top rules and hairlines. */
+.reception-design-page[data-surface-style="ruled"] { --reception-paper: transparent; --reception-surface-edge: transparent; --reception-surface-shadow: none; }
+.reception-design-page[data-surface-style="ruled"] .reception-summary, .reception-design-page[data-surface-style="ruled"] .dk-activity > .dk-bar, .reception-design-page[data-surface-style="ruled"] .dk-rooms-head { border: 0; border-top: 3px solid rgb(var(--fg)); border-radius: 0; box-shadow: none; }
+.reception-design-page[data-surface-style="ruled"] .reception-summary.is-on { border-top-color: rgb(var(--accent-600)); box-shadow: none; }
+.reception-design-page[data-surface-style="ruled"] .dk-activity > .dk-scroll, .reception-design-page[data-surface-style="ruled"] .dk-rooms .dk-cardlist { border: 0; border-radius: 0; box-shadow: none; }
+.reception-design-page[data-surface-style="ruled"] .dk-rooms { border: 0; border-radius: 0; }
+.reception-design-page[data-surface-style="ruled"] .dk-rooms .dk-rcard, .reception-design-page[data-surface-style="ruled"] .dk-table .reception-guest-row { border: 0; border-bottom: 1px solid rgb(var(--border-strong)); border-radius: 0; box-shadow: none; background: transparent; }

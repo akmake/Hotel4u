@@ -73,9 +73,9 @@ async function loadTask(id, propertyId) {
   return task;
 }
 
-async function loadRoom(id, propertyId) {
+async function loadRoom(id, propertyId, session = null) {
   if (!isId(String(id || ''))) throw httpError('מזהה חדר לא תקין', 400);
-  const room = await Room.findOne({ _id: id, property: propertyId });
+  const room = await Room.findOne({ _id: id, property: propertyId }).session(session);
   if (!room) throw httpError('החדר לא נמצא', 404);
   return room;
 }
@@ -725,16 +725,16 @@ function defaultDue(priority) {
 }
 
 // Block a room for operational reasons. OOO when it must not be sold; OOS keeps it sellable later.
-async function blockRoom(room, impact, actor, ip, reason) {
+async function blockRoom(room, impact, actor, ip, reason, session = null, afterCommit = null) {
   const before = room.opsStatus;
   room.opsStatus = impact === 'block' ? 'out_of_order' : room.opsStatus;
-  await room.save();
+  await room.save({ session });
   if (before !== room.opsStatus) {
-    await audit({ property: room.property, actor: actor.id, actorName: actor.name, action: 'room.ops_status.out_of_order', entityType: 'Room', entityId: room._id, before: { opsStatus: before }, after: { opsStatus: room.opsStatus }, reason, ip });
+    await audit({ property: room.property, actor: actor.id, actorName: actor.name, action: 'room.ops_status.out_of_order', entityType: 'Room', entityId: room._id, before: { opsStatus: before }, after: { opsStatus: room.opsStatus }, reason, ip, session, afterCommit });
   }
 }
 
-export async function createTicket({ propertyId, input, actor, ip }) {
+export async function createTicket({ propertyId, input, actor, ip, session = null, afterCommit = null }) {
   const errors = {};
   const description = String(input.description || '').trim().slice(0, 2000);
   if (!description) errors.description = 'תיאור נדרש';
@@ -744,23 +744,25 @@ export async function createTicket({ propertyId, input, actor, ip }) {
   const impact = ['none', 'block', 'move'].includes(input.guestImpact) ? input.guestImpact : (priority === 'critical' ? 'block' : 'none');
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי התקלה', 422, { fields: errors });
   let room = null;
-  if (input.roomId) room = await loadRoom(input.roomId, propertyId);
+  if (input.roomId) room = await loadRoom(input.roomId, propertyId, session);
   let assignee = null;
   if (input.assigneeId) assignee = await staffMember(propertyId, input.assigneeId, MT_STAFF_ROLES);
   const due = input.dueDate && !Number.isNaN(Date.parse(input.dueDate)) ? new Date(input.dueDate) : defaultDue(priority);
-  const ticket = await MaintenanceTicket.create({
+  const ticket = await new MaintenanceTicket({
     property: propertyId, room: room?._id, areaId: room ? undefined : String(input.area).slice(0, 120), category: input.category, description, priority,
     status: assignee ? 'assigned' : 'new', assignedTo: assignee?._id, reportedBy: actor.id, dueDate: due,
     blocksRoom: impact === 'block', guestImpact: impact,
     internalNotes: [{ text: 'נפתחה', author: actor.id, authorName: actor.name }],
-  });
-  if (room && impact === 'block') await blockRoom(room, impact, actor, ip, `תקלה: ${description.slice(0, 80)}`);
+  }).save({ session });
+  if (room && impact === 'block') await blockRoom(room, impact, actor, ip, `תקלה: ${description.slice(0, 80)}`, session, afterCommit);
   // Linked from a housekeeping task (OPS-02 → OPS-06): record on the task, readiness unchanged.
   if (isId(String(input.taskId || ''))) {
-    await HousekeepingTask.updateOne({ _id: input.taskId, property: propertyId }, { $set: { 'issueReported.description': description.slice(0, 300), 'issueReported.reportedAt': new Date(), 'issueReported.ticketId': ticket._id } });
+    await HousekeepingTask.updateOne({ _id: input.taskId, property: propertyId }, { $set: { 'issueReported.description': description.slice(0, 300), 'issueReported.reportedAt': new Date(), 'issueReported.ticketId': ticket._id } }, { session });
   }
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'maintenance.created', entityType: 'MaintenanceTicket', entityId: ticket._id, after: { room: room?.number, category: ticket.category, priority, impact }, ip });
-  fireEvent('maintenance.created', { property: String(propertyId), ticket: ticket.toObject(), room: room ? { _id: String(room._id) } : null, actor: { id: actor.id, name: actor.name } }).catch(() => null);
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'maintenance.created', entityType: 'MaintenanceTicket', entityId: ticket._id, after: { room: room?.number, category: ticket.category, priority, impact }, ip, session, afterCommit });
+  const notify = () => fireEvent('maintenance.created', { property: String(propertyId), ticket: ticket.toObject(), room: room ? { _id: String(room._id) } : null, actor: { id: actor.id, name: actor.name } }).catch(() => null);
+  if (session) afterCommit?.push(notify);
+  else notify();
   if (priority === 'critical') await raiseWork({ propertyId, kind: 'operations', severity: 'urgent', title: `תקלה מסוכנת${room ? ` בחדר ${room.number}` : ''}: ${description.slice(0, 80)}`, source: { type: 'ticket', id: String(ticket._id), label: room ? `חדר ${room.number}` : (input.area || ''), link: `/pms/maintenance?ticket=${ticket._id}` }, dedupeKey: `ticket:${ticket._id}` });
   return { id: String(ticket._id) };
 }

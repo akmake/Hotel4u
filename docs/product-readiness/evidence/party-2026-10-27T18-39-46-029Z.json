@@ -1,0 +1,3492 @@
+{
+  "startedAt": "2026-10-27T18:39:46.029Z",
+  "finishedAt": "2026-10-27T18:39:52.733Z",
+  "mode": "isolated local replica; synthetic fixtures; no external delivery; quote test at route boundary",
+  "hashes": {
+    "../services/partyBookingService.js": "6adb8c666d02fd3564f4e9ca9192e25f351dc0f1308da23aa76069785cfd3817",
+    "../services/reservationService.js": "8af79e83575a4b92a1c6c4cbe9e2a7175d76427a21d0b229a158f116dc35fc18",
+    "../services/bookingService.js": "bb6ef2f2ca9b6b3953f25627f650498bc07c0a3bf4be06f01780124edf0c2e06",
+    "../services/availabilityService.js": "ad10e91cbc225a4b879c7d57fc916ecedb3c47f97a25c1f406bf28cb55c77d1b",
+    "../routes/reservations.js": "62ec2616dc91ea4b9f45dc577d25250adc3d94718f36763e4d9886ef7db1da58",
+    "./partyReadiness.mjs": "49c17ac5e1f18ac498fef61b71e3ecdf8e78b5b01041375ab3059c7de2572034"
+  },
+  "counts": {
+    "passed": 21,
+    "failed": 2,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "PT01",
+      "name": "two-room party has distinct rooms, linked members and correct stock",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "partyId": "6e377a75-6430-41ed-a45b-bf5283191ea9",
+            "code": "74f79bd0-1001",
+            "duplicate": false,
+            "rooms": [
+              {
+                "id": "6ae0eff31bb2038f7a1e40ba",
+                "confirmationNumber": "74f79bd0-1001",
+                "status": "confirmed",
+                "total": 1000,
+                "line": 0
+              },
+              {
+                "id": "6ae0eff31bb2038f7a1e40c3",
+                "confirmationNumber": "74f79bd0-1002",
+                "status": "confirmed",
+                "total": 1000,
+                "line": 1
+              }
+            ],
+            "total": 2000,
+            "assignments": []
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40ba",
+              "key": "6e377a75-6430-41ed-a45b-bf5283191ea9-1",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40aa",
+              "total": 1000,
+              "party": {
+                "id": "6e377a75-6430-41ed-a45b-bf5283191ea9",
+                "code": "74f79bd0-1001",
+                "index": 1,
+                "size": 2
+              }
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40c3",
+              "key": "6e377a75-6430-41ed-a45b-bf5283191ea9-2",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40ab",
+              "total": 1000,
+              "party": {
+                "id": "6e377a75-6430-41ed-a45b-bf5283191ea9",
+                "code": "74f79bd0-1001",
+                "index": 2,
+                "size": 2
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40bd",
+              "reservation": "6ae0eff31bb2038f7a1e40ba",
+              "room": "6ae0eff31bb2038f7a1e40aa",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40c6",
+              "reservation": "6ae0eff31bb2038f7a1e40c3",
+              "room": "6ae0eff31bb2038f7a1e40ab",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40be",
+              "reservation": "6ae0eff31bb2038f7a1e40ba",
+              "room": "6ae0eff31bb2038f7a1e40aa",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40c7",
+              "reservation": "6ae0eff31bb2038f7a1e40c3",
+              "room": "6ae0eff31bb2038f7a1e40ab",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40aa",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ab",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ac",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ad",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e40a8",
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40a8",
+              "date": "2026-10-28",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40a9",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40a9",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 2,
+          "audit": 5,
+          "channels": 2,
+          "operations": 1
+        }
+      }
+    },
+    {
+      "code": "PT02",
+      "name": "retry with fewer party lines cannot return a subset as duplicate success",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40e1",
+              "key": "832688bf-7342-4162-b4ac-436af849dc05-1",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40d1",
+              "total": 1000,
+              "party": {
+                "id": "832688bf-7342-4162-b4ac-436af849dc05",
+                "code": "3dd47ade-1001",
+                "index": 1,
+                "size": 2
+              }
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ea",
+              "key": "832688bf-7342-4162-b4ac-436af849dc05-2",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40d2",
+              "total": 1000,
+              "party": {
+                "id": "832688bf-7342-4162-b4ac-436af849dc05",
+                "code": "3dd47ade-1001",
+                "index": 2,
+                "size": 2
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40e4",
+              "reservation": "6ae0eff31bb2038f7a1e40e1",
+              "room": "6ae0eff31bb2038f7a1e40d1",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ed",
+              "reservation": "6ae0eff31bb2038f7a1e40ea",
+              "room": "6ae0eff31bb2038f7a1e40d2",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40e5",
+              "reservation": "6ae0eff31bb2038f7a1e40e1",
+              "room": "6ae0eff31bb2038f7a1e40d1",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ee",
+              "reservation": "6ae0eff31bb2038f7a1e40ea",
+              "room": "6ae0eff31bb2038f7a1e40d2",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40d1",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40d2",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40d3",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40d4",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e40cf",
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40cf",
+              "date": "2026-10-28",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40d0",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40d0",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 2,
+          "audit": 5,
+          "channels": 2,
+          "operations": 1
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "מזהה הפעולה כבר שימש להזמנה מרובת חדרים עם פרטים אחרים",
+            "status": 409,
+            "code": "request_conflict"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40e1",
+              "key": "832688bf-7342-4162-b4ac-436af849dc05-1",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40d1",
+              "total": 1000,
+              "party": {
+                "id": "832688bf-7342-4162-b4ac-436af849dc05",
+                "code": "3dd47ade-1001",
+                "index": 1,
+                "size": 2
+              }
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ea",
+              "key": "832688bf-7342-4162-b4ac-436af849dc05-2",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40d2",
+              "total": 1000,
+              "party": {
+                "id": "832688bf-7342-4162-b4ac-436af849dc05",
+                "code": "3dd47ade-1001",
+                "index": 2,
+                "size": 2
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40e4",
+              "reservation": "6ae0eff31bb2038f7a1e40e1",
+              "room": "6ae0eff31bb2038f7a1e40d1",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ed",
+              "reservation": "6ae0eff31bb2038f7a1e40ea",
+              "room": "6ae0eff31bb2038f7a1e40d2",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40e5",
+              "reservation": "6ae0eff31bb2038f7a1e40e1",
+              "room": "6ae0eff31bb2038f7a1e40d1",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40ee",
+              "reservation": "6ae0eff31bb2038f7a1e40ea",
+              "room": "6ae0eff31bb2038f7a1e40d2",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40d1",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40d2",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40d3",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40d4",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e40cf",
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40cf",
+              "date": "2026-10-28",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40d0",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40d0",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 2,
+          "audit": 5,
+          "channels": 2,
+          "operations": 1
+        }
+      }
+    },
+    {
+      "code": "PT03",
+      "name": "retry with changed party occupancy is rejected",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae0eff31bb2038f7a1e410a",
+              "key": "af7baee4-8c46-4d92-9acf-e55ffa5facc3-1",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40fa",
+              "total": 1000,
+              "party": {
+                "id": "af7baee4-8c46-4d92-9acf-e55ffa5facc3",
+                "code": "3e27f7af-1001",
+                "index": 1,
+                "size": 2
+              }
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4113",
+              "key": "af7baee4-8c46-4d92-9acf-e55ffa5facc3-2",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40fb",
+              "total": 1000,
+              "party": {
+                "id": "af7baee4-8c46-4d92-9acf-e55ffa5facc3",
+                "code": "3e27f7af-1001",
+                "index": 2,
+                "size": 2
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff31bb2038f7a1e410d",
+              "reservation": "6ae0eff31bb2038f7a1e410a",
+              "room": "6ae0eff31bb2038f7a1e40fa",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4116",
+              "reservation": "6ae0eff31bb2038f7a1e4113",
+              "room": "6ae0eff31bb2038f7a1e40fb",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff31bb2038f7a1e410e",
+              "reservation": "6ae0eff31bb2038f7a1e410a",
+              "room": "6ae0eff31bb2038f7a1e40fa",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4117",
+              "reservation": "6ae0eff31bb2038f7a1e4113",
+              "room": "6ae0eff31bb2038f7a1e40fb",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40fa",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40fb",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40fc",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40fd",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e40f8",
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40f8",
+              "date": "2026-10-28",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40f9",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40f9",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 2,
+          "audit": 5,
+          "channels": 2,
+          "operations": 1
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "מזהה הפעולה כבר שימש להזמנה מרובת חדרים עם פרטים אחרים",
+            "status": 409,
+            "code": "request_conflict"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff31bb2038f7a1e410a",
+              "key": "af7baee4-8c46-4d92-9acf-e55ffa5facc3-1",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40fa",
+              "total": 1000,
+              "party": {
+                "id": "af7baee4-8c46-4d92-9acf-e55ffa5facc3",
+                "code": "3e27f7af-1001",
+                "index": 1,
+                "size": 2
+              }
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4113",
+              "key": "af7baee4-8c46-4d92-9acf-e55ffa5facc3-2",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e40fb",
+              "total": 1000,
+              "party": {
+                "id": "af7baee4-8c46-4d92-9acf-e55ffa5facc3",
+                "code": "3e27f7af-1001",
+                "index": 2,
+                "size": 2
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff31bb2038f7a1e410d",
+              "reservation": "6ae0eff31bb2038f7a1e410a",
+              "room": "6ae0eff31bb2038f7a1e40fa",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4116",
+              "reservation": "6ae0eff31bb2038f7a1e4113",
+              "room": "6ae0eff31bb2038f7a1e40fb",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff31bb2038f7a1e410e",
+              "reservation": "6ae0eff31bb2038f7a1e410a",
+              "room": "6ae0eff31bb2038f7a1e40fa",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4117",
+              "reservation": "6ae0eff31bb2038f7a1e4113",
+              "room": "6ae0eff31bb2038f7a1e40fb",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e40fa",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40fb",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40fc",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e40fd",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e40f8",
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40f8",
+              "date": "2026-10-28",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40f9",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e40f9",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 2,
+          "audit": 5,
+          "channels": 2,
+          "operations": 1
+        }
+      }
+    },
+    {
+      "code": "PT04",
+      "name": "failure linking members leaves no partial party",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e4123",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4124",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4125",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4126",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e4121",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4121",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4122",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4122",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_PARTY_LINK"
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e4123",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4124",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4125",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4126",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e4121",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4121",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4122",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4122",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT05",
+      "name": "failed final party audit rolls back every member",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e4148",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4149",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e414a",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e414b",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e4146",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4146",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4147",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4147",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_PARTY_AUDIT"
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e4148",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4149",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e414a",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e414b",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e4146",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4146",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4147",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4147",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT06",
+      "name": "invalid second line leaves no first member, segments or newly created guest",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e416d",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e416e",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e416f",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4170",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e416b",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e416b",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e416c",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e416c",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "חדר 2: יש לתקן את פרטי ההזמנה",
+            "status": 422,
+            "code": "party_failed"
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e416d",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e416e",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e416f",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e4170",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e416b",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e416b",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e416c",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e416c",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT07",
+      "name": "identical concurrent party calls identify one completed operation",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "partyId": "9c66e06e-58fc-4849-a391-d015f3d3c702",
+              "code": "e843363d-1001",
+              "duplicate": false,
+              "rooms": [
+                {
+                  "id": "6ae0eff31bb2038f7a1e419c",
+                  "confirmationNumber": "e843363d-1001",
+                  "status": "confirmed",
+                  "total": 1000,
+                  "line": 0
+                },
+                {
+                  "id": "6ae0eff31bb2038f7a1e41a5",
+                  "confirmationNumber": "e843363d-1002",
+                  "status": "confirmed",
+                  "total": 1000,
+                  "line": 1
+                }
+              ],
+              "total": 2000,
+              "assignments": []
+            }
+          },
+          {
+            "ok": true,
+            "value": {
+              "partyId": "9c66e06e-58fc-4849-a391-d015f3d3c702",
+              "code": "e843363d-1001",
+              "duplicate": true,
+              "rooms": [
+                {
+                  "id": "6ae0eff31bb2038f7a1e419c",
+                  "confirmationNumber": "e843363d-1001",
+                  "status": "confirmed",
+                  "total": 1000,
+                  "line": 0
+                },
+                {
+                  "id": "6ae0eff31bb2038f7a1e41a5",
+                  "confirmationNumber": "e843363d-1002",
+                  "status": "confirmed",
+                  "total": 1000,
+                  "line": 1
+                }
+              ],
+              "total": 2000,
+              "assignments": []
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff31bb2038f7a1e419c",
+              "key": "9c66e06e-58fc-4849-a391-d015f3d3c702-1",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e418b",
+              "total": 1000,
+              "party": {
+                "id": "9c66e06e-58fc-4849-a391-d015f3d3c702",
+                "code": "e843363d-1001",
+                "index": 1,
+                "size": 2
+              }
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41a5",
+              "key": "9c66e06e-58fc-4849-a391-d015f3d3c702-2",
+              "status": "confirmed",
+              "room": "6ae0eff31bb2038f7a1e418c",
+              "total": 1000,
+              "party": {
+                "id": "9c66e06e-58fc-4849-a391-d015f3d3c702",
+                "code": "e843363d-1001",
+                "index": 2,
+                "size": 2
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff31bb2038f7a1e419f",
+              "reservation": "6ae0eff31bb2038f7a1e419c",
+              "room": "6ae0eff31bb2038f7a1e418b",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41a8",
+              "reservation": "6ae0eff31bb2038f7a1e41a5",
+              "room": "6ae0eff31bb2038f7a1e418c",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff31bb2038f7a1e41a0",
+              "reservation": "6ae0eff31bb2038f7a1e419c",
+              "room": "6ae0eff31bb2038f7a1e418b",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41a9",
+              "reservation": "6ae0eff31bb2038f7a1e41a5",
+              "room": "6ae0eff31bb2038f7a1e418c",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e418b",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e418c",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e418d",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e418e",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e4189",
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e4189",
+              "date": "2026-10-28",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e418a",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e418a",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 2,
+          "audit": 5,
+          "channels": 2,
+          "operations": 1
+        }
+      }
+    },
+    {
+      "code": "PT08",
+      "name": "legacy creation rolls back when stay-segment insertion fails",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e41b5",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41b6",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41b7",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41b8",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e41b3",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e41b3",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e41b4",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e41b4",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_LEGACY_SEGMENTS"
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff31bb2038f7a1e41b5",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41b6",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41b7",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff31bb2038f7a1e41b8",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff31bb2038f7a1e41b3",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e41b3",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e41b4",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff31bb2038f7a1e41b4",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT09",
+      "name": "legacy same operation key cannot silently accept changed price",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41dc",
+              "key": "615b8788-04b8-4a88-8157-77caba18eec5",
+              "status": "confirmed",
+              "room": "6ae0eff41bb2038f7a1e41cc",
+              "total": 1000
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41df",
+              "reservation": "6ae0eff41bb2038f7a1e41dc",
+              "room": "6ae0eff41bb2038f7a1e41cc",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41e0",
+              "reservation": "6ae0eff41bb2038f7a1e41dc",
+              "room": "6ae0eff41bb2038f7a1e41cc",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41cc",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41cd",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41ce",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41cf",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e41ca",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41ca",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41cb",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41cb",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 1,
+          "audit": 2,
+          "channels": 1,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "מזהה הפעולה שייך להזמנה אחרת או ללא זיהוי תוכן — יש לפתוח את ההזמנה הקיימת",
+            "status": 409,
+            "code": "request_conflict"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41dc",
+              "key": "615b8788-04b8-4a88-8157-77caba18eec5",
+              "status": "confirmed",
+              "room": "6ae0eff41bb2038f7a1e41cc",
+              "total": 1000
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41df",
+              "reservation": "6ae0eff41bb2038f7a1e41dc",
+              "room": "6ae0eff41bb2038f7a1e41cc",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41e0",
+              "reservation": "6ae0eff41bb2038f7a1e41dc",
+              "room": "6ae0eff41bb2038f7a1e41cc",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41cc",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41cd",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41ce",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41cf",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e41ca",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41ca",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41cb",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41cb",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 1,
+          "audit": 2,
+          "channels": 1,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT10",
+      "name": "legacy draft creation is atomic even though it reserves no stock",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41e8",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41e9",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41ea",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41eb",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e41e6",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41e6",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41e7",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41e7",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_LEGACY_DRAFT"
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41e8",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41e9",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41ea",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41eb",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e41e6",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41e6",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41e7",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41e7",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT11",
+      "name": "automatic first line does not consume the room requested for the second line",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "partyId": "f18562be-be82-48b2-b07e-6f3d58fa4380",
+            "code": "a1ca6de0-1001",
+            "duplicate": false,
+            "rooms": [
+              {
+                "id": "6ae0eff41bb2038f7a1e420e",
+                "confirmationNumber": "a1ca6de0-1001",
+                "status": "confirmed",
+                "total": 1000,
+                "line": 0
+              },
+              {
+                "id": "6ae0eff41bb2038f7a1e4217",
+                "confirmationNumber": "a1ca6de0-1002",
+                "status": "confirmed",
+                "total": 1000,
+                "line": 1
+              }
+            ],
+            "total": 2000,
+            "assignments": [
+              {
+                "line": 1,
+                "ok": true,
+                "room": "101"
+              }
+            ]
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff41bb2038f7a1e420e",
+              "key": "f18562be-be82-48b2-b07e-6f3d58fa4380-1",
+              "status": "confirmed",
+              "room": "6ae0eff41bb2038f7a1e41fe",
+              "total": 1000,
+              "party": {
+                "id": "f18562be-be82-48b2-b07e-6f3d58fa4380",
+                "code": "a1ca6de0-1001",
+                "index": 1,
+                "size": 2
+              }
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4217",
+              "key": "f18562be-be82-48b2-b07e-6f3d58fa4380-2",
+              "status": "confirmed",
+              "room": "6ae0eff41bb2038f7a1e41fd",
+              "total": 1000,
+              "party": {
+                "id": "f18562be-be82-48b2-b07e-6f3d58fa4380",
+                "code": "a1ca6de0-1001",
+                "index": 2,
+                "size": 2
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff41bb2038f7a1e4211",
+              "reservation": "6ae0eff41bb2038f7a1e420e",
+              "room": "6ae0eff41bb2038f7a1e41fe",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e421a",
+              "reservation": "6ae0eff41bb2038f7a1e4217",
+              "room": "6ae0eff41bb2038f7a1e41fd",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff41bb2038f7a1e4212",
+              "reservation": "6ae0eff41bb2038f7a1e420e",
+              "room": "6ae0eff41bb2038f7a1e41fe",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e421b",
+              "reservation": "6ae0eff41bb2038f7a1e4217",
+              "room": "6ae0eff41bb2038f7a1e41fd",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e41fd",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41fe",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e41ff",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4200",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e41fb",
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41fb",
+              "date": "2026-10-28",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41fc",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e41fc",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 2,
+          "audit": 5,
+          "channels": 2,
+          "operations": 1
+        }
+      }
+    },
+    {
+      "code": "PT12",
+      "name": "multi-type party failure leaves both inventories unchanged",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e4225",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4226",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4227",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4228",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e4223",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4223",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4224",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4224",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_MULTI_TYPE_LINK"
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e4225",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4226",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4227",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4228",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e4223",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4223",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4224",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4224",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT13",
+      "name": "legacy price quote uses configured VAT and the same inclusive total as creation",
+      "status": "passed",
+      "evidence": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "data": {
+            "type": "quote",
+            "available": true,
+            "availabilityReason": null,
+            "nights": 2,
+            "roomsCount": 1,
+            "ratePerNight": 500,
+            "subtotal": 847.46,
+            "taxAmount": 152.54,
+            "total": 1000,
+            "vatRate": 18,
+            "currency": "ILS",
+            "expiresAt": "2026-10-27T18:54:48.480Z"
+          }
+        }
+      }
+    },
+    {
+      "code": "PT14",
+      "name": "failure saving the party result rolls back everything and permits a clean retry",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e425c",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e425d",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e425e",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e425f",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e425a",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e425a",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e425b",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e425b",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "failure": {
+          "ok": false,
+          "error": {
+            "message": "QA_PARTY_RESULT"
+          }
+        },
+        "afterFailure": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e425c",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e425d",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e425e",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e425f",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e425a",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e425a",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e425b",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e425b",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "retry": {
+          "ok": true,
+          "value": {
+            "partyId": "602a4866-fd65-4c43-9ba7-8a5cfa8bcd41",
+            "code": "1b207916-1001",
+            "duplicate": false,
+            "rooms": [
+              {
+                "id": "6ae0eff41bb2038f7a1e4281",
+                "confirmationNumber": "1b207916-1001",
+                "status": "confirmed",
+                "total": 1000,
+                "line": 0
+              },
+              {
+                "id": "6ae0eff41bb2038f7a1e428a",
+                "confirmationNumber": "1b207916-1002",
+                "status": "confirmed",
+                "total": 1000,
+                "line": 1
+              }
+            ],
+            "total": 2000,
+            "assignments": []
+          }
+        }
+      }
+    },
+    {
+      "code": "PT15",
+      "name": "legacy single-room creation and a party cannot oversell the same two rooms",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "partyId": "38b21439-220e-4bfd-bf46-ba9a548ed83d",
+              "code": "6ac22196-1001",
+              "duplicate": false,
+              "rooms": [
+                {
+                  "id": "6ae0eff41bb2038f7a1e42aa",
+                  "confirmationNumber": "6ac22196-1001",
+                  "status": "confirmed",
+                  "total": 1000,
+                  "line": 0
+                },
+                {
+                  "id": "6ae0eff41bb2038f7a1e42b3",
+                  "confirmationNumber": "6ac22196-1002",
+                  "status": "confirmed",
+                  "total": 1000,
+                  "line": 1
+                }
+              ],
+              "total": 2000,
+              "assignments": []
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "No availability: Not enough availability on 2026-10-27",
+              "status": 409
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff41bb2038f7a1e42aa",
+              "key": "38b21439-220e-4bfd-bf46-ba9a548ed83d-1",
+              "status": "confirmed",
+              "room": "6ae0eff41bb2038f7a1e4298",
+              "total": 1000,
+              "party": {
+                "id": "38b21439-220e-4bfd-bf46-ba9a548ed83d",
+                "code": "6ac22196-1001",
+                "index": 1,
+                "size": 2
+              }
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e42b3",
+              "key": "38b21439-220e-4bfd-bf46-ba9a548ed83d-2",
+              "status": "confirmed",
+              "room": "6ae0eff41bb2038f7a1e4299",
+              "total": 1000,
+              "party": {
+                "id": "38b21439-220e-4bfd-bf46-ba9a548ed83d",
+                "code": "6ac22196-1001",
+                "index": 2,
+                "size": 2
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff41bb2038f7a1e42ad",
+              "reservation": "6ae0eff41bb2038f7a1e42aa",
+              "room": "6ae0eff41bb2038f7a1e4298",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e42b6",
+              "reservation": "6ae0eff41bb2038f7a1e42b3",
+              "room": "6ae0eff41bb2038f7a1e4299",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff41bb2038f7a1e42ae",
+              "reservation": "6ae0eff41bb2038f7a1e42aa",
+              "room": "6ae0eff41bb2038f7a1e4298",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e42b7",
+              "reservation": "6ae0eff41bb2038f7a1e42b3",
+              "room": "6ae0eff41bb2038f7a1e4299",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e4298",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e4299",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e429a",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e429b",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e4296",
+              "date": "2026-10-27",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4296",
+              "date": "2026-10-28",
+              "booked": 2
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4297",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e4297",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 2,
+          "audit": 5,
+          "channels": 2,
+          "operations": 1
+        }
+      }
+    },
+    {
+      "code": "PT16",
+      "name": "concurrent identical legacy requests create only one reservation",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "_id": "6ae0eff41bb2038f7a1e42d3",
+              "property": "6ae0eff41bb2038f7a1e42bf",
+              "confirmationNumber": "f2f1a390-1001",
+              "idempotencyKey": "edcb8254-9df2-4071-a604-f1b5e6e08555",
+              "legacyRequestHash": "3101775a76addeecf353a880c582ee59d69549da0e905199c89c82617f9e5913",
+              "status": "confirmed",
+              "primaryGuest": "6ae0eff41bb2038f7a1e42cf",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-27",
+              "departureDate": "2026-10-29",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "ratePlan": "6ae0eff41bb2038f7a1e42c6",
+              "roomType": "6ae0eff41bb2038f7a1e42c0",
+              "assignedRoom": "6ae0eff41bb2038f7a1e42c2",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 152.54,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "createdBy": "6ae0eff21bb2038f7a1e40a6",
+              "updatedBy": "6ae0eff21bb2038f7a1e40a6",
+              "reversals": [],
+              "createdAt": "2026-10-27T18:39:48.902Z",
+              "updatedAt": "2026-10-27T18:39:48.902Z",
+              "__v": 0
+            }
+          },
+          {
+            "ok": true,
+            "value": {
+              "property": "6ae0eff41bb2038f7a1e42bf",
+              "confirmationNumber": "f2f1a390-1001",
+              "idempotencyKey": "edcb8254-9df2-4071-a604-f1b5e6e08555",
+              "legacyRequestHash": "3101775a76addeecf353a880c582ee59d69549da0e905199c89c82617f9e5913",
+              "status": "confirmed",
+              "primaryGuest": "6ae0eff41bb2038f7a1e42cf",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-27",
+              "departureDate": "2026-10-29",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "ratePlan": "6ae0eff41bb2038f7a1e42c6",
+              "roomType": "6ae0eff41bb2038f7a1e42c0",
+              "assignedRoom": "6ae0eff41bb2038f7a1e42c2",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 152.54,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "createdBy": "6ae0eff21bb2038f7a1e40a6",
+              "updatedBy": "6ae0eff21bb2038f7a1e40a6",
+              "_id": "6ae0eff41bb2038f7a1e42d3",
+              "reversals": [],
+              "createdAt": "2026-10-27T18:39:48.902Z",
+              "updatedAt": "2026-10-27T18:39:48.902Z",
+              "__v": 0
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff41bb2038f7a1e42d3",
+              "key": "edcb8254-9df2-4071-a604-f1b5e6e08555",
+              "status": "confirmed",
+              "room": "6ae0eff41bb2038f7a1e42c2",
+              "total": 1000
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff41bb2038f7a1e42d6",
+              "reservation": "6ae0eff41bb2038f7a1e42d3",
+              "room": "6ae0eff41bb2038f7a1e42c2",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff41bb2038f7a1e42d7",
+              "reservation": "6ae0eff41bb2038f7a1e42d3",
+              "room": "6ae0eff41bb2038f7a1e42c2",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff41bb2038f7a1e42c2",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e42c3",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e42c4",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff41bb2038f7a1e42c5",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff41bb2038f7a1e42c0",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e42c0",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e42c1",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff41bb2038f7a1e42c1",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 1,
+          "audit": 2,
+          "channels": 1,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT17",
+      "name": "saved legacy quote retries do not change identity because of a generated expiry",
+      "status": "passed",
+      "evidence": {
+        "first": {
+          "status": 201,
+          "body": {
+            "success": true,
+            "data": {
+              "property": "6ae0eff51bb2038f7a1e42dc",
+              "confirmationNumber": "fddab913-1001",
+              "idempotencyKey": "9023af66-0591-480b-9747-3df5cb941c9f",
+              "legacyRequestHash": "2ecc936caa3f6ad301aff0055f9c8feea6dd059ae46e4f9131c8f82c59a85a12",
+              "status": "quote",
+              "primaryGuest": "6ae0eff51bb2038f7a1e42ec",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-27",
+              "departureDate": "2026-10-29",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "ratePlan": "6ae0eff51bb2038f7a1e42e3",
+              "roomType": "6ae0eff51bb2038f7a1e42dd",
+              "assignedRoom": null,
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 152.54,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "quoteExpiresAt": "2026-10-27T19:09:49.213Z",
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "createdBy": "6ae0eff21bb2038f7a1e40a6",
+              "updatedBy": "6ae0eff21bb2038f7a1e40a6",
+              "_id": "6ae0eff51bb2038f7a1e42ef",
+              "reversals": [],
+              "createdAt": "2026-10-27T18:39:49.213Z",
+              "updatedAt": "2026-10-27T18:39:49.213Z",
+              "__v": 0
+            }
+          }
+        },
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42ef",
+              "key": "9023af66-0591-480b-9747-3df5cb941c9f",
+              "status": "quote",
+              "room": "null",
+              "total": 1000
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42f0",
+              "reservation": "6ae0eff51bb2038f7a1e42ef",
+              "room": "null",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42f1",
+              "reservation": "6ae0eff51bb2038f7a1e42ef",
+              "room": "null",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42df",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42e0",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42e1",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42e2",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff51bb2038f7a1e42dd",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42dd",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42de",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42de",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 1,
+          "channels": 1,
+          "operations": 0
+        },
+        "retry": {
+          "status": 201,
+          "body": {
+            "success": true,
+            "data": {
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "_id": "6ae0eff51bb2038f7a1e42ef",
+              "property": "6ae0eff51bb2038f7a1e42dc",
+              "confirmationNumber": "fddab913-1001",
+              "idempotencyKey": "9023af66-0591-480b-9747-3df5cb941c9f",
+              "legacyRequestHash": "2ecc936caa3f6ad301aff0055f9c8feea6dd059ae46e4f9131c8f82c59a85a12",
+              "status": "quote",
+              "primaryGuest": "6ae0eff51bb2038f7a1e42ec",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-27",
+              "departureDate": "2026-10-29",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "ratePlan": "6ae0eff51bb2038f7a1e42e3",
+              "roomType": "6ae0eff51bb2038f7a1e42dd",
+              "assignedRoom": null,
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 152.54,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "quoteExpiresAt": "2026-10-27T19:09:49.213Z",
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "createdBy": "6ae0eff21bb2038f7a1e40a6",
+              "updatedBy": "6ae0eff21bb2038f7a1e40a6",
+              "reversals": [],
+              "createdAt": "2026-10-27T18:39:49.213Z",
+              "updatedAt": "2026-10-27T18:39:49.213Z",
+              "__v": 0
+            }
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42ef",
+              "key": "9023af66-0591-480b-9747-3df5cb941c9f",
+              "status": "quote",
+              "room": "null",
+              "total": 1000
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42f0",
+              "reservation": "6ae0eff51bb2038f7a1e42ef",
+              "room": "null",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42f1",
+              "reservation": "6ae0eff51bb2038f7a1e42ef",
+              "room": "null",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42df",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42e0",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42e1",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42e2",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff51bb2038f7a1e42dd",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42dd",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42de",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42de",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 1,
+          "channels": 1,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT18",
+      "name": "invalid legacy creation input returns a validation error without writing",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42f9",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42fa",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42fb",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42fc",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff51bb2038f7a1e42f7",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42f7",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42f8",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42f8",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "status": 400,
+          "body": {
+            "success": false,
+            "error": "Invalid input: expected string, received undefined"
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff51bb2038f7a1e42f9",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42fa",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42fb",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e42fc",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff51bb2038f7a1e42f7",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42f7",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42f8",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e42f8",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT19",
+      "name": "legacy creation cannot link a guest from another property",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff51bb2038f7a1e430a",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e430b",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e430c",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e430d",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff51bb2038f7a1e4308",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e4308",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e4309",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e4309",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "האורח לא נמצא בנכס",
+            "status": 422
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff51bb2038f7a1e430a",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e430b",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e430c",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff51bb2038f7a1e430d",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff51bb2038f7a1e4308",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e4308",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e4309",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e4309",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT20",
+      "name": "foreign room type, rate plan or company cannot be referenced even with overbooking",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff51bb2038f7a1e432e",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e432f",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e4330",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e4331",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff51bb2038f7a1e432c",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e432c",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e432d",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e432d",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "responses": [
+          {
+            "ok": false,
+            "error": {
+              "message": "סוג החדר לא נמצא בנכס",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "התעריף לא נמצא בנכס",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "החברה לא נמצאה בנכס",
+              "status": 422
+            }
+          }
+        ],
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff51bb2038f7a1e432e",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e432f",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e4330",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e4331",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff51bb2038f7a1e432c",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e432c",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e432d",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff51bb2038f7a1e432d",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT21",
+      "name": "legacy creation without an operation key remains atomic and allocates distinct rooms",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n\nfalse !== true\n",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "property": "6ae0eff61bb2038f7a1e4354",
+              "confirmationNumber": "4a37e406-1001",
+              "legacyRequestHash": "b2de8338a91daf3e37c63927bb2db8e1384569461e291ff91c94fd622b7c698f",
+              "status": "confirmed",
+              "primaryGuest": "6ae0eff61bb2038f7a1e4364",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-27",
+              "departureDate": "2026-10-29",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "ratePlan": "6ae0eff61bb2038f7a1e435b",
+              "roomType": "6ae0eff61bb2038f7a1e4355",
+              "assignedRoom": "6ae0eff61bb2038f7a1e4357",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 152.54,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "createdBy": "6ae0eff21bb2038f7a1e40a6",
+              "updatedBy": "6ae0eff21bb2038f7a1e40a6",
+              "_id": "6ae0eff61bb2038f7a1e4366",
+              "reversals": [],
+              "createdAt": "2026-10-27T18:39:50.726Z",
+              "updatedAt": "2026-10-27T18:39:50.726Z",
+              "__v": 0
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "E11000 duplicate key error collection: party_qa_1793126386491.channelupdatequeues index: property_1_channel_1_idempotencyKey_1 dup key: { property: ObjectId('6ae0eff61bb2038f7a1e4354'), channel: \"direct\", idempotencyKey: null }",
+              "code": 11000
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff61bb2038f7a1e4366",
+              "status": "confirmed",
+              "room": "6ae0eff61bb2038f7a1e4357",
+              "total": 1000
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff61bb2038f7a1e4369",
+              "reservation": "6ae0eff61bb2038f7a1e4366",
+              "room": "6ae0eff61bb2038f7a1e4357",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff61bb2038f7a1e436a",
+              "reservation": "6ae0eff61bb2038f7a1e4366",
+              "room": "6ae0eff61bb2038f7a1e4357",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff61bb2038f7a1e4357",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e4358",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e4359",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e435a",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff61bb2038f7a1e4355",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4355",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4356",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4356",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 1,
+          "audit": 2,
+          "channels": 1,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT22",
+      "name": "expired party lease cannot commit any member or operation result",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff61bb2038f7a1e4378",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e4379",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e437a",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e437b",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff61bb2038f7a1e4376",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4376",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4377",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4377",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+            "status": 409,
+            "code": "lock_expired"
+          }
+        },
+        "after": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff61bb2038f7a1e4378",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e4379",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e437a",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff61bb2038f7a1e437b",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff61bb2038f7a1e4376",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4376",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4377",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff61bb2038f7a1e4377",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        }
+      }
+    },
+    {
+      "code": "PT23",
+      "name": "fractional room or guest counts are refused before legacy creation",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n\nfalse !== true\n",
+      "evidence": {
+        "before": {
+          "reservations": [],
+          "units": [],
+          "segments": [],
+          "rooms": [
+            {
+              "id": "6ae0eff71bb2038f7a1e43b3",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff71bb2038f7a1e43b4",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff71bb2038f7a1e43b5",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff71bb2038f7a1e43b6",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff71bb2038f7a1e43b1",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff71bb2038f7a1e43b1",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff71bb2038f7a1e43b2",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff71bb2038f7a1e43b2",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 0,
+          "audit": 0,
+          "channels": 0,
+          "operations": 0
+        },
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "property": "6ae0eff71bb2038f7a1e43b0",
+              "confirmationNumber": "0f6923ca-1001",
+              "idempotencyKey": "b73161f6-facb-4a2c-983d-af78a4d18c42",
+              "legacyRequestHash": "f1346e678323c0d92e7b8239d1fa32eef3915a2e8a7a1bb6239c4a84c8337194",
+              "status": "confirmed",
+              "primaryGuest": "6ae0eff71bb2038f7a1e43c0",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-27",
+              "departureDate": "2026-10-29",
+              "nights": 2,
+              "roomsCount": 1.5,
+              "source": "direct",
+              "ratePlan": "6ae0eff71bb2038f7a1e43b7",
+              "roomType": "6ae0eff71bb2038f7a1e43b1",
+              "assignedRoom": "6ae0eff71bb2038f7a1e43b3",
+              "ratePerNight": 500,
+              "totalAmount": 1500,
+              "taxAmount": 228.81,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "createdBy": "6ae0eff21bb2038f7a1e40a6",
+              "updatedBy": "6ae0eff21bb2038f7a1e40a6",
+              "_id": "6ae0eff71bb2038f7a1e43c3",
+              "reversals": [],
+              "createdAt": "2026-10-27T18:39:51.549Z",
+              "updatedAt": "2026-10-27T18:39:51.549Z",
+              "__v": 0
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "No availability: Not enough availability on 2026-10-27",
+              "status": 409
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "No availability: Not enough availability on 2026-10-27",
+              "status": 409
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae0eff71bb2038f7a1e43c3",
+              "key": "b73161f6-facb-4a2c-983d-af78a4d18c42",
+              "status": "confirmed",
+              "room": "6ae0eff71bb2038f7a1e43b3",
+              "total": 1500
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae0eff71bb2038f7a1e43c6",
+              "reservation": "6ae0eff71bb2038f7a1e43c3",
+              "room": "6ae0eff71bb2038f7a1e43b3",
+              "status": "reserved"
+            },
+            {
+              "id": "6ae0eff71bb2038f7a1e43c7",
+              "reservation": "6ae0eff71bb2038f7a1e43c3",
+              "room": "null",
+              "status": "reserved"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0eff71bb2038f7a1e43c8",
+              "reservation": "6ae0eff71bb2038f7a1e43c3",
+              "room": "6ae0eff71bb2038f7a1e43b3",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            },
+            {
+              "id": "6ae0eff71bb2038f7a1e43c9",
+              "reservation": "6ae0eff71bb2038f7a1e43c3",
+              "room": "null",
+              "from": "2026-10-27",
+              "to": "2026-10-29"
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0eff71bb2038f7a1e43b3",
+              "occupancy": "due_in",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff71bb2038f7a1e43b4",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff71bb2038f7a1e43b5",
+              "occupancy": "vacant",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0eff71bb2038f7a1e43b6",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0eff71bb2038f7a1e43b1",
+              "date": "2026-10-27",
+              "booked": 1.5
+            },
+            {
+              "type": "6ae0eff71bb2038f7a1e43b1",
+              "date": "2026-10-28",
+              "booked": 1.5
+            },
+            {
+              "type": "6ae0eff71bb2038f7a1e43b2",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0eff71bb2038f7a1e43b2",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "guests": 1,
+          "folios": 1,
+          "audit": 2,
+          "channels": 1,
+          "operations": 0
+        }
+      }
+    }
+  ]
+}

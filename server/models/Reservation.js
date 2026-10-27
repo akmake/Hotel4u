@@ -15,6 +15,8 @@ const ReservationSchema = new Schema({
   property:          { type: Schema.Types.ObjectId, ref: 'Property', required: true },
   confirmationNumber:{ type: String, required: true, unique: true },
   idempotencyKey:    String,
+  bookingRequestHash: String,
+  legacyRequestHash: String,
   status:            { type: String, enum: RES_STATUS, default: 'confirmed' },
 
   // Guests

@@ -7,11 +7,11 @@ import AuditLog from '../models/AuditLog.js';
  */
 export async function audit({
   property, actor, actorName, action, entityType, entityId,
-  before, after, reason, ip, userAgent,
+  before, after, reason, ip, userAgent, session = null, afterCommit = null,
 }) {
   try {
-    if (property) emitPropertyChange(String(property), { entity: entityType || null, action: action || null, at: Date.now() });
-    await AuditLog.create({
+    const notify = () => { if (property) emitPropertyChange(String(property), { entity: entityType || null, action: action || null, at: Date.now() }); };
+    const entry = {
       property,
       actor: actor || undefined,
       actorName: actorName || 'system',
@@ -25,8 +25,13 @@ export async function audit({
       reason:    reason    || undefined,
       ip:        ip        || undefined,
       userAgent: userAgent || undefined,
-    });
+    };
+    if (session) await AuditLog.create([entry], { session });
+    else await AuditLog.create(entry);
+    if (session) afterCommit?.push(notify);
+    else notify();
   } catch (err) {
+    if (session) throw err;
     // Never propagate — audit is fire-and-forget
     console.error('[audit] write failed:', err.message);
   }

@@ -13,6 +13,9 @@ const ReservationRoomSchema = new Schema({
   ratePlan:          { type: Schema.Types.ObjectId, ref: 'RatePlan' },
   nightlyRate:       { type: Number, required: true },
   guests:            [{ type: Schema.Types.ObjectId, ref: 'GuestProfile' }],
+  // Optional for legacy bookings. Never default unknown per-unit composition to zero.
+  adults:            { type: Number, min: 1, validate: Number.isInteger },
+  children:          { type: Number, min: 0, validate: Number.isInteger },
   status:            { type: String, enum: RR_STATUS, default: 'reserved' },
   notes:             String,
   // Group billing (per room): who pays the room nights and who pays the extras of this room.

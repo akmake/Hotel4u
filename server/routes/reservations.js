@@ -776,7 +776,7 @@ router.post('/', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Reservation creation requires commercial/front-desk permissions');
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ success: false, error: parsed.error.errors[0].message });
+    return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message || 'Invalid input' });
   }
 
   const { propertyId, ...data } = parsed.data;
@@ -803,7 +803,7 @@ router.post('/', asyncHandler(async (req, res) => {
 router.post('/quote', asyncHandler(async (req, res) => {
   requireRoles(req, COMMERCIAL_ROLES, 'Quote creation requires commercial/front-desk permissions');
   const parsed = createSchema.partial({ primaryGuestId: true, ratePerNight: true }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.errors[0].message });
+  if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message || 'Invalid input' });
 
   const d = parsed.data;
   if (!d.propertyId || !d.roomTypeId || !d.arrivalDate || !d.departureDate) {
@@ -824,8 +824,13 @@ router.post('/quote', asyncHandler(async (req, res) => {
 
   const rate = Number(d.ratePerNight || 0);
   const roomsCount = Math.max(1, Number(d.roomsCount || 1));
-  const subtotal = rate * nights * roomsCount;
-  const taxAmount = Math.round(subtotal * 0.17);
+  const property = await Property.findById(d.propertyId).select('vatRate').lean();
+  if (!property) return res.status(404).json({ success: false, error: 'Property not found' });
+  // Match creation: the agreed nightly rate already includes the property's configured VAT.
+  const total = Math.round((rate * nights * roomsCount + Number.EPSILON) * 100) / 100;
+  const vatRate = Number(property.vatRate ?? 18);
+  const taxAmount = Math.round((total - total / (1 + vatRate / 100) + Number.EPSILON) * 100) / 100;
+  const subtotal = Math.round((total - taxAmount + Number.EPSILON) * 100) / 100;
 
   res.json({
     success: true,
@@ -838,7 +843,8 @@ router.post('/quote', asyncHandler(async (req, res) => {
       ratePerNight: rate,
       subtotal,
       taxAmount,
-      total: subtotal + taxAmount,
+      total,
+      vatRate,
       currency: d.currency || 'ILS',
       expiresAt: new Date(Date.now() + 15 * 60000).toISOString(),
     },
@@ -854,7 +860,7 @@ router.post('/quote/save', asyncHandler(async (req, res) => {
     .safeParse({ ...req.body, bookingStatus: req.body?.bookingStatus || 'quote' });
 
   if (!parsed.success) {
-    return res.status(400).json({ success: false, error: parsed.error.errors[0].message });
+    return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message || 'Invalid input' });
   }
 
   const { propertyId, ...data } = parsed.data;
@@ -866,7 +872,8 @@ router.post('/quote/save', asyncHandler(async (req, res) => {
     data: {
       ...data,
       bookingStatus: data.bookingStatus === 'hold' ? 'hold' : 'quote',
-      quoteExpiresAt: data.quoteExpiresAt || new Date(Date.now() + 30 * 60000).toISOString(),
+      // The service supplies the default once; retry identity must not contain a new server timestamp.
+      quoteExpiresAt: data.quoteExpiresAt,
     },
     actorId: actor.id,
     actorName: actor.name,

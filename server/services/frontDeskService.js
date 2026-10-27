@@ -21,6 +21,7 @@ import { fireEvent } from './automationEngine.js';
 import { audit } from './auditService.js';
 import { withLocks } from './locks.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { runStayTransaction } from './stayTransaction.js';
 
 export const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 
@@ -60,8 +61,8 @@ export function policyOf(property) {
   };
 }
 
-export async function loadProperty(propertyId) {
-  const property = await Property.findById(propertyId).select('name timezone checkInTime checkInPolicy').lean();
+export async function loadProperty(propertyId, session = null) {
+  const property = await Property.findById(propertyId).session(session).select('name timezone checkInTime checkInPolicy').lean();
   if (!property) throw httpError('הנכס לא נמצא', 404);
   return property;
 }
@@ -97,8 +98,8 @@ export function implicitUnits(res) {
   }));
 }
 
-export async function ensureUnits(reservation) {
-  const existing = await ReservationRoom.find({ reservation: reservation._id }).sort({ createdAt: 1, _id: 1 });
+export async function ensureUnits(reservation, session = null) {
+  const existing = await ReservationRoom.find({ reservation: reservation._id }).session(session).sort({ createdAt: 1, _id: 1 });
   if (existing.length) return existing;
   const count = Math.max(1, Number(reservation.roomsCount || 1));
   const docs = Array.from({ length: count }, (_, i) => ({
@@ -113,7 +114,7 @@ export async function ensureUnits(reservation) {
     guests: [reservation.primaryGuest?._id || reservation.primaryGuest].filter(Boolean),
     status: unitStatusFor(reservation.status),
   }));
-  return ReservationRoom.insertMany(docs);
+  return ReservationRoom.insertMany(docs, { session });
 }
 
 // ── Guarantee ───────────────────────────────────────────────────────────────
@@ -228,22 +229,20 @@ function computeReadiness({ res, unit, room, guest, policy, businessDate, occupi
 
 // Who physically occupies each room right now: room id → [{ resId, label }]. Unit records are the
 // truth for stays that have them; the reservation-level pointer only counts for stays without units.
-async function occupancyMap(propertyId, roomIds) {
+async function occupancyMap(propertyId, roomIds, session = null) {
   const map = new Map();
   if (!roomIds.length) return map;
-  const [stays, units] = await Promise.all([
-    Reservation.find({
+  const stays = await Reservation.find({
       property: propertyId,
       assignedRoom: { $in: roomIds },
       status: { $in: IN_HOUSE_STATUSES },
-    }).select('assignedRoom confirmationNumber').lean(),
-    ReservationRoom.find({
+    }).session(session).select('assignedRoom confirmationNumber').lean();
+  const units = await ReservationRoom.find({
       property: propertyId,
       assignedRoom: { $in: roomIds },
       status: { $in: ['in_house', 'checked_in'] },
-    }).populate('reservation', 'confirmationNumber status').lean(),
-  ]);
-  const withUnits = new Set((await ReservationRoom.distinct('reservation', { reservation: { $in: stays.map((x) => x._id) } })).map(String));
+    }).session(session).populate('reservation', 'confirmationNumber status').lean();
+  const withUnits = new Set((await ReservationRoom.distinct('reservation', { reservation: { $in: stays.map((x) => x._id) } }).session(session)).map(String));
   const add = (roomId, resId, label) => {
     const k = String(roomId);
     if (!map.has(k)) map.set(k, []);
@@ -401,9 +400,9 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
 }
 
 // ── Shared loaders for writes ───────────────────────────────────────────────
-export async function loadReservationInScope(reservationId, propertyId) {
+export async function loadReservationInScope(reservationId, propertyId, session = null) {
   if (!isId(String(reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
-  const res = await Reservation.findById(reservationId)
+  const res = await Reservation.findById(reservationId).session(session)
     .populate('primaryGuest', 'firstName lastName isBlacklisted blacklistReason dateOfBirth citizenship country email phone marketingConsent')
     .populate('roomType', 'name code')
     .populate('company', 'name');
@@ -413,15 +412,13 @@ export async function loadReservationInScope(reservationId, propertyId) {
   return res;
 }
 
-async function unitReadiness(res, unit, property) {
+async function unitReadiness(res, unit, property, session = null) {
   const policy = policyOf(property);
-  const room = unit.assignedRoom ? await Room.findById(unit.assignedRoom).lean() : null;
-  const [occ, folio, queue, ownFolio] = await Promise.all([
-    room ? occupancyMap(res.property, [room._id]) : new Map(),
-    Folio.findOne({ reservation: res._id, ownerType: { $ne: 'room' } }).select('lines').lean(),
-    unit._id ? ArrivalQueueEntry.findOne({ reservationRoom: unit._id, status: 'active' }).lean() : null,
-    unit._id && unitPaysSelf(unit) ? Folio.findOne({ reservation: res._id, ownerType: 'room', ownerRef: String(unit._id), status: { $ne: 'closed' } }).select('lines').lean() : null,
-  ]);
+  const room = unit.assignedRoom ? await Room.findOne({ _id: unit.assignedRoom, property: res.property }).session(session).lean() : null;
+  const occ = room ? await occupancyMap(res.property, [room._id], session) : new Map();
+  const folio = await Folio.findOne({ reservation: res._id, ownerType: { $ne: 'room' } }).session(session).select('lines').lean();
+  const queue = unit._id ? await ArrivalQueueEntry.findOne({ reservationRoom: unit._id, status: 'active' }).session(session).lean() : null;
+  const ownFolio = unit._id && unitPaysSelf(unit) ? await Folio.findOne({ reservation: res._id, ownerType: 'room', ownerRef: String(unit._id), status: { $ne: 'closed' } }).session(session).select('lines').lean() : null;
   const guarantee = unitPaysSelf(unit) ? unitGuaranteeState(unit, ownFolio) : guaranteeState(res, folio);
   return {
     room,
@@ -645,9 +642,16 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
 
 // ── FD-03 complete check-in ─────────────────────────────────────────────────
 export async function completeCheckIn({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, actor, ip }) {
-  const property = await loadProperty(propertyId);
+  const initial = await loadReservationInScope(reservationId, propertyId);
+  const assigned = await ReservationRoom.find({ reservation: reservationId }).select('assignedRoom').lean();
+  const keys = [`res:${reservationId}`, ...[initial.assignedRoom, ...assigned.map((u) => u.assignedRoom)].filter(Boolean).map((r) => `room:${r}`)];
+  return withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, actor, ip, session, afterCommit }), lease, { operation: 'כניסת אורח' }));
+}
+
+async function completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, actor, ip, session, afterCommit }) {
+  const property = await loadProperty(propertyId, session);
   const policy = policyOf(property);
-  const res = await loadReservationInScope(reservationId, propertyId);
+  const res = await loadReservationInScope(reservationId, propertyId, session);
   const isManager = MANAGER_ROLES.includes(actor.role);
 
   const overrideOn = !!override?.enabled;
@@ -687,16 +691,27 @@ export async function completeCheckIn({ propertyId, reservationId, unitIds, unit
     roomGuarantees.push({ unitId: g.unitId ? String(g.unitId) : null, unitIndex: Number(g.unitIndex) || null, method: g.method, reference: ref || undefined });
   }
 
-  return withLocks([`res:${res._id}`], () => checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees, overrideOn, overrideReason, actor, ip }));
+  return checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees, overrideOn, overrideReason, actor, ip, session, afterCommit });
 }
 
-async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees = [], overrideOn, overrideReason, actor, ip }) {
-  const units = await ensureUnits(res);
+async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees = [], overrideOn, overrideReason, actor, ip, session, afterCommit }) {
+  const units = await ensureUnits(res, session);
+  const tx = { session, afterCommit };
+  if ((unitIds != null && !Array.isArray(unitIds)) || (unitIndexes != null && !Array.isArray(unitIndexes))) throw httpError('בחירת יחידות לא תקינה — נדרשת רשימה', 422);
   let wanted;
-  if (Array.isArray(unitIds) && unitIds.filter(Boolean).length) wanted = units.filter((u) => unitIds.map(String).includes(String(u._id)));
-  else if (Array.isArray(unitIndexes) && unitIndexes.length) wanted = unitIndexes.map((i) => units[Number(i) - 1]).filter(Boolean);
+  if (Array.isArray(unitIds) && unitIds.length) {
+    const ids = unitIds.map(String);
+    if (new Set(ids).size !== ids.length || ids.some((key) => !units.some((u) => String(u._id) === key))) throw httpError('בחירת יחידות לא תקינה — רעננו את המסך', 422);
+    wanted = ids.map((key) => units.find((u) => String(u._id) === key));
+  } else if (Array.isArray(unitIndexes) && unitIndexes.length) {
+    if (new Set(unitIndexes.map(Number)).size !== unitIndexes.length || unitIndexes.some((i) => !Number.isInteger(Number(i)) || Number(i) < 1 || Number(i) > units.length)) throw httpError('בחירת יחידות לא תקינה — רעננו את המסך', 422);
+    wanted = unitIndexes.map((i) => units[Number(i) - 1]);
+  }
   else wanted = units.length === 1 ? units : [];
   if (!wanted.length) throw httpError('יש לבחור לפחות יחידת שהייה אחת לכניסה', 422);
+  // An already-corrupt assignment must not become physical occupancy.
+  const openUnits = units.filter((u) => ['reserved', 'tentative', 'in_house', 'checked_in'].includes(u.status));
+  if (wanted.some((u) => u.assignedRoom && openUnits.some((other) => String(other._id) !== String(u._id) && String(other.assignedRoom || '') === String(u.assignedRoom)))) throw httpError('אותו חדר משויך ליותר מיחידה אחת — יש לתקן את השיבוץ לפני כניסה', 409, { code: 'duplicate_room' });
 
   const changedGuarantees = [];
   for (const g of roomGuarantees) {
@@ -711,7 +726,7 @@ async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guar
   const failures = [];
   const usedOverride = new Set();
   for (const u of wanted) {
-    const { readiness } = await unitReadiness(res, u.toObject(), property);
+    const { readiness } = await unitReadiness(res, u.toObject(), property, session);
     if (readiness.state === 'checked_in') { failures.push({ unitId: String(u._id), reasons: [reason('already_in', 'היחידה כבר נכנסה', 'blocked')] }); continue; }
     const hard = readiness.reasons.filter((r) => r.severity === 'blocked');
     const soft = readiness.reasons.filter((r) => r.severity === 'waiting');
@@ -723,7 +738,7 @@ async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guar
   }
   // The guest register is a legal record: no override skips it.
   if (policy.requireRegistration) {
-    const card = await GuestRegistrationCard.exists({ reservation: res._id, guest: res.primaryGuest._id });
+    const card = await GuestRegistrationCard.exists({ reservation: res._id, guest: res.primaryGuest._id }).session(session);
     if (!card) failures.push({ unitId: null, reasons: [reason('registration', 'לא נשמר רישום אורח', 'blocked', 'registration')] });
   }
   if (failures.length) {
@@ -731,77 +746,71 @@ async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guar
   }
 
   for (const u of changedGuarantees) {
-    await ReservationRoom.updateOne({ _id: u._id }, { $set: { guaranteeType: u.guaranteeType, guaranteeReference: u.guaranteeReference } });
+    await ReservationRoom.updateOne({ _id: u._id }, { $set: { guaranteeType: u.guaranteeType, guaranteeReference: u.guaranteeReference } }, { session });
     await audit({
       property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.room_guarantee_set',
-      entityType: 'ReservationRoom', entityId: u._id, after: { reservation: String(res._id), guaranteeType: u.guaranteeType, hasReference: !!u.guaranteeReference }, ip,
+      entityType: 'ReservationRoom', entityId: u._id, after: { reservation: String(res._id), guaranteeType: u.guaranteeType, hasReference: !!u.guaranteeReference }, ip, ...tx,
     });
   }
 
   if (guaranteeChange) {
     res.updatedBy = actor.id || undefined;
-    await res.save();
+    await res.save({ session });
     await audit({
       property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.guarantee_set',
       entityType: 'Reservation', entityId: res._id, before: { guaranteeType: guaranteeChange.before },
-      after: { guaranteeType: guaranteeChange.after, reference: guarantee.reference ? String(guarantee.reference).slice(0, 80) : undefined }, ip,
+      after: { guaranteeType: guaranteeChange.after, reference: guarantee.reference ? String(guarantee.reference).slice(0, 80) : undefined }, ip, ...tx,
     });
   }
 
   const allUnits = units.length;
   const singleFull = allUnits === 1 && wanted.length === 1;
 
-  // Claim the units atomically: only units still open flip to in-house. If any was taken meanwhile
-  // (another desk, a retry), undo our claim and stop before anything is charged.
+  // A failed claim aborts the entire transaction; never revert another unit with a compensating write.
   const claim = await ReservationRoom.updateMany(
     { _id: { $in: wanted.map((u) => u._id) }, status: { $in: UNIT_OPEN_STATUSES } },
     { $set: { status: 'in_house' } },
+    { session },
   );
   if (claim.modifiedCount !== wanted.length) {
-    await ReservationRoom.updateMany({ _id: { $in: wanted.map((u) => u._id) }, status: 'in_house' }, { $set: { status: 'reserved' } }).catch(() => null);
     throw httpError('אחת היחידות נכנסה בינתיים — רעננו את המסך', 409, { code: 'already_in' });
   }
 
   if (singleFull) {
     // Keep the established single-room path (folio posting, guest stats, automations).
     // That path reads the reservation-level room pointer, so align it with the unit first.
-    try {
-      if (String(res.assignedRoom || '') !== String(wanted[0].assignedRoom || '')) {
-        res.assignedRoom = wanted[0].assignedRoom;
-        await res.save();
-      }
-      await checkInReservation({
+    if (String(res.assignedRoom || '') !== String(wanted[0].assignedRoom || '')) {
+      res.assignedRoom = wanted[0].assignedRoom;
+      await res.save({ session });
+    }
+    await checkInReservation({
         reservationId: res._id,
         actorId: actor.id,
         actorName: actor.name,
         ip,
         overrideClean: overrideOn,
-        overrideEarlyArrival: false,
-      });
-    } catch (err) {
-      await ReservationRoom.updateOne({ _id: wanted[0]._id }, { $set: { status: 'reserved' } }).catch(() => null);
-      throw err;
-    }
+        overrideEarlyArrival: false, session, afterCommit,
+    });
   } else {
     // Multi-room: only the selected units enter; the reservation reflects a partial entry.
-    await Room.updateMany({ _id: { $in: wanted.map((u) => u.assignedRoom).filter(Boolean) } }, { $set: { occStatus: 'occupied' } });
+    await Room.updateMany({ _id: { $in: wanted.map((u) => u.assignedRoom).filter(Boolean) } }, { $set: { occStatus: 'occupied' } }, { session });
     const before = { status: res.status };
     // Recount after the write: a parallel entry of another unit must not leave the stay "partial".
-    const stillOpen = await ReservationRoom.countDocuments({ reservation: res._id, status: { $in: UNIT_OPEN_STATUSES } });
+    const stillOpen = await ReservationRoom.countDocuments({ reservation: res._id, status: { $in: UNIT_OPEN_STATUSES } }).session(session);
     const firstEntry = !['in_house', 'partially_checked_in'].includes(res.status);
     res.status = stillOpen === 0 ? 'in_house' : 'partially_checked_in';
     if (!res.checkedInAt) res.checkedInAt = new Date();
     res.updatedBy = actor.id || undefined;
-    await res.save();
+    await res.save({ session });
     if (firstEntry) {
-      await GuestProfile.findByIdAndUpdate(res.primaryGuest._id, { $inc: { totalStays: 1, totalRevenue: res.totalAmount || 0 } });
+      await GuestProfile.findByIdAndUpdate(res.primaryGuest._id, { $inc: { totalStays: 1, totalRevenue: res.totalAmount || 0 } }, { session });
     }
-    fireEvent('checkin.completed', {
+    afterCommit.push(() => fireEvent('checkin.completed', {
       property: String(res.property), reservation: res.toObject(), actor: { id: actor.id, name: actor.name },
-    }).catch(() => null);
+    }).catch(() => null));
     await audit({
       property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.units_check_in',
-      entityType: 'Reservation', entityId: res._id, before, after: { status: res.status, unitIds: wanted.map((u) => String(u._id)) }, ip,
+      entityType: 'Reservation', entityId: res._id, before, after: { status: res.status, unitIds: wanted.map((u) => String(u._id)) }, ip, ...tx,
     });
   }
 
@@ -809,17 +818,18 @@ async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guar
     await audit({
       property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.check_in_override',
       entityType: 'Reservation', entityId: res._id, reason: overrideReason,
-      after: { overridden: [...usedOverride], unitIds: wanted.map((u) => String(u._id)) }, ip,
+      after: { overridden: [...usedOverride], unitIds: wanted.map((u) => String(u._id)) }, ip, ...tx,
     });
   }
 
   await ArrivalQueueEntry.updateMany(
     { reservationRoom: { $in: wanted.map((u) => u._id) }, status: 'active' },
     { $set: { status: 'checked_in', resolvedAt: new Date(), updatedBy: actor.id || undefined } },
+    { session },
   );
 
-  const fresh = await Reservation.findById(res._id).select('status checkedInAt confirmationNumber').lean();
-  const remaining = await ReservationRoom.countDocuments({ reservation: res._id, status: { $in: UNIT_OPEN_STATUSES } });
+  const fresh = await Reservation.findById(res._id).session(session).select('status checkedInAt confirmationNumber').lean();
+  const remaining = await ReservationRoom.countDocuments({ reservation: res._id, status: { $in: UNIT_OPEN_STATUSES } }).session(session);
   return {
     reservationId: String(res._id),
     confirmationNumber: fresh.confirmationNumber,
@@ -833,25 +843,24 @@ async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guar
 }
 
 // ── INV-02 room candidates & assignment ─────────────────────────────────────
-export async function conflictingRoomIds({ propertyId, from, to, excludeReservationId }) {
-  const [resConflicts, unitConflicts] = await Promise.all([
-    Reservation.find({
+export async function conflictingRoomIds({ propertyId, from, to, excludeReservationId, session = null }) {
+  // Sequential operations also support callers inside a MongoDB transaction.
+  const resConflicts = await Reservation.find({
       property: propertyId,
       _id: { $ne: excludeReservationId },
       assignedRoom: { $ne: null },
       status: { $in: HOLDING_STATUSES },
       arrivalDate: { $lt: to },
       departureDate: { $gt: from },
-    }).select('assignedRoom confirmationNumber').lean(),
-    ReservationRoom.find({
+    }).session(session).select('assignedRoom confirmationNumber').lean();
+  const unitConflicts = await ReservationRoom.find({
       property: propertyId,
       reservation: { $ne: excludeReservationId },
       assignedRoom: { $ne: null },
       status: { $in: UNIT_HOLDING_STATUSES },
       arrivalDate: { $lt: to },
       departureDate: { $gt: from },
-    }).select('assignedRoom reservation').populate('reservation', 'status confirmationNumber').lean(),
-  ]);
+    }).session(session).select('assignedRoom reservation').populate('reservation', 'status confirmationNumber').lean();
   const map = new Map();
   for (const r of resConflicts) map.set(String(r.assignedRoom), r.confirmationNumber);
   for (const u of unitConflicts) {
@@ -859,7 +868,7 @@ export async function conflictingRoomIds({ propertyId, from, to, excludeReservat
     if (!map.has(String(u.assignedRoom))) map.set(String(u.assignedRoom), u.reservation.confirmationNumber || 'יחידה אחרת');
   }
   // INV-04: a room taken out of sale for dates inside the range is not a candidate either.
-  const blocks = await RoomBlock.find({ property: propertyId, status: 'active', from: { $lt: to }, to: { $gt: from } }).select('room from to reason').lean();
+  const blocks = await RoomBlock.find({ property: propertyId, status: 'active', from: { $lt: to }, to: { $gt: from } }).session(session).select('room from to reason').lean();
   for (const b of blocks) if (!map.has(String(b.room))) map.set(String(b.room), `חסום ${b.from.split('-').reverse().join('.')}–${b.to.split('-').reverse().join('.')}: ${b.reason}`);
   return map;
 }

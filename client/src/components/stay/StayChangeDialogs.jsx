@@ -56,7 +56,7 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
   const [priceTouched, setPriceTouched] = useState(false);
   useEffect(() => {
     if (open) {
-      setF({ roomId: initialRoomId || '', reason: '', note: '', faultCategory: '', faultBlock: true, keyRequested: true, priceMode: 'keep', rate: '', rateReason: '', guestConsentRef: '' });
+      setF({ requestKey: crypto.randomUUID(), roomId: initialRoomId || '', reason: '', note: '', faultCategory: '', faultBlock: true, keyRequested: true, priceMode: 'keep', rate: '', rateReason: '', guestConsentRef: '' });
       setShowAll(false); setPicking(!initialRoomId); setPriceTouched(false); action.reset();
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -127,7 +127,7 @@ export function MoveRoomDialog({ open, onClose, propertyId, reservationId, unitI
   else if (increase && f.guestConsentRef.trim().length < 2) why = 'נדרש אישור האורח להעלאת המחיר';
   const submit = () => action.run(async () => {
     const out = await stay.move(propertyId, reservationId, {
-      unitId: data.unitId, roomId: f.roomId, reason: f.reason, note: f.note || undefined, keyRequested: f.keyRequested,
+      requestKey: f.requestKey, fromRoomId: data.current, unitId: data.unitId, roomId: f.roomId, reason: f.reason, note: f.note || undefined, keyRequested: f.keyRequested,
       ...(isFault ? { fault: { category: f.faultCategory, block: f.faultBlock } } : {}),
       priceMode: f.priceMode,
       ...(f.priceMode === 'manual' ? { rate: Number(f.rate) } : {}),

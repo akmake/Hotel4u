@@ -4,7 +4,8 @@
 // (arrivals / departures / alerts). Each arrival row shows the room, its cleanliness, payment and
 // what is still missing, next to the button that resolves it; a click opens the specific room,
 // payment and the guest's special requests. Readiness is computed by the server.
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { RefreshCw, Plus, CalendarDays, LogIn, LogOut, CheckCircle2, Check, ChevronDown, Crown, MessageSquareText, BedDouble, Moon, User, Baby, AlertTriangle, Wrench, Sparkles, ChevronLeft, Users, Bell } from 'lucide-react';
 import { guestInitials } from '../kit';
 import { frontdesk } from '../../utils/api';
@@ -83,7 +84,7 @@ function RoomsCard({ arrivals, tickets, onPick }) {
   const noRoom = items.filter((x) => x.none).length;
   const sub = arrivals.data ? `${ready} מוכנים · ${items.length - ready - noRoom} דורשים טיפול · ${noRoom} ללא חדר` : '';
   return (
-    <aside className="dk-rooms" aria-label="חדרים להגעות">
+    <aside className="dk-rooms" id="reception-design-rooms" aria-label="חדרים להגעות">
       <div className="dk-rooms-head"><h2>החדרים של המגיעים</h2><span>{sub}</span></div>
       <div className="dk-scroll dk-cardlist">
         {arrivals.data && !items.length && <div className="dk-state"><CheckCircle2 size={18} />אין הגעות פתוחות.</div>}
@@ -115,7 +116,13 @@ function RoomsCard({ arrivals, tickets, onPick }) {
   );
 }
 
-function Tile({ on, onClick, Icon, label, value, badge, tone }) {
+function Tile({ on, onClick, Icon, label, value, badge, tone, appearance, details = [] }) {
+  if (appearance) return (
+    <button type="button" className={`reception-summary is-${appearance} ${on ? 'is-on' : ''}`} onClick={onClick} aria-pressed={on}>
+      <span className="reception-summary-face"><span className="reception-summary-heading"><span>{label}</span><Icon size={17} aria-hidden="true" /></span><strong>{value}</strong></span>
+      {details.length > 0 && <span className="reception-summary-details">{details.map((detail) => <span key={detail.label} className={detail.tone || ''}><b>{detail.value}</b><span>{detail.label}</span></span>)}</span>}
+    </button>
+  );
   return (
     <button type="button" className={`dk-tile ${on ? 'is-on' : ''}`} onClick={onClick} aria-pressed={on}>
       <strong>{value}{badge > 0 && <em className={tone || ''}>{badge}</em>}</strong>
@@ -147,7 +154,78 @@ function Detail({ cols, items }) {
   );
 }
 
-function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue, onBilling }) {
+function ReceptionStatusHeading({ label, count, cols = 5 }) {
+  return <tr className="reception-status-heading"><td colSpan={cols}><span>{label}</span><b>{count}</b></td></tr>;
+}
+
+// Board appearance: one lane (its own tbody) per status, in the given order; unknown states go last.
+function lanesOf(items, stateOf, order = []) {
+  const lanes = new Map();
+  for (const item of items) {
+    const state = stateOf(item);
+    if (!lanes.has(state)) lanes.set(state, []);
+    lanes.get(state).push(item);
+  }
+  const rank = (state) => (order.includes(state) ? order.indexOf(state) : order.length);
+  return [...lanes].sort(([a], [b]) => rank(a) - rank(b)).map(([state, laneItems]) => ({ state, items: laneItems }));
+}
+
+// Finished-table action: one main button, the row's other actions behind an attached arrow.
+// The menu is portalled and fixed so the scrolling list never clips it.
+function SplitAction({ label, tone, onClick, items = [] }) {
+  const [menu, setMenu] = useState(null);
+  const groupRef = useRef(null);
+  const arrowRef = useRef(null);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!menu) return undefined;
+    menuRef.current?.querySelector('button')?.focus();
+    const onDown = (e) => { if (!menuRef.current?.contains(e.target) && !arrowRef.current?.contains(e.target)) setMenu(null); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setMenu(null); arrowRef.current?.focus(); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault();
+      const buttons = [...(menuRef.current?.querySelectorAll('button') || [])];
+      const at = buttons.indexOf(document.activeElement);
+      buttons[(at + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus();
+    };
+    const close = () => setMenu(null);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [menu]);
+  const toggle = () => {
+    if (menu) { setMenu(null); return; }
+    const box = groupRef.current.getBoundingClientRect();
+    const below = window.innerHeight - box.bottom > 44 * items.length + 16;
+    setMenu({ left: box.left, minWidth: box.width, ...(below ? { top: box.bottom + 4 } : { bottom: window.innerHeight - box.top + 4 }) });
+  };
+  return (
+    <div ref={groupRef} className={`dk-split is-${tone}`}>
+      <button type="button" className="dk-split-main" onClick={onClick}>{label}</button>
+      {items.length > 0 && (
+        <button type="button" ref={arrowRef} className="dk-split-arrow" aria-label="פעולות נוספות" aria-haspopup="menu" aria-expanded={!!menu} onClick={toggle}>
+          <ChevronDown size={16} aria-hidden="true" />
+        </button>
+      )}
+      {menu && createPortal(
+        <div ref={menuRef} className="dk-split-menu" role="menu" dir="rtl" style={menu}>
+          {items.map((item) => <button key={item.label} type="button" role="menuitem" onClick={() => { setMenu(null); item.onClick(); }}>{item.label}</button>)}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue, onBilling, appearance }) {
   // One booking with several rooms is a group: a header for the booker, each room its own row.
   const groups = [];
   const byRes = new Map();
@@ -157,6 +235,8 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
       byRes.get(r.reservationId).units.push(r);
     } else groups.push({ id: r.key, multi: false, units: [r] });
   }
+  const groupState = (g) => g.units.reduce((state, r) => (RANK[r.readiness.state] ?? 9) < (RANK[state] ?? 9) ? r.readiness.state : state, g.units[0].readiness.state);
+  const displayedGroups = appearance === 'grouped' || appearance === 'board' ? [...groups].sort((a, b) => (RANK[groupState(a)] ?? 9) - (RANK[groupState(b)] ?? 9)) : groups;
   const renderRow = (r) => {
 
           const st = r.readiness.state;
@@ -166,10 +246,11 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
           const clean = room && ['clean', 'inspected'].includes(room.cleanStatus);
           const pay = payment(r.guarantee);
           const all = r.readiness.reasons || [];
-          const reasons = all.filter((x) => x.code !== 'guarantee' || all.length === 1);
+          // The payment and no-room chips already say these; the line below names only what they don't.
+          const reasons = all.filter((x) => (x.code !== 'guarantee' || all.length === 1) && x.code !== 'no_room');
           const isOpen = openKey === r.key;
           return [
-            <tr key={r.key} className={`${done ? 'is-done' : ''} ${isOpen ? 'is-open' : ''} ${r.unitsTotal > 1 ? 'is-unit' : ''}`} onClick={() => setOpenKey(isOpen ? null : r.key)}>
+            <tr key={r.key} className={`reception-guest-row ${done ? 'is-done' : ''} ${isOpen ? 'is-open' : ''} ${r.unitsTotal > 1 ? 'is-unit' : ''}`} onClick={() => setOpenKey(isOpen ? null : r.key)}>
               <td>
                 <GuestCell name={r.billing?.occupantName || r.guest.name} vip={r.guest.vip} note={!!r.specialRequests} sub={<><bdi>{r.confirmationNumber}</bdi>{r.unitsTotal > 1 ? ` · חדר ${r.unitIndex} מתוך ${r.unitsTotal}` : ''} · {r.eta ? `הגעה ${r.eta}` : 'שעה לא ידועה'}</>} />
                 {r.unitsTotal > 1 && !done && (
@@ -205,7 +286,13 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
                 )}
               </td>
               <td className="dk-act" onClick={(e) => e.stopPropagation()}>
-                {done ? null : st === 'ready'
+                {done ? null : appearance === 'table' ? (room
+                  ? <SplitAction tone="go" label="צ׳ק-אין" onClick={() => onCheckIn(r.reservationId, r.unitsTotal > 1 ? [r.unitIndex] : undefined)} items={[
+                    { label: 'החלפת חדר', onClick: () => onAssign(r) },
+                    ...(st === 'waiting' && !r.queue ? [{ label: 'להמתנה', onClick: () => onQueue(r) }] : []),
+                  ]} />
+                  : <SplitAction tone="assign" label="שיבוץ חדר" onClick={() => onAssign(r)} />)
+                : st === 'ready'
                   ? <button type="button" className="dk-btn is-primary" onClick={() => onCheckIn(r.reservationId, r.unitsTotal > 1 ? [r.unitIndex] : undefined)}>צ׳ק-אין</button>
                   : !room
                     ? <button type="button" className="dk-btn is-primary" onClick={() => onAssign(r)}><BedDouble size={14} />שיבוץ חדר</button>
@@ -226,17 +313,15 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
             ),
           ];
   };
-  return (
-    <table className="dk-table">
-      <thead><tr><th>אורח</th><th>חדר</th><th>שהייה</th><th>מצב וחסרים</th><th /></tr></thead>
-      <tbody>
-        {groups.map((g) => {
-          if (!g.multi) return renderRow(g.units[0]);
+  const countOf = (state) => displayedGroups.filter((item) => groupState(item) === state).reduce((count, item) => count + item.units.length, 0);
+  const renderGroup = (g, heading = null) => {
+          if (!g.multi) return <Fragment key={g.id}>{heading}{renderRow(g.units[0])}</Fragment>;
           const first = g.units[0];
           const entered = g.units.filter((u) => u.readiness.state === 'checked_in').length;
           const readyN = g.units.filter((u) => u.readiness.state === 'ready').length;
           return (
             <Fragment key={`g-${g.id}`}>
+              {heading}
               <tr className="dk-group"><td colSpan={5}>
                 <div className="dk-group-bar">
                   <GuestCell name={first.guest.name} vip={first.guest.vip} sub={<><bdi>{first.confirmationNumber}</bdi> · {first.unitsTotal} חדרים</>} />
@@ -256,26 +341,43 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
               {g.units.map(renderRow)}
             </Fragment>
           );
+  };
+  return (
+    <table className="dk-table reception-table-arrivals">
+      <thead><tr><th>אורח</th><th>חדר</th><th>שהייה</th><th>מצב וחסרים</th><th /></tr></thead>
+      {appearance === 'board' && rows.length ? lanesOf(displayedGroups, groupState, Object.keys(RANK)).map((lane) => (
+        <tbody key={lane.state} className="reception-lane">
+          <ReceptionStatusHeading label={STATE_TEXT[lane.state] || lane.state} count={countOf(lane.state)} />
+          {lane.items.map((g) => renderGroup(g))}
+        </tbody>
+      )) : (
+      <tbody>
+        {displayedGroups.map((g, index) => {
+          const state = groupState(g);
+          const heading = appearance === 'grouped' && (index === 0 || state !== groupState(displayedGroups[index - 1]))
+            ? <ReceptionStatusHeading label={STATE_TEXT[state] || state} count={countOf(state)} />
+            : null;
+          return renderGroup(g, heading);
         })}
         {!rows.length && <tr><td colSpan={5}><div className="dk-state"><CheckCircle2 size={18} />אין הגעות שדורשות טיפול.</div></td></tr>}
       </tbody>
+      )}
     </table>
   );
 }
 
-function DeparturesTable({ rows, openKey, setOpenKey, outTime, onCheckOut }) {
-  return (
-    <table className="dk-table">
-      <thead><tr><th>אורח</th><th>חדר</th><th>חשבון ולטיפול</th><th /></tr></thead>
-      <tbody>
-        {rows.map((r) => {
+function DeparturesTable({ rows, openKey, setOpenKey, outTime, onCheckOut, appearance }) {
+  const stateOf = (r) => r.state === 'completed' ? 'יצאו' : problems(r).length ? 'דורשים טיפול' : 'מוכנים ליציאה';
+  const displayedRows = appearance === 'grouped' || appearance === 'board' ? [...rows].sort((a, b) => stateOf(a).localeCompare(stateOf(b), 'he')) : rows;
+  const renderRow = (r, index) => {
           const done = r.state === 'completed';
           const owed = r.money.owed;
           const list = problems(r);
           const flagged = !done && list.length > 0;
           const isOpen = openKey === r.reservationId;
           return [
-            <tr key={r.reservationId} className={`${done ? 'is-done' : ''} ${isOpen ? 'is-open' : ''}`} onClick={() => setOpenKey(isOpen ? null : r.reservationId)}>
+            appearance === 'grouped' && (index === 0 || stateOf(r) !== stateOf(displayedRows[index - 1])) && <ReceptionStatusHeading key={`heading-${stateOf(r)}`} label={stateOf(r)} count={rows.filter((item) => stateOf(item) === stateOf(r)).length} cols={4} />,
+            <tr key={r.reservationId} className={`reception-guest-row ${done ? 'is-done' : ''} ${isOpen ? 'is-open' : ''}`} onClick={() => setOpenKey(isOpen ? null : r.reservationId)}>
               <td><GuestCell name={r.guest.name} vip={r.guest.vip} note={!!r.specialRequests} sub={<><bdi>{r.confirmationNumber}</bdi>{r.company ? ` · ${r.company.name}` : ''}</>} /></td>
               <td><div className="dk-room"><b>{r.units.map((u) => u.room || '—').join(' · ')}</b></div></td>
               <td className="dk-wide">
@@ -290,7 +392,9 @@ function DeparturesTable({ rows, openKey, setOpenKey, outTime, onCheckOut }) {
                 )}
               </td>
               <td className="dk-act" onClick={(e) => e.stopPropagation()}>
-                {done ? null : <button type="button" className={`dk-btn ${flagged ? '' : 'is-primary'}`} onClick={() => onCheckOut(r.reservationId)}>{flagged ? 'טיפול ויציאה' : 'צ׳ק-אאוט'}</button>}
+                {done ? null : appearance === 'table'
+                  ? <SplitAction tone={flagged ? 'assign' : 'go'} label={flagged ? 'טיפול ויציאה' : 'צ׳ק-אאוט'} onClick={() => onCheckOut(r.reservationId)} />
+                  : <button type="button" className={`dk-btn ${flagged ? '' : 'is-primary'}`} onClick={() => onCheckOut(r.reservationId)}>{flagged ? 'טיפול ויציאה' : 'צ׳ק-אאוט'}</button>}
               </td>
             </tr>,
             isOpen && (
@@ -302,24 +406,36 @@ function DeparturesTable({ rows, openKey, setOpenKey, outTime, onCheckOut }) {
               ]} />
             ),
           ];
-        })}
+  };
+  return (
+    <table className="dk-table reception-table-departures">
+      <thead><tr><th>אורח</th><th>חדר</th><th>חשבון ולטיפול</th><th /></tr></thead>
+      {appearance === 'board' && rows.length ? lanesOf(displayedRows, stateOf, ['דורשים טיפול', 'מוכנים ליציאה', 'יצאו']).map((lane) => (
+        <tbody key={lane.state} className="reception-lane">
+          <ReceptionStatusHeading label={lane.state} count={lane.items.length} cols={4} />
+          {lane.items.map((r) => <Fragment key={r.reservationId}>{renderRow(r, -1)}</Fragment>)}
+        </tbody>
+      )) : (
+      <tbody>
+        {displayedRows.map(renderRow)}
         {!rows.length && <tr><td colSpan={4}><div className="dk-state"><CheckCircle2 size={18} />אין עזיבות שדורשות טיפול.</div></td></tr>}
       </tbody>
+      )}
     </table>
   );
 }
 
-function InHouseTable({ rows, onOpen }) {
-  return (
-    <table className="dk-table">
-      <thead><tr><th>אורח</th><th>חדר</th><th>שהייה</th><th>חשבון ולטיפול</th><th /></tr></thead>
-      <tbody>
-        {rows.map((r) => {
+function InHouseTable({ rows, onOpen, appearance }) {
+  const stateOf = (r) => (r.money?.owed || 0) > 0 ? 'יתרה לתשלום' : 'שולם';
+  const displayedRows = appearance === 'grouped' || appearance === 'board' ? [...rows].sort((a, b) => stateOf(a).localeCompare(stateOf(b), 'he')) : rows;
+  const renderRow = (r, index) => {
           const owed = r.money?.owed || 0;
           const notes = (r.exceptions || []).map((x) => x.label);
           if (r.openRequests > 0) notes.push(`${r.openRequests} בקשות אורח פתוחות`);
           return (
-            <tr key={r.reservationId} onClick={() => onOpen(r.reservationId)}>
+            <Fragment key={r.reservationId}>
+            {appearance === 'grouped' && (index === 0 || stateOf(r) !== stateOf(displayedRows[index - 1])) && <ReceptionStatusHeading label={stateOf(r)} count={rows.filter((item) => stateOf(item) === stateOf(r)).length} />}
+            <tr className="reception-guest-row" onClick={() => onOpen(r.reservationId)}>
               <td><GuestCell name={r.guest.name} vip={r.guest.vip} sub={<><bdi>{r.confirmationNumber}</bdi>{r.company ? ` · ${r.company.name}` : ''}</>} /></td>
               <td><div className="dk-room"><b>{(r.rooms || []).map((x) => x.number).join(' · ') || '—'}</b><span>{r.roomType}</span></div></td>
               <td>
@@ -334,11 +450,20 @@ function InHouseTable({ rows, onOpen }) {
                 <div className="dk-chips">{owed > 0 ? <span className="dk-chip warn">יתרה {money(owed)}</span> : <span className="dk-chip ok">שולם</span>}</div>
                 {notes.length > 0 && <div className="dk-why"><AlertTriangle size={12} />{notes[0]}{notes.length > 1 ? ` · ועוד ${notes.length - 1}` : ''}</div>}
               </td>
-              <td className="dk-act" onClick={(e) => e.stopPropagation()}><button type="button" className="dk-btn" onClick={() => onOpen(r.reservationId)}>פרטים</button></td>
+              <td className="dk-act" onClick={(e) => e.stopPropagation()}>{appearance === 'table' ? <SplitAction tone="plain" label="פרטים" onClick={() => onOpen(r.reservationId)} /> : <button type="button" className="dk-btn" onClick={() => onOpen(r.reservationId)}>פרטים</button>}</td>
             </tr>
+            </Fragment>
           );
-        })}
-      </tbody>
+  };
+  return (
+    <table className="dk-table reception-table-inhouse">
+      <thead><tr><th>אורח</th><th>חדר</th><th>שהייה</th><th>חשבון ולטיפול</th><th /></tr></thead>
+      {appearance === 'board' ? lanesOf(displayedRows, stateOf, ['יתרה לתשלום', 'שולם']).map((lane) => (
+        <tbody key={lane.state} className="reception-lane">
+          <ReceptionStatusHeading label={lane.state} count={lane.items.length} />
+          {lane.items.map((r) => renderRow(r, -1))}
+        </tbody>
+      )) : <tbody>{displayedRows.map(renderRow)}</tbody>}
     </table>
   );
 }
@@ -369,7 +494,7 @@ function AlertsList({ alerts, notes, onAlert }) {
   );
 }
 
-export default function DailyWorkspace({ propertyId, property, date, stats, arrivals, departures, alerts, work, tickets, inhouse, refresh, navigate, onOpen, onCheckIn, onCheckOut, onAssign, onQueue, onAlert }) {
+export default function DailyWorkspace({ propertyId, property, date, stats, arrivals, departures, alerts, work, tickets, inhouse, refresh, navigate, onOpen, onCheckIn, onCheckOut, onAssign, onQueue, onAlert, summaryAppearance, rowAppearance }) {
   const [tab, setTab] = useState('arrivals');
   const [billingError, setBillingError] = useState(null);
   async function onBilling({ reservationId, unitIndex, mode }) {
@@ -422,12 +547,13 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
       <div className="dk-body">
         <section className="dk-activity">
           <div className="dk-tiles" role="tablist" aria-label="פעילות היום">
-            <Tile on={tab === 'arrivals'} onClick={() => pick('arrivals')} Icon={LogIn} label="הגעות" value={arrivals.data ? aOpen.length : '—'} badge={aIssues.length} tone="warn" />
-            <Tile on={tab === 'departures'} onClick={() => pick('departures')} Icon={LogOut} label="עזיבות" value={departures.data ? dOpen.length : '—'} badge={dIssues.length} tone="warn" />
-            <Tile on={tab === 'inhouse'} onClick={() => pick('inhouse')} Icon={Users} label="שוהים" value={inhouse.data ? (inhouse.data.rows || []).length : (stats.data?.inHouse ?? '—')} />
-            <Tile on={tab === 'alerts'} onClick={() => pick('alerts')} Icon={Bell} label="התראות" value={alerts.data ? extra : '—'} />
+            <Tile on={tab === 'arrivals'} onClick={() => pick('arrivals')} Icon={LogIn} label="הגעות" value={arrivals.data ? aOpen.length : '—'} badge={aIssues.length} tone="warn" appearance={summaryAppearance} details={arrivals.data ? [{ value: aOpen.length - aIssues.length, label: 'מוכנים לקבלה', tone: 'is-ready' }, { value: aIssues.length, label: 'דורשים טיפול' }] : []} />
+            <Tile on={tab === 'departures'} onClick={() => pick('departures')} Icon={LogOut} label="עזיבות" value={departures.data ? dOpen.length : '—'} badge={dIssues.length} tone="warn" appearance={summaryAppearance} details={departures.data ? [{ value: dOpen.length - dIssues.length, label: 'תקינים', tone: 'is-ready' }, { value: dIssues.length, label: 'דורשים טיפול' }] : []} />
+            <Tile on={tab === 'inhouse'} onClick={() => pick('inhouse')} Icon={Users} label="שוהים" value={inhouse.data ? (inhouse.data.rows || []).length : (stats.data?.inHouse ?? '—')} appearance={summaryAppearance} details={stats.data ? [{ value: `${stats.data.occupancy}%`, label: 'תפוסה' }, { value: stats.data.totalRooms, label: 'חדרים במלון' }] : []} />
+            <Tile on={tab === 'alerts'} onClick={() => pick('alerts')} Icon={Bell} label="התראות" value={alerts.data ? extra : '—'} appearance={summaryAppearance} details={alerts.data && work.data ? [{ value: alerts.data.length, label: 'התראות' }, { value: notes.length, label: 'העברת משמרת' }] : []} />
           </div>
           <div className="dk-bar">
+            {summaryAppearance && <b className="reception-activity-caption">{{ arrivals: 'הגעות היום', departures: 'עזיבות היום', inhouse: 'אורחים במלון', alerts: 'התראות והעברת משמרת' }[tab]}</b>}
             <span>{summary}</span>
             {(tab === 'arrivals' || tab === 'departures') && <Filter on={onlyIssues} setOn={setOnlyIssues} issues={issuesNow} />}
           </div>
@@ -435,17 +561,17 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
           <div className="dk-scroll">
             {tab === 'arrivals' && (
               <Status query={arrivals} empty="אין הגעות היום.">
-                {aAll.length ? <ArrivalsTable rows={aRows} openKey={openKey} setOpenKey={setOpenKey} onCheckIn={onCheckIn} onAssign={onAssign} onQueue={onQueue} onBilling={onBilling} /> : null}
+                {aAll.length ? <ArrivalsTable rows={aRows} openKey={openKey} setOpenKey={setOpenKey} onCheckIn={onCheckIn} onAssign={onAssign} onQueue={onQueue} onBilling={onBilling} appearance={rowAppearance} /> : null}
               </Status>
             )}
             {tab === 'departures' && (
               <Status query={departures} empty="אין עזיבות היום.">
-                {dAll.length ? <DeparturesTable rows={dRows} openKey={openKey} setOpenKey={setOpenKey} outTime={property?.checkOutTime || '11:00'} onCheckOut={onCheckOut} /> : null}
+                {dAll.length ? <DeparturesTable rows={dRows} openKey={openKey} setOpenKey={setOpenKey} outTime={property?.checkOutTime || '11:00'} onCheckOut={onCheckOut} appearance={rowAppearance} /> : null}
               </Status>
             )}
             {tab === 'inhouse' && (
               <Status query={inhouse} empty="אין שוהים כרגע.">
-                {(inhouse.data?.rows || []).length ? <InHouseTable rows={inhouse.data.rows} onOpen={onOpen} /> : null}
+                {(inhouse.data?.rows || []).length ? <InHouseTable rows={inhouse.data.rows} onOpen={onOpen} appearance={rowAppearance} /> : null}
               </Status>
             )}
             {tab === 'alerts' && <Status query={alerts} empty="אין התראות פתוחות."><AlertsList alerts={alerts} notes={notes} onAlert={onAlert} /></Status>}

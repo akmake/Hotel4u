@@ -1,0 +1,110 @@
+/* Working page for availability look decisions. Approved choices accumulate here. */
+.availability-design-page { min-width: 0; --fit-h: calc(100dvh - 28px); }
+/* Design choices live behind a floating button (bottom-left), as on the room-calendar design page; the screen shows only the calendar. */
+.availability-design-fab { position: fixed; left: 16px; bottom: 72px; z-index: 45; display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 24px; background: #253d37; color: white; font-size: 13px; box-shadow: 0 4px 18px #183b322b; border: 1px solid #ffffff30; }
+.availability-design-fab:hover { background: #207c74; }
+.availability-design-fab:focus-visible { outline: 2px solid #207c74; outline-offset: 3px; }
+.availability-design-settings { position: fixed; left: 16px; bottom: 126px; z-index: 45; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 146px); overflow-y: auto; border: 1px solid #dfe6e2; border-radius: 16px; background: #fff; box-shadow: 0 12px 48px #183b3226; }
+.availability-design-settings-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 18px 16px 14px; border-bottom: 1px solid #edf0ee; }
+.availability-design-settings-heading h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.availability-design-settings-heading p { margin: 4px 0 0; color: #7a847f; font-size: 11px; }
+.availability-design-settings-heading > button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #f3f5f4; flex-shrink: 0; }
+.availability-design-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 16px; font-size: 12px; }
+.availability-design-options + .availability-design-options { border-top: 1px solid #edf0ee; }
+.availability-design-options > span { grid-column: 1 / -1; color: #74747b; margin-bottom: 4px; }
+.availability-design-options button { padding: 10px 12px; border: 1px solid #e2e7e5; border-radius: 10px; color: #374440; background: #fff; text-align: start; font-size: 13px; font-weight: 600; }
+.availability-design-options button[aria-pressed="true"] { border-color: #207c74; background: #eff8f5; box-shadow: inset 0 0 0 1px #207c74; }
+.availability-design-options button:focus-visible { outline: 2px solid #207c74; outline-offset: 2px; }
+.availability-design-settings-note { margin: 0; padding: 0 16px 16px; font-size: 11px; line-height: 1.8; color: #7a847f; }
+
+/* Fit to one screen: the whole month is visible without page scroll; the side panel scrolls inside itself. */
+.page-content:has(.availability-design-page) { padding: 12px 16px; }
+.availability-design-page .ac-workspace .ac-page-head, .availability-design-page .ac-workspace .ac-cal-foot { display: none; }
+.availability-design-page .ac-workspace .ac-layout { align-items: stretch; margin-bottom: 0; }
+.availability-design-page .ac-workspace .ac-cal, .availability-design-page .ac-workspace .ac-panel { height: max(var(--fit-h), 480px); align-self: stretch; }
+.availability-design-page .ac-workspace .ac-panel { position: static; overflow-y: auto; }
+.availability-design-page .ac-workspace .ac-grid { flex: 1; min-height: 0; grid-auto-rows: minmax(0, 1fr); }
+.availability-design-page .ac-workspace .ac-day { min-height: 0; overflow: hidden; }
+.availability-design-page .ac-workspace .ac-cal-head { padding: 10px 18px 6px; }
+.availability-design-page .ac-workspace .ac-hint { padding: 0 18px 6px; }
+.availability-design-page .ac-workspace .ac-dows div { padding: 6px 12px; }
+
+/* The details panel opens only while a day is selected; with no selection the calendar uses the full width. */
+.availability-design-page .ac-workspace .ac-layout { grid-template-columns: minmax(0, 1fr); }
+.availability-design-page .ac-workspace .ac-layout:has(.ac-day.is-sel) { grid-template-columns: minmax(0, 1fr) 340px; }
+.availability-design-page .ac-workspace .ac-layout:not(:has(.ac-day.is-sel)) .ac-panel { display: none; }
+
+/* Current cell: sized by its own height so the bottom row is never clipped. */
+.availability-design-page .ac-workspace .ac-day { container-type: size; }
+.availability-design-page[data-day-style="detailed"] .ac-workspace .ac-day { padding: 7px 10px 6px; gap: 4px; }
+.availability-design-page[data-day-style="detailed"] .ac-workspace .ac-d-free b { font-size: clamp(20px, 26cqh, 36px); }
+.availability-design-page[data-day-style="detailed"] .ac-workspace .ac-d-top { min-height: 0; }
+
+/* Day cells. Sizes follow the cell's own height (cqh), so nothing is cut off on any screen.
+   Every datum stays: day, today, options, free, occupancy, arrivals, departures, closed. */
+.availability-design-page:not([data-day-style="detailed"]) .ac-day { container-type: size; --tone: var(--accent-600); padding: 8px 10px; gap: 0; }
+.availability-design-page:not([data-day-style="detailed"]) .ac-day:has(.ac-bar i.is-hi) { --tone: var(--warning); }
+.availability-design-page:not([data-day-style="detailed"]) .ac-day:has(.ac-bar i.is-max) { --tone: var(--danger); }
+.availability-design-page:not([data-day-style="detailed"]) .ac-day.is-past { --tone: var(--fg-faint); }
+.availability-design-page:not([data-day-style="detailed"]) .ac-day.is-closed { --tone: var(--danger); }
+.availability-design-page:not([data-day-style="detailed"]) .ac-day.is-closed:not(.is-sel) { background-image: repeating-linear-gradient(135deg, rgb(var(--danger) / .08) 0 6px, transparent 6px 12px); }
+.availability-design-page:not([data-day-style="detailed"]) .ac-day.is-out::after { display: none; }
+.availability-design-page:not([data-day-style="detailed"]) .ac-d-opt { display: inline; }
+.availability-design-page:not([data-day-style="detailed"]) .ac-bar { display: none; }
+.availability-design-page:not([data-day-style="detailed"]) .ac-d-num { font-size: clamp(12px, 15cqh, 17px); }
+.availability-design-page:not([data-day-style="detailed"]) .ac-day.is-today .ac-d-num { min-width: 1.7em; height: 1.7em; }
+.availability-design-page:not([data-day-style="detailed"]) .ac-d-occ, .availability-design-page:not([data-day-style="detailed"]) .ac-chip { font-size: clamp(10px, 12cqh, 13px); }
+.availability-design-page:not([data-day-style="detailed"]) .ac-chip em { display: none; }
+@container availability-day (min-width: 135px) { .availability-design-page:not([data-day-style="detailed"]) .ac-chip em { display: inline; } }
+
+/* 1. Numeral — the free-room count is the cell: one huge number, the rest is a quiet frame around it. */
+.availability-design-page[data-day-style="numeral"] .ac-day { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'top occ' 'move free'; grid-template-rows: auto minmax(0, 1fr); column-gap: 8px; }
+.availability-design-page[data-day-style="numeral"] .ac-d-top { grid-area: top; }
+.availability-design-page[data-day-style="numeral"] .ac-d-occ { grid-area: occ; color: rgb(var(--fg-secondary)); font-weight: 500; }
+.availability-design-page[data-day-style="numeral"] .ac-d-move { grid-area: move; flex-direction: column; align-self: end; gap: 2px; margin-top: 0; }
+.availability-design-page[data-day-style="numeral"] .ac-d-free { grid-area: free; flex-direction: column; align-items: flex-end; align-self: end; gap: 0; }
+.availability-design-page[data-day-style="numeral"] .ac-d-free b { font-size: clamp(30px, 44cqh, 76px); font-weight: 300; letter-spacing: -.05em; line-height: .88; }
+.availability-design-page[data-day-style="numeral"] .ac-d-free span { font-size: clamp(9px, 10cqh, 12px); }
+.availability-design-page[data-day-style="numeral"] .ac-d-free:not(.is-low):not(.is-full) b { color: rgb(var(--tone)); }
+
+/* 2. Fill — the cell itself is a gauge: it fills from the bottom up to the day's occupancy. */
+.availability-design-page[data-day-style="fill"] .ac-day { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'top occ' 'free free' 'move move'; grid-template-rows: auto minmax(0, 1fr) auto; align-items: center; isolation: isolate; }
+.availability-design-page[data-day-style="fill"] .ac-day::after { content: ''; position: absolute; inset-inline: 0; bottom: 0; height: calc(var(--occ) * 1%); background: linear-gradient(rgb(var(--tone) / .75) 0 2px, transparent 2px), linear-gradient(to top, rgb(var(--tone) / .32), rgb(var(--tone) / .1)); z-index: 0; pointer-events: none; }
+.availability-design-page[data-day-style="fill"] .ac-day > * { position: relative; z-index: 1; }
+.availability-design-page[data-day-style="fill"] .ac-d-top { grid-area: top; }
+.availability-design-page[data-day-style="fill"] .ac-d-occ { grid-area: occ; color: rgb(var(--fg-secondary)); font-weight: 500; }
+.availability-design-page[data-day-style="fill"] .ac-d-free { grid-area: free; align-self: center; }
+.availability-design-page[data-day-style="fill"] .ac-d-free b { font-size: clamp(24px, 36cqh, 56px); letter-spacing: -.04em; }
+.availability-design-page[data-day-style="fill"] .ac-d-move { grid-area: move; margin-top: 0; justify-content: space-between; }
+
+/* 3. Ring — a circular gauge in the centre of the cell holds the free-room count. */
+.availability-design-page[data-day-style="ring"] .ac-day { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: 'top top occ' 'ring ring ring' 'in in out'; grid-template-rows: auto minmax(0, 1fr) auto; justify-items: center; align-items: center; }
+.availability-design-page[data-day-style="ring"] .ac-d-top { grid-area: top; justify-self: start; }
+.availability-design-page[data-day-style="ring"] .ac-d-occ { grid-area: occ; justify-self: end; color: rgb(var(--fg-secondary)); font-weight: 500; }
+.availability-design-page[data-day-style="ring"] .ac-d-free { grid-area: ring; flex-direction: column; align-items: center; }
+.availability-design-page[data-day-style="ring"] .ac-d-free b { position: relative; justify-content: center; width: clamp(34px, 52cqh, 84px); height: clamp(34px, 52cqh, 84px); font-size: clamp(15px, 24cqh, 38px); letter-spacing: -.03em; }
+.availability-design-page[data-day-style="ring"] .ac-d-free b::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgb(var(--tone)) calc(var(--occ) * 1%), rgb(var(--fg) / .09) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); }
+.availability-design-page[data-day-style="ring"] .ac-d-free span { display: none; }
+.availability-design-page[data-day-style="ring"] .ac-d-move { display: contents; }
+.availability-design-page[data-day-style="ring"] .ac-chip.is-in { grid-area: in; justify-self: start; }
+.availability-design-page[data-day-style="ring"] .ac-chip.is-out { grid-area: out; justify-self: end; }
+
+/* Calendar frame — structure of the calendar itself, independent of the day-cell style. */
+/* A. Tiles — every day is its own rounded tile on a soft field. */
+.availability-design-page[data-frame="tiles"] .ac-cal { background: rgb(var(--bg-content)); border-radius: 20px; }
+.availability-design-page[data-frame="tiles"] .ac-dows { gap: 6px; padding: 0 12px 4px; }
+.availability-design-page[data-frame="tiles"] .ac-dows div, .availability-design-page[data-frame="tiles"] .ac-dows .is-wk { background: transparent; border: 0; padding: 4px 6px; }
+.availability-design-page[data-frame="tiles"] .ac-grid { gap: 6px; padding: 0 12px 12px; }
+.availability-design-page[data-frame="tiles"] .ac-day { border: 1px solid rgb(var(--border)); border-radius: 14px; box-shadow: 0 1px 2px rgb(var(--fg) / .04); }
+.availability-design-page[data-frame="tiles"] .ac-day.is-out { visibility: hidden; }
+.availability-design-page[data-frame="tiles"] .ac-day.is-sel, .availability-design-page[data-frame="tiles"] .ac-day.is-range-start, .availability-design-page[data-frame="tiles"] .ac-day.is-range-end { border-radius: 14px; box-shadow: inset 0 0 0 2px rgb(var(--accent-600)); }
+
+/* B. Week strips — each week is one rounded strip, with space between weeks. */
+.availability-design-page[data-frame="strips"] .ac-cal { border-radius: 20px; }
+.availability-design-page[data-frame="strips"] .ac-dows { padding: 0 12px; }
+.availability-design-page[data-frame="strips"] .ac-dows div, .availability-design-page[data-frame="strips"] .ac-dows .is-wk { background: transparent; border: 0; padding: 4px 12px; }
+.availability-design-page[data-frame="strips"] .ac-grid { row-gap: 8px; padding: 0 12px 12px; }
+.availability-design-page[data-frame="strips"] .ac-day { border: 1px solid rgb(var(--border-strong)); border-inline-end-width: 0; }
+.availability-design-page[data-frame="strips"] .ac-grid > :nth-child(7n+1) { border-start-start-radius: 16px; border-end-start-radius: 16px; }
+.availability-design-page[data-frame="strips"] .ac-grid > :nth-child(7n) { border-inline-end-width: 1px; border-start-end-radius: 16px; border-end-end-radius: 16px; }
+.availability-design-page[data-frame="strips"] .ac-day.is-out { background: rgb(var(--bg-content)); border-color: transparent; }

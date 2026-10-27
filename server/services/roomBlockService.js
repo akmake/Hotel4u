@@ -10,6 +10,7 @@ import { audit } from './auditService.js';
 import { httpError, businessDateOf, conflictingRoomIds } from './frontDeskService.js';
 import { assessAvailability, availabilityGrid as grid, getStayDates } from './availabilityService.js';
 import { withLocks } from './locks.js';
+import { enrichBoard, isMonth, daysInMonth } from './availabilityBoardService.js';
 
 export const BLOCK_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'maintenance_manager', 'revenue_manager'];
 const isYmd = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
@@ -91,11 +92,16 @@ export async function releaseBlock({ propertyId, blockId, reason, actor, ip }) {
   return dto(b);
 }
 
-export async function availabilityGrid({ propertyId, from, days }) {
+// month=YYYY-MM → the calendar month (monthly board); else `days` nights from `from` (default today).
+export async function availabilityGrid({ propertyId, from, days, month }) {
   const property = await Property.findById(propertyId).select('timezone dayClose').lean();
-  const start = isYmd(from) ? from : businessDateOf(property);
-  const out = await grid({ propertyId, from: start, days });
+  const today = businessDateOf(property);
+  const start = isMonth(month) ? `${month}-01` : isYmd(from) ? from : today;
+  const out = await grid({ propertyId, from: start, days: isMonth(month) ? daysInMonth(month) : days });
   const last = out.dates[out.dates.length - 1];
-  const blocks = await listBlocks({ propertyId, from: start, to: last ? new Date(Date.parse(`${last}T00:00:00Z`) + 86400000).toISOString().slice(0, 10) : start });
-  return { ...out, today: businessDateOf(property), blocks };
+  const [board, blocks] = await Promise.all([
+    enrichBoard({ propertyId, grid: out, tz: property?.timezone || 'Asia/Jerusalem', today }),
+    listBlocks({ propertyId, from: start, to: last ? new Date(Date.parse(`${last}T00:00:00Z`) + 86400000).toISOString().slice(0, 10) : start }),
+  ]);
+  return { ...board, month: isMonth(month) ? month : null, today, blocks };
 }

@@ -1,0 +1,66 @@
+PASS  INV-03 price per night (not an average): 500 + 600 + 500 = 1600
+PASS  INV-03 availability is reported per night
+PASS  INV-03 a night without a calendar price uses the room type base price
+PASS  INV-03 no calendar price and no base price → not sellable (no silent zero)
+PASS  INV-03 closed-to-arrival blocks the offer
+PASS  INV-03 minimum stay is enforced
+PASS  INV-03 room capacity is enforced
+PASS  INV-03 a past arrival date is refused
+PASS  RBAC: housekeeper cannot create a booking
+PASS  RSV-02 booking confirmed at the server price (client price ignored), snapshot frozen
+PASS  RSV-02 terms snapshot and confirmation number from the property sequence
+PASS  RSV-02 inventory taken for each night
+FAIL  RSV-02 retry with the same key creates nothing new
+PASS  RSV-02 old price signature is refused with the new price (T02)
+PASS  RSV-02 last room sold once; the parallel request gets a conflict (T01)
+PASS  RSV-02 inventory never exceeds physical rooms
+PASS  RSV-02 a new guest matching an existing email is surfaced as a possible duplicate
+PASS  RSV-02 children require their ages
+PASS  RSV-02 manual price: receptionist refused
+PASS  RSV-02 manual price requires a reason
+PASS  RSV-02 manager price with a reason is recorded in the snapshot
+PASS  RSV-02 draft holds no inventory
+PASS  Cancel requires a reason
+PASS  Cancelling a draft does not release inventory it never took
+PASS  Cancelling a confirmed booking releases its nights
+PASS  A stay that already started cannot be cancelled (T32)
+PASS  RSV-04 quote validity must be in the future
+PASS  RSV-04 quote saved without holding inventory
+PASS  RSV-04 printable quote says it is not a booking or tax document
+PASS  RSV-04 mark as sent records channel and time
+PASS  RSV-04 converting re-checks the price; a changed price needs confirmation
+PASS  RSV-04 converted with the confirmed new price; inventory taken now
+PASS  RSV-04 a converted quote cannot be converted again
+PASS  RSV-04 closing a quote requires a loss reason
+PASS  RSV-04 closed quote keeps its record (no delete)
+PASS  RSV-02 hold takes inventory until its expiry
+PASS  An expired hold releases its inventory
+PASS  RSV-02 a plain hold is confirmed without taking inventory twice
+PASS  RSV-01 finds a booking by confirmation number
+PASS  RSV-01 quotes filter
+PASS  RSV-01 arrival range filter and unit totals
+PASS  RSV-03 stay file: units, frozen price and allowed actions
+PASS  RSV-03 housekeeping sees no money
+PASS  Party: free rooms of a type for the range
+PASS  Party: the same room cannot be chosen for two lines
+PASS  Party: 3 rooms of 2 types in one action → 3 linked reservations, one party code
+PASS  Party: each room priced by the server for its own type and occupancy
+PASS  Party: stock taken per type (2 standard, 1 family)
+PASS  Party: the chosen room is assigned
+PASS  Party: retry with the same key books nothing new
+PASS  Party: the stay file lists all rooms of the party
+PASS  Party: not enough rooms of a type → refused before anything is written
+PASS  Party: all or nothing — room 2 fails (child age missing), room 1 is rolled back
+PASS  Pricing mode: "by board" needs at least one rate plan that is a board
+PASS  Pricing mode: the manager sets the hotel to sell by board
+PASS  G2 a board without a price in the table is not sold
+PASS  G2 receptionist cannot set board prices
+PASS  G2 board supplements saved (adult / child per night), versioned
+PASS  G2 by board: room 500 + half board adult 150 + child(8) 90, infant(1) free = 740 per night
+PASS  G2 by rate: a plan that includes breakfast cannot be sold as half board
+PASS  G2 by rate: the breakfast plan price already includes the meals (no supplement)
+PASS  G2 booking keeps lodging and board apart in the agreed price (total 1,480)
+PASS  EXT-04 "tourist" chosen at booking is kept on the reservation (evidence at check-in)
+PASS  G2 each night posts lodging (rooms) and board (board, F&B) as separate lines
+
+Summary: PASS=63 FAIL=1

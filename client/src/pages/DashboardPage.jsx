@@ -14,7 +14,7 @@ import QueueDialog from '../components/frontdesk/QueueDialog';
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const REFUND_ROLES = [...MANAGER_ROLES, 'finance_manager'];
 
-export default function DashboardPage() {
+export default function DashboardPage({ summaryAppearance, rowAppearance }) {
   const { propertyId, property } = useProperty() || {};
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ export default function DashboardPage() {
   if (skip) return <div className="dk-state">יש לבחור נכס כדי להציג את יום העבודה.</div>;
   const isManager = MANAGER_ROLES.includes(user?.role);
   return <>
-    <DailyWorkspace propertyId={propertyId} property={property} date={date} stats={stats} arrivals={arrivals} departures={departures} alerts={alerts} work={work} tickets={tickets} inhouse={inhouse} onOpen={setSelected} refresh={refresh} navigate={navigate} onOpen={setSelected} onCheckIn={openCheckIn} onCheckOut={setCheckoutId} onAssign={setAssignRow} onQueue={setQueueRow} onAlert={alertAction}/>
+    <DailyWorkspace propertyId={propertyId} property={property} date={date} stats={stats} arrivals={arrivals} departures={departures} alerts={alerts} work={work} tickets={tickets} inhouse={inhouse} refresh={refresh} navigate={navigate} onOpen={setSelected} onCheckIn={openCheckIn} onCheckOut={setCheckoutId} onAssign={setAssignRow} onQueue={setQueueRow} onAlert={alertAction} summaryAppearance={summaryAppearance} rowAppearance={rowAppearance}/>
     <StayDialog
       open={!!selected}
       propertyId={propertyId}

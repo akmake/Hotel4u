@@ -5,27 +5,51 @@
 // Rules:
 //  - price per room comes from the server (createBooking): occupancy, children and rate plan per room;
 //  - stock is checked for the whole party before anything is written (N rooms of a type need N free);
-//  - all or nothing: if any room fails, the rooms already written are rolled back (stock released,
-//    records removed) — the guest never gets half a booking;
+//  - all members, inventory, guest and operation result commit in one transaction;
 //  - one operation key for the party; each room gets `<key>-<n>`, so a retry never books twice;
 //  - a specific room may be chosen per line; assigning it is best effort and reported back.
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
-import ReservationRoom from '../models/ReservationRoom.js';
-import Folio from '../models/Folio.js';
 import Room from '../models/Room.js';
 import { audit } from './auditService.js';
-import { nightlyAvailability, getOccupiedRoomIds, roomsFreeForStay } from './availabilityService.js';
+import { nightlyAvailability, roomsFreeForStay } from './availabilityService.js';
 import { createBooking, resolveGuest } from './bookingService.js';
-import { cancelReservation } from './reservationService.js';
-import { assignRoom, httpError } from './frontDeskService.js';
+import { httpError } from './frontDeskService.js';
+import PartyBookingOperation from '../models/PartyBookingOperation.js';
+import { withLocks } from './locks.js';
+import { runStayTransaction } from './stayTransaction.js';
+import { payloadHash } from '../domain/accounting.js';
 
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
 const MAX_ROOMS = 20;
 const SHARED = ['arrival', 'departure', 'source', 'companyId', 'payerType', 'booker', 'specialRequests', 'internalNotes', 'language', 'mode', 'holdMinutes', 'residency'];
 
 export async function createParty({ propertyId, input, actor, ip }) {
+  const key = String(input.idempotencyKey || '').trim();
+  if (!/^[A-Za-z0-9_-]{8,70}$/.test(key)) throw httpError('חסר מזהה פעולה (idempotency key)', 422);
+  const lines = Array.isArray(input.lines) ? input.lines.slice(0, MAX_ROOMS + 1) : [];
+  if (!lines.length || lines.length > MAX_ROOMS || lines.some((line) => !line || typeof line !== 'object' || Array.isArray(line))) throw httpError(`יש לשלוח רשימה של 1–${MAX_ROOMS} חדרים תקינים`, 422);
+  const { idempotencyKey: ignoredKey, propertyId: ignoredProperty, ...body } = input;
+  const hash = payloadHash(body);
+  await PartyBookingOperation.init();
+  const keys = [`party:${propertyId}:${key}`,
+    ...lines.map((l) => `inv:${propertyId}:${l.roomTypeId}`),
+    ...lines.filter((l) => l.roomId).map((l) => `room:${l.roomId}`)];
+  return withLocks(keys, (lease) => runStayTransaction(async (session, afterCommit) => {
+    const previous = await PartyBookingOperation.findOne({ property: propertyId, requestKey: key }).session(session).lean();
+    if (previous) {
+      if (previous.payloadHash !== hash) throw httpError('מזהה הפעולה כבר שימש להזמנה מרובת חדרים עם פרטים אחרים', 409, { code: 'request_conflict' });
+      return { ...previous.result, duplicate: true };
+    }
+    if (await Reservation.exists({ property: propertyId, $or: [{ 'party.id': key }, { idempotencyKey: { $in: lines.map((_, i) => `${key}-${i + 1}`) } }] }).session(session)) throw httpError('קיימת הזמנה עם מזהה זה ללא תוצאת פעולה מאומתת — יש לפתוח אותה לבדיקה', 409, { code: 'legacy_party_request' });
+    const result = await createPartyTransaction({ propertyId, input, actor, ip, session, afterCommit });
+    await PartyBookingOperation.create([{ property: propertyId, requestKey: key, payloadHash: hash, result }], { session });
+    return result;
+  }, lease, { operation: 'יצירת הזמנה מרובת חדרים' }), { waitMs: 4000 });
+}
+
+async function createPartyTransaction({ propertyId, input, actor, ip, session, afterCommit }) {
   const key = String(input.idempotencyKey || '').trim();
   if (!/^[A-Za-z0-9_-]{8,70}$/.test(key)) throw httpError('חסר מזהה פעולה (idempotency key)', 422);
   const lines = Array.isArray(input.lines) ? input.lines.slice(0, MAX_ROOMS + 1) : [];
@@ -41,19 +65,13 @@ export async function createParty({ propertyId, input, actor, ip }) {
   if (new Set(picked).size !== picked.length) throw httpError('אותו חדר נבחר ליותר משורה אחת', 422, { fields: { lines: 'חדר כפול' } });
   if (Object.keys(lineErrors).length) throw httpError('יש להשלים את פרטי החדרים', 422, { fields: { lines: lineErrors } });
 
-  // Already done (retry of the same action) → return what exists.
-  const done = await Reservation.find({ property: propertyId, idempotencyKey: { $in: lines.map((_, i) => `${key}-${i + 1}`) } }).select('_id confirmationNumber status party totalAmount').lean();
-  if (done.length === lines.length && done.every((d) => d.party?.id === key)) {
-    return { partyId: key, code: done[0].party.code, rooms: done.map((d) => ({ id: String(d._id), confirmationNumber: d.confirmationNumber, status: d.status, total: d.totalAmount })), duplicate: true };
-  }
-
   // Whole-party stock check before anything is written (a draft holds nothing).
   if (mode !== 'draft') {
     const need = new Map();
     for (const l of lines) need.set(String(l.roomTypeId), (need.get(String(l.roomTypeId)) || 0) + 1);
     const short = [];
     for (const [typeId, count] of need) {
-      const inv = await nightlyAvailability({ propertyId, roomTypeId: typeId, arrivalDate: input.arrival, departureDate: input.departure });
+      const inv = await nightlyAvailability({ propertyId, roomTypeId: typeId, arrivalDate: input.arrival, departureDate: input.departure, session });
       const free = Math.min(inv.freeRooms, ...inv.nights.map((n) => (n.missing ? 0 : n.available)));
       if (free < count) short.push({ roomTypeId: typeId, need: count, free: Math.max(0, free) });
     }
@@ -63,14 +81,16 @@ export async function createParty({ propertyId, input, actor, ip }) {
   }
 
   // One guest for the whole party (duplicates are surfaced once, not per room).
-  const guest = await resolveGuest({ propertyId, input, actor, ip });
+  const guest = await resolveGuest({ propertyId, input, actor, ip, session, afterCommit });
   const shared = Object.fromEntries(SHARED.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]));
   const created = [];
   try {
     for (let i = 0; i < lines.length; i += 1) {
       const l = lines[i];
       const out = await createBooking({
-        propertyId, actor, ip,
+        propertyId, actor, ip, session, afterCommit,
+        preferredRoomId: l.roomId || null,
+        excludedRoomIds: picked.filter((roomId) => roomId !== String(l.roomId || '')),
         input: {
           ...shared, mode, guestId: String(guest._id), rooms: 1,
           roomTypeId: l.roomTypeId, ratePlanId: l.ratePlanId, adults: Number(l.adults), children: Number(l.children || 0),
@@ -82,30 +102,26 @@ export async function createParty({ propertyId, input, actor, ip }) {
       created.push({ ...out, line: i });
     }
   } catch (e) {
-    await rollback({ propertyId, created, actor, ip, why: e.message });
     const err = httpError(`חדר ${Number(e.lineIndex ?? created.length) + 1}: ${e.message}`, e.status || 409, { code: e.code || 'party_failed', fields: { lines: { [e.lineIndex ?? created.length]: e.message } }, details: e.details });
     throw err;
   }
 
   const code = created[0].confirmationNumber;
   for (const c of created) {
-    await Reservation.updateOne({ _id: c.id }, { $set: { party: { id: key, code, index: c.line + 1, size: created.length } } });
+    await Reservation.updateOne({ _id: c.id }, { $set: { party: { id: key, code, index: c.line + 1, size: created.length } } }, { session });
   }
-  // Specific rooms, when chosen: best effort — the booking stands even if a room was taken meanwhile.
+  // Preferred rooms are allocated during member creation; other lines cannot consume them first.
   const assignments = [];
   for (const c of created) {
     const roomId = lines[c.line].roomId;
     if (!roomId || mode === 'draft') continue;
-    try {
-      await assignRoom({ propertyId, reservationId: c.id, roomId: String(roomId), actor, ip });
-      const room = await Room.findById(roomId).select('number').lean();
-      assignments.push({ line: c.line, ok: true, room: room?.number || null });
-    } catch (e) {
-      assignments.push({ line: c.line, ok: false, message: e.message });
-    }
+    const member = await Reservation.findById(c.id).session(session).select('assignedRoom').lean();
+    const matched = String(member.assignedRoom || '') === String(roomId);
+    const room = matched ? await Room.findById(roomId).session(session).select('number').lean() : null;
+    assignments.push(matched ? { line: c.line, ok: true, room: room?.number || null } : { line: c.line, ok: false, message: 'החדר המבוקש אינו פנוי או אינו מתאים — נשמר חדר חלופי' });
   }
   if (created.length > 1) {
-    await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.party_created', entityType: 'Reservation', entityId: created[0].id, after: { party: key, code, rooms: created.length, confirmations: created.map((c) => c.confirmationNumber) }, ip });
+    await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.party_created', entityType: 'Reservation', entityId: created[0].id, after: { party: key, code, rooms: created.length, confirmations: created.map((c) => c.confirmationNumber) }, ip, session, afterCommit });
   }
   return {
     partyId: key, code, duplicate: false,
@@ -113,24 +129,6 @@ export async function createParty({ propertyId, input, actor, ip }) {
     total: Math.round(created.reduce((s, c) => s + Number(c.total || 0), 0) * 100) / 100,
     assignments,
   };
-}
-
-// All or nothing: rooms written before the failure release their stock and are removed.
-async function rollback({ propertyId, created, actor, ip, why }) {
-  for (const c of created) {
-    try {
-      const r = await Reservation.findById(c.id).select('status').lean();
-      if (r && !['cancelled', 'draft', 'quote'].includes(r.status)) {
-        await cancelReservation({ reservationId: c.id, reason: 'ביטול אוטומטי — הזמנה מרובת חדרים לא הושלמה', actorId: actor.id, actorName: actor.name, ip });
-      }
-      await ReservationRoom.deleteMany({ reservation: c.id });
-      await Folio.deleteMany({ reservation: c.id, 'lines.0': { $exists: false } });
-      await Reservation.deleteOne({ _id: c.id });
-      await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.party_rolled_back', entityType: 'Reservation', entityId: c.id, reason: String(why || '').slice(0, 300), after: { confirmationNumber: c.confirmationNumber }, ip });
-    } catch (e) {
-      console.error('[party] rollback failed', c.id, e.message);
-    }
-  }
 }
 
 // Rooms of a type free for every night of a range (for choosing a specific room while booking).

@@ -26,7 +26,7 @@ import AuditLog from '../models/AuditLog.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+if (process.env.PMS_ISOLATED_QA !== '1') dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const args = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith('--')).map((a) => {
   const [k, v] = a.slice(2).split('=');

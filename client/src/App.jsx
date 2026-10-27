@@ -53,6 +53,8 @@ const SalesPerformancePage     = lazy(() => import('./pages/admin/SalesPerforman
 
 // ── hotel4u PMS (future) ──────────────────────────────────────────────────────
 const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
+const ReceptionDesignPage  = lazy(() => import('./pages/ReceptionDesignPage'));
+const AvailabilityDesignPage = lazy(() => import('./pages/AvailabilityDesignPage'));
 const ReservationsPage     = lazy(() => import('./pages/rsv/ReservationsListPage'));
 const NewReservationPage   = lazy(() => import('./pages/rsv/BookingFormPage'));
 const ReservationPage      = lazy(() => import('./pages/rsv/ReservationPage'));
@@ -67,6 +69,9 @@ const InspectionPage       = lazy(() => import('./pages/ops/InspectionPage'));
 const OpsRoomStatusPage    = lazy(() => import('./pages/ops/RoomStatusPage'));
 const AvailabilityPage     = lazy(() => import('./pages/inv/AvailabilityPage'));
 const RoomChartPage        = lazy(() => import('./pages/inv/RoomChartPage'));
+const RoomRackPage         = lazy(() => import('./pages/RoomRackPage'));
+const TapeChartPage        = lazy(() => import('./pages/TapeChartPage'));
+const RoomCalendarDesignPage = lazy(() => import('./pages/RoomCalendarDesignPage'));
 const MealsPage            = lazy(() => import('./pages/ops/MealsPage'));
 const HotelStatusPage      = lazy(() => import('./pages/ops/HotelStatusPage'));
 const OpsReportsPage       = lazy(() => import('./pages/ops/OpsReportsPage'));
@@ -229,8 +234,12 @@ export default function App() {
             {/* ── hotel4u PMS (future) ── */}
             <Route path="pms" element={<PmsRoleGuard />}>
               <Route index                    element={<DashboardPage />} />
+              <Route path="design"           element={<ReceptionDesignPage />} />
+              <Route path="design/availability" element={<AvailabilityDesignPage />} />
+              <Route path="design/room-calendar" element={<RoomCalendarDesignPage />} />
               <Route path="tape-chart"        element={<RoomChartPage />} />
-              <Route path="room-rack"         element={<Navigate to="/pms/housekeeping/rooms" replace />} />
+              <Route path="room-rack"         element={<RoomRackPage />} />
+              <Route path="tape-chart-classic" element={<TapeChartPage />} />
               <Route path="reservations"      element={<ReservationsPage />} />
               <Route path="reservations/new"  element={<NewReservationPage />} />
               <Route path="reservations/:id"  element={<ReservationPage />} />

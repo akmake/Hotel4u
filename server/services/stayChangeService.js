@@ -23,12 +23,17 @@ import HousekeepingTask from '../models/HousekeepingTask.js';
 import { audit } from './auditService.js';
 import { withLocks } from './locks.js';
 import { getStayDates, nightlyAvailability, incrementInventory } from './availabilityService.js';
-import { priceNights } from './bookingService.js';
-import { cancelReservation } from './reservationService.js';
+import { priceNights, resolveOffer, priceSignatureOf } from './bookingService.js';
+import { RatePlan } from '../models/RatePlan.js';
+import { boardOfPlan, supplementPerNight } from './boardService.js';
+import { cancelReservation, withReservationTransaction } from './reservationService.js';
 import { folioBalance } from './departureService.js';
 import { raiseWork } from './platformService.js';
 import { createTicket } from './operationsService.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
+import RoomMoveOperation from '../models/RoomMoveOperation.js';
+import { runStayTransaction } from './stayTransaction.js';
+import { payloadHash } from '../domain/accounting.js';
 import {
   httpError, loadProperty, businessDateOf, ensureUnits, conflictingRoomIds, policyOf, MANAGER_ROLES, IN_HOUSE_STATUSES,
 } from './frontDeskService.js';
@@ -57,30 +62,32 @@ const OPEN_TICKET = ['new', 'assigned', 'in_progress', 'waiting_parts', 'waiting
 const REASON_ALIASES = { upgrade: 'upgrade_free' };
 export const EARLY_REASONS = { guest_request: 'בקשת האורח', service_issue: 'תקלה או שירות', event: 'אירוע אישי', other: 'אחר' };
 
-async function loadRes(propertyId, id) {
+async function loadRes(propertyId, id, session = null) {
   if (!isId(String(id || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
-  const res = await Reservation.findOne({ _id: id, property: propertyId });
+  const res = await Reservation.findOne({ _id: id, property: propertyId }).session(session);
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
   return res;
 }
 
-async function issuedDocs(resId) {
-  return Invoice.find({ reservation: resId, status: 'issued', type: { $in: CHARGE_DOC_TYPES } }).select('invoiceNumber totalGross').lean();
+async function issuedDocs(resId, session = null) {
+  return Invoice.find({ reservation: resId, status: 'issued', type: { $in: CHARGE_DOC_TYPES } }).session(session).select('invoiceNumber totalGross').lean();
 }
 
-async function inHouseUnit(res, unitId, fromRoomId) {
-  await ensureUnits(res);
-  const units = await ReservationRoom.find({ reservation: res._id }).sort({ createdAt: 1, _id: 1 });
+async function inHouseUnit(res, unitId, fromRoomId, session = null) {
+  await ensureUnits(res, session);
+  const units = await ReservationRoom.find({ reservation: res._id }).session(session).sort({ createdAt: 1, _id: 1 });
   const live = units.filter((u) => ['in_house', 'checked_in'].includes(u.status));
   if (!live.length) throw httpError('אין יחידה שוהה בהזמנה', 409);
   // From the room chart the unit is known by the room it is dragged out of.
   if (!unitId && fromRoomId) {
     const byRoom = live.find((u) => String(u.assignedRoom || '') === String(fromRoomId));
     if (byRoom) return { unit: byRoom, units };
+    throw httpError('חדר המקור השתנה — רעננו את פרטי השהייה', 409, { code: 'source_changed' });
   }
   if (unitId) {
     const u = live.find((x) => String(x._id) === String(unitId));
     if (!u) throw httpError('היחידה אינה שוהה כעת', 409);
+    if (fromRoomId && String(u.assignedRoom || '') !== String(fromRoomId)) throw httpError('חדר המקור השתנה — רעננו את פרטי השהייה', 409, { code: 'source_changed' });
     return { unit: u, units };
   }
   if (live.length > 1) throw httpError('יש לבחור יחידה', 422, { fields: { unitId: 'בחירה נדרשת' } });
@@ -88,6 +95,29 @@ async function inHouseUnit(res, unitId, fromRoomId) {
 }
 
 // ── FD-09 room move ─────────────────────────────────────────────────────────
+function capacityIssue(res, unit, units, type) {
+  if (!type || type.active === false) return 'סוג חדר היעד אינו פעיל';
+  const multi = Math.max(Number(res.roomsCount || 1), units.length) > 1;
+  const known = multi && Number.isInteger(unit.adults) && Number.isInteger(unit.children);
+  // Legacy groups: never guess an equal split of the party between rooms.
+  const adults = Number(known ? unit.adults : res.adults);
+  const children = Number(known ? unit.children : (res.children ?? 0));
+  const maximum = Number(type.capacityMax ?? 2), adultMax = Number(type.adultsMax ?? maximum);
+  if (!Number.isInteger(adults) || adults < 1 || !Number.isInteger(children) || children < 0) return 'יש להשלים את הרכב האורחים ביחידת השהייה';
+  if (adults > adultMax || adults + children > maximum || (type.childrenMax > 0 && children > type.childrenMax)) {
+    return multi && !known ? 'הרכב האורחים לכל חדר אינו ידוע — יש להשלים הרכב לפני המעבר' : 'הרכב האורחים חורג מקיבולת חדר היעד';
+  }
+  return null;
+}
+
+function addSiblingConflicts(conflicts, units, unit, from, to) {
+  for (const other of units) {
+    if (String(other._id) !== String(unit._id) && other.assignedRoom
+      && ['reserved', 'tentative', 'in_house', 'checked_in'].includes(other.status)
+      && other.arrivalDate < to && other.departureDate > from) conflicts.set(String(other.assignedRoom), 'יחידה אחרת בהזמנה זו');
+  }
+}
+
 export async function moveCandidates({ propertyId, reservationId, unitId, fromRoomId }) {
   const property = await loadProperty(propertyId);
   const today = businessDateOf(property);
@@ -97,8 +127,8 @@ export async function moveCandidates({ propertyId, reservationId, unitId, fromRo
   const { unit, units } = await inHouseUnit(res, unitId, fromRoomId);
   const to = unit.departureDate || res.departureDate;
   const conflicts = await conflictingRoomIds({ propertyId, from: today, to, excludeReservationId: res._id });
-  for (const s of units) if (s.assignedRoom && String(s._id) !== String(unit._id)) conflicts.set(String(s.assignedRoom), 'יחידה אחרת בהזמנה זו');
-  const rooms = await Room.find({ property: propertyId, active: { $ne: false } }).populate('roomType', 'name code baseRate').sort({ floor: 1, number: 1 }).lean();
+  addSiblingConflicts(conflicts, units, unit, today, to);
+  const rooms = await Room.find({ property: propertyId, active: { $ne: false } }).populate('roomType', 'name code baseRate capacityMax adultsMax childrenMax active').sort({ floor: 1, number: 1 }).lean();
   const ready = policy.requireInspection ? ['inspected'] : ['clean', 'inspected'];
   // Price of the remaining nights: as agreed, and per room type from the rate calendar (same rate plan).
   const remaining = remainingNightsOf(res, unit, today, to);
@@ -119,12 +149,13 @@ export async function moveCandidates({ propertyId, reservationId, unitId, fromRo
       const conflict = conflicts.get(String(r._id)) || null;
       const blocked = r.opsStatus !== 'available';
       const notReady = !ready.includes(r.cleanStatus);
+      const capacity = capacityIssue(res, unit, units, r.roomType);
       return {
         id: String(r._id), number: r.number, floor: r.floor, roomType: r.roomType ? { id: String(r.roomType._id), name: r.roomType.name } : null,
         sameType: String(r.roomType?._id) === String(unit.roomTypeBooked || res.roomType), cleanStatus: r.cleanStatus, opsStatus: r.opsStatus,
         direction: moveDirection(byType, currentTypeId, String(r.roomType?._id || '')),
-        available: !conflict && !blocked && !notReady,
-        why: conflict ? `תפוס (${conflict})` : blocked ? 'חסום תפעולית' : notReady ? 'לא מוכן (ניקיון)' : null,
+        available: !conflict && !blocked && !notReady && !capacity,
+        why: conflict ? `תפוס (${conflict})` : blocked ? 'חסום תפעולית' : notReady ? 'לא מוכן (ניקיון)' : capacity,
       };
     }),
   };
@@ -160,6 +191,11 @@ function remainingNightsOf(res, unit, today, to) {
 }
 
 export async function moveRoom({ propertyId, reservationId, input, actor, ip }) {
+  const requestKey = input.requestKey;
+  if (requestKey !== undefined && (typeof requestKey !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(requestKey))) throw httpError('מזהה בקשה לא תקין', 422);
+  const { requestKey: ignoredKey, propertyId: ignoredProperty, ...requestBody } = input;
+  const hash = payloadHash(requestBody);
+  await RoomMoveOperation.init();
   const reasonKey = REASON_ALIASES[input.reason] || input.reason;
   const reason = MOVE_REASONS[reasonKey] ? reasonKey : null;
   const note = String(input.note || '').trim().slice(0, 300);
@@ -188,14 +224,22 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
   }
   if (Object.keys(fields).length) throw httpError('יש לתקן את פרטי המעבר', 422, { fields });
 
-  return withLocks([`room:${input.roomId}`, `res:${reservationId}`], async () => {
+  return withLocks([`room:${input.roomId}`, `res:${reservationId}`], async (lease) => runStayTransaction(async (session, afterCommit) => {
+    const tx = { session, afterCommit };
+    if (requestKey) {
+      const previous = await RoomMoveOperation.findOne({ property: propertyId, reservation: reservationId, requestKey }).session(session).lean();
+      if (previous) {
+        if (previous.payloadHash !== hash) throw httpError('מזהה הבקשה כבר שימש למעבר עם פרטים אחרים', 409, { code: 'request_conflict' });
+        return { ...previous.result, duplicate: true };
+      }
+    }
     const property = await loadProperty(propertyId);
     const today = businessDateOf(property);
     const policy = policyOf(await Property.findById(propertyId).select('checkInPolicy').lean());
-    const res = await loadRes(propertyId, reservationId);
+    const res = await loadRes(propertyId, reservationId, session);
     if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('מעבר חדר מתבצע רק לאורח שבבית', 409);
-    const { unit } = await inHouseUnit(res, input.unitId, input.fromRoomId);
-    const target = await Room.findOne({ _id: input.roomId, property: propertyId, active: { $ne: false } });
+    const { unit, units } = await inHouseUnit(res, input.unitId, input.fromRoomId, session);
+    const target = await Room.findOne({ _id: input.roomId, property: propertyId, active: { $ne: false } }).session(session);
     if (!target) throw httpError('חדר היעד לא נמצא', 404);
     if (String(target._id) === String(unit.assignedRoom)) throw httpError('זה החדר הנוכחי', 422);
     if (target.opsStatus !== 'available') throw httpError(`חדר ${target.number} חסום תפעולית`, 409);
@@ -204,8 +248,12 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
     const to = unit.departureDate || res.departureDate;
     if (to <= today) throw httpError(to < today ? `מועד העזיבה (${to}) כבר עבר — קודם הארכת שהייה, ואז מעבר` : 'האורח עוזב היום — אין לילה להעביר. לשהייה נוספת: הארכה, ואז מעבר', 409, { code: 'no_nights_left' });
     // T08: re-checked under the lock — the target may have been taken a second ago.
-    const conflicts = await conflictingRoomIds({ propertyId, from: today, to, excludeReservationId: res._id });
+    const conflicts = await conflictingRoomIds({ propertyId, from: today, to, excludeReservationId: res._id, session });
+    addSiblingConflicts(conflicts, units, unit, today, to);
     if (conflicts.has(String(target._id))) throw httpError(`חדר ${target.number} נתפס בינתיים (${conflicts.get(String(target._id))}) — המעבר לא בוצע`, 409, { code: 'target_taken' });
+    const targetType = await RoomType.findOne({ _id: target.roomType, property: propertyId }).session(session).lean();
+    const capacity = capacityIssue(res, unit, units, targetType);
+    if (capacity) throw httpError(capacity, 422, { code: 'capacity', fields: { roomId: capacity } });
 
     const oldRoomId = unit.assignedRoom;
     const oldType = unit.roomTypeBooked || res.roomType;
@@ -241,20 +289,20 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
     const newRate = newNightly ? rate : null;
 
     // Segments: the active one ends today, a new one starts today (completed nights untouched).
-    const active = await StaySegment.find({ reservationRoom: unit._id, toDate: { $gt: today } }).sort({ fromDate: 1 });
+    const active = await StaySegment.find({ reservationRoom: unit._id, toDate: { $gt: today } }).session(session).sort({ fromDate: 1 });
     for (const seg of active) {
-      if (seg.fromDate < today) { seg.toDate = today; await seg.save(); }
-      else await StaySegment.deleteOne({ _id: seg._id });
+      if (seg.fromDate < today) { seg.toDate = today; await seg.save({ session }); }
+      else await StaySegment.deleteOne({ _id: seg._id }, { session });
     }
-    await StaySegment.create({
+    await StaySegment.create([{
       reservationRoom: unit._id, reservation: res._id, property: propertyId, fromDate: today, toDate: to, roomType: newType, room: target._id,
       ratePerNight: rate, ratePlan: res.ratePlan || undefined, changeReason: `מעבר חדר: ${MOVE_REASONS[reason]}${note ? ` — ${note}` : ''}`,
       createdBy: actor.id || undefined, createdByName: actor.name,
-    });
+    }], { session });
     unit.assignedRoom = target._id;
     if (String(oldType) !== String(newType)) unit.roomTypeBooked = newType;
     if (newRate !== null) unit.nightlyRate = newRate;
-    await unit.save();
+    await unit.save({ session });
     const set = {};
     if (String(res.assignedRoom || '') === String(oldRoomId || '')) set.assignedRoom = target._id;
     if (newNightly) {
@@ -264,78 +312,95 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
       set['priceSnapshot.total'] = round2([...kept, ...newNightly].reduce((a, n) => a + Number(n.price), 0));
       set.totalAmount = set['priceSnapshot.total'];
     }
-    if (Object.keys(set).length) await Reservation.updateOne({ _id: res._id }, { $set: set });
+    if (Object.keys(set).length) await Reservation.updateOne({ _id: res._id }, { $set: set }, { session });
     // Rooms: the old one needs cleaning before anyone else; the new one is occupied.
     if (oldRoomId) {
-      await Room.updateOne({ _id: oldRoomId }, { $set: { occStatus: 'vacant', cleanStatus: 'dirty' } });
-      const exists = await HousekeepingTask.exists({ room: oldRoomId, date: today, status: { $in: ['new', 'assigned', 'in_progress', 'paused'] } });
-      if (!exists) await HousekeepingTask.create({ property: propertyId, room: oldRoomId, reservation: res._id, type: 'checkout_clean', priority: 'high', date: today, status: 'new', notes: 'אורח עבר חדר', autoCreated: true });
+      await Room.updateOne({ _id: oldRoomId }, { $set: { occStatus: 'vacant', cleanStatus: 'dirty' } }, { session });
+      const exists = await HousekeepingTask.exists({ room: oldRoomId, date: today, status: { $in: ['new', 'assigned', 'in_progress', 'paused'] } }).session(session);
+      if (!exists) await HousekeepingTask.create([{ property: propertyId, room: oldRoomId, reservation: res._id, type: 'checkout_clean', priority: 'high', date: today, status: 'new', notes: 'אורח עבר חדר', autoCreated: true }], { session });
     }
-    await Room.updateOne({ _id: target._id }, { $set: { occStatus: 'occupied' } });
+    await Room.updateOne({ _id: target._id }, { $set: { occStatus: 'occupied' } }, { session });
     // A different room type moves the remaining nights between the two inventories.
     if (String(oldType) !== String(newType)) {
-      await incrementInventory(propertyId, oldType, today, to, -1, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.room_move_out', reason: res.confirmationNumber });
-      await incrementInventory(propertyId, newType, today, to, 1, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.room_move_in', reason: res.confirmationNumber });
+      await incrementInventory(propertyId, oldType, today, to, -1, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.room_move_out', reason: res.confirmationNumber }, tx);
+      await incrementInventory(propertyId, newType, today, to, 1, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.room_move_in', reason: res.confirmationNumber }, tx);
     }
-    const oldRoom = oldRoomId ? await Room.findById(oldRoomId).select('number').lean() : null;
+    const oldRoom = oldRoomId ? await Room.findById(oldRoomId).session(session).select('number').lean() : null;
     // Fault → maintenance ticket on the room the guest left (an open one is reused, not duplicated).
     let ticket = null;
     if (fault && oldRoomId) {
       const what = `${note} — אורח ${res.confirmationNumber} הועבר לחדר ${target.number}`;
-      const open = await MaintenanceTicket.findOne({ property: propertyId, room: oldRoomId, status: { $in: OPEN_TICKET } }).sort({ createdAt: -1 });
+      const open = await MaintenanceTicket.findOne({ property: propertyId, room: oldRoomId, status: { $in: OPEN_TICKET } }).session(session).sort({ createdAt: -1 });
       if (open) {
         open.internalNotes.push({ text: `אורח הועבר מהחדר בגלל התקלה: ${what}`, author: actor.id, authorName: actor.name });
         if (fault.block && !open.blocksRoom) { open.blocksRoom = true; open.guestImpact = 'block'; }
-        await open.save();
+        await open.save({ session });
         if (fault.block) {
-          const rm = await Room.findById(oldRoomId);
+          const rm = await Room.findById(oldRoomId).session(session);
           if (rm && rm.opsStatus === 'available') {
-            rm.opsStatus = 'out_of_order'; await rm.save();
-            await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'room.ops_status.out_of_order', entityType: 'Room', entityId: rm._id, before: { opsStatus: 'available' }, after: { opsStatus: 'out_of_order' }, reason: `תקלה: ${note.slice(0, 80)}`, ip });
+            rm.opsStatus = 'out_of_order'; await rm.save({ session });
+            await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'room.ops_status.out_of_order', entityType: 'Room', entityId: rm._id, before: { opsStatus: 'available' }, after: { opsStatus: 'out_of_order' }, reason: `תקלה: ${note.slice(0, 80)}`, ip, ...tx });
           }
         }
         ticket = { id: String(open._id), linked: true, blocked: fault.block };
       } else {
-        const created = await createTicket({ propertyId, input: { roomId: String(oldRoomId), category: fault.category, description: what, priority: fault.block ? 'high' : 'medium', guestImpact: fault.block ? 'block' : 'move' }, actor, ip });
+        const created = await createTicket({ propertyId, input: { roomId: String(oldRoomId), category: fault.category, description: what, priority: fault.block ? 'high' : 'medium', guestImpact: fault.block ? 'block' : 'move' }, actor, ip, ...tx });
         ticket = { id: created.id, linked: false, blocked: fault.block };
       }
     }
     await audit({
       property: propertyId, actor: actor.id, actorName: actor.name, action: 'stay.room_moved', entityType: 'Reservation', entityId: res._id,
       before: { room: oldRoom?.number || null, remainingTotal: agreedTotal }, after: { room: target.number, priceMode: newNightly ? priceMode : 'keep', remainingTotal: newTotal, keyRequested: !!input.keyRequested, guestConsentRef: input.guestConsentRef || undefined },
-      reason: [MOVE_REASONS[reason], note, newNightly ? `מחיר: ${input.rateReason}` : ''].filter(Boolean).join(' · '), ip,
+      reason: [MOVE_REASONS[reason], note, newNightly ? `מחיר: ${input.rateReason}` : ''].filter(Boolean).join(' · '), ip, ...tx,
     });
-    return {
+    const result = {
       reservationId: String(res._id), unitId: String(unit._id), from: oldRoom?.number || null, to: target.number, rate,
       price: { nights: remaining.length, before: agreedTotal, after: newTotal, difference: round2(newTotal - agreedTotal), changed: !!newNightly },
       ticket,
       // INT-04 is not connected: the new key is a separate task, never assumed done.
       key: input.keyRequested ? { status: 'not_connected', message: 'אין ספק מפתחות מחובר — יש להנפיק מפתח לחדר החדש ולבטל את הישן ידנית' } : null,
     };
-  });
+    if (requestKey) await RoomMoveOperation.create([{ property: propertyId, reservation: reservationId, requestKey, payloadHash: hash, result }], { session });
+    return result;
+  }, lease));
 }
 
 // ── FD-10 extension ─────────────────────────────────────────────────────────
-async function extensionPlan({ propertyId, res, newDeparture }) {
-  const units = await ReservationRoom.find({ reservation: res._id, status: { $in: ['in_house', 'checked_in'] } }).populate('assignedRoom', 'number opsStatus');
+async function extensionPlan({ propertyId, res, newDeparture, session = null }) {
+  const units = await ReservationRoom.find({ reservation: res._id, status: { $in: ['in_house', 'checked_in'] } }).session(session).populate('assignedRoom', 'number opsStatus');
   if (!units.length) throw httpError('אין יחידה שוהה להארכה', 409);
+  const openUnits = await ReservationRoom.countDocuments({ reservation: res._id, status: { $in: ['reserved', 'tentative', 'in_house', 'checked_in'] } }).session(session);
+  if (openUnits !== units.length || (res.roomsCount || 1) !== units.length || new Set(units.map((u) => String(u.roomTypeBooked))).size !== 1 || units.some((u) => u.departureDate !== res.departureDate)) throw httpError('נדרשת הארכה לפי יחידה להרכב שהייה מעורב או חלקי', 409);
   const oldDep = res.departureDate;
   if (!YMD.test(newDeparture || '') || newDeparture <= oldDep) throw httpError('תאריך היציאה החדש חייב להיות אחרי היציאה הנוכחית', 422, { fields: { newDeparture: 'מאוחר מהיציאה הנוכחית' } });
   const dates = getStayDates(oldDep, newDeparture);
   if (dates.length > 60) throw httpError('הארכה של עד 60 לילות', 422, { fields: { newDeparture: 'ארוך מדי' } });
-  const conflicts = await conflictingRoomIds({ propertyId, from: oldDep, to: newDeparture, excludeReservationId: res._id });
+  const conflicts = await conflictingRoomIds({ propertyId, from: oldDep, to: newDeparture, excludeReservationId: res._id, session });
   const blockers = [];
   for (const u of units) {
-    if (!u.assignedRoom) continue;
+    if (!u.assignedRoom) { blockers.push({ code: 'no_room', label: 'יחידה שוהה ללא חדר משויך — נדרש תיקון לפני הארכה' }); continue; }
     if (conflicts.has(String(u.assignedRoom._id))) blockers.push({ code: 'room_taken', label: `חדר ${u.assignedRoom.number} תפוס בלילות הנוספים (${conflicts.get(String(u.assignedRoom._id))})` });
     if (u.assignedRoom.opsStatus !== 'available') blockers.push({ code: 'room_blocked', label: `חדר ${u.assignedRoom.number} חסום תפעולית בלילות הנוספים` });
   }
   const roomTypeId = units[0].roomTypeBooked || res.roomType;
-  const inv = await nightlyAvailability({ propertyId, roomTypeId, arrivalDate: oldDep, departureDate: newDeparture, excludeReservationId: res._id });
+  const inv = await nightlyAvailability({ propertyId, roomTypeId, arrivalDate: oldDep, departureDate: newDeparture, excludeReservationId: res._id, session });
   const short = inv.nights.filter((n) => n.missing || n.stopSell || n.available < units.length);
   if (short.length) blockers.push({ code: 'no_stock', label: `אין מלאי ל־${short.slice(0, 3).map((n) => n.date).join(', ')}${short.length > 3 ? '…' : ''}` });
-  const price = await priceNights({ roomTypeId, ratePlanId: res.ratePlan, dates, adults: res.adults || 1, children: res.children || 0, rooms: units.length });
-  return { units, dates, roomTypeId, blockers, price, oldDep };
+  const price = await priceNights({ roomTypeId, ratePlanId: res.ratePlan, dates, adults: res.adults || 1, children: res.children || 0, rooms: units.length, session });
+  if (price.closed.length) blockers.push({ code: 'rate_closed', label: 'התעריף סגור בלילות הנוספים' });
+  const property = await Property.findById(propertyId).session(session).select('vatRate boardPricing childMaxAge').lean();
+  const ratePlan = res.ratePlan ? await RatePlan.findOne({ _id: res.ratePlan, property: propertyId }).session(session).lean() : null;
+  const boardType = res.board || res.priceSnapshot?.board?.type || boardOfPlan(ratePlan);
+  let supplement = 0;
+  if (boardOfPlan(ratePlan) === 'room_only' && boardType !== 'room_only') {
+    if (units.length !== 1) throw httpError('הארכת פנסיון מרובה יחידות דורשת פירוט הרכב לכל יחידה', 409);
+    supplement = supplementPerNight({ property, board: boardType, adults: res.adults, children: res.children, childAges: res.childAges });
+    if (supplement === null) { blockers.push({ code: 'board_unpriced', label: 'אין מחיר לפנסיון בלילות הנוספים' }); supplement = 0; }
+  }
+  const boardNightly = supplement > 0 ? dates.map((date) => ({ date, price: supplement })) : [];
+  price.perRoom = round2(price.perRoom + supplement * dates.length);
+  price.signature = priceSignatureOf(price.nightly.map((n) => ({ date: n.date, price: round2(n.price + supplement) })));
+  return { units, dates, roomTypeId, blockers, price, oldDep, boardNightly, supplement, vatRate: property?.vatRate ?? 18 };
 }
 
 export async function extensionPreview({ propertyId, reservationId, newDeparture }) {
@@ -345,7 +410,7 @@ export async function extensionPreview({ propertyId, reservationId, newDeparture
   const priced = plan.price.missing.length === 0;
   return {
     currentDeparture: plan.oldDep, newDeparture, nights: plan.dates.length, units: plan.units.length,
-    nightly: plan.price.nightly, missingRates: plan.price.missing, perRoom: plan.price.perRoom,
+    nightly: plan.price.nightly, boardNightly: plan.boardNightly, missingRates: plan.price.missing, perRoom: plan.price.perRoom,
     total: priced ? round2(plan.price.perRoom * plan.units.length) : null, priceSignature: plan.price.signature,
     blockers: plan.blockers, canExtend: plan.blockers.length === 0,
     needsManualPrice: !priced,
@@ -366,10 +431,14 @@ export async function extendStay({ propertyId, reservationId, input, actor, ip }
     if (String(input.reason || '').trim().length < 3) fields.reason = 'סיבת חריג מחיר';
   }
   if (Object.keys(fields).length) throw httpError('יש לתקן את פרטי ההארכה', 422, { fields });
-  return withLocks([`res:${reservationId}`], async () => {
-    const res = await loadRes(propertyId, reservationId);
+  const first = await loadRes(propertyId, reservationId);
+  const firstUnits = await ReservationRoom.find({ reservation: reservationId, status: { $in: ['in_house', 'checked_in'] } }).select('roomTypeBooked').lean();
+  const typeIds = [...new Set(firstUnits.map((u) => String(u.roomTypeBooked || first.roomType)))];
+  return withLocks([`res:${reservationId}`, ...typeIds.map((type) => `inv:${propertyId}:${type}`)], async (lease) => runStayTransaction(async (session, afterCommit) => {
+    const res = await loadRes(propertyId, reservationId, session);
     if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('הארכה מתבצעת לאורח שבבית', 409);
-    const plan = await extensionPlan({ propertyId, res, newDeparture: input.newDeparture });
+    const plan = await extensionPlan({ propertyId, res, newDeparture: input.newDeparture, session });
+    if (!typeIds.includes(String(plan.roomTypeId))) throw httpError('סוג החדר השתנה — יש לרענן', 409);
     if (plan.blockers.length) throw httpError(plan.blockers[0].label, 409, { code: 'cannot_extend', details: plan.blockers });
     let nightly = plan.price.nightly;
     if (manual !== null) nightly = plan.dates.map((d) => ({ date: d, price: manual }));
@@ -377,29 +446,33 @@ export async function extendStay({ propertyId, reservationId, input, actor, ip }
       if (plan.price.missing.length) throw httpError('אין מחיר בלוח התעריפים לחלק מהלילות — נדרש מחיר ידני של מנהל', 409, { code: 'manual_price_required' });
       if (input.priceSignature && input.priceSignature !== plan.price.signature) throw httpError('המחיר ללילות הנוספים השתנה — יש לאשר מחדש', 409, { code: 'price_changed', details: [{ nightly: plan.price.nightly, priceSignature: plan.price.signature }] });
     }
-    const added = round2(nightly.reduce((s, n) => s + n.price, 0) * plan.units.length);
+    const added = round2((nightly.reduce((s, n) => s + n.price, 0) + plan.supplement * plan.dates.length) * plan.units.length);
     const newDep = input.newDeparture;
     for (const u of plan.units) {
-      await StaySegment.updateMany({ reservationRoom: u._id, toDate: plan.oldDep }, { $set: { toDate: newDep } });
+      await StaySegment.insertMany(nightly.map((n) => ({ reservationRoom: u._id, reservation: res._id, property: propertyId, fromDate: n.date, toDate: addDays(n.date, 1), roomType: plan.roomTypeId, room: u.assignedRoom._id, ratePerNight: n.price, ratePlan: res.ratePlan, changeReason: 'הארכת שהייה', createdBy: actor.id, createdByName: actor.name })), { session });
       u.departureDate = newDep;
-      await u.save();
+      await u.save({ session });
     }
     const nights = getStayDates(res.arrivalDate, newDep).length;
+    const total = round2(Number(res.totalAmount || 0) + added);
     await Reservation.updateOne({ _id: res._id }, {
       $set: {
-        departureDate: newDep, nights, totalAmount: round2(Number(res.totalAmount || 0) + added),
+        departureDate: newDep, nights, totalAmount: total,
+        'priceSnapshot.total': total, 'priceSnapshot.computedAt': new Date(), 'priceSnapshot.vatRate': plan.vatRate,
+        taxAmount: round2(total - total / (1 + Number(plan.vatRate) / 100)),
+        'priceSnapshot.board.nightly': [...(res.priceSnapshot?.board?.nightly || []).filter((n) => n.date < plan.oldDep), ...plan.boardNightly],
         // Nights before the old departure keep their agreed price; the added nights get theirs.
         'priceSnapshot.nightly': [...(res.priceSnapshot?.nightly || []).filter((n) => n.date < plan.oldDep), ...nightly],
         lastChange: { at: new Date(), by: actor.name, reason: manual !== null ? `מחיר ידני: ${input.reason}` : 'הארכת שהייה', confirmationRef: confirmation, kind: 'extend' },
       },
-    });
-    await incrementInventory(propertyId, plan.roomTypeId, plan.oldDep, newDep, plan.units.length, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.extension', reason: res.confirmationNumber });
+    }, { session });
+    await incrementInventory(propertyId, plan.roomTypeId, plan.oldDep, newDep, plan.units.length, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.extension', reason: res.confirmationNumber }, { session, afterCommit });
     await audit({
       property: propertyId, actor: actor.id, actorName: actor.name, action: 'stay.extended', entityType: 'Reservation', entityId: res._id,
-      before: { departureDate: plan.oldDep }, after: { departureDate: newDep, added, payment, confirmation, manualRate: manual }, reason: manual !== null ? input.reason : undefined, ip,
+      before: { departureDate: plan.oldDep }, after: { departureDate: newDep, added, payment, confirmation, manualRate: manual }, reason: manual !== null ? input.reason : undefined, ip, session, afterCommit,
     });
     return { reservationId: String(res._id), departureDate: newDep, nights: plan.dates.length, added };
-  });
+  }, lease, { operation: 'הארכת שהייה' }));
 }
 
 // ── FD-11 early departure (preview; the departure itself runs in FD-08 checkout) ──
@@ -429,7 +502,7 @@ export async function earlyDeparturePreview({ propertyId, reservationId }) {
 }
 
 // ── RSV-05 booking change (before arrival) ──────────────────────────────────
-async function modificationPlan({ propertyId, res, changes }) {
+async function modificationPlan({ propertyId, res, changes, session = null }) {
   const arrival = changes.arrival || res.arrivalDate;
   const departure = changes.departure || res.departureDate;
   const adults = changes.adults !== undefined ? Number(changes.adults) : res.adults;
@@ -437,7 +510,7 @@ async function modificationPlan({ propertyId, res, changes }) {
   const rooms = res.roomsCount || 1;
   const roomTypeId = changes.roomTypeId || String(res.roomType);
   const ratePlanId = changes.ratePlanId || (res.ratePlan ? String(res.ratePlan) : null);
-  const property = await Property.findById(propertyId).select('timezone vatRate').lean();
+  const property = await Property.findById(propertyId).session(session).select('timezone vatRate').lean();
   const today = businessDateOf(property);
   const fields = {};
   if (!YMD.test(arrival) || !YMD.test(departure) || departure <= arrival) fields.dates = 'טווח תאריכים לא תקין';
@@ -450,25 +523,20 @@ async function modificationPlan({ propertyId, res, changes }) {
   }
   if (!isId(String(roomTypeId))) fields.roomTypeId = 'סוג חדר לא תקין';
   if (Object.keys(fields).length) throw httpError('יש לתקן את השינוי', 422, { fields });
-  const roomType = await RoomType.findOne({ _id: roomTypeId, property: propertyId, active: { $ne: false } }).lean();
+  const roomType = await RoomType.findOne({ _id: roomTypeId, property: propertyId, active: { $ne: false } }).session(session).lean();
   if (!roomType) throw httpError('סוג החדר לא נמצא או אינו פעיל', 422, { fields: { roomTypeId: 'לא זמין' } });
   const dates = getStayDates(arrival, departure);
   const blockers = [];
   const perRoomAdults = Math.ceil(adults / rooms);
   const perRoomChildren = Math.ceil(children / rooms);
   if (perRoomAdults > (roomType.adultsMax || roomType.capacityMax || 2) || perRoomAdults + perRoomChildren > (roomType.capacityMax || 2)) blockers.push({ code: 'capacity', label: 'ההרכב חורג מקיבולת החדר' });
-  const inv = await nightlyAvailability({ propertyId, roomTypeId, arrivalDate: arrival, departureDate: departure, excludeReservationId: res._id });
-  const ownNights = new Set(TOOK_STOCK.includes(res.status) && String(res.roomType) === String(roomTypeId) ? getStayDates(res.arrivalDate, res.departureDate) : []);
-  const short = inv.nights.filter((n) => n.missing || n.stopSell || (n.available + (ownNights.has(n.date) ? rooms : 0)) < rooms);
-  if (short.length) blockers.push({ code: 'no_stock', label: `אין מלאי ל־${short.slice(0, 3).map((n) => n.date).join(', ')}${short.length > 3 ? '…' : ''}` });
-  if (inv.freeRooms < rooms) blockers.push({ code: 'no_rooms', label: 'אין מספיק חדרים פיזיים פנויים לכל הטווח' });
-  const price = await priceNights({ roomTypeId, ratePlanId, dates, adults, children, rooms });
-  if (price.missing.length) blockers.push({ code: 'missing_rate', label: `אין מחיר ל־${price.missing.slice(0, 3).join(', ')}` });
-  if (price.closed.length) blockers.push({ code: 'rate_closed', label: 'התעריף סגור למכירה בחלק מהלילות' });
+  const { offer } = await resolveOffer({ propertyId, input: { arrival, departure, adults, children, rooms, roomTypeId, ratePlanId, board: changes.board || res.board || undefined, childAges: changes.childAges || res.childAges || [] }, session, excludeReservationId: res._id });
+  blockers.push(...offer.reasons.map((r) => ({ ...r, code: r.code === 'sold_out' ? 'no_stock' : r.code })));
+  const price = { nightly: offer.nightly, perRoom: round2(offer.nightly.reduce((sum, n) => sum + Number(n.price), 0)), signature: offer.priceSignature };
   const before = { arrival: res.arrivalDate, departure: res.departureDate, adults: res.adults, children: res.children || 0, roomTypeId: String(res.roomType), ratePlanId: res.ratePlan ? String(res.ratePlan) : null, total: res.totalAmount };
-  const total = round2(price.perRoom * rooms);
+  const total = offer.total;
   return {
-    arrival, departure, adults, children, rooms, roomTypeId, ratePlanId, dates, roomType, price, blockers, before,
+    arrival, departure, adults, children, rooms, roomTypeId, ratePlanId, dates, roomType, price, board: offer.board, blockers, before, vatRate: property?.vatRate ?? 18,
     after: { arrival, departure, adults, children, roomTypeId, ratePlanId, total, roomType: roomType.name },
     difference: round2(total - Number(res.totalAmount || 0)),
   };
@@ -498,28 +566,30 @@ export async function modifyBooking({ propertyId, reservationId, input, actor, i
   const first = await loadRes(propertyId, reservationId);
   const keys = [`res:${first._id}`, `inv:${propertyId}:${first.roomType}`];
   if (input.changes?.roomTypeId && input.changes.roomTypeId !== String(first.roomType)) keys.push(`inv:${propertyId}:${input.changes.roomTypeId}`);
-  return withLocks(keys, async () => {
-    const res = await loadRes(propertyId, reservationId);
+  return withLocks(keys, async (lease) => runStayTransaction(async (session, afterCommit) => {
+    const tx = { session, afterCommit };
+    const res = await loadRes(propertyId, reservationId, session);
+    if (String(res.roomType) !== String(first.roomType)) throw httpError('סוג החדר השתנה — רעננו ובדקו שוב', 409, { code: 'version_conflict' });
     if (input.version && res.updatedAt && new Date(res.updatedAt).toISOString() !== String(input.version)) throw httpError('ההזמנה עודכנה בינתיים — רעננו ובדקו שוב', 409, { code: 'version_conflict' });
     if (IN_HOUSE_STATUSES.includes(res.status)) throw httpError('האורח כבר נכנס — שינוי שהייה דרך הארכה, עזיבה מוקדמת או מעבר חדר', 409, { code: 'in_house' });
     if (!PRE_ARRIVAL.includes(res.status)) throw httpError('לא ניתן לשנות הזמנה בסטטוס זה', 409);
-    const plan = await modificationPlan({ propertyId, res, changes: input.changes || {} });
+    const plan = await modificationPlan({ propertyId, res, changes: input.changes || {}, session });
     if (plan.blockers.length) throw httpError(plan.blockers[0].label, 409, { code: 'cannot_apply', details: plan.blockers });
     if (input.priceSignature && input.priceSignature !== plan.price.signature) throw httpError('המחיר השתנה מאז התצוגה — יש לבדוק שוב', 409, { code: 'price_changed' });
     const rooms = plan.rooms;
     const tookStock = TOOK_STOCK.includes(res.status);
     if (tookStock) {
-      await incrementInventory(propertyId, res.roomType, res.arrivalDate, res.departureDate, -rooms, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.modify_release', reason: res.confirmationNumber });
-      await incrementInventory(propertyId, plan.roomTypeId, plan.arrival, plan.departure, rooms, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.modify_take', reason: res.confirmationNumber });
+      await incrementInventory(propertyId, res.roomType, res.arrivalDate, res.departureDate, -rooms, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.modify_release', reason: res.confirmationNumber }, tx);
+      await incrementInventory(propertyId, plan.roomTypeId, plan.arrival, plan.departure, rooms, { propertyId, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.modify_take', reason: res.confirmationNumber }, tx);
     }
     const total = plan.after.total;
     const avg = round2(plan.price.perRoom / plan.dates.length);
     // Units follow the booking; an assigned room stays only if it is still the right type and free.
-    await ensureUnits(res);
-    const units = await ReservationRoom.find({ reservation: res._id, status: { $in: ['reserved', 'tentative'] } });
-    const conflicts = await conflictingRoomIds({ propertyId, from: plan.arrival, to: plan.departure, excludeReservationId: res._id });
+    await ensureUnits(res, session);
+    const units = await ReservationRoom.find({ reservation: res._id, status: { $in: ['reserved', 'tentative'] } }).session(session);
+    const conflicts = await conflictingRoomIds({ propertyId, from: plan.arrival, to: plan.departure, excludeReservationId: res._id, session });
     const roomIds = units.map((u) => u.assignedRoom).filter(Boolean);
-    const roomDocs = await Room.find({ _id: { $in: roomIds } }).select('roomType').lean();
+    const roomDocs = await Room.find({ _id: { $in: roomIds } }).session(session).select('roomType').lean();
     const typeOf = new Map(roomDocs.map((r) => [String(r._id), String(r.roomType)]));
     let unassigned = 0;
     for (const u of units) {
@@ -528,25 +598,27 @@ export async function modifyBooking({ propertyId, reservationId, input, actor, i
       u.arrivalDate = plan.arrival; u.departureDate = plan.departure; u.roomTypeBooked = plan.roomTypeId; u.nightlyRate = avg;
       if (!keep) u.assignedRoom = null;
       if (plan.ratePlanId) u.ratePlan = plan.ratePlanId;
-      await u.save();
+      await u.save({ session });
     }
-    await StaySegment.deleteMany({ reservation: res._id });
-    await StaySegment.insertMany(units.map((u) => ({ reservationRoom: u._id, reservation: res._id, property: propertyId, fromDate: plan.arrival, toDate: plan.departure, roomType: plan.roomTypeId, room: u.assignedRoom || null, ratePerNight: avg, ratePlan: plan.ratePlanId || null, changeReason: `שינוי הזמנה: ${reason}`, createdBy: actor.id || undefined, createdByName: actor.name })));
+    await StaySegment.deleteMany({ reservation: res._id }, { session });
+    await StaySegment.insertMany(units.map((u) => ({ reservationRoom: u._id, reservation: res._id, property: propertyId, fromDate: plan.arrival, toDate: plan.departure, roomType: plan.roomTypeId, room: u.assignedRoom || null, ratePerNight: avg, ratePlan: plan.ratePlanId || null, changeReason: `שינוי הזמנה: ${reason}`, createdBy: actor.id || undefined, createdByName: actor.name })), { session });
     const firstRoom = units[0]?.assignedRoom || null;
     await Reservation.updateOne({ _id: res._id }, {
       $set: {
         arrivalDate: plan.arrival, departureDate: plan.departure, nights: plan.dates.length, adults: plan.adults, children: plan.children,
         childAges: plan.children ? (Array.isArray(input.changes?.childAges) ? input.changes.childAges.map(Number) : res.childAges) : [],
         roomType: plan.roomTypeId, ratePlan: plan.ratePlanId || undefined, ratePerNight: avg, totalAmount: total, assignedRoom: firstRoom,
+        taxAmount: round2(total - total / (1 + Number(plan.vatRate) / 100)), 'priceSnapshot.vatRate': plan.vatRate,
         'priceSnapshot.nightly': plan.price.nightly, 'priceSnapshot.total': total, 'priceSnapshot.computedAt': new Date(),
+        'priceSnapshot.board': { type: plan.board.type, source: plan.board.source, nightly: plan.board.nightly }, board: plan.board.type,
         lastChange: { at: new Date(), by: actor.name, reason, confirmationRef, kind: 'modify' },
         updatedBy: actor.id || undefined,
       },
-    });
-    const docs = await issuedDocs(res._id);
-    await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.modified', entityType: 'Reservation', entityId: res._id, before: plan.before, after: { ...plan.after, unassignedRooms: unassigned }, reason, ip });
+    }, { session });
+    const docs = await issuedDocs(res._id, session);
+    await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.modified', entityType: 'Reservation', entityId: res._id, before: plan.before, after: { ...plan.after, unassignedRooms: unassigned }, reason, ip, ...tx });
     return { reservationId: String(res._id), total, difference: plan.difference, unassignedRooms: unassigned, creditNoteNeeded: docs.length > 0 && plan.difference < 0 };
-  });
+  }, lease, { operation: 'שינוי הזמנה' }));
 }
 
 // ── RSV-06 cancellation with eligibility proposal ───────────────────────────
@@ -646,8 +718,8 @@ function validateCancelInput(input) {
   if (Object.keys(fields).length) throw httpError('יש להשלים את פרטי הודעת הביטול', 422, { fields });
 }
 
-async function paidOn(resId) {
-  const folios = await Folio.find({ reservation: resId }).select('lines').lean();
+async function paidOn(resId, session = null) {
+  const folios = await Folio.find({ reservation: resId }).session(session).select('lines').lean();
   const lines = folios.flatMap((f) => f.lines).filter((l) => l.status === 'posted');
   return lines.filter((l) => ['payment', 'deposit'].includes(l.type)).reduce((s, l) => s - Number(l.amount || 0), 0)
     - lines.filter((l) => l.type === 'refund').reduce((s, l) => s + Number(l.amount || 0), 0);
@@ -666,15 +738,16 @@ export async function cancellationPreview({ propertyId, reservationId, input }) 
 
 export async function cancelWithNotice({ propertyId, reservationId, input, actor, ip }) {
   validateCancelInput(input);
-  const res = await loadRes(propertyId, reservationId);
+  return withReservationTransaction({ reservationId, propertyId }, async (session, afterCommit) => {
+  const res = await loadRes(propertyId, reservationId, session);
   if (IN_HOUSE_STATUSES.includes(res.status)) throw httpError('השהייה כבר התחילה — לא מבטלים אחרי כניסה (T32)', 409);
-  const property = await Property.findById(propertyId).select('defaultCancellationHours defaultCancellationFee restDays').lean();
-  const paid = await paidOn(res._id);
+  const property = await Property.findById(propertyId).session(session).select('defaultCancellationHours defaultCancellationFee restDays').lean();
+  const paid = await paidOn(res._id, session);
   const proposal = cancellationProposal({ res, input, paid, property });
   const note = String(input.note || '').trim().slice(0, 500);
   const reasonText = `${{ regret: 'חרטה', service_failure: 'כשל שירות', other: 'אחר' }[input.reason]}${note ? ` — ${note}` : ''}`;
   // Receiving the notice and releasing stock happen now; money is decided separately.
-  const out = await cancelReservation({ reservationId: res._id, reason: reasonText, actorId: actor.id, actorName: actor.name, ip });
+  const out = await cancelReservation({ reservationId: res._id, reason: reasonText, actorId: actor.id, actorName: actor.name, ip, session, afterCommit });
   await Reservation.updateOne({ _id: res._id }, {
     $set: {
       cancellation: {
@@ -682,12 +755,13 @@ export async function cancelWithNotice({ propertyId, reservationId, input, actor
         priorCall: !!input.priorCall, track: input.track, reason: input.reason, note: note || undefined, proposal, decidedBy: actor.name,
       },
     },
-  });
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.cancellation_recorded', entityType: 'Reservation', entityId: res._id, after: { channel: input.channel, track: input.track, proposedFee: proposal.proposedFee, needsReview: proposal.needsReview }, reason: reasonText, ip });
-  const balance = round2((await Folio.find({ reservation: res._id }).select('lines').lean()).reduce((s, f) => s + folioBalance(f), 0));
+  }, { session });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.cancellation_recorded', entityType: 'Reservation', entityId: res._id, after: { channel: input.channel, track: input.track, proposedFee: proposal.proposedFee, needsReview: proposal.needsReview }, reason: reasonText, ip, session, afterCommit });
+  const balance = round2((await Folio.find({ reservation: res._id }).session(session).select('lines').lean()).reduce((s, f) => s + folioBalance(f), 0));
   // Money is decided by a person (W07, G06): someone must own the fee/refund decision.
   if (proposal.needsReview || paid > 0.005 || Math.abs(balance) > 0.005) {
-    await raiseWork({ propertyId, kind: 'finance', severity: 'action', title: `ביטול ${res.confirmationNumber}: החלטת דמי ביטול / החזר`, body: `שולם ${round2(paid)} · דמי ביטול מוצעים ${proposal.proposedFee ?? 'לבירור'} · ${proposal.needsReview ? 'טעון בירור' : ''}`, source: { type: 'reservation', id: String(res._id), label: res.confirmationNumber, link: `/pms/folio?reservation=${res._id}` }, dedupeKey: `cancel:${res._id}` });
+    await raiseWork({ propertyId, session, kind: 'finance', severity: 'action', title: `ביטול ${res.confirmationNumber}: החלטת דמי ביטול / החזר`, body: `שולם ${round2(paid)} · דמי ביטול מוצעים ${proposal.proposedFee ?? 'לבירור'} · ${proposal.needsReview ? 'טעון בירור' : ''}`, source: { type: 'reservation', id: String(res._id), label: res.confirmationNumber, link: `/pms/folio?reservation=${res._id}` }, dedupeKey: `cancel:${res._id}` });
   }
   return { reservationId: String(out._id), status: out.status, proposal, balance };
+  });
 }

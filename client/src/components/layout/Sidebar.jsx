@@ -13,6 +13,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { roleLabel } from '../../lib/labels';
 import GlobalSearch from '../sys/GlobalSearch';
 import { useProperty } from '../../context/PropertyContext';
+import { useNavStyle } from '../../stores/navStyleStore';
+import NavVariant from './NavVariants';
 
 // ── תפריט מכירות/תפעול ───────────────────────────────────────────────────────
 const SALES_NAV = [
@@ -74,9 +76,12 @@ const PMS_NAV = [
     group: 'קבלה',
     items: [
       { path: '/pms',              icon: LayoutDashboard, label: 'היום בקבלה' },
+      { path: '/pms/design',       icon: SquarePen,       label: 'עמוד העיצוב' },
+      { path: '/pms/design/availability', icon: SquarePen, label: 'עיצוב זמינות' },
+      { path: '/pms/design/room-calendar', icon: SquarePen, label: 'עיצוב לוח חדרים' },
       { path: '/pms/work',         icon: ListChecks,      label: 'מרכז משימות' },
       { path: '/pms/availability', icon: CalendarDays,    label: 'זמינות' },
-      { path: '/pms/tape-chart',   icon: CalendarDays,    label: 'לוח חדרים' },
+      { path: '/pms/tape-chart-classic', icon: CalendarDays, label: 'לוח חדרים הקודם' },
       { path: '/pms/reservations', icon: ClipboardList,   label: 'הזמנות' },
       { path: '/pms/arrivals',     icon: LogIn,           label: 'הגעות' },
       { path: '/pms/arrival-queue',icon: Hourglass,       label: 'תור המתנה' },
@@ -184,6 +189,26 @@ export default function Sidebar({ open, onClose }) {
   }, [menuOpen]);
 
   const go = (path) => { setMenuOpen(false); nav(path); onClose?.(); };
+  const navStyle = useNavStyle((s) => s.style);
+
+  if (navStyle !== 'current') {
+    const itemActive = (path) => isActivePath(pathname, path) && !visibleItems.some(item => item.path !== path && item.path.startsWith(`${path}/`) && isActivePath(pathname, item.path));
+    const variantGroups = allowedGroups
+      .map(section => ({ group: section.group, items: section.items.filter(item => !pmsAllowedPaths || pmsAllowedPaths.includes(item.path)).map(item => ({ ...item, active: itemActive(item.path) })) }))
+      .filter(section => section.items.length);
+    const account = {
+      name: user?.name || workspace, role: roleLabel(user?.role), initial: wsInitial,
+      onProfile: isPMS ? () => go('/pms/me') : null,
+      switchLabel: isPMS ? 'מעבר לאזור מכירות' : 'מעבר לאזור קבלה', onSwitch: () => go(isPMS ? '/' : '/pms'),
+      onLogout: logout,
+    };
+    return (
+      <>
+        <NavVariant variant={navStyle} groups={variantGroups} go={go} onSearch={isPMS ? () => setSearchOpen(true) : null} account={account} />
+        {isPMS && <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} propertyId={propertyId} />}
+      </>
+    );
+  }
 
   return (
     <aside className={`sidebar hotjar-sidebar ${expanded ? 'is-expanded' : 'is-collapsed'} ${open ? 'is-open' : ''}`} aria-label="ניווט ראשי">

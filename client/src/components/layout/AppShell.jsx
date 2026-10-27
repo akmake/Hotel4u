@@ -2,11 +2,17 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, Hotel } from 'lucide-react';
 import Sidebar from './Sidebar';
+import { NavStyleSwitch } from './NavVariants';
+import { useNavStyle } from '../../stores/navStyleStore';
 import { formatLong, todayYmd } from '../../utils/date';
 
 const PAGE_TITLES = {
   '/pms':                 'היום בקבלה',
+  '/pms/design':          'עמוד העיצוב',
+  '/pms/design/availability': 'עיצוב זמינות',
+  '/pms/design/room-calendar': 'עיצוב לוח חדרים',
   '/pms/tape-chart':      'לוח חדרים',
+  '/pms/tape-chart-classic': 'לוח חדרים הקודם',
   '/pms/room-rack':       'Room Rack',
   '/pms/reservations':    'הזמנות',
   '/pms/reservations/new':'הזמנה חדשה',
@@ -44,19 +50,21 @@ const PAGE_TITLES = {
 };
 
 // Screens that lay out their own toolbar edge-to-edge inside the content panel (Linear list views).
-const FLUSH_ROUTES = new Set(['/pms', '/pms/tape-chart']);
+const FLUSH_ROUTES = new Set(['/pms', '/pms/tape-chart', '/pms/tape-chart-classic', '/pms/design/room-calendar']);
 
 export default function AppShell() {
   const { pathname } = useLocation();
   const path = pathname.replace(/\/$/, '') || '/';
   const title = PAGE_TITLES[path] || '';
   const [navOpen, setNavOpen] = useState(false);
+  const navStyle = useNavStyle((s) => s.style);
 
   // Close the off-canvas nav after navigating (small screens).
   useEffect(() => { setNavOpen(false); }, [pathname]);
 
   return (
-    <div className="app-shell hotjar-shell">
+    <div className="app-shell hotjar-shell" data-nav={navStyle}>
+      <NavStyleSwitch />
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       {navOpen && <div className="sidebar-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />}
       <div className="main-content">

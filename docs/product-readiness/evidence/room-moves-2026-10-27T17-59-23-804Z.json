@@ -1,0 +1,2287 @@
+{
+  "startedAt": "2026-10-27T17:59:23.804Z",
+  "finishedAt": "2026-10-27T17:59:27.741Z",
+  "mode": "isolated local replica; synthetic fixtures; no production env loaded",
+  "serviceSha256": "0c9157b9506d3cda2ec14c2307445709d2c330437af27c59849e96dc9adf0f43",
+  "locksSha256": "c00a5085eb99c2932377a14dacef9a337998ff4383dccd1f3eccc2ff73bdc215",
+  "scriptSha256": "34b4cccc9e635bcea260db850b7e888e5ced5baf90894844a390d2cc72b042d8",
+  "counts": {
+    "passed": 22,
+    "failed": 0,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "RM01",
+      "name": "valid move preserves history and prepares old room for cleaning",
+      "requirements": [
+        "MOV01",
+        "MOV05",
+        "MOV06"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb575",
+              "room": "6ae0e67d09adc40fd46cb571",
+              "type": "6ae0e67d09adc40fd46cb570",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb576",
+              "room": "6ae0e67d09adc40fd46cb571",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb571",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb572",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb570",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb570",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67d09adc40fd46cb574",
+            "unitId": "6ae0e67d09adc40fd46cb575",
+            "from": "101",
+            "to": "102",
+            "rate": 500,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 1000,
+              "difference": 0,
+              "changed": false
+            },
+            "ticket": null,
+            "key": null
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb575",
+              "room": "6ae0e67d09adc40fd46cb572",
+              "type": "6ae0e67d09adc40fd46cb570",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb576",
+              "room": "6ae0e67d09adc40fd46cb571",
+              "from": "2026-10-26",
+              "to": "2026-10-27",
+              "rate": 500
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb57b",
+              "room": "6ae0e67d09adc40fd46cb572",
+              "from": "2026-10-27",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb571",
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "dirty"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb572",
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb570",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb570",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": [
+            {
+              "room": "6ae0e67d09adc40fd46cb571",
+              "type": "checkout_clean",
+              "status": "new"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "RM02",
+      "name": "future conflicting reservation rejects move without changes",
+      "requirements": [
+        "MOV01"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb584",
+              "room": "6ae0e67d09adc40fd46cb580",
+              "type": "6ae0e67d09adc40fd46cb57f",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb585",
+              "room": "6ae0e67d09adc40fd46cb580",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb580",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb581",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb57f",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb57f",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "חדר 102 נתפס בינתיים (b677862f-eb0d-4d71-9c08-547d5d103a9d) — המעבר לא בוצע",
+            "status": 409,
+            "code": "target_taken"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb584",
+              "room": "6ae0e67d09adc40fd46cb580",
+              "type": "6ae0e67d09adc40fd46cb57f",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb585",
+              "room": "6ae0e67d09adc40fd46cb580",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb580",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb581",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb57f",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb57f",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM03",
+      "name": "dirty room rejects move without changes",
+      "requirements": [
+        "MOV01"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb592",
+              "room": "6ae0e67d09adc40fd46cb58e",
+              "type": "6ae0e67d09adc40fd46cb58d",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb593",
+              "room": "6ae0e67d09adc40fd46cb58e",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb58e",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb58f",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "dirty"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb58d",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb58d",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "חדר 102 אינו מוכן (dirty)",
+            "status": 409
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb592",
+              "room": "6ae0e67d09adc40fd46cb58e",
+              "type": "6ae0e67d09adc40fd46cb58d",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb593",
+              "room": "6ae0e67d09adc40fd46cb58e",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb58e",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb58f",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "dirty"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb58d",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb58d",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM04",
+      "name": "family cannot be moved to a room with capacity two",
+      "requirements": [
+        "MOV02"
+      ],
+      "status": "passed",
+      "evidence": {
+        "occupants": 4,
+        "targetCapacity": 2,
+        "candidate": {
+          "id": "6ae0e67d09adc40fd46cb59c",
+          "number": "102",
+          "floor": 1,
+          "roomType": {
+            "id": "6ae0e67d09adc40fd46cb59a",
+            "name": "Synthetic double"
+          },
+          "sameType": false,
+          "cleanStatus": "clean",
+          "opsStatus": "available",
+          "direction": "down",
+          "available": false,
+          "why": "הרכב האורחים חורג מקיבולת חדר היעד"
+        },
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb59f",
+              "room": "6ae0e67d09adc40fd46cb59b",
+              "type": "6ae0e67d09adc40fd46cb599",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5a0",
+              "room": "6ae0e67d09adc40fd46cb59b",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb59b",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb59c",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb599",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb599",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb59a",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb59a",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "הרכב האורחים חורג מקיבולת חדר היעד",
+            "status": 422,
+            "code": "capacity"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb59f",
+              "room": "6ae0e67d09adc40fd46cb59b",
+              "type": "6ae0e67d09adc40fd46cb599",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5a0",
+              "room": "6ae0e67d09adc40fd46cb59b",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb59b",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb59c",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb599",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb599",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb59a",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb59a",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM05A",
+      "name": "a sibling unit in the same booking cannot be overwritten",
+      "requirements": [
+        "ARR03",
+        "MOV01"
+      ],
+      "status": "passed",
+      "evidence": {
+        "candidate": {
+          "id": "6ae0e67d09adc40fd46cb5aa",
+          "number": "102",
+          "floor": 1,
+          "roomType": {
+            "id": "6ae0e67d09adc40fd46cb5a8",
+            "name": "Synthetic standard"
+          },
+          "sameType": true,
+          "cleanStatus": "clean",
+          "opsStatus": "available",
+          "direction": "same",
+          "available": false,
+          "why": "תפוס (יחידה אחרת בהזמנה זו)"
+        },
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5ad",
+              "room": "6ae0e67d09adc40fd46cb5a9",
+              "type": "6ae0e67d09adc40fd46cb5a8",
+              "status": "in_house"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5b1",
+              "room": "6ae0e67d09adc40fd46cb5aa",
+              "type": "6ae0e67d09adc40fd46cb5a8",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5ae",
+              "room": "6ae0e67d09adc40fd46cb5a9",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5a9",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5aa",
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb5a8",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5a8",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "חדר 102 נתפס בינתיים (יחידה אחרת בהזמנה זו) — המעבר לא בוצע",
+            "status": 409,
+            "code": "target_taken"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5ad",
+              "room": "6ae0e67d09adc40fd46cb5a9",
+              "type": "6ae0e67d09adc40fd46cb5a8",
+              "status": "in_house"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5b1",
+              "room": "6ae0e67d09adc40fd46cb5aa",
+              "type": "6ae0e67d09adc40fd46cb5a8",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5ae",
+              "room": "6ae0e67d09adc40fd46cb5a9",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5a9",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5aa",
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb5a8",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5a8",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM06",
+      "name": "two concurrent moves cannot occupy the same target",
+      "requirements": [
+        "MOV04"
+      ],
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": false,
+            "error": {
+              "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+              "status": 409,
+              "code": "busy"
+            }
+          },
+          {
+            "ok": true,
+            "value": {
+              "reservationId": "6ae0e67d09adc40fd46cb5bf",
+              "unitId": "6ae0e67d09adc40fd46cb5c1",
+              "from": "103",
+              "to": "102",
+              "rate": 500,
+              "price": {
+                "nights": 2,
+                "before": 1000,
+                "after": 1000,
+                "difference": 0,
+                "changed": false
+              },
+              "ticket": null,
+              "key": null
+            }
+          }
+        ],
+        "targetOccupants": 1
+      }
+    },
+    {
+      "code": "RM05B",
+      "name": "moving selected unit leaves the sibling unit untouched",
+      "requirements": [
+        "MOV05"
+      ],
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67d09adc40fd46cb5cf",
+            "unitId": "6ae0e67d09adc40fd46cb5d0",
+            "from": "101",
+            "to": "102",
+            "rate": 500,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 1000,
+              "difference": 0,
+              "changed": false
+            },
+            "ticket": null,
+            "key": null
+          }
+        },
+        "sibling": {
+          "_id": "6ae0e67d09adc40fd46cb5d5",
+          "reservation": "6ae0e67d09adc40fd46cb5cf",
+          "property": "6ae0e67d09adc40fd46cb5ca",
+          "roomTypeBooked": "6ae0e67d09adc40fd46cb5cb",
+          "assignedRoom": "6ae0e67d09adc40fd46cb5d4",
+          "arrivalDate": "2026-10-26",
+          "departureDate": "2026-10-29",
+          "nightlyRate": 700,
+          "guests": [],
+          "status": "in_house",
+          "roomPayer": "booker",
+          "extrasPayer": "booker",
+          "guaranteeType": "none",
+          "createdAt": "2026-10-27T17:59:25.764Z",
+          "updatedAt": "2026-10-27T17:59:25.764Z",
+          "__v": 0
+        }
+      }
+    },
+    {
+      "code": "RM07",
+      "name": "failure creating target segment preserves pre-move state",
+      "requirements": [
+        "MOV03"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5e1",
+              "room": "6ae0e67d09adc40fd46cb5dd",
+              "type": "6ae0e67d09adc40fd46cb5dc",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5e2",
+              "room": "6ae0e67d09adc40fd46cb5dd",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5dd",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5de",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb5dc",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5dc",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_INJECT_SEGMENT_CREATE"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5e1",
+              "room": "6ae0e67d09adc40fd46cb5dd",
+              "type": "6ae0e67d09adc40fd46cb5dc",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5e2",
+              "room": "6ae0e67d09adc40fd46cb5dd",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5dd",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5de",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb5dc",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5dc",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM08",
+      "name": "failure updating room status preserves pre-move state",
+      "requirements": [
+        "MOV03"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5ed",
+              "room": "6ae0e67d09adc40fd46cb5e9",
+              "type": "6ae0e67d09adc40fd46cb5e8",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5ee",
+              "room": "6ae0e67d09adc40fd46cb5e9",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5e9",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5ea",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb5e8",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5e8",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_INJECT_ROOM_UPDATE"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5ed",
+              "room": "6ae0e67d09adc40fd46cb5e9",
+              "type": "6ae0e67d09adc40fd46cb5e8",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5ee",
+              "room": "6ae0e67d09adc40fd46cb5e9",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5e9",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5ea",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb5e8",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5e8",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM09",
+      "name": "failure adding target inventory preserves total booked inventory",
+      "requirements": [
+        "MOV03"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5fb",
+              "room": "6ae0e67d09adc40fd46cb5f7",
+              "type": "6ae0e67d09adc40fd46cb5f5",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5fc",
+              "room": "6ae0e67d09adc40fd46cb5f7",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5f7",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5f8",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb5f5",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5f5",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5f6",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5f6",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_INJECT_TARGET_INVENTORY"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5fb",
+              "room": "6ae0e67d09adc40fd46cb5f7",
+              "type": "6ae0e67d09adc40fd46cb5f5",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5fc",
+              "room": "6ae0e67d09adc40fd46cb5f7",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67d09adc40fd46cb5f7",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67d09adc40fd46cb5f8",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67d09adc40fd46cb5f5",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5f5",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5f6",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67d09adc40fd46cb5f6",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM10",
+      "name": "retry after lost response identifies the already completed move",
+      "requirements": [
+        "MOV04"
+      ],
+      "status": "passed",
+      "evidence": {
+        "first": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67e09adc40fd46cb60b",
+            "unitId": "6ae0e67e09adc40fd46cb60c",
+            "from": "101",
+            "to": "102",
+            "rate": 500,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 1000,
+              "difference": 0,
+              "changed": false
+            },
+            "ticket": null,
+            "key": null
+          }
+        },
+        "afterFirst": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb60c",
+              "room": "6ae0e67e09adc40fd46cb609",
+              "type": "6ae0e67e09adc40fd46cb607",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb60d",
+              "room": "6ae0e67e09adc40fd46cb608",
+              "from": "2026-10-26",
+              "to": "2026-10-27",
+              "rate": 500
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb612",
+              "room": "6ae0e67e09adc40fd46cb609",
+              "from": "2026-10-27",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb608",
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "dirty"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb609",
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb607",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb607",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": [
+            {
+              "room": "6ae0e67e09adc40fd46cb608",
+              "type": "checkout_clean",
+              "status": "new"
+            }
+          ]
+        },
+        "retry": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67e09adc40fd46cb60b",
+            "unitId": "6ae0e67e09adc40fd46cb60c",
+            "from": "101",
+            "to": "102",
+            "rate": 500,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 1000,
+              "difference": 0,
+              "changed": false
+            },
+            "ticket": null,
+            "key": null,
+            "duplicate": true
+          }
+        },
+        "afterRetry": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb60c",
+              "room": "6ae0e67e09adc40fd46cb609",
+              "type": "6ae0e67e09adc40fd46cb607",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb60d",
+              "room": "6ae0e67e09adc40fd46cb608",
+              "from": "2026-10-26",
+              "to": "2026-10-27",
+              "rate": 500
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb612",
+              "room": "6ae0e67e09adc40fd46cb609",
+              "from": "2026-10-27",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb608",
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "dirty"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb609",
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb607",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb607",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": [
+            {
+              "room": "6ae0e67e09adc40fd46cb608",
+              "type": "checkout_clean",
+              "status": "new"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "RM10B",
+      "name": "same request key with changed content rejects without writes",
+      "requirements": [
+        "MOV04"
+      ],
+      "status": "passed",
+      "evidence": {
+        "first": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67e09adc40fd46cb61d",
+            "unitId": "6ae0e67e09adc40fd46cb61e",
+            "from": "101",
+            "to": "102",
+            "rate": 500,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 1000,
+              "difference": 0,
+              "changed": false
+            },
+            "ticket": null,
+            "key": null
+          }
+        },
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb61e",
+              "room": "6ae0e67e09adc40fd46cb61b",
+              "type": "6ae0e67e09adc40fd46cb619",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb61f",
+              "room": "6ae0e67e09adc40fd46cb61a",
+              "from": "2026-10-26",
+              "to": "2026-10-27",
+              "rate": 500
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb624",
+              "room": "6ae0e67e09adc40fd46cb61b",
+              "from": "2026-10-27",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb61a",
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "dirty"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb61b",
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb619",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb619",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": [
+            {
+              "room": "6ae0e67e09adc40fd46cb61a",
+              "type": "checkout_clean",
+              "status": "new"
+            }
+          ]
+        },
+        "changed": {
+          "ok": false,
+          "error": {
+            "message": "מזהה הבקשה כבר שימש למעבר עם פרטים אחרים",
+            "status": 409,
+            "code": "request_conflict"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb61e",
+              "room": "6ae0e67e09adc40fd46cb61b",
+              "type": "6ae0e67e09adc40fd46cb619",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb61f",
+              "room": "6ae0e67e09adc40fd46cb61a",
+              "from": "2026-10-26",
+              "to": "2026-10-27",
+              "rate": 500
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb624",
+              "room": "6ae0e67e09adc40fd46cb61b",
+              "from": "2026-10-27",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb61a",
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "dirty"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb61b",
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb619",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb619",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": [
+            {
+              "room": "6ae0e67e09adc40fd46cb61a",
+              "type": "checkout_clean",
+              "status": "new"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "RM11",
+      "name": "old lock owner cannot release a newer owner lock",
+      "requirements": [
+        "MOV04"
+      ],
+      "status": "passed",
+      "evidence": {
+        "newOwnerAcquired": true,
+        "newOwnerLockSurvivedOldRelease": true,
+        "third": {
+          "ok": false,
+          "error": {
+            "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+            "status": 409,
+            "code": "busy"
+          }
+        }
+      }
+    },
+    {
+      "code": "RM11B",
+      "name": "lease expiry during a transaction rolls back the move",
+      "requirements": [
+        "MOV03",
+        "MOV04"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb633",
+              "room": "6ae0e67e09adc40fd46cb62f",
+              "type": "6ae0e67e09adc40fd46cb62e",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb634",
+              "room": "6ae0e67e09adc40fd46cb62f",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb62f",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb630",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb62e",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb62e",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+            "status": 409,
+            "code": "lock_expired"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb633",
+              "room": "6ae0e67e09adc40fd46cb62f",
+              "type": "6ae0e67e09adc40fd46cb62e",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb634",
+              "room": "6ae0e67e09adc40fd46cb62f",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb62f",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb630",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb62e",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb62e",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM07B",
+      "name": "audit failure rolls back move, ticket, inventory and replay record",
+      "requirements": [
+        "MOV03",
+        "MOV06"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb646",
+              "room": "6ae0e67e09adc40fd46cb642",
+              "type": "6ae0e67e09adc40fd46cb640",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb647",
+              "room": "6ae0e67e09adc40fd46cb642",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb642",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb643",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb640",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb640",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb641",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb641",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_INJECT_MOVE_AUDIT"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb646",
+              "room": "6ae0e67e09adc40fd46cb642",
+              "type": "6ae0e67e09adc40fd46cb640",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb647",
+              "room": "6ae0e67e09adc40fd46cb642",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb642",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb643",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb640",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb640",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb641",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb641",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "tasks": []
+        },
+        "tickets": 0,
+        "audit": 0,
+        "replays": 0
+      }
+    },
+    {
+      "code": "RM04B",
+      "name": "known unit composition allows a group move without guessing a split",
+      "requirements": [
+        "MOV02",
+        "MOV05"
+      ],
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67e09adc40fd46cb65c",
+            "unitId": "6ae0e67e09adc40fd46cb65d",
+            "from": "101",
+            "to": "102",
+            "rate": 500,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 1000,
+              "difference": 0,
+              "changed": false
+            },
+            "ticket": null,
+            "key": null
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb65d",
+              "room": "6ae0e67e09adc40fd46cb65a",
+              "type": "6ae0e67e09adc40fd46cb658",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb65e",
+              "room": "6ae0e67e09adc40fd46cb659",
+              "from": "2026-10-26",
+              "to": "2026-10-27",
+              "rate": 500
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb665",
+              "room": "6ae0e67e09adc40fd46cb65a",
+              "from": "2026-10-27",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb659",
+              "number": "101",
+              "occupancy": "vacant",
+              "clean": "dirty"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb65a",
+              "number": "102",
+              "occupancy": "occupied",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb657",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb657",
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb658",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb658",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": [
+            {
+              "room": "6ae0e67e09adc40fd46cb659",
+              "type": "checkout_clean",
+              "status": "new"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "RM04C",
+      "name": "unknown group distribution cannot silently assume equal occupants",
+      "requirements": [
+        "MOV02"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb671",
+              "room": "6ae0e67e09adc40fd46cb66d",
+              "type": "6ae0e67e09adc40fd46cb66b",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb672",
+              "room": "6ae0e67e09adc40fd46cb66d",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb66d",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb66e",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb66b",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb66b",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb66c",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb66c",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "הרכב האורחים לכל חדר אינו ידוע — יש להשלים הרכב לפני המעבר",
+            "status": 422,
+            "code": "capacity"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb671",
+              "room": "6ae0e67e09adc40fd46cb66d",
+              "type": "6ae0e67e09adc40fd46cb66b",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb672",
+              "room": "6ae0e67e09adc40fd46cb66d",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb66d",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb66e",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb66b",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb66b",
+              "date": "2026-10-28",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb66c",
+              "date": "2026-10-27",
+              "booked": 0
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb66c",
+              "date": "2026-10-28",
+              "booked": 0
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM05C",
+      "name": "stale source room rejects a different move without writes",
+      "requirements": [
+        "MOV04"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb67f",
+              "room": "6ae0e67e09adc40fd46cb67b",
+              "type": "6ae0e67e09adc40fd46cb67a",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb680",
+              "room": "6ae0e67e09adc40fd46cb67b",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb67b",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb67c",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb67a",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb67a",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "חדר המקור השתנה — רעננו את פרטי השהייה",
+            "status": 409,
+            "code": "source_changed"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67e09adc40fd46cb67f",
+              "room": "6ae0e67e09adc40fd46cb67b",
+              "type": "6ae0e67e09adc40fd46cb67a",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67e09adc40fd46cb680",
+              "room": "6ae0e67e09adc40fd46cb67b",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb67b",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67e09adc40fd46cb67c",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb67a",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb67a",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        }
+      }
+    },
+    {
+      "code": "RM12",
+      "name": "manual repricing changes remaining nights only",
+      "requirements": [
+        "MOV05"
+      ],
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67e09adc40fd46cb68b",
+            "unitId": "6ae0e67e09adc40fd46cb68c",
+            "from": "101",
+            "to": "102",
+            "rate": 300,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 600,
+              "difference": -400,
+              "changed": true
+            },
+            "ticket": null,
+            "key": null
+          }
+        },
+        "nightly": [
+          {
+            "date": "2026-10-26",
+            "price": 500,
+            "_id": "6ae0e67e09adc40fd46cb690"
+          },
+          {
+            "date": "2026-10-27",
+            "price": 300,
+            "_id": "6ae0e67e09adc40fd46cb69a"
+          },
+          {
+            "date": "2026-10-28",
+            "price": 300,
+            "_id": "6ae0e67e09adc40fd46cb69b"
+          }
+        ],
+        "total": 1100
+      }
+    },
+    {
+      "code": "RM13",
+      "name": "maintenance move creates a blocking fault on the old room",
+      "requirements": [
+        "MOV06"
+      ],
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67e09adc40fd46cb6a3",
+            "unitId": "6ae0e67e09adc40fd46cb6a4",
+            "from": "101",
+            "to": "102",
+            "rate": 500,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 1000,
+              "difference": 0,
+              "changed": false
+            },
+            "ticket": {
+              "id": "6ae0e67e09adc40fd46cb6ac",
+              "linked": false,
+              "blocked": true
+            },
+            "key": null
+          }
+        },
+        "source": {
+          "_id": "6ae0e67e09adc40fd46cb6a0",
+          "property": "6ae0e67e09adc40fd46cb69e",
+          "roomType": "6ae0e67e09adc40fd46cb69f",
+          "number": "101",
+          "floor": 1,
+          "opsStatus": "out_of_order",
+          "cleanStatus": "dirty",
+          "occStatus": "vacant",
+          "isVip": false,
+          "isSmoking": false,
+          "isAccessible": false,
+          "accessibilityFeatures": [],
+          "active": true,
+          "createdAt": "2026-10-27T17:59:26.761Z",
+          "updatedAt": "2026-10-27T17:59:26.820Z",
+          "__v": 0
+        },
+        "tickets": [
+          {
+            "_id": "6ae0e67e09adc40fd46cb6ac",
+            "property": "6ae0e67e09adc40fd46cb69e",
+            "room": "6ae0e67e09adc40fd46cb6a0",
+            "category": "hvac",
+            "description": "Synthetic broken air conditioning — אורח 6edfa548-ddee-4ff3-9b3f-2ac45764de2d הועבר לחדר 102",
+            "priority": "high",
+            "status": "new",
+            "reportedBy": "6ae0e67b09adc40fd46cb56e",
+            "dueDate": "2026-10-28T01:59:26.819Z",
+            "internalNotes": [
+              {
+                "text": "נפתחה",
+                "author": "6ae0e67b09adc40fd46cb56e",
+                "authorName": "Synthetic QA",
+                "_id": "6ae0e67e09adc40fd46cb6ad",
+                "createdAt": "2026-10-27T17:59:26.819Z"
+              }
+            ],
+            "blocksRoom": true,
+            "guestImpact": "block",
+            "slaBreach": false,
+            "photos": [],
+            "partsNeeded": [],
+            "createdAt": "2026-10-27T17:59:26.819Z",
+            "updatedAt": "2026-10-27T17:59:26.819Z",
+            "__v": 0
+          }
+        ]
+      }
+    },
+    {
+      "code": "RM14",
+      "name": "key request explicitly reports provider not connected",
+      "requirements": [
+        "MOV07"
+      ],
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae0e67e09adc40fd46cb6b6",
+            "unitId": "6ae0e67e09adc40fd46cb6b7",
+            "from": "101",
+            "to": "102",
+            "rate": 500,
+            "price": {
+              "nights": 2,
+              "before": 1000,
+              "after": 1000,
+              "difference": 0,
+              "changed": false
+            },
+            "ticket": null,
+            "key": {
+              "status": "not_connected",
+              "message": "אין ספק מפתחות מחובר — יש להנפיק מפתח לחדר החדש ולבטל את הישן ידנית"
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "RM17",
+      "name": "route rejects wrong property and unauthorized role",
+      "requirements": [
+        "SEC01"
+      ],
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "units": [
+            {
+              "id": "6ae0e67f09adc40fd46cb6c6",
+              "room": "6ae0e67e09adc40fd46cb6c2",
+              "type": "6ae0e67e09adc40fd46cb6c1",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67f09adc40fd46cb6c7",
+              "room": "6ae0e67e09adc40fd46cb6c2",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb6c2",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67f09adc40fd46cb6c3",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb6c1",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb6c1",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "wrongProperty": {
+          "status": 403,
+          "body": {
+            "success": false,
+            "error": "Property scope violation"
+          }
+        },
+        "wrongRole": {
+          "status": 403,
+          "body": {
+            "success": false,
+            "error": "מעבר חדר מתבצע בקבלה"
+          }
+        },
+        "after": {
+          "units": [
+            {
+              "id": "6ae0e67f09adc40fd46cb6c6",
+              "room": "6ae0e67e09adc40fd46cb6c2",
+              "type": "6ae0e67e09adc40fd46cb6c1",
+              "status": "in_house"
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae0e67f09adc40fd46cb6c7",
+              "room": "6ae0e67e09adc40fd46cb6c2",
+              "from": "2026-10-26",
+              "to": "2026-10-29",
+              "rate": 500
+            }
+          ],
+          "rooms": [
+            {
+              "id": "6ae0e67e09adc40fd46cb6c2",
+              "number": "101",
+              "occupancy": "occupied",
+              "clean": "clean"
+            },
+            {
+              "id": "6ae0e67f09adc40fd46cb6c3",
+              "number": "102",
+              "occupancy": "vacant",
+              "clean": "clean"
+            }
+          ],
+          "inventory": [
+            {
+              "type": "6ae0e67e09adc40fd46cb6c1",
+              "date": "2026-10-27",
+              "booked": 1
+            },
+            {
+              "type": "6ae0e67e09adc40fd46cb6c1",
+              "date": "2026-10-28",
+              "booked": 1
+            }
+          ],
+          "tasks": []
+        },
+        "limit": "Actor is injected at router boundary; JWT validation and all other routes are outside this test."
+      }
+    }
+  ]
+}

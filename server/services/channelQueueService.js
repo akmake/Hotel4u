@@ -6,15 +6,15 @@ const RETRY_DELAYS  = [1, 5, 15, 60, 240]; // minutes after each failure
 // ─── Write ──────────────────────────────────────────────────────────────────
 
 export async function enqueueChannelUpdate({
-  property, channel, eventType, payload, idempotencyKey,
+  property, propertyId, channel, eventType, payload, idempotencyKey, session = null,
 }) {
   try {
-    await ChannelUpdateQueue.create({
-      property, channel, eventType, payload, idempotencyKey,
+    await ChannelUpdateQueue.create([{
+      property: property || propertyId, channel, eventType, payload, idempotencyKey,
       status: 'pending', attempts: 0, nextAttemptAt: new Date(),
-    });
+    }], { session });
   } catch (err) {
-    if (err.code === 11000) return; // idempotency key already exists — skip duplicate
+    if (err.code === 11000 && !session) return; // A transaction cannot swallow an aborted write.
     throw err;
   }
 }
