@@ -13,6 +13,7 @@ import {
   listQueue, addToQueue, takeQueueOwnership, updateQueueEntry, removeFromQueue, prioritizeHousekeeping,
 } from '../services/frontDeskService.js';
 import { setRoomBilling, setGroupBilling } from '../services/groupBillingService.js';
+import { cribDesk, getCribContext, setCribStock, changeCribs } from '../services/cribService.js';
 
 const router = Router();
 
@@ -73,6 +74,11 @@ function actorOf(req) {
 }
 
 // ── FD-02 ───────────────────────────────────────────────────────────────────
+router.get('/cribs', handle(async (req) => cribDesk({ propertyId: scope(req), q: req.query.q, actor: actorOf(req) })));
+router.post('/cribs/stock', handle(async (req) => setCribStock({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip })));
+router.get('/reservations/:id/units/:unitId/cribs', handle(async (req) => getCribContext({ propertyId: scope(req), reservationId: req.params.id, unitId: req.params.unitId, actor: actorOf(req) })));
+router.post('/reservations/:id/units/:unitId/cribs', handle(async (req) => changeCribs({ propertyId: scope(req), reservationId: req.params.id, unitId: req.params.unitId, input: req.body || {}, actor: actorOf(req), ip: req.ip })));
+
 router.get('/arrivals', handle(async (req) => {
   requireRoles(req, ARRIVALS_READ_ROLES);
   const q = req.query;

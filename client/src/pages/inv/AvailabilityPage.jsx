@@ -100,7 +100,7 @@ export default function AvailabilityPage() {
       {loading && !data && <div className="ui-empty"><Spinner /> טוען…</div>}
       {data && !data.rows.length && <Banner tone="info">אין עדיין סוגי חדרים — מגדירים אותם בהגדרות המלון.</Banner>}
       {data && data.rows.length > 0 && (
-        <div className="ac-layout">
+        <div className={`ac-layout ${range ? 'has-panel' : ''}`}>
           <section className="ac-cal" aria-label={`לוח זמינות ${monthName(month)}`} aria-busy={loading}>
             <div className="ac-dows">{DAYS.map((d, i) => <div key={d} className={i >= 5 ? 'is-wk' : ''}>{d}</div>)}</div>
             <div className="ac-grid">
@@ -151,18 +151,12 @@ export default function AvailabilityPage() {
               <span className="avl-keys">לחיצה על יום לפרטים · גרירה לטווח · Esc לניקוי</span>
             </footer>
           </section>
-          <aside className="ac-panel" aria-live="polite">
-            {range
-              ? <Details key={`${range[0]}-${range[1]}`} data={data} range={range} today={today} canBlock={canBlock} onBook={book} onBlock={setBlockRange} navigate={navigate} onClear={() => setSel(null)} />
-              : (
-                <div className="ac-empty">
-                  <h2>בחרו יום או טווח בלוח</h2>
-                  <p>כאן יופיעו הזמינות לפי סוג חדר, התנועה באותו יום והאפשרות להזמין.</p>
-                  <h3>סוגי החדרים במלון</h3>
-                  <div className="ac-empty-types">{data.rows.map((row) => <div key={row.roomType.id}><span>{row.roomType.name}</span><span className="ui-num">{row.rooms} חדרים</span></div>)}</div>
-                </div>
-              )}
-          </aside>
+          {/* The details panel exists only while a day or range is picked; otherwise the calendar has the whole width. */}
+          {range && (
+            <aside className="ac-panel" aria-live="polite">
+              <Details key={`${range[0]}-${range[1]}`} data={data} range={range} today={today} canBlock={canBlock} onBook={book} onBlock={setBlockRange} navigate={navigate} onClear={() => setSel(null)} />
+            </aside>
+          )}
         </div>
       )}
       {data && data.blocks.length > 0 && (

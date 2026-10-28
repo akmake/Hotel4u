@@ -33,10 +33,12 @@ export function ArrivalPartyInfo({ row }) {
     {row.party?.needsReview && <span className="ui-tag is-warn">הרכב לבירור</span>}
   </>;
 }
-export function ArrivalPreparationInfo({ row }) {
+export function ArrivalPreparationInfo({ row, onCribs }) {
   const notes = [row.specialRequests && ['בקשה בהזמנה', row.specialRequests], row.unitNotes && ['הערה ליחידה', row.unitNotes]].filter(Boolean);
   return <div style={{ minWidth: 150, maxWidth: 260, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
-    <div className="ui-sub">לולים: לא מתועד</div>
+    <div className="ui-sub">{row.cribs?.requested === null || row.cribs?.requested === undefined ? 'לולים: לא מתועד' : `לולים: התבקשו ${row.cribs.requested} · נמסרו וטרם הוחזרו ${row.cribs.delivered}`}</div>
+    {row.cribs?.status === 'collection_required' && <Tag tone="warn">נדרש איסוף / בירור</Tag>}
+    {onCribs && <button type="button" className="ui-link" onClick={onCribs} disabled={!row.unitId} title={!row.unitId ? 'תחילה השלימו שיבוץ יחידה' : undefined}>ניהול לולים</button>}
     {notes.length ? <details><summary className="ui-link">הערות מיוחדות ({notes.length})</summary>
       {notes.map(([label, text]) => <div key={label} style={{ marginTop: 6 }}><strong>{label}: </strong><span style={{ whiteSpace: 'pre-wrap' }}>{text}</span></div>)}
     </details> : <div className="ui-sub">אין הערות גלויות</div>}

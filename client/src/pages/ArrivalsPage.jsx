@@ -19,6 +19,7 @@ import AssignRoomDialog from '../components/frontdesk/AssignRoomDialog';
 import QueueDialog from '../components/frontdesk/QueueDialog';
 import WalkInDialog from '../components/frontdesk/WalkInDialog';
 import { ArrivalPartyInfo, ArrivalPaymentInfo, ArrivalPreparationInfo } from '../components/frontdesk/ArrivalFacts';
+import CribDialog from '../components/frontdesk/CribDialog';
 
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 
@@ -35,6 +36,7 @@ export default function ArrivalsPage() {
   const { propertyId } = useProperty();
   const user = useAuthStore((s) => s.user);
   const isManager = MANAGER_ROLES.includes(user?.role);
+  const canWorkCribs = [...MANAGER_ROLES, 'receptionist', 'housekeeping_manager'].includes(user?.role);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { toasts, success, error: toastError } = useToast();
@@ -57,6 +59,7 @@ export default function ArrivalsPage() {
   const [etaRow, setEtaRow] = useState(null);
   const [noShowRow, setNoShowRow] = useState(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
+  const [cribDialog, setCribDialog] = useState(null);
   // When a dialog is opened from inside the wizard, refresh the wizard afterwards.
   const [wizardReload, setWizardReload] = useState(null);
 
@@ -154,6 +157,7 @@ export default function ArrivalsPage() {
         <div className="flex items-center gap-2">
           <Link to="/pms/arrival-queue" className="btn btn-secondary btn-sm">תור המתנה{counts.queued ? ` · ${counts.queued}` : ''}</Link>
           <button type="button" className="btn btn-primary btn-sm" onClick={() => setWalkInOpen(true)} disabled={!businessDate}>הזמנת Walk-in</button>
+          {canWorkCribs && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCribDialog({})} disabled={!propertyId}>לולים ואיסוף ציוד</button>}
         </div>
       </div>
 
@@ -247,6 +251,7 @@ export default function ArrivalsPage() {
                   onCheckIn={() => openCheckIn(row.reservationId)}
                   onOpen={() => navigate(`/pms/reservations/${row.reservationId}`)}
                   onAssign={() => setAssignRow(row)}
+                  onCribs={canWorkCribs ? () => setCribDialog({ reservationId: row.reservationId, unitId: row.unitId }) : undefined}
                   onQueue={() => setQueueRow(row)}
                   onEta={() => setEtaRow(row)}
                   onNoShow={() => setNoShowRow(row)}
@@ -310,6 +315,7 @@ export default function ArrivalsPage() {
       />
       <EtaDialog row={etaRow} propertyId={propertyId} onClose={() => setEtaRow(null)} onSaved={() => { setEtaRow(null); load(); success('שעת ההגעה עודכנה'); }} />
       <NoShowDialog row={noShowRow} propertyId={propertyId} onClose={() => setNoShowRow(null)} onDone={() => { setNoShowRow(null); load(); success('סומנה אי הגעה'); }} onError={toastError} />
+      {cribDialog && <CribDialog key={`${propertyId}:${cribDialog.unitId || 'desk'}`} propertyId={propertyId} {...cribDialog} onClose={() => setCribDialog(null)} onChanged={load} />}
       <WalkInDialog
         open={walkInOpen}
         propertyId={propertyId}
@@ -322,7 +328,7 @@ export default function ArrivalsPage() {
   );
 }
 
-function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, onEta, onNoShow }) {
+function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, onEta, onNoShow, onCribs }) {
   const st = row.readiness.state;
   const done = st === 'checked_in';
   const future = row.arrivalDate > businessDate;
@@ -369,7 +375,7 @@ function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, o
         </div>
       </td>
       <td><ArrivalPaymentInfo row={row} /></td>
-      <td><ArrivalPreparationInfo row={row} /></td>
+      <td><ArrivalPreparationInfo row={row} onCribs={onCribs} /></td>
       <td className="tabular-nums">
         {row.eta ? <button type="button" className="ui-link" onClick={onEta} disabled={done}>{row.eta}</button>
           : done ? '—' : <button type="button" className="ui-link is-muted" onClick={onEta}>לא ידוע</button>}

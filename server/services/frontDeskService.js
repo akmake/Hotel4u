@@ -23,6 +23,8 @@ import { withLocks } from './locks.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { openBusinessDate } from '../utils/businessDate.js';
 import { arrivalParty, arrivalPayment } from './arrivalPresentation.js';
+import CribRequest from '../models/CribRequest.js';
+import { cribFacts } from './cribPresentation.js';
 import { runStayTransaction } from './stayTransaction.js';
 
 export const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
@@ -294,11 +296,13 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   const term = String(q || '').trim().toLowerCase();
 
   const resIds = reservations.map((r) => r._id);
-  const [units, folios, queue] = await Promise.all([
+  const [units, folios, queue, cribRequests] = await Promise.all([
     ReservationRoom.find({ property: propertyId, reservation: { $in: resIds } }).populate({ path: 'roomTypeBooked', match: { property: propertyId }, select: 'name code' }).sort({ createdAt: 1, _id: 1 }).lean(),
     Folio.find({ property: propertyId, reservation: { $in: resIds } }).select('reservation ownerType ownerRef lines status currency').lean(),
     ArrivalQueueEntry.find({ property: propertyId, reservation: { $in: resIds }, status: 'active' }).lean(),
+    CribRequest.find({ property: propertyId, reservation: { $in: resIds } }).lean(),
   ]);
+  const cribsByUnit = new Map(cribRequests.map((r) => [String(r.reservationRoom), r]));
   const unitsByRes = new Map();
   for (const u of units) {
     const k = String(u.reservation);
@@ -361,7 +365,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
       party,
       payment,
       sharedPayment: payment.scope === 'unit' ? arrivalPayment(r, u, list, bookingFolios, { shared: true }) : null,
-      cribs: { requested: null, confirmed: null, status: 'not_recorded' },
+      cribs: cribFacts(cribsByUnit.get(String(u._id)), u, r),
       eta: r.eta || null,
       source: r.source,
       specialRequests: r.specialRequests || null,

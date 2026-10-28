@@ -150,6 +150,10 @@ export const dashboard = {
 
 // ── Front desk: arrivals, check-in, room assignment, waiting queue ───────────
 export const frontdesk = {
+  cribDesk:       (propertyId, q) => api.get(`/frontdesk/cribs?propertyId=${propertyId}${qs({ q })}`),
+  cribContext:    (propertyId, id, unitId) => api.get(`/frontdesk/reservations/${id}/units/${unitId}/cribs?propertyId=${propertyId}`),
+  cribAction:     (propertyId, id, unitId, body) => api.post(`/frontdesk/reservations/${id}/units/${unitId}/cribs`, { ...body, propertyId }),
+  cribStock:      (propertyId, body) => api.post('/frontdesk/cribs/stock', { ...body, propertyId }),
   arrivals:        (propertyId, params = {}) => api.get(`/frontdesk/arrivals?propertyId=${propertyId}${qs(params)}`),
   setEta:          (propertyId, resId, eta)  => api.patch(`/frontdesk/reservations/${resId}/eta`, { propertyId, eta }),
   noShow:          (propertyId, resId)       => api.post(`/frontdesk/reservations/${resId}/no-show`, { propertyId }),
