@@ -2,7 +2,8 @@
 // → summary & confirm. Nothing here decides readiness; it renders the server's reasons and the
 // server re-checks everything on "השלמת צ׳ק-אין". Moving between steps never commits anything.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, BedDouble, KeyRound, ChevronDown, AlertTriangle, Star } from 'lucide-react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Check, BedDouble, KeyRound, ChevronDown, AlertTriangle, Star, X } from 'lucide-react';
 import { frontdesk, finance, stay as stayApi } from '../../utils/api';
 import { TouristFields, TouristSummary } from '../stay/TouristDialog';
 import { useChargeCodes } from '../../hooks/useChargeCodes';
@@ -12,6 +13,7 @@ import { formatShort } from '../../utils/date';
 import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, newOpKey } from '../kit';
 import PaymentMethodFields, { emptyDetails, detailsMissing, detailsPayload } from '../fin/PaymentMethodFields';
 import SignaturePad from './SignaturePad';
+import './CheckInWizard.css';
 
 // Group billing: a room whose guest pays for anything needs its own guarantee.
 const paysSelf = (u) => u?.billing?.roomPayer === 'guest' || u?.billing?.extrasPayer === 'guest';
@@ -21,9 +23,31 @@ const payerText = (u) => (!u?.billing ? null
 const roomGuaranteeValid = (g) => !!g?.method && (g.method === 'deposit' ? false : String(g.reference || '').trim().length >= 4);
 const roomCovered = (u, g) => !!u?.guarantee?.ok || roomGuaranteeValid(g);
 
+// Design-page layouts of the same wizard (approved /pms look). Steps, checks and saving are shared.
+const VARIANTS = ['accordion', 'stepper', 'split', 'sheet'];
+
+function CheckInFrame({ variant, open, onClose, title, subtitle, footer, children }) {
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className={variant === 'sheet' ? 'ui-overlay is-light' : 'ui-overlay'} />
+        <DialogPrimitive.Content className={`ci ci-${variant}`} dir="rtl" aria-describedby={undefined}>
+          <header className="ci-head">
+            <div><DialogPrimitive.Title className="ci-title">{title}</DialogPrimitive.Title>{subtitle && <p>{subtitle}</p>}</div>
+            <DialogPrimitive.Close className="ci-close" aria-label="סגירה"><X size={20} /></DialogPrimitive.Close>
+          </header>
+          <div className="ci-body">{children}</div>
+          {footer && <footer className="ci-foot">{footer}</footer>}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  );
+}
+
 const money = (n, cur = 'ILS') => new Intl.NumberFormat('he-IL', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(Number(n || 0));
 
-export default function CheckInWizard({ open, propertyId, reservationId, initialUnits, isManager, onClose, onDone, onAssign, onQueue }) {
+export default function CheckInWizard({ open, propertyId, reservationId, initialUnits, isManager, onClose, onDone, onAssign, onQueue, appearance }) {
+  const variant = VARIANTS.includes(appearance) ? appearance : null;
   const [ctx, setCtx] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -108,6 +132,102 @@ export default function CheckInWizard({ open, propertyId, reservationId, initial
     { id: 'guarantee', label: 'תשלום וערבות' },
   ];
   const balance = ctx ? Math.max(0, Number(ctx.guarantee.total || 0) - Number(ctx.guarantee.paid || 0)) : 0;
+
+  if (variant) {
+    const confirmEl = ctx && (
+      <ConfirmStep ctx={ctx} chosen={chosen} chosenSelf={chosenSelf} chosenBooker={chosenBooker} roomGuarantees={roomGuarantees} method={method} guaranteeRef={guaranteeRef}
+        isManager={isManager} propertyId={propertyId} reload={load} goTo={(id) => setOpenSec(id)} onSuccess={setResult} />
+    );
+    const stepBody = (id) => {
+      if (id === 'units') return <UnitsStep ctx={ctx} selected={selected} setSelected={setSelected} onAssign={(u) => onAssign?.(u, load)} onQueue={(u) => onQueue?.(u, load)} onNext={() => next('registration')} />;
+      if (id === 'registration') return <RegistrationStep ctx={ctx} propertyId={propertyId} reload={load} draft={regDraft} setDraft={setRegDraft} onNext={() => next('guarantee')} />;
+      if (id === 'guarantee') return <GuaranteeStep ctx={ctx} propertyId={propertyId} reload={load} method={method} setMethod={setMethod} reference={guaranteeRef} setReference={setGuaranteeRef} chosenSelf={chosenSelf} chosenBooker={chosenBooker} roomGuarantees={roomGuarantees} setRoomGuarantee={setRoomGuarantee} onNext={() => next(null)} />;
+      return confirmEl;
+    };
+    const facts = ctx && (
+      <div className="ck-tiles">
+        <div><span>הגעה</span><strong>{formatShort(ctx.reservation.arrivalDate)}</strong></div>
+        <div><span>יציאה</span><strong>{formatShort(ctx.reservation.departureDate)}</strong></div>
+        <div><span>לילות · אורחים</span><strong>{ctx.reservation.nights} · {ctx.reservation.adults + (ctx.reservation.children || 0)}</strong></div>
+        <div className={balance > 0 ? 'is-due' : ''}><span>יתרה לתשלום</span><strong>{money(balance, ctx.reservation.currency)}</strong></div>
+      </div>
+    );
+    const note = ctx?.reservation.specialRequests && <div className="ck-note"><Star size={14} aria-hidden="true" /><span>{ctx.reservation.specialRequests}</span></div>;
+    const steps = [...SECTIONS, { id: 'confirm', label: 'אישור וצ׳ק-אין' }];
+    const active = current ?? 'confirm';
+    const stepButton = (st, i, withSummary) => {
+      const done = !!stepDone[st.id];
+      return (
+        <button type="button" className={`ci-step ${done ? 'is-done' : ''}`} aria-current={active === st.id ? 'step' : undefined} onClick={() => setOpenSec(st.id)}>
+          <span className="ci-dot" aria-hidden="true">{done ? <Check size={14} /> : i + 1}</span>
+          <strong>{st.label}</strong>
+          {withSummary && st.id !== 'confirm' && <small className={done ? '' : 'is-todo'}>{summaries[st.id]}</small>}
+        </button>
+      );
+    };
+
+    let content;
+    let footer = null;
+    if (!ctx) content = loadError ? <ErrorBanner error={loadError} onRetry={load} /> : <div className="ui-empty"><Spinner /> טוען את פרטי ההזמנה…</div>;
+    else if (result) content = <ResultView result={result} ctx={ctx} onClose={onDone} />;
+    else if (variant === 'accordion') {
+      content = (
+        <>
+          {facts}{note}
+          {SECTIONS.map((sec, i) => {
+            const done = stepDone[sec.id];
+            const isOpen = current === sec.id;
+            return (
+              <section key={sec.id} className={`ck-sec ${isOpen ? 'is-open' : ''} ${done ? 'is-done' : ''}`}>
+                <button type="button" className="ck-sec-head" aria-expanded={isOpen} onClick={() => toggle(sec.id)}>
+                  <span className="ck-sec-n" aria-hidden="true">{done ? <Check size={14} /> : i + 1}</span>
+                  <span className="ck-sec-title">{sec.label}</span>
+                  <span className={`ck-sec-sum ${done ? '' : 'is-todo'}`}>{summaries[sec.id]}</span>
+                  <ChevronDown size={16} className="ck-sec-chev" aria-hidden="true" />
+                </button>
+                {isOpen && <div className="ck-sec-body">{stepBody(sec.id)}</div>}
+              </section>
+            );
+          })}
+          {confirmEl}
+        </>
+      );
+    } else if (variant === 'stepper') {
+      content = (
+        <>
+          <ol className="ci-stepper">{steps.map((st, i) => <li key={st.id}>{stepButton(st, i, false)}</li>)}</ol>
+          {facts}{note}
+          <div className="ci-pane">{stepBody(active)}</div>
+        </>
+      );
+    } else if (variant === 'split') {
+      content = (
+        <div className="ci-grid">
+          <nav className="ci-nav" aria-label="שלבי הצ׳ק-אין">{steps.map((st, i) => <div key={st.id}>{stepButton(st, i, true)}</div>)}</nav>
+          <div className="ci-pane">{stepBody(active)}</div>
+          <aside className="ci-aside" aria-label="סיכום השהייה">{facts}{note}</aside>
+        </div>
+      );
+    } else {
+      content = (
+        <>
+          {facts}{note}
+          {SECTIONS.map((sec, i) => (
+            <section key={sec.id} className={`ci-block ${stepDone[sec.id] ? 'is-done' : ''}`} aria-labelledby={`ci-block-${sec.id}`}>
+              <header>
+                <span className="ci-dot" aria-hidden="true">{stepDone[sec.id] ? <Check size={14} /> : i + 1}</span>
+                <h3 id={`ci-block-${sec.id}`}>{sec.label}</h3>
+                <small className={stepDone[sec.id] ? '' : 'is-todo'}>{summaries[sec.id]}</small>
+              </header>
+              {stepBody(sec.id)}
+            </section>
+          ))}
+        </>
+      );
+      footer = confirmEl;
+    }
+    return <CheckInFrame variant={variant} open={open} onClose={result ? onDone : onClose} title={title} subtitle={subtitle} footer={footer}>{content}</CheckInFrame>;
+  }
 
   return (
     <Modal open={open} onClose={result ? onDone : onClose} width={720} title={title} subtitle={subtitle}>

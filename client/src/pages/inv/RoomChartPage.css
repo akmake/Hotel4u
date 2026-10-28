@@ -1,0 +1,204 @@
+/* Room board (/pms/tape-chart) in the approved /pms look: neutral grey canvas, one white board card
+   that fills the screen, hairline grid, Material 3 controls, status colours shared with "today"
+   (in house green, confirmed soft teal, held amber, checked out grey, blocked hatched red). */
+.page-content:has(> .board-page) { background: color-mix(in srgb, #808080 12%, white); }
+.board-page {
+  --board-teal: #006a61; --board-outline: #6f7977; --board-line: rgb(var(--fg) / .07); --board-type: #f7f7f7;
+  --board-in: 21 128 61; --board-booked-bg: #cce8e3; --board-booked-fg: #1f4743; --board-hold-bg: #ffddb8; --board-hold-fg: #653e00;
+  height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 22px 28px 16px; color: rgb(var(--fg)); font-family: 'Heebo', sans-serif;
+}
+
+/* Head: title + range, primary action. */
+.board-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.board-head h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 600; }
+.board-head p { margin: 2px 0 0; font-size: 14px; color: rgb(var(--fg-muted)); font-variant-numeric: tabular-nums; }
+
+/* Material 3 common buttons, icon buttons, outlined date field and segmented button. */
+.board-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 24px; border: 1px solid var(--board-outline); border-radius: 9999px; background: transparent; color: var(--board-teal); font: inherit; font-size: 14px; font-weight: 500; letter-spacing: .1px; white-space: nowrap; cursor: pointer; transition: background-color .2s cubic-bezier(.2, 0, 0, 1), box-shadow .2s cubic-bezier(.2, 0, 0, 1); }
+.board-btn:has(svg) { padding-inline: 16px 24px; }
+.board-btn:hover { background: rgb(0 106 97 / .08); }
+.board-btn.is-filled { border-color: transparent; background: var(--board-teal); color: #fff; }
+.board-btn.is-filled:hover { background: color-mix(in srgb, #fff 8%, var(--board-teal)); box-shadow: 0 1px 2px 0 rgb(0 0 0 / .3), 0 1px 3px 1px rgb(0 0 0 / .15); }
+.board-btn:focus-visible, .board-icon:focus-visible, .board-seg button:focus-visible { outline: 3px solid var(--board-teal); outline-offset: 2px; }
+.board-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; }
+.board-nav { display: flex; align-items: center; gap: 4px; }
+.board-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: rgb(var(--fg-secondary)); }
+.board-icon:hover { background: rgb(63 73 71 / .08); }
+.board-date { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border: 1px solid rgb(var(--fg) / .2); border-radius: 9999px; background: #fff; color: rgb(var(--fg-muted)); transition: border-color .15s ease-out; }
+.board-date:hover { border-color: rgb(var(--fg) / .4); }
+.board-date:focus-within { border-color: var(--board-teal); box-shadow: inset 0 0 0 1px var(--board-teal); }
+.board-date input { height: 100%; border: 0; background: none; color: rgb(var(--fg)); font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; outline: none; }
+.board-seg { display: inline-flex; border: 1px solid var(--board-outline); border-radius: 9999px; overflow: hidden; }
+.board-seg button { height: 40px; padding: 0 16px; background: none; color: rgb(var(--fg)); font: inherit; font-size: 14px; font-weight: 500; letter-spacing: .1px; transition: background-color .2s cubic-bezier(.2, 0, 0, 1); }
+.board-seg button + button { border-inline-start: 1px solid var(--board-outline); }
+.board-seg button:hover { background: rgb(22 29 28 / .08); }
+.board-seg button[aria-pressed="true"] { background: #cce8e3; color: #324b47; }
+
+/* Legend: the same swatches the bars use, then the cleaning dots. */
+.board-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0; margin-inline-start: auto; padding: 0; list-style: none; font-size: 12.5px; color: rgb(var(--fg-muted)); }
+.board-legend li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.board-legend i { width: 16px; height: 10px; border-radius: 4px; }
+.board-legend .is-in { background: rgb(var(--board-in)); }
+.board-legend .is-booked { background: var(--board-booked-bg); }
+.board-legend .is-hold { background: var(--board-hold-bg); box-shadow: inset 0 0 0 1px rgb(180 83 9 / .6); }
+.board-legend .is-out { background: #e6e6e6; }
+.board-legend .is-block { background: repeating-linear-gradient(45deg, rgb(var(--danger) / .3) 0 3px, rgb(var(--danger) / .08) 3px 6px); }
+.board-legend-gap { padding-inline-start: 14px; border-inline-start: 1px solid rgb(var(--fg) / .12); }
+.board-hint { margin: 0; font-size: 12.5px; color: rgb(var(--fg-muted)); }
+
+/* Board card: fills the remaining height; the grid scrolls inside it. */
+.board-card { flex: 1; min-height: 0; display: flex; flex-direction: column; border-radius: 12px; background: #fff; overflow: hidden; }
+.board-page .chart-wrap { flex: 1; min-height: 0; max-height: none; overflow: auto; }
+.board-page .chart-row { min-height: 44px; border-bottom: 1px solid var(--board-line); }
+.board-page .chart-room { gap: 8px; padding: 0 16px; background: #fff; border-left: 1px solid rgb(var(--fg) / .1); font-size: 13px; }
+.board-page .chart-room .ui-num b { font-size: 14px; font-weight: 600; }
+
+/* Date header: weekday above the date; today is a filled teal circle. */
+.board-page .chart-head { min-height: 56px; background: #fff; border-bottom: 1px solid rgb(var(--fg) / .1); }
+.board-page .chart-head .chart-room { color: rgb(var(--fg-muted)); font-size: 12px; font-weight: 500; }
+.board-page .chart-day { gap: 2px; font-size: 12px; border-left: 1px solid var(--board-line); }
+.board-page .chart-head .chart-day small { font-size: 11px; color: rgb(var(--fg-muted)); }
+.board-page .chart-head .chart-day b { display: grid; place-items: center; min-width: 28px; height: 24px; padding: 0 4px; border-radius: 9999px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.board-page .chart-head .chart-day.is-today b { background: var(--board-teal); color: #fff; }
+.board-page .chart-head .chart-day.is-today small { color: var(--board-teal); font-weight: 600; }
+.board-page .chart-head .chart-day.is-weekend { background: rgb(var(--fg) / .025); }
+.board-page .chart-head .chart-day.is-today { background: none; }
+
+/* Room-type row: the type name with its room count, and unassigned stays as amber counts. */
+.board-page .chart-type { min-height: 36px; background: var(--board-type); }
+.board-page .chart-type .chart-room { background: var(--board-type); }
+.board-page .chart-type .chart-room b { font-size: 13px; font-weight: 600; }
+.board-page .chart-type .chart-room small { font-size: 12px; color: rgb(var(--fg-muted)); }
+.board-page .chart-type .chart-day { border-left-color: transparent; }
+.board-page .chart-day.has-unassigned span { display: grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 9999px; background: var(--board-hold-bg); color: var(--board-hold-fg); font-size: 11.5px; font-weight: 600; }
+
+/* Night cells: hairlines, today's column tinted, hover invites a booking. */
+.board-page .chart-cell { border-left: 1px solid var(--board-line); transition: background-color .12s ease-out; }
+.board-page .chart-cell.is-today { background: rgb(0 106 97 / .05); }
+.board-page .chart-cell:hover:not(:disabled) { background: rgb(0 106 97 / .08); }
+.board-page .chart-cell:disabled { background: rgb(var(--fg) / .015); }
+.board-page .chart-cell:focus-visible { outline: 2px solid var(--board-teal); outline-offset: -2px; }
+.board-page .chart-row.is-drop { background: rgb(0 106 97 / .08); }
+
+/* Stay bars. */
+.board-page .chart-bar { display: flex; align-items: center; gap: 5px; height: 30px; margin: 7px 2px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--board-booked-bg); color: var(--board-booked-fg); font-size: 12.5px; font-weight: 500; line-height: 30px; transition: box-shadow .15s ease-out; }
+.board-page .chart-bar span { overflow: hidden; text-overflow: ellipsis; }
+.board-page .chart-bar svg { flex: none; color: rgb(180 83 9); }
+.board-page .chart-bar.is-in { background: rgb(var(--board-in)); color: #fff; }
+.board-page .chart-bar.is-in svg { color: #ffd58a; }
+.board-page .chart-bar.is-hold { background: var(--board-hold-bg); color: var(--board-hold-fg); box-shadow: inset 0 0 0 1px rgb(180 83 9 / .55); }
+.board-page .chart-bar.is-out { background: #e9e9e9; color: rgb(var(--fg-muted)); }
+.board-page .chart-bar.is-block { background: repeating-linear-gradient(45deg, rgb(var(--danger) / .12) 0 6px, rgb(var(--danger) / .04) 6px 12px); color: rgb(185 28 28); }
+.board-page .chart-bar:not(.is-block):hover { box-shadow: 0 1px 2px 0 rgb(0 0 0 / .2), 0 1px 3px 1px rgb(0 0 0 / .1); }
+.board-page .chart-bar.is-hold:hover { box-shadow: inset 0 0 0 1px rgb(180 83 9 / .55), 0 1px 3px 1px rgb(0 0 0 / .1); }
+.board-page .chart-bar:focus-visible { outline: 2px solid var(--board-teal); outline-offset: 1px; }
+.board-page .chart-bar.cut-start { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.board-page .chart-bar.cut-end { margin-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.board-page .chart-dot { width: 8px; height: 8px; }
+.board-page .chart-held { padding: 1px 6px; border-radius: 9999px; background: rgb(var(--danger) / .1); color: rgb(185 28 28); font-size: 11px; font-weight: 600; }
+
+@media (max-width: 1023px) { .board-page { padding: 16px 16px 12px; } .board-legend { margin-inline-start: 0; } }
+@media (prefers-reduced-motion: reduce) { .board-btn, .board-seg button, .board-date, .board-page .chart-cell, .board-page .chart-bar { transition: none; } }
+
+/* Clarity pass: every mark names itself — cleaning as text, the type row labels its counts,
+   today is written out, past nights are shaded, and the legend explains counts and past nights. */
+.board-page .chart-clean { display: inline-flex; align-items: center; gap: 5px; margin-inline-start: auto; font-size: 12px; color: rgb(var(--fg-muted)); white-space: nowrap; }
+.board-page .chart-clean::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--fg) / .3); }
+.board-page .chart-clean.is-inspected::before { background: rgb(var(--success)); }
+.board-page .chart-clean.is-clean::before { background: rgb(var(--success) / .55); }
+.board-page :is(.chart-clean.is-dirty, .chart-clean.is-pickup) { color: rgb(185 28 28); }
+.board-page :is(.chart-clean.is-dirty, .chart-clean.is-pickup)::before { background: rgb(var(--danger)); }
+.board-page .chart-type .chart-room em { margin-inline-start: auto; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--board-hold-fg); white-space: nowrap; }
+.board-page .chart-cell.is-past { background: repeating-linear-gradient(135deg, rgb(var(--fg) / .03) 0 4px, transparent 4px 8px); }
+.board-legend .is-past { background: repeating-linear-gradient(135deg, rgb(var(--fg) / .18) 0 2px, rgb(var(--fg) / .04) 2px 4px); }
+.board-legend-count { display: grid; place-items: center; min-width: 22px; height: 18px; padding: 0 6px; border-radius: 9999px; background: var(--board-hold-bg); color: var(--board-hold-fg); font-size: 11px; font-weight: 600; }
+
+/* Rows as cards (2026-10-28): no table — every room is its own long white card on the grey canvas,
+   under one sticky row of dates. Room types are headings between the groups, and stays sold without
+   a room get their own amber row, labelled "ממתינות לשיבוץ", right under the type heading. */
+.board-page { --board-canvas: color-mix(in srgb, #808080 12%, white); }
+.board-card { background: none; border-radius: 0; overflow: visible; }
+.board-page .chart-wrap { padding: 0 2px 16px; }
+.board-page .chart-head { position: sticky; top: 0; z-index: 3; min-height: 56px; margin-bottom: 2px; border-bottom: 1px solid rgb(var(--fg) / .1); background: var(--board-canvas); }
+.board-page .chart-head .chart-room { background: var(--board-canvas); border-left: 0; }
+.board-page .chart-head .chart-day, .board-page .chart-head .chart-day.is-weekend { border-left: 0; background: none; }
+.board-page .chart-type { position: sticky; right: 0; display: flex; align-items: baseline; gap: 8px; width: max-content; min-height: 0; padding: 18px 4px 8px; background: none; }
+.board-page [role="rowgroup"]:first-of-type .chart-type { padding-top: 12px; }
+.board-page .chart-type b { font-size: 15px; font-weight: 600; }
+.board-page .chart-type small { font-size: 12.5px; color: rgb(var(--fg-muted)); }
+.board-page .chart-row:not(.chart-head) { min-height: 52px; margin-bottom: 6px; border-bottom: 0; border-radius: 12px; background: #fff; clip-path: inset(0 round 12px); transition: background-color .12s ease-out; }
+.board-page .chart-row:not(.chart-head) .chart-room { background: inherit; border-left: 1px solid rgb(var(--fg) / .06); }
+.board-page .chart-row:not(.chart-head, .chart-pending):hover { background: #fcfcfc; }
+.board-page .chart-cell { border-left: 1px solid rgb(var(--fg) / .045); }
+.board-page .chart-row.is-drop { background: #eef7f5; box-shadow: inset 0 0 0 2px rgb(0 106 97 / .45); }
+.board-page .chart-bar { height: 32px; margin: 10px 3px; line-height: 32px; }
+.board-page .chart-pending { min-height: 46px; background: #fff7ec; }
+.board-page .chart-pending .chart-room { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; border-left-color: rgb(180 83 9 / .15); }
+.board-page .chart-pending .chart-room b { font-size: 13px; font-weight: 600; color: var(--board-hold-fg); }
+.board-page .chart-pending .chart-room small { font-size: 11.5px; color: rgb(101 62 0 / .75); }
+.board-page .chart-pending .chart-day { border-left: 0; }
+.board-page .chart-pending .chart-day span { display: grid; place-items: center; min-width: 24px; height: 22px; padding: 0 7px; border-radius: 9999px; background: var(--board-hold-bg); color: var(--board-hold-fg); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .board-page .chart-row { transition: none; } }
+
+/* The count says what it counts: "2 הזמנות בלי חדר" (in the month view, where nights are narrow,
+   the number alone, with the row label and tooltip carrying the meaning). */
+.board-page .chart-pending .chart-day span { gap: 4px; display: inline-flex; align-items: center; height: 24px; padding: 0 10px; white-space: nowrap; }
+.board-page .chart-pending .chart-day span em { font-style: normal; font-weight: 500; }
+.board-page.is-dense .chart-pending .chart-day span { padding: 0 7px; }
+.board-page.is-dense .chart-pending .chart-day span em { display: none; }
+.board-page .chart-pending .chart-day { overflow: visible; }
+
+/* Distilled (2026-10-28): a booking without a room is a bar on its own "טרם שובץ" row (dashed outline:
+   not placed yet), dragged onto a room to assign it — no per-night counts. Past nights are not hatched
+   any more (hatching means "blocked"); the legend keeps only stay states. */
+.board-page .chart-slot { border-left: 1px solid rgb(var(--fg) / .045); }
+.board-page .chart-pending { min-height: 52px; background: #fff; }
+.board-page .chart-pending .chart-room b { color: rgb(var(--fg)); font-size: 13px; }
+.board-page .chart-pending .chart-room small { color: rgb(var(--fg-muted)); font-size: 12px; }
+.board-page .chart-bar.is-pending { border: 1.5px dashed rgb(var(--fg) / .4); background: #fff; color: rgb(var(--fg)); cursor: grab; }
+.board-page .chart-bar.is-pending:hover { border-color: rgb(var(--fg) / .6); box-shadow: 0 1px 3px 1px rgb(0 0 0 / .1); }
+.board-legend .is-pending { border: 1.5px dashed rgb(var(--fg) / .45); background: #fff; }
+
+/* Rooms only (2026-10-28): one flat list of room cards straight under the date header, with clear
+   night lines that run through every card in line with the header. */
+.board-page .chart-head { margin-bottom: 0; border-bottom: 0; }
+.board-page .chart-head .chart-day, .board-page .chart-head .chart-day.is-weekend { border-left: 1px solid rgb(var(--fg) / .12); }
+.board-page .chart-wrap > .chart-row:not(.chart-head) { margin-bottom: 4px; }
+.board-page .chart-wrap > .chart-row:nth-child(2) { margin-top: 2px; }
+.board-page .chart-cell { border-left: 1px solid rgb(var(--fg) / .12); }
+.board-page .chart-row:not(.chart-head) .chart-room { border-left: 1px solid rgb(var(--fg) / .12); }
+
+/* Date header as a clear white strip (2026-10-28): same white as the room cards, darker type,
+   the day line continuing straight into the rooms below. */
+.board-page .chart-head { min-height: 56px; margin-bottom: 4px; border-radius: 12px; background: #fff; box-shadow: 0 1px 0 rgb(var(--fg) / .08); clip-path: inset(0 0 -2px 0 round 12px); }
+.board-page .chart-head .chart-room { background: #fff; border-left: 1px solid rgb(var(--fg) / .12); color: rgb(var(--fg)); font-size: 13px; font-weight: 600; }
+.board-page .chart-head .chart-day small { font-size: 12px; font-weight: 500; color: rgb(var(--fg-secondary)); }
+.board-page .chart-head .chart-day b { font-size: 14px; font-weight: 700; color: rgb(var(--fg)); }
+.board-page .chart-head .chart-day.is-today b { color: #fff; }
+.board-page .chart-wrap > .chart-row:nth-child(2) { margin-top: 0; }
+
+/* Compact head (2026-10-28): title, range, navigation, range and grouping switches, legend and the
+   primary action share one row, closed by a divider. Group labels are slim lines between the rooms. */
+.board-page { gap: 10px; padding-top: 16px; }
+.board-head { flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-bottom: 14px; border-bottom: 1px solid rgb(var(--fg) / .14); }
+.board-title { display: flex; align-items: baseline; gap: 10px; margin-inline-end: 8px; }
+.board-title h1 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.board-title span { font-size: 13px; color: rgb(var(--fg-muted)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.board-head .board-legend { margin-inline-start: auto; }
+.board-page .chart-group { position: sticky; right: 0; display: flex; align-items: baseline; gap: 8px; width: max-content; padding: 12px 4px 6px; }
+.board-page .chart-group b { font-size: 13px; font-weight: 600; }
+.board-page .chart-group small { font-size: 12px; color: rgb(var(--fg-muted)); }
+.board-page .chart-wrap > .chart-group:nth-child(2) { padding-top: 6px; }
+.board-back { margin-inline-end: -8px; color: rgb(var(--fg)); }
+
+/* One professional header row (2026-10-28): back + title + range on the start side, the tools grouped
+   on the end side (navigation, range, grouping menu, primary action); the legend moves to a quiet
+   line under the board. */
+.board-head { flex-wrap: nowrap; gap: 12px; }
+.board-title { flex: none; }
+.board-tools { display: flex; align-items: center; gap: 12px; margin-inline-start: auto; }
+.board-select { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 6px 0 14px; padding-inline: 14px 6px; border: 1px solid var(--board-outline); border-radius: 9999px; color: rgb(var(--fg-muted)); font-size: 13px; }
+.board-select select { height: 100%; border: 0; background: none; color: rgb(var(--fg)); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; outline: none; }
+.board-select:focus-within { border-color: var(--board-teal); box-shadow: inset 0 0 0 1px var(--board-teal); }
+.board-page > .board-legend { margin: 0; justify-content: flex-start; }
+@media (max-width: 1280px) { .board-head { flex-wrap: wrap; } .board-tools { flex-wrap: wrap; } }

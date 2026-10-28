@@ -1,0 +1,678 @@
+{
+  "startedAt": "2026-10-27T23:34:49.493Z",
+  "finishedAt": "2026-10-27T23:34:52.203Z",
+  "mode": "isolated local replica; synthetic fixtures",
+  "hashes": {
+    "../models/Folio.js": "cdf400397c641276adf2c62f00a822b8707e99b9abc9a17255791a5687a221ad",
+    "../models/Property.js": "ccb0f24df8988bfbe25ae63cb20a615a1a3f4b5c2c5bcabf577cf07eb903852c",
+    "../services/financeService.js": "e4e07dddd95ff1b131592c1ca9250e65feea9c75b7665a9d90837fa6da215b7a",
+    "../services/ledgerService.js": "fbcb7f46a9310e1d3ef3d31d3244f3dbd909f85b315ae677ffe2494d6d361bb7",
+    "../services/frontDeskService.js": "037723467a962cd316276117a20e76b6b5e42daddb1ff944b3a2c349bd093336",
+    "./businessDayReadiness.mjs": "3770cc792a404c61ac008e5acd723fb4d2ea7356d3dc7986b75db0daa5d8c473"
+  },
+  "counts": {
+    "passed": 0,
+    "failed": 10,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "BD01",
+      "name": "managed business day does not move with the calendar",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '2026-10-28'\n- '2026-10-27'\n            ^\n",
+      "evidence": {
+        "property": {
+          "_id": "6ae1351a1cf4797e5c425007",
+          "name": "Synthetic managed-day QA",
+          "timezone": "Asia/Jerusalem",
+          "defaultCurrency": "ILS",
+          "country": "IL",
+          "activeLanguages": [
+            "he",
+            "en"
+          ],
+          "checkInTime": "15:00",
+          "checkOutTime": "11:00",
+          "totalRooms": 0,
+          "vatRate": 18,
+          "invoicePrefix": "INV",
+          "invoiceSequence": 1000,
+          "docSequences": {
+            "tax_invoice": 0,
+            "tax_invoice_receipt": 0,
+            "receipt": 0,
+            "proforma": 0,
+            "credit_note": 0,
+            "debit_note": 0
+          },
+          "fiscal": {
+            "ita": {
+              "connected": false,
+              "env": "sandbox"
+            },
+            "allocationMode": "manual"
+          },
+          "reservationPrefix": "RES",
+          "reservationSequence": 1000,
+          "defaultCancellationHours": 24,
+          "defaultCancellationFee": "first_night",
+          "petPolicy": "not_allowed",
+          "smokingPolicy": "non_smoking",
+          "requiredGuestFields": [
+            "firstName",
+            "lastName"
+          ],
+          "requiredCheckInFields": [
+            "primaryGuest",
+            "assignedRoom"
+          ],
+          "requiredCheckOutFields": [
+            "folioBalanced"
+          ],
+          "opsPolicy": {
+            "checklists": {
+              "checkout_clean": [
+                "מצעים הוחלפו",
+                "חדר רחצה נוקה וחוטא",
+                "מגבות ומוצרי אירוח הושלמו",
+                "רצפה נשאבה ונשטפה",
+                "מיניבר נבדק",
+                "פח אשפה רוקן"
+              ],
+              "stayover": [
+                "מיטה סודרה",
+                "מגבות הוחלפו לפי בקשה",
+                "פח אשפה רוקן",
+                "מוצרי אירוח הושלמו"
+              ],
+              "inspection": [
+                "ניקיון כללי תקין",
+                "אין ליקוי גלוי בציוד",
+                "תאורה ומיזוג פועלים",
+                "מוצרי אירוח מלאים"
+              ]
+            },
+            "inspectorMustDiffer": true
+          },
+          "dayClose": {
+            "auto": {
+              "enabled": false,
+              "time": "03:00",
+              "arrivals": "keep"
+            },
+            "businessDate": "2026-10-27",
+            "lastClosedDate": "2026-10-26"
+          },
+          "policyVersion": 0,
+          "restDays": [],
+          "childMaxAge": null,
+          "pricingMode": "rates",
+          "onlineBooking": {
+            "enabled": false,
+            "payment": "full",
+            "depositPct": 30,
+            "holdMinutes": 20,
+            "ratePlanCodes": []
+          },
+          "boardPricing": {
+            "infantMaxAge": 2,
+            "version": 0,
+            "supplements": []
+          },
+          "taxPolicy": {
+            "tourist": {
+              "enabled": false,
+              "visaTypes": [],
+              "chargeCodes": [
+                "rooms"
+              ],
+              "pricing": "net_of_vat",
+              "version": 0
+            }
+          },
+          "financePolicy": {
+            "cashLimitPerStay": null,
+            "refundApprovalOver": 0,
+            "postStayDays": 30,
+            "cashRule": "none",
+            "cashThreshold": 6000,
+            "touristCashThreshold": 40000
+          },
+          "checkInPolicy": {
+            "requireInspection": false,
+            "requireGuarantee": true,
+            "requireRegistration": true,
+            "requireSignature": false,
+            "termsVersion": "he-1",
+            "termsText": ""
+          },
+          "active": true,
+          "cancellationPolicies": [],
+          "buildings": [],
+          "housekeepingZones": [],
+          "publicAreas": [],
+          "taxes": [],
+          "surcharges": [],
+          "paymentMethods": [],
+          "messageTemplates": [],
+          "documentTemplates": [],
+          "crmSla": {
+            "leadStaleDays": 7,
+            "leadDueGraceHours": 0,
+            "leadHighScoreThreshold": 65,
+            "leadHighScoreUnassignedEscalationHours": 24,
+            "leadAttentionScoreThreshold": 85,
+            "oppAtRiskInactiveDays": 14,
+            "oppStalledInactiveDays": 30,
+            "oppOverdueCloseEscalationDays": 0,
+            "oppAttentionScoreThreshold": 24
+          },
+          "createdAt": "2026-10-27T23:34:50.565Z",
+          "updatedAt": "2026-10-27T23:34:50.565Z",
+          "__v": 0
+        }
+      }
+    },
+    {
+      "code": "BD02",
+      "name": "late service charge retains its service date but books to the open business day",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- '2026-10-27'\n",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "folioId": "6ae1351a1cf4797e5c425010",
+            "lineId": "6ae1351a1cf4797e5c425011",
+            "gross": 118,
+            "net": 100,
+            "tax": 18,
+            "duplicate": false,
+            "balance": 118
+          }
+        },
+        "folio": {
+          "_id": "6ae1351a1cf4797e5c425010",
+          "property": "6ae1351a1cf4797e5c42500c",
+          "reservation": "6ae1351a1cf4797e5c42500f",
+          "ownerType": "guest",
+          "status": "open",
+          "currency": "ILS",
+          "lines": [
+            {
+              "type": "charge",
+              "description": "Synthetic charge",
+              "amount": 100,
+              "taxAmount": 18,
+              "department": "other",
+              "serviceDate": "2026-10-26",
+              "source": "manual",
+              "status": "posted",
+              "reference": "op:55f7905b-e48f-4012-b565-e09713341dbf",
+              "createdBy": "6ae135191cf4797e5c425006",
+              "quantity": 1,
+              "unitPrice": 118,
+              "vatRate": 18,
+              "_id": "6ae1351a1cf4797e5c425011",
+              "postedAt": "2026-10-27T23:34:50.628Z"
+            }
+          ],
+          "createdAt": "2026-10-27T23:34:50.612Z",
+          "updatedAt": "2026-10-27T23:34:50.628Z",
+          "__v": 1
+        }
+      }
+    },
+    {
+      "code": "BD03",
+      "name": "explicit booking into a closed accounting period is rejected",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'closed_business_day'\n",
+      "evidence": {
+        "response": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "code": "BD04",
+      "name": "saved closed-day amounts cannot be edited through document save",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'closed_business_day'\n",
+      "evidence": {
+        "response": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "code": "BD05",
+      "name": "query updates cannot bypass closed financial-line protection",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'financial_query_write_forbidden'\n",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "acknowledged": true,
+            "modifiedCount": 1,
+            "upsertedId": null,
+            "upsertedCount": 0,
+            "matchedCount": 1
+          }
+        }
+      }
+    },
+    {
+      "code": "BD06",
+      "name": "managed-period financial document saves require an atomic session",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'FINANCIAL_TRANSACTIONS_REQUIRED'\n",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "_id": "6ae1351a1cf4797e5c425036",
+            "property": "6ae1351a1cf4797e5c425032",
+            "reservation": "6ae1351a1cf4797e5c425035",
+            "ownerType": "guest",
+            "status": "open",
+            "currency": "ILS",
+            "lines": [
+              {
+                "type": "charge",
+                "description": "Synthetic direct line",
+                "amount": 10,
+                "taxAmount": 0,
+                "department": "rooms",
+                "serviceDate": "2026-10-27",
+                "source": "pms",
+                "status": "posted",
+                "_id": "6ae1351a1cf4797e5c425037",
+                "postedAt": "2026-10-27T23:34:50.869Z"
+              }
+            ],
+            "createdAt": "2026-10-27T23:34:50.866Z",
+            "updatedAt": "2026-10-27T23:34:50.869Z",
+            "__v": 1,
+            "balance": 10,
+            "totalCharges": 10,
+            "totalPayments": 0,
+            "id": "6ae1351a1cf4797e5c425036"
+          }
+        }
+      }
+    },
+    {
+      "code": "BD07",
+      "name": "successful close advances the managed date exactly one day and late charges use it",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- '2026-10-28'\n",
+      "evidence": {
+        "close": {
+          "ok": true,
+          "value": {
+            "id": "6ae1351a1cf4797e5c425040",
+            "runNo": "DC-20261027",
+            "businessDate": "2026-10-27",
+            "status": "done",
+            "attempts": 1,
+            "options": {
+              "arrivals": "none",
+              "reason": "Synthetic day review"
+            },
+            "startedBy": "Synthetic QA",
+            "createdAt": "2026-10-27T23:34:50.904Z",
+            "finishedAt": "2026-10-27T23:34:50.942Z",
+            "steps": [
+              {
+                "key": "post_nights",
+                "status": "done",
+                "startedAt": "2026-10-27T23:34:50.908Z",
+                "finishedAt": "2026-10-27T23:34:50.912Z",
+                "result": {
+                  "posted": 0,
+                  "stays": 0
+                },
+                "error": null
+              },
+              {
+                "key": "no_shows",
+                "status": "skipped",
+                "startedAt": "2026-10-27T23:34:50.916Z",
+                "finishedAt": "2026-10-27T23:34:50.919Z",
+                "result": {
+                  "skipped": true
+                },
+                "error": null
+              },
+              {
+                "key": "snapshot",
+                "status": "done",
+                "startedAt": "2026-10-27T23:34:50.922Z",
+                "finishedAt": "2026-10-27T23:34:50.928Z",
+                "result": {
+                  "rooms": 0,
+                  "sellable": 0,
+                  "roomNights": 0,
+                  "occupancyPct": 0,
+                  "roomRevenue": 0,
+                  "otherRevenue": 0,
+                  "adr": 0,
+                  "payments": 0,
+                  "refunds": 0,
+                  "arrived": 0,
+                  "departed": 0,
+                  "noShows": 0
+                },
+                "error": null
+              },
+              {
+                "key": "ledgers",
+                "status": "done",
+                "startedAt": "2026-10-27T23:34:50.932Z",
+                "finishedAt": "2026-10-27T23:34:50.938Z",
+                "result": {
+                  "trial": {
+                    "opening": 0,
+                    "charges": 0,
+                    "adjustments": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "closing": 0,
+                    "difference": 0
+                  },
+                  "ledgers": {
+                    "guest": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "deposit": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "ar": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "void": {
+                      "balance": 0,
+                      "folios": 0
+                    }
+                  },
+                  "revenue": {
+                    "groups": [],
+                    "total": {
+                      "net": 0,
+                      "tax": 0,
+                      "gross": 0
+                    }
+                  },
+                  "payments": [],
+                  "refunds": [],
+                  "unmappedCodes": [],
+                  "checks": [
+                    {
+                      "key": "opening",
+                      "ok": null,
+                      "amount": null,
+                      "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                    },
+                    {
+                      "key": "trial",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "מאזן הבוחן מאוזן"
+                    },
+                    {
+                      "key": "codes",
+                      "ok": true,
+                      "amount": null,
+                      "label": "כל החיובים בקודים מהקטלוג"
+                    },
+                    {
+                      "key": "void",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "אין יתרות בהזמנות שבוטלו"
+                    }
+                  ]
+                },
+                "error": null
+              },
+              {
+                "key": "advance",
+                "status": "done",
+                "startedAt": null,
+                "finishedAt": "2026-10-27T23:34:50.942Z",
+                "result": {
+                  "closed": "2026-10-27"
+                },
+                "error": null
+              }
+            ],
+            "readiness": {
+              "arrivals": 0,
+              "departures": 0,
+              "queueOpen": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "BD08",
+      "name": "next-day posting cannot change the closed trial balance",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n\n0 !== 118\n",
+      "evidence": {
+        "before": {
+          "opening": 0,
+          "charges": 0,
+          "adjustments": 0,
+          "payments": 0,
+          "refunds": 0,
+          "closing": 0,
+          "difference": 0
+        },
+        "after": {
+          "opening": 0,
+          "charges": 0,
+          "adjustments": 0,
+          "payments": 0,
+          "refunds": 0,
+          "closing": 0,
+          "difference": 0
+        }
+      }
+    },
+    {
+      "code": "BD09",
+      "name": "reversal books on the new open day and preserves the original closed line",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- '2026-10-28'\n",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "folioId": "6ae1351b1cf4797e5c425055",
+            "lineId": "6ae1351b1cf4797e5c42505e",
+            "balance": 0
+          }
+        }
+      }
+    },
+    {
+      "code": "BD10",
+      "name": "managed finance entry point serializes a charge racing day close",
+      "status": "failed",
+      "failure": "The expression evaluated to a falsy value:\n\n  assert.ok(saved.lines.every((l) => [f.day, f.calendar].includes(l.accountingDate)))\n",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "folioId": "6ae1351b1cf4797e5c425066",
+              "lineId": "6ae1351b1cf4797e5c425069",
+              "gross": 118,
+              "net": 100,
+              "tax": 18,
+              "duplicate": false,
+              "balance": 118
+            }
+          },
+          {
+            "ok": true,
+            "value": {
+              "id": "6ae1351b1cf4797e5c425068",
+              "runNo": "DC-20261027",
+              "businessDate": "2026-10-27",
+              "status": "done",
+              "attempts": 1,
+              "options": {
+                "arrivals": "none",
+                "reason": "Synthetic day review"
+              },
+              "startedBy": "Synthetic QA",
+              "createdAt": "2026-10-27T23:34:51.158Z",
+              "finishedAt": "2026-10-27T23:34:51.192Z",
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done",
+                  "startedAt": "2026-10-27T23:34:51.162Z",
+                  "finishedAt": "2026-10-27T23:34:51.166Z",
+                  "result": {
+                    "posted": 0,
+                    "stays": 0
+                  },
+                  "error": null
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped",
+                  "startedAt": "2026-10-27T23:34:51.169Z",
+                  "finishedAt": "2026-10-27T23:34:51.171Z",
+                  "result": {
+                    "skipped": true
+                  },
+                  "error": null
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done",
+                  "startedAt": "2026-10-27T23:34:51.174Z",
+                  "finishedAt": "2026-10-27T23:34:51.180Z",
+                  "result": {
+                    "rooms": 0,
+                    "sellable": 0,
+                    "roomNights": 0,
+                    "occupancyPct": 0,
+                    "roomRevenue": 0,
+                    "otherRevenue": 0,
+                    "adr": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "arrived": 0,
+                    "departed": 0,
+                    "noShows": 0
+                  },
+                  "error": null
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "startedAt": "2026-10-27T23:34:51.182Z",
+                  "finishedAt": "2026-10-27T23:34:51.187Z",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 0,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 0,
+                      "difference": 0
+                    },
+                    "ledgers": {
+                      "guest": {
+                        "balance": 0,
+                        "folios": 0
+                      },
+                      "deposit": {
+                        "balance": 0,
+                        "folios": 0
+                      },
+                      "ar": {
+                        "balance": 0,
+                        "folios": 0
+                      },
+                      "void": {
+                        "balance": 0,
+                        "folios": 0
+                      }
+                    },
+                    "revenue": {
+                      "groups": [],
+                      "total": {
+                        "net": 0,
+                        "tax": 0,
+                        "gross": 0
+                      }
+                    },
+                    "payments": [],
+                    "refunds": [],
+                    "unmappedCodes": [],
+                    "checks": [
+                      {
+                        "key": "opening",
+                        "ok": null,
+                        "amount": null,
+                        "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                      },
+                      {
+                        "key": "trial",
+                        "ok": true,
+                        "amount": 0,
+                        "label": "מאזן הבוחן מאוזן"
+                      },
+                      {
+                        "key": "codes",
+                        "ok": true,
+                        "amount": null,
+                        "label": "כל החיובים בקודים מהקטלוג"
+                      },
+                      {
+                        "key": "void",
+                        "ok": true,
+                        "amount": 0,
+                        "label": "אין יתרות בהזמנות שבוטלו"
+                      }
+                    ]
+                  },
+                  "error": null
+                },
+                {
+                  "key": "advance",
+                  "status": "done",
+                  "startedAt": null,
+                  "finishedAt": "2026-10-27T23:34:51.191Z",
+                  "result": {
+                    "closed": "2026-10-27"
+                  },
+                  "error": null
+                }
+              ],
+              "readiness": {
+                "arrivals": 0,
+                "departures": 0,
+                "queueOpen": 0
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

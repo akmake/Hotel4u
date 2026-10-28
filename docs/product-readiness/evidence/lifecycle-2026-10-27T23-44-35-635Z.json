@@ -1,0 +1,4731 @@
+{
+  "startedAt": "2026-10-27T23:44:35.635Z",
+  "finishedAt": "2026-10-27T23:44:44.649Z",
+  "mode": "isolated local replica; synthetic fixtures; no payment capture",
+  "hashes": {
+    "../services/bookingService.js": "e692421bcf017876552c596d4edb17726e94cf1b97ac35a6232f44384e37077c",
+    "../services/stayChangeService.js": "73aef3c8a09931e90f4db6d90c87cd6adfad49934a627c9cde79b9b033557ea9",
+    "../services/reservationService.js": "8b4e8e27425ce3fc32ac345d7304e56994515b79fb6830bd3daa3ab647bfab63",
+    "../services/availabilityService.js": "ad10e91cbc225a4b879c7d57fc916ecedb3c47f97a25c1f406bf28cb55c77d1b",
+    "../services/stayTransaction.js": "f7b5c974646b4137c45d630960b2c24da801d47d6a9736a988079554dcbbcedf",
+    "../services/locks.js": "c00a5085eb99c2932377a14dacef9a337998ff4383dccd1f3eccc2ff73bdc215",
+    "../services/auditService.js": "9bc5dc52582dad47a75a891c59e99426dcf97dd9c631673608bd42512739668f",
+    "./lifecycleReadiness.mjs": "eb2e5b56444486155438904662c1ee2fe574482582acee374c42b79e51983ba3"
+  },
+  "counts": {
+    "passed": 26,
+    "failed": 0,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "LC01",
+      "name": "normal quote conversion reserves nights once and creates a folio",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "id": "6ae137650c2d00d5b9e89364",
+            "status": "confirmed",
+            "confirmationNumber": "8b9f6fe8-1001"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137650c2d00d5b9e89364",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e89369"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e8936a"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:37.275Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:37.209Z",
+                "language": "he",
+                "channel": "email",
+                "convertedAt": "2026-10-27T23:44:37.303Z"
+              },
+              "holdExpiresAt": null
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137650c2d00d5b9e89365",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137650c2d00d5b9e89366",
+              "unit": "6ae137650c2d00d5b9e89365",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 3
+        }
+      }
+    },
+    {
+      "code": "LC02",
+      "name": "concurrent conversion of one quote cannot reserve inventory twice",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "id": "6ae137650c2d00d5b9e89390",
+              "status": "confirmed",
+              "confirmationNumber": "62a4ac22-1001"
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "ההצעה כבר הומרה או נסגרה",
+              "status": 409
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137650c2d00d5b9e89390",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e89395"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e89396"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:37.429Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:37.381Z",
+                "language": "he",
+                "channel": "email",
+                "convertedAt": "2026-10-27T23:44:37.451Z"
+              },
+              "holdExpiresAt": null
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137650c2d00d5b9e89391",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137650c2d00d5b9e89392",
+              "unit": "6ae137650c2d00d5b9e89391",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 3
+        }
+      }
+    },
+    {
+      "code": "LC03",
+      "name": "folio failure during quote conversion rolls back status and stock",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137650c2d00d5b9e893c3",
+              "status": "quote",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e893c8"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e893c9"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:37.694Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:37.659Z",
+                "language": "he",
+                "channel": "email"
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137650c2d00d5b9e893c4",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137650c2d00d5b9e893c5",
+              "unit": "6ae137650c2d00d5b9e893c4",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 0,
+          "audit": 1
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_CONVERT_FOLIO"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137650c2d00d5b9e893c3",
+              "status": "quote",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e893c8"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e893c9"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:37.694Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:37.659Z",
+                "language": "he",
+                "channel": "email"
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137650c2d00d5b9e893c4",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137650c2d00d5b9e893c5",
+              "unit": "6ae137650c2d00d5b9e893c4",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 0,
+          "audit": 1
+        }
+      }
+    },
+    {
+      "code": "LC04",
+      "name": "failed stock release when closing a held quote preserves its full state",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137650c2d00d5b9e893ed",
+              "status": "hold",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137650c2d00d5b9e893d3",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e893f4"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e893f5"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:37.810Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:37.771Z",
+                "language": "he",
+                "channel": "email"
+              },
+              "holdExpiresAt": "2026-10-28T23:44:37.771Z"
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137650c2d00d5b9e893f0",
+              "status": "reserved",
+              "room": "6ae137650c2d00d5b9e893d3",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137650c2d00d5b9e893f1",
+              "unit": "6ae137650c2d00d5b9e893f0",
+              "room": "6ae137650c2d00d5b9e893d3",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_CLOSE_STOCK"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137650c2d00d5b9e893ed",
+              "status": "hold",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137650c2d00d5b9e893d3",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e893f4"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e893f5"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:37.810Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:37.771Z",
+                "language": "he",
+                "channel": "email"
+              },
+              "holdExpiresAt": "2026-10-28T23:44:37.771Z"
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137650c2d00d5b9e893f0",
+              "status": "reserved",
+              "room": "6ae137650c2d00d5b9e893d3",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137650c2d00d5b9e893f1",
+              "unit": "6ae137650c2d00d5b9e893f0",
+              "room": "6ae137650c2d00d5b9e893d3",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC05",
+      "name": "failed stock release during hold expiry leaves the hold recoverable",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137650c2d00d5b9e89418",
+              "status": "hold",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137650c2d00d5b9e893fe",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e8941f"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e89420"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:37.914Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "holdExpiresAt": "2026-10-27T23:43:37.924Z"
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137650c2d00d5b9e8941b",
+              "status": "reserved",
+              "room": "6ae137650c2d00d5b9e893fe",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137650c2d00d5b9e8941c",
+              "unit": "6ae137650c2d00d5b9e8941b",
+              "room": "6ae137650c2d00d5b9e893fe",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_EXPIRY_STOCK"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137650c2d00d5b9e89418",
+              "status": "hold",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137650c2d00d5b9e893fe",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e8941f"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137650c2d00d5b9e89420"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:37.914Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "holdExpiresAt": "2026-10-27T23:43:37.924Z"
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137650c2d00d5b9e8941b",
+              "status": "reserved",
+              "room": "6ae137650c2d00d5b9e893fe",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137650c2d00d5b9e8941c",
+              "unit": "6ae137650c2d00d5b9e8941b",
+              "room": "6ae137650c2d00d5b9e893fe",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC06",
+      "name": "expired quote and hold leave cancelled units rather than tentative units",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "released": 1
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e89443",
+              "status": "cancelled",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e8944a"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e8944b"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.023Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-27T23:43:38.037Z",
+                "language": "he",
+                "channel": "email"
+              },
+              "holdExpiresAt": null,
+              "holdReleasedAt": "2026-10-27T23:44:38.054Z"
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e89446",
+              "status": "cancelled",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e89447",
+              "unit": "6ae137660c2d00d5b9e89446",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 4
+        }
+      }
+    },
+    {
+      "code": "LC07",
+      "name": "releasing a held quote clears room assignments from units and segments",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "released": 1
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e89470",
+              "status": "quote",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89477"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89478"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.147Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:38.104Z",
+                "language": "he",
+                "channel": "email"
+              },
+              "holdExpiresAt": null,
+              "holdReleasedAt": "2026-10-27T23:44:38.171Z"
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e89473",
+              "status": "tentative",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e89474",
+              "unit": "6ae137660c2d00d5b9e89473",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 4
+        }
+      }
+    },
+    {
+      "code": "LC08",
+      "name": "a quote cannot convert after the rate was closed for sale",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e8949d",
+              "status": "quote",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894a2"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894a3"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.251Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:38.217Z",
+                "language": "he",
+                "channel": "email"
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e8949e",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e8949f",
+              "unit": "6ae137660c2d00d5b9e8949e",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 0,
+          "audit": 1
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "התעריף סגור ל־2026-10-30",
+            "status": 409,
+            "code": "not_bookable"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e8949d",
+              "status": "quote",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894a2"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894a3"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.251Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:38.217Z",
+                "language": "he",
+                "channel": "email"
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e8949e",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e8949f",
+              "unit": "6ae137660c2d00d5b9e8949e",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 0,
+          "audit": 1
+        }
+      }
+    },
+    {
+      "code": "LC09",
+      "name": "unchanged half-board quote converts without a false price-change error",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "id": "6ae137660c2d00d5b9e894c6",
+            "status": "confirmed",
+            "confirmationNumber": "a2e497bb-1001"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e894c6",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1400,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894cb"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894cc"
+                  }
+                ],
+                "total": 1400,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.353Z",
+                "board": {
+                  "type": "half_board",
+                  "source": "supplement",
+                  "nightly": [
+                    {
+                      "date": "2026-10-30",
+                      "price": 200
+                    },
+                    {
+                      "date": "2026-10-31",
+                      "price": 200
+                    }
+                  ]
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:38.319Z",
+                "language": "he",
+                "channel": "email",
+                "convertedAt": "2026-10-27T23:44:38.372Z"
+              },
+              "holdExpiresAt": null
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e894c7",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e894c8",
+              "unit": "6ae137660c2d00d5b9e894c7",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 3
+        }
+      }
+    },
+    {
+      "code": "LC10",
+      "name": "failed modification segment insertion restores old dates, segments and stock",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e894f4",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137660c2d00d5b9e894da",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894fb"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894fc"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.461Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e894f7",
+              "status": "reserved",
+              "room": "6ae137660c2d00d5b9e894da",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e894f8",
+              "unit": "6ae137660c2d00d5b9e894f7",
+              "room": "6ae137660c2d00d5b9e894da",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_MODIFY_SEGMENTS"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e894f4",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137660c2d00d5b9e894da",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894fb"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e894fc"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.461Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e894f7",
+              "status": "reserved",
+              "room": "6ae137660c2d00d5b9e894da",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e894f8",
+              "unit": "6ae137660c2d00d5b9e894f7",
+              "room": "6ae137660c2d00d5b9e894da",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC11",
+      "name": "failed allocation of new modification nights restores old inventory",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e89521",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137660c2d00d5b9e89507",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89528"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89529"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.571Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e89524",
+              "status": "reserved",
+              "room": "6ae137660c2d00d5b9e89507",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e89525",
+              "unit": "6ae137660c2d00d5b9e89524",
+              "room": "6ae137660c2d00d5b9e89507",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_MODIFY_STOCK"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e89521",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137660c2d00d5b9e89507",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89528"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89529"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.571Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e89524",
+              "status": "reserved",
+              "room": "6ae137660c2d00d5b9e89507",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e89525",
+              "unit": "6ae137660c2d00d5b9e89524",
+              "room": "6ae137660c2d00d5b9e89507",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC12",
+      "name": "modifying half-board dates keeps lodging and meal supplements in the price",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "reservationId": "6ae137660c2d00d5b9e8954d",
+            "total": 2100,
+            "difference": 700,
+            "unassignedRooms": 0,
+            "creditNoteNeeded": false
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e8954d",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-02",
+              "total": 2100,
+              "rate": 500,
+              "room": "6ae137660c2d00d5b9e89533",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e8955f"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89560"
+                  },
+                  {
+                    "date": "2026-11-01",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89561"
+                  }
+                ],
+                "total": 2100,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.721Z",
+                "board": {
+                  "type": "half_board",
+                  "source": "supplement",
+                  "nightly": [
+                    {
+                      "date": "2026-10-30",
+                      "price": 200
+                    },
+                    {
+                      "date": "2026-10-31",
+                      "price": 200
+                    },
+                    {
+                      "date": "2026-11-01",
+                      "price": 200
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e89550",
+              "status": "reserved",
+              "room": "6ae137660c2d00d5b9e89533",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-02",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e8955e",
+              "unit": "6ae137660c2d00d5b9e89550",
+              "room": "6ae137660c2d00d5b9e89533",
+              "from": "2026-10-30",
+              "to": "2026-11-02",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 5
+        }
+      }
+    },
+    {
+      "code": "LC13",
+      "name": "legacy modification rolls back if saving the reservation fails",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e8957f",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137660c2d00d5b9e89565",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89586"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89587"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.967Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e89582",
+              "status": "reserved",
+              "room": "6ae137660c2d00d5b9e89565",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e89583",
+              "unit": "6ae137660c2d00d5b9e89582",
+              "room": "6ae137660c2d00d5b9e89565",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_LEGACY_MODIFY_SAVE"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137660c2d00d5b9e8957f",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137660c2d00d5b9e89565",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89586"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137660c2d00d5b9e89587"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:38.967Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137660c2d00d5b9e89582",
+              "status": "reserved",
+              "room": "6ae137660c2d00d5b9e89565",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137660c2d00d5b9e89583",
+              "unit": "6ae137660c2d00d5b9e89582",
+              "room": "6ae137660c2d00d5b9e89565",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC14",
+      "name": "plain held booking confirms without taking its inventory twice",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137670c2d00d5b9e895b0",
+              "status": "hold",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137670c2d00d5b9e89596",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e895b7"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e895b8"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:39.272Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "holdExpiresAt": "2026-10-28T00:44:39.242Z"
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137670c2d00d5b9e895b3",
+              "status": "reserved",
+              "room": "6ae137670c2d00d5b9e89596",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137670c2d00d5b9e895b4",
+              "unit": "6ae137670c2d00d5b9e895b3",
+              "room": "6ae137670c2d00d5b9e89596",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": true,
+          "value": {
+            "id": "6ae137670c2d00d5b9e895b0",
+            "status": "confirmed",
+            "confirmationNumber": "c413b95b-1001"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137670c2d00d5b9e895b0",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137670c2d00d5b9e89596",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e895b7"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e895b8"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:39.272Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "holdExpiresAt": null
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137670c2d00d5b9e895b3",
+              "status": "reserved",
+              "room": "6ae137670c2d00d5b9e89596",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137670c2d00d5b9e895b4",
+              "unit": "6ae137670c2d00d5b9e895b3",
+              "room": "6ae137670c2d00d5b9e89596",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 3
+        }
+      }
+    },
+    {
+      "code": "LC15",
+      "name": "failed modification audit restores the full original booking",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137670c2d00d5b9e895dc",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137670c2d00d5b9e895c2",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e895e3"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e895e4"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:39.605Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137670c2d00d5b9e895df",
+              "status": "reserved",
+              "room": "6ae137670c2d00d5b9e895c2",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137670c2d00d5b9e895e0",
+              "unit": "6ae137670c2d00d5b9e895df",
+              "room": "6ae137670c2d00d5b9e895c2",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_MODIFY_AUDIT"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137670c2d00d5b9e895dc",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137670c2d00d5b9e895c2",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e895e3"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e895e4"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:39.605Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137670c2d00d5b9e895df",
+              "status": "reserved",
+              "room": "6ae137670c2d00d5b9e895c2",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137670c2d00d5b9e895e0",
+              "unit": "6ae137670c2d00d5b9e895df",
+              "room": "6ae137670c2d00d5b9e895c2",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC16",
+      "name": "failed conversion audit restores quote, stock, units and folio",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137670c2d00d5b9e8960d",
+              "status": "quote",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e89612"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e89613"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:39.891Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:39.821Z",
+                "language": "he",
+                "channel": "email"
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137670c2d00d5b9e8960e",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137670c2d00d5b9e8960f",
+              "unit": "6ae137670c2d00d5b9e8960e",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 0,
+          "audit": 1
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "QA_CONVERT_AUDIT"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137670c2d00d5b9e8960d",
+              "status": "quote",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e89612"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137670c2d00d5b9e89613"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:39.891Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:39.821Z",
+                "language": "he",
+                "channel": "email"
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137670c2d00d5b9e8960e",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137670c2d00d5b9e8960f",
+              "unit": "6ae137670c2d00d5b9e8960e",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 0,
+          "audit": 1
+        }
+      }
+    },
+    {
+      "code": "LC17",
+      "name": "closing and converting a held quote cannot both succeed",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "id": "6ae137680c2d00d5b9e89638",
+              "status": "confirmed",
+              "confirmationNumber": "0eb2e398-1001"
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "ההצעה כבר הומרה או נסגרה",
+              "status": 409
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137680c2d00d5b9e89638",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137680c2d00d5b9e8961e",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137680c2d00d5b9e8963f"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137680c2d00d5b9e89640"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:40.198Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:40.114Z",
+                "language": "he",
+                "channel": "email",
+                "convertedAt": "2026-10-27T23:44:40.240Z"
+              },
+              "holdExpiresAt": null
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137680c2d00d5b9e8963b",
+              "status": "reserved",
+              "room": "6ae137680c2d00d5b9e8961e",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137680c2d00d5b9e8963c",
+              "unit": "6ae137680c2d00d5b9e8963b",
+              "room": "6ae137680c2d00d5b9e8961e",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 3
+        }
+      }
+    },
+    {
+      "code": "LC18",
+      "name": "two expiry workers release the same hold exactly once",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "released": 0
+            }
+          },
+          {
+            "ok": true,
+            "value": {
+              "released": 1
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137680c2d00d5b9e8966b",
+              "status": "cancelled",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137680c2d00d5b9e89672"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137680c2d00d5b9e89673"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:40.665Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "holdExpiresAt": null,
+              "holdReleasedAt": "2026-10-27T23:44:40.738Z"
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137680c2d00d5b9e8966e",
+              "status": "cancelled",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137680c2d00d5b9e8966f",
+              "unit": "6ae137680c2d00d5b9e8966e",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 4
+        }
+      }
+    },
+    {
+      "code": "LC19",
+      "name": "successful legacy date modification synchronizes units, segments and price snapshot",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "_id": "6ae137690c2d00d5b9e8969f",
+            "property": "6ae137680c2d00d5b9e89683",
+            "confirmationNumber": "178531d9-1001",
+            "idempotencyKey": "b79ebf87-5632-43b9-b4b6-6be1d07d0832",
+            "status": "modified",
+            "primaryGuest": {
+              "_id": "6ae137690c2d00d5b9e8969c",
+              "firstName": "Synthetic",
+              "lastName": "Guest",
+              "vipLevel": 0
+            },
+            "additionalGuests": [],
+            "adults": 2,
+            "children": 0,
+            "arrivalDate": "2026-10-30",
+            "departureDate": "2026-11-02",
+            "nights": 3,
+            "roomsCount": 1,
+            "source": "direct",
+            "ratePlan": {
+              "_id": "6ae137680c2d00d5b9e89687",
+              "code": "BAR",
+              "name": "Synthetic rate"
+            },
+            "roomType": {
+              "_id": "6ae137680c2d00d5b9e89684",
+              "code": "STD",
+              "name": "Synthetic standard"
+            },
+            "assignedRoom": {
+              "_id": "6ae137680c2d00d5b9e89685",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean"
+            },
+            "ratePerNight": 500,
+            "totalAmount": 1500,
+            "taxAmount": 228.81,
+            "discountAmount": 0,
+            "surchargeAmount": 0,
+            "paymentStatus": "unpaid",
+            "depositAmount": 0,
+            "depositPaid": 0,
+            "currency": "ILS",
+            "guaranteeType": "none",
+            "confirmationSent": false,
+            "cancellationPolicy": "ביטול ללא חיוב עד 24 שעות לפני ההגעה; לאחר מכן חיוב הלילה הראשון (בכפוף לזכויות לפי דין)",
+            "depositPolicy": "ללא מקדמה חובה; ערבות לפי מדיניות הכניסה",
+            "priceSnapshot": {
+              "ratePlanCode": "BAR",
+              "ratePlanName": "Synthetic rate",
+              "nightly": [
+                {
+                  "date": "2026-10-30",
+                  "price": 500,
+                  "_id": "6ae137690c2d00d5b9e896b0"
+                },
+                {
+                  "date": "2026-10-31",
+                  "price": 500,
+                  "_id": "6ae137690c2d00d5b9e896b1"
+                },
+                {
+                  "date": "2026-11-01",
+                  "price": 500,
+                  "_id": "6ae137690c2d00d5b9e896b2"
+                }
+              ],
+              "total": 1500,
+              "vatRate": 18,
+              "refundable": true,
+              "computedAt": "2026-10-27T23:44:41.208Z",
+              "board": {
+                "type": "room_only",
+                "source": "none",
+                "nightly": []
+              }
+            },
+            "payerType": "guest",
+            "childAges": [],
+            "isVip": false,
+            "isOverbooking": false,
+            "language": "he",
+            "createdBy": "6ae137630c2d00d5b9e89347",
+            "updatedBy": "6ae137630c2d00d5b9e89347",
+            "reversals": [],
+            "createdAt": "2026-10-27T23:44:41.122Z",
+            "updatedAt": "2026-10-27T23:44:41.212Z",
+            "__v": 1,
+            "board": "room_only",
+            "bookingRequestHash": "84574cb8af7b070bc65aa3e40a1f3847796022be5177271c2212a8b9387681ad"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137690c2d00d5b9e8969f",
+              "status": "modified",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-02",
+              "total": 1500,
+              "rate": 500,
+              "room": "6ae137680c2d00d5b9e89685",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e896b0"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e896b1"
+                  },
+                  {
+                    "date": "2026-11-01",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e896b2"
+                  }
+                ],
+                "total": 1500,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:41.208Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137690c2d00d5b9e896a2",
+              "status": "reserved",
+              "room": "6ae137680c2d00d5b9e89685",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-02",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137690c2d00d5b9e896b3",
+              "unit": "6ae137690c2d00d5b9e896a2",
+              "room": "6ae137680c2d00d5b9e89685",
+              "from": "2026-10-30",
+              "to": "2026-11-02",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 5
+        }
+      }
+    },
+    {
+      "code": "LC20",
+      "name": "confirmed changed meal supplement updates quote total and board snapshot without inflating room rate",
+      "status": "passed",
+      "evidence": {
+        "first": {
+          "ok": false,
+          "error": {
+            "message": "המחיר השתנה מאז ההצעה — יש לאשר את המחיר החדש",
+            "status": 409,
+            "code": "price_changed"
+          }
+        },
+        "response": {
+          "ok": true,
+          "value": {
+            "id": "6ae137690c2d00d5b9e896d2",
+            "status": "confirmed",
+            "confirmationNumber": "018a1fc5-1001"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137690c2d00d5b9e896d2",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1600,
+              "rate": 500,
+              "room": "null",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e896e6"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e896e7"
+                  }
+                ],
+                "total": 1600,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:41.611Z",
+                "board": {
+                  "type": "half_board",
+                  "source": "supplement",
+                  "nightly": [
+                    {
+                      "date": "2026-10-30",
+                      "price": 300
+                    },
+                    {
+                      "date": "2026-10-31",
+                      "price": 300
+                    }
+                  ]
+                }
+              },
+              "quote": {
+                "version": 1,
+                "validUntil": "2026-10-28T23:44:41.374Z",
+                "language": "he",
+                "channel": "email",
+                "convertedAt": "2026-10-27T23:44:41.611Z"
+              },
+              "holdExpiresAt": null
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137690c2d00d5b9e896d3",
+              "status": "reserved",
+              "room": "null",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137690c2d00d5b9e896d4",
+              "unit": "6ae137690c2d00d5b9e896d3",
+              "room": "null",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 3
+        }
+      }
+    },
+    {
+      "code": "LC21",
+      "name": "legacy commercial edit cannot silently strip an existing meal package",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae137690c2d00d5b9e89706",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1400,
+              "rate": 500,
+              "room": "6ae137690c2d00d5b9e896ec",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e8970d"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e8970e"
+                  }
+                ],
+                "total": 1400,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:41.881Z",
+                "board": {
+                  "type": "half_board",
+                  "source": "supplement",
+                  "nightly": [
+                    {
+                      "date": "2026-10-30",
+                      "price": 200
+                    },
+                    {
+                      "date": "2026-10-31",
+                      "price": 200
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137690c2d00d5b9e89709",
+              "status": "reserved",
+              "room": "6ae137690c2d00d5b9e896ec",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137690c2d00d5b9e8970a",
+              "unit": "6ae137690c2d00d5b9e89709",
+              "room": "6ae137690c2d00d5b9e896ec",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "שינוי הזמנה עם ארוחות מתבצע מתוך תיק ההזמנה, עם בדיקת המחיר והפנסיון",
+            "status": 409
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae137690c2d00d5b9e89706",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1400,
+              "rate": 500,
+              "room": "6ae137690c2d00d5b9e896ec",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e8970d"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae137690c2d00d5b9e8970e"
+                  }
+                ],
+                "total": 1400,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:41.881Z",
+                "board": {
+                  "type": "half_board",
+                  "source": "supplement",
+                  "nightly": [
+                    {
+                      "date": "2026-10-30",
+                      "price": 200
+                    },
+                    {
+                      "date": "2026-10-31",
+                      "price": 200
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae137690c2d00d5b9e89709",
+              "status": "reserved",
+              "room": "6ae137690c2d00d5b9e896ec",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae137690c2d00d5b9e8970a",
+              "unit": "6ae137690c2d00d5b9e89709",
+              "room": "6ae137690c2d00d5b9e896ec",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC22",
+      "name": "last-room held quote is excluded from its own availability check",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "id": "6ae1376a0c2d00d5b9e89731",
+            "status": "confirmed",
+            "confirmationNumber": "46bc6cb3-1001"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae1376a0c2d00d5b9e89731",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae137690c2d00d5b9e89717",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e89738"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e89739"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:42.145Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "holdExpiresAt": null
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae1376a0c2d00d5b9e89734",
+              "status": "reserved",
+              "room": "6ae137690c2d00d5b9e89717",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae1376a0c2d00d5b9e89735",
+              "unit": "6ae1376a0c2d00d5b9e89734",
+              "room": "6ae137690c2d00d5b9e89717",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 3
+        }
+      }
+    },
+    {
+      "code": "LC23",
+      "name": "expired modification lease rolls back every changed night and segment",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae1376a0c2d00d5b9e8975d",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae1376a0c2d00d5b9e89743",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e89764"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e89765"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:42.451Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae1376a0c2d00d5b9e89760",
+              "status": "reserved",
+              "room": "6ae1376a0c2d00d5b9e89743",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae1376a0c2d00d5b9e89761",
+              "unit": "6ae1376a0c2d00d5b9e89760",
+              "room": "6ae1376a0c2d00d5b9e89743",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+            "status": 409,
+            "code": "lock_expired"
+          }
+        },
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae1376a0c2d00d5b9e8975d",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae1376a0c2d00d5b9e89743",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e89764"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e89765"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:42.451Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae1376a0c2d00d5b9e89760",
+              "status": "reserved",
+              "room": "6ae1376a0c2d00d5b9e89743",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae1376a0c2d00d5b9e89761",
+              "unit": "6ae1376a0c2d00d5b9e89760",
+              "room": "6ae1376a0c2d00d5b9e89743",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC24",
+      "name": "sequential legacy metadata edits do not collide on the same channel event key",
+      "status": "passed",
+      "evidence": {
+        "responses": [
+          {
+            "ok": true,
+            "value": {
+              "_id": "6ae1376a0c2d00d5b9e89798",
+              "property": "6ae1376a0c2d00d5b9e8977c",
+              "confirmationNumber": "949f86d6-1001",
+              "idempotencyKey": "3aa023fb-2803-424b-a739-6b00d70127b8",
+              "status": "modified",
+              "primaryGuest": {
+                "_id": "6ae1376a0c2d00d5b9e89795",
+                "firstName": "Synthetic",
+                "lastName": "Guest",
+                "vipLevel": 0
+              },
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "ratePlan": {
+                "_id": "6ae1376a0c2d00d5b9e89780",
+                "code": "BAR",
+                "name": "Synthetic rate"
+              },
+              "roomType": {
+                "_id": "6ae1376a0c2d00d5b9e8977d",
+                "code": "STD",
+                "name": "Synthetic standard"
+              },
+              "assignedRoom": {
+                "_id": "6ae1376a0c2d00d5b9e8977e",
+                "number": "101",
+                "floor": 1,
+                "opsStatus": "available",
+                "cleanStatus": "clean"
+              },
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 152.54,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "cancellationPolicy": "ביטול ללא חיוב עד 24 שעות לפני ההגעה; לאחר מכן חיוב הלילה הראשון (בכפוף לזכויות לפי דין)",
+              "depositPolicy": "ללא מקדמה חובה; ערבות לפי מדיניות הכניסה",
+              "priceSnapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e8979f"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e897a0"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:42.854Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "createdBy": "6ae137630c2d00d5b9e89347",
+              "updatedBy": "6ae137630c2d00d5b9e89347",
+              "reversals": [],
+              "createdAt": "2026-10-27T23:44:42.843Z",
+              "updatedAt": "2026-10-27T23:44:42.917Z",
+              "__v": 0,
+              "board": "room_only",
+              "bookingRequestHash": "0c2ba920849921f52e63f03161b85b8125a6d460cf3f4c50ba195c69911251b6",
+              "internalNotes": "Synthetic first note"
+            }
+          },
+          {
+            "ok": true,
+            "value": {
+              "_id": "6ae1376a0c2d00d5b9e89798",
+              "property": "6ae1376a0c2d00d5b9e8977c",
+              "confirmationNumber": "949f86d6-1001",
+              "idempotencyKey": "3aa023fb-2803-424b-a739-6b00d70127b8",
+              "status": "modified",
+              "primaryGuest": {
+                "_id": "6ae1376a0c2d00d5b9e89795",
+                "firstName": "Synthetic",
+                "lastName": "Guest",
+                "vipLevel": 0
+              },
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "ratePlan": {
+                "_id": "6ae1376a0c2d00d5b9e89780",
+                "code": "BAR",
+                "name": "Synthetic rate"
+              },
+              "roomType": {
+                "_id": "6ae1376a0c2d00d5b9e8977d",
+                "code": "STD",
+                "name": "Synthetic standard"
+              },
+              "assignedRoom": {
+                "_id": "6ae1376a0c2d00d5b9e8977e",
+                "number": "101",
+                "floor": 1,
+                "opsStatus": "available",
+                "cleanStatus": "clean"
+              },
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 152.54,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "cancellationPolicy": "ביטול ללא חיוב עד 24 שעות לפני ההגעה; לאחר מכן חיוב הלילה הראשון (בכפוף לזכויות לפי דין)",
+              "depositPolicy": "ללא מקדמה חובה; ערבות לפי מדיניות הכניסה",
+              "priceSnapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e8979f"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae1376a0c2d00d5b9e897a0"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:42.854Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "createdBy": "6ae137630c2d00d5b9e89347",
+              "updatedBy": "6ae137630c2d00d5b9e89347",
+              "reversals": [],
+              "createdAt": "2026-10-27T23:44:42.843Z",
+              "updatedAt": "2026-10-27T23:44:42.981Z",
+              "__v": 0,
+              "board": "room_only",
+              "bookingRequestHash": "0c2ba920849921f52e63f03161b85b8125a6d460cf3f4c50ba195c69911251b6",
+              "internalNotes": "Synthetic second note"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "code": "LC25",
+      "name": "legacy edits reject foreign rate plans and companies",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservations": [
+            {
+              "id": "6ae1376b0c2d00d5b9e897cd",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae1376b0c2d00d5b9e897b3",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae1376b0c2d00d5b9e897d4"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae1376b0c2d00d5b9e897d5"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:43.224Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae1376b0c2d00d5b9e897d0",
+              "status": "reserved",
+              "room": "6ae1376b0c2d00d5b9e897b3",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae1376b0c2d00d5b9e897d1",
+              "unit": "6ae1376b0c2d00d5b9e897d0",
+              "room": "6ae1376b0c2d00d5b9e897b3",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        },
+        "responses": [
+          {
+            "ok": false,
+            "error": {
+              "message": "Rate plan does not belong to this property",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "Company does not belong to this property",
+              "status": 422
+            }
+          }
+        ],
+        "after": {
+          "reservations": [
+            {
+              "id": "6ae1376b0c2d00d5b9e897cd",
+              "status": "confirmed",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "total": 1000,
+              "rate": 500,
+              "room": "6ae1376b0c2d00d5b9e897b3",
+              "snapshot": {
+                "ratePlanCode": "BAR",
+                "ratePlanName": "Synthetic rate",
+                "nightly": [
+                  {
+                    "date": "2026-10-30",
+                    "price": 500,
+                    "_id": "6ae1376b0c2d00d5b9e897d4"
+                  },
+                  {
+                    "date": "2026-10-31",
+                    "price": 500,
+                    "_id": "6ae1376b0c2d00d5b9e897d5"
+                  }
+                ],
+                "total": 1000,
+                "vatRate": 18,
+                "refundable": true,
+                "computedAt": "2026-10-27T23:44:43.224Z",
+                "board": {
+                  "type": "room_only",
+                  "source": "none",
+                  "nightly": []
+                }
+              }
+            }
+          ],
+          "units": [
+            {
+              "id": "6ae1376b0c2d00d5b9e897d0",
+              "status": "reserved",
+              "room": "6ae1376b0c2d00d5b9e897b3",
+              "arrival": "2026-10-30",
+              "departure": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "segments": [
+            {
+              "id": "6ae1376b0c2d00d5b9e897d1",
+              "unit": "6ae1376b0c2d00d5b9e897d0",
+              "room": "6ae1376b0c2d00d5b9e897b3",
+              "from": "2026-10-30",
+              "to": "2026-11-01",
+              "rate": 500
+            }
+          ],
+          "inventory": [
+            {
+              "date": "2026-10-28",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-29",
+              "booked": 0
+            },
+            {
+              "date": "2026-10-30",
+              "booked": 1
+            },
+            {
+              "date": "2026-10-31",
+              "booked": 1
+            },
+            {
+              "date": "2026-11-01",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-02",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-03",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-04",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-05",
+              "booked": 0
+            },
+            {
+              "date": "2026-11-06",
+              "booked": 0
+            }
+          ],
+          "folios": 1,
+          "audit": 2
+        }
+      }
+    },
+    {
+      "code": "LC26",
+      "name": "legacy extension releases a room taken on the added night while keeping other available inventory",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": true,
+          "value": {
+            "_id": "6ae1376b0c2d00d5b9e89824",
+            "property": "6ae1376b0c2d00d5b9e89808",
+            "confirmationNumber": "b22b2ec2-1001",
+            "idempotencyKey": "6f3244bb-0f72-4330-832b-d424b9536963",
+            "status": "modified",
+            "primaryGuest": {
+              "_id": "6ae1376b0c2d00d5b9e89821",
+              "firstName": "Synthetic",
+              "lastName": "Guest",
+              "vipLevel": 0
+            },
+            "additionalGuests": [],
+            "adults": 2,
+            "children": 0,
+            "arrivalDate": "2026-10-30",
+            "departureDate": "2026-11-02",
+            "nights": 3,
+            "roomsCount": 1,
+            "source": "direct",
+            "ratePlan": {
+              "_id": "6ae1376b0c2d00d5b9e8980c",
+              "code": "BAR",
+              "name": "Synthetic rate"
+            },
+            "roomType": {
+              "_id": "6ae1376b0c2d00d5b9e89809",
+              "code": "STD",
+              "name": "Synthetic standard"
+            },
+            "assignedRoom": null,
+            "ratePerNight": 500,
+            "totalAmount": 1500,
+            "taxAmount": 228.81,
+            "discountAmount": 0,
+            "surchargeAmount": 0,
+            "paymentStatus": "unpaid",
+            "depositAmount": 0,
+            "depositPaid": 0,
+            "currency": "ILS",
+            "guaranteeType": "none",
+            "confirmationSent": false,
+            "cancellationPolicy": "ביטול ללא חיוב עד 24 שעות לפני ההגעה; לאחר מכן חיוב הלילה הראשון (בכפוף לזכויות לפי דין)",
+            "depositPolicy": "ללא מקדמה חובה; ערבות לפי מדיניות הכניסה",
+            "priceSnapshot": {
+              "ratePlanCode": "BAR",
+              "ratePlanName": "Synthetic rate",
+              "nightly": [
+                {
+                  "date": "2026-10-30",
+                  "price": 500,
+                  "_id": "6ae1376b0c2d00d5b9e8983f"
+                },
+                {
+                  "date": "2026-10-31",
+                  "price": 500,
+                  "_id": "6ae1376b0c2d00d5b9e89840"
+                },
+                {
+                  "date": "2026-11-01",
+                  "price": 500,
+                  "_id": "6ae1376b0c2d00d5b9e89841"
+                }
+              ],
+              "total": 1500,
+              "vatRate": 18,
+              "refundable": true,
+              "computedAt": "2026-10-27T23:44:43.995Z",
+              "board": {
+                "type": "room_only",
+                "source": "none",
+                "nightly": []
+              }
+            },
+            "payerType": "guest",
+            "childAges": [],
+            "isVip": false,
+            "isOverbooking": false,
+            "language": "he",
+            "createdBy": "6ae137630c2d00d5b9e89347",
+            "updatedBy": "6ae137630c2d00d5b9e89347",
+            "reversals": [],
+            "createdAt": "2026-10-27T23:44:43.713Z",
+            "updatedAt": "2026-10-27T23:44:44.000Z",
+            "__v": 1,
+            "board": "room_only",
+            "bookingRequestHash": "079cf6051fe16d8b37893064361531432050f0a8c1a599ca7f51afff64c8af26"
+          }
+        }
+      }
+    }
+  ]
+}

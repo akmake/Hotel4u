@@ -1,0 +1,2401 @@
+{
+  "startedAt": "2026-10-28T01:36:21.191Z",
+  "finishedAt": "2026-10-28T01:36:24.921Z",
+  "mode": "isolated local replica; synthetic guests; real JWT routes; no .env",
+  "dependencyHashes": {
+    "../services/frontDeskService.js": "c32e29a41aadf2008d5a9a9eb92e92f5fd7008f3a79c6b62fc7a92a38dc51447",
+    "../routes/frontdesk.js": "5456da8e5a4f93f71ad2ffd119f5cd186c5879c1bc0e07f0c61d66ed7f5c613c",
+    "../../client/src/pages/ArrivalsPage.jsx": "7129692df35c3297109ff25d50cf77acd6db7516f3c60b206c776936bb4d52d8",
+    "./arrivalDisplayReadiness.mjs": "4a0d4e289a683266868939b9ac2c480b7ae675ce918161be3c28f50a022dd371"
+  },
+  "counts": {
+    "passed": 2,
+    "failed": 20,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "AD01",
+      "name": "different room compositions are not replaced by the whole booking party",
+      "status": "failed",
+      "failure": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    [\n+     3,\n+     1\n-     2,\n-     0\n    ],\n    [\n+     3,\n      1,\n-     1\n    ]\n  ]\n",
+      "evidence": {
+        "rows": [
+          {
+            "key": "6ae15196bce70ec2bf5fd81f:6ae15196bce70ec2bf5fd821:0",
+            "reservationId": "6ae15196bce70ec2bf5fd81f",
+            "unitId": "6ae15196bce70ec2bf5fd821",
+            "unitIndex": 1,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-0dd5294c-136f-491c-9d41-bed1b17fcb38",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd81e",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd81d",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd820",
+              "number": "101",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 0,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          },
+          {
+            "key": "6ae15196bce70ec2bf5fd81f:6ae15196bce70ec2bf5fd823:1",
+            "reservationId": "6ae15196bce70ec2bf5fd81f",
+            "unitId": "6ae15196bce70ec2bf5fd823",
+            "unitIndex": 2,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-0dd5294c-136f-491c-9d41-bed1b17fcb38",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd81e",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd81d",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd822",
+              "number": "102",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 0,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "נועה לוי",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          }
+        ]
+      }
+    },
+    {
+      "code": "AD02",
+      "name": "unknown group distribution stays unknown instead of duplicating or dividing totals",
+      "status": "failed",
+      "failure": "The expression evaluated to a falsy value:\n\n  assert.ok(e.rows.every((r) => r.adults === null && r.children === null && r.party.scope === 'unknown'))\n",
+      "evidence": {
+        "rows": [
+          {
+            "key": "6ae15196bce70ec2bf5fd828:6ae15196bce70ec2bf5fd82a:0",
+            "reservationId": "6ae15196bce70ec2bf5fd828",
+            "unitId": "6ae15196bce70ec2bf5fd82a",
+            "unitIndex": 1,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-05700f52-1b8c-4466-bf56-e80e6ae3be3b",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd827",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd826",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd829",
+              "number": "101",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 0,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          },
+          {
+            "key": "6ae15196bce70ec2bf5fd828:6ae15196bce70ec2bf5fd82c:1",
+            "reservationId": "6ae15196bce70ec2bf5fd828",
+            "unitId": "6ae15196bce70ec2bf5fd82c",
+            "unitIndex": 2,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-05700f52-1b8c-4466-bf56-e80e6ae3be3b",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd827",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd826",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd82b",
+              "number": "102",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 0,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "נועה לוי",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          }
+        ]
+      }
+    },
+    {
+      "code": "AD03",
+      "name": "partial payment and booking-price remainder are explicit",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd831:6ae15196bce70ec2bf5fd833:0",
+          "reservationId": "6ae15196bce70ec2bf5fd831",
+          "unitId": "6ae15196bce70ec2bf5fd833",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-36afc494-a42c-46a1-9cef-4abd18f6bd80",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd830",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd82f",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd832",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 300,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD04",
+      "name": "refund reduces received money and voided receipts are ignored",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd839:6ae15196bce70ec2bf5fd83b:0",
+          "reservationId": "6ae15196bce70ec2bf5fd839",
+          "unitId": "6ae15196bce70ec2bf5fd83b",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-dd661d12-52a2-4b68-925f-320dcfc514fc",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd838",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd837",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd83a",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 1000,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD05",
+      "name": "all shared accounts including closed accounts contribute without last-folio selection",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd843:6ae15196bce70ec2bf5fd845:0",
+          "reservationId": "6ae15196bce70ec2bf5fd843",
+          "unitId": "6ae15196bce70ec2bf5fd845",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-f13f4d9b-9c72-4924-817e-aed54eb2a913",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd842",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd841",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd844",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 300,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD06",
+      "name": "shared payment is marked as booking-wide and rendered once per visible booking",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'scope')",
+      "evidence": {
+        "rows": [
+          {
+            "key": "6ae15196bce70ec2bf5fd84d:6ae15196bce70ec2bf5fd84f:0",
+            "reservationId": "6ae15196bce70ec2bf5fd84d",
+            "unitId": "6ae15196bce70ec2bf5fd84f",
+            "unitIndex": 1,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-28e170af-ac10-47ec-9a13-00532fa879c1",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd84c",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd84b",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd84e",
+              "number": "101",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 600,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          },
+          {
+            "key": "6ae15196bce70ec2bf5fd84d:6ae15196bce70ec2bf5fd851:1",
+            "reservationId": "6ae15196bce70ec2bf5fd84d",
+            "unitId": "6ae15196bce70ec2bf5fd851",
+            "unitIndex": 2,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-28e170af-ac10-47ec-9a13-00532fa879c1",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd84c",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd84b",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd850",
+              "number": "102",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 600,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "נועה לוי",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          }
+        ]
+      }
+    },
+    {
+      "code": "AD07",
+      "name": "self-paying room sees its own money and no invented share of booking total",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "rows": [
+          {
+            "key": "6ae15196bce70ec2bf5fd857:6ae15196bce70ec2bf5fd859:0",
+            "reservationId": "6ae15196bce70ec2bf5fd857",
+            "unitId": "6ae15196bce70ec2bf5fd859",
+            "unitIndex": 1,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-7deb216e-7403-4816-bf27-26ddf1071d3a",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd856",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd855",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd858",
+              "number": "101",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 900,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          },
+          {
+            "key": "6ae15196bce70ec2bf5fd857:6ae15196bce70ec2bf5fd85b:1",
+            "reservationId": "6ae15196bce70ec2bf5fd857",
+            "unitId": "6ae15196bce70ec2bf5fd85b",
+            "unitIndex": 2,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-7deb216e-7403-4816-bf27-26ddf1071d3a",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd856",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd855",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd85a",
+              "number": "102",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": true,
+              "label": "התקבל תשלום/מקדמה לחדר",
+              "paid": 150,
+              "total": 1000,
+              "own": true
+            },
+            "billing": {
+              "roomPayer": "guest",
+              "extrasPayer": "booker",
+              "occupantName": "נועה לוי",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": []
+            },
+            "queue": null
+          }
+        ]
+      }
+    },
+    {
+      "code": "AD08",
+      "name": "voucher guarantee or paid flag is not a recorded receipt",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd863:6ae15196bce70ec2bf5fd865:0",
+          "reservationId": "6ae15196bce70ec2bf5fd863",
+          "unitId": "6ae15196bce70ec2bf5fd865",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-afef57d2-93d6-4f1b-95a1-0a55b0d15d22",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd862",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd861",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd864",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "voucher",
+            "ok": true,
+            "label": "שולם מראש",
+            "paid": 0,
+            "total": 1000,
+            "paymentStatus": "paid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": []
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD09",
+      "name": "legacy declared deposit remains separate from posted account receipts",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd86a:6ae15196bce70ec2bf5fd86c:0",
+          "reservationId": "6ae15196bce70ec2bf5fd86a",
+          "unitId": "6ae15196bce70ec2bf5fd86c",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-66679453-5e8c-4a6a-a15f-aa4e2f5e61af",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd869",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd868",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd86b",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 500,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD10",
+      "name": "staggered units appear only on their own arrival day",
+      "status": "failed",
+      "failure": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    '6ae15196bce70ec2bf5fd873',\n+   '6ae15196bce70ec2bf5fd875'\n  ]\n",
+      "evidence": {
+        "today": {
+          "date": "2026-10-28",
+          "businessDate": "2026-10-28",
+          "policy": {
+            "requireInspection": false,
+            "requireGuarantee": true,
+            "requireRegistration": true,
+            "requireSignature": false,
+            "termsVersion": "he-1",
+            "termsText": ""
+          },
+          "counts": {
+            "all": 2,
+            "ready": 2,
+            "waiting": 0,
+            "queued": 0,
+            "blocked": 0,
+            "checked_in": 0
+          },
+          "total": 2,
+          "page": 1,
+          "pages": 1,
+          "pageSize": 50,
+          "rows": [
+            {
+              "key": "6ae15196bce70ec2bf5fd871:6ae15196bce70ec2bf5fd873:0",
+              "reservationId": "6ae15196bce70ec2bf5fd871",
+              "unitId": "6ae15196bce70ec2bf5fd873",
+              "unitIndex": 1,
+              "unitsTotal": 2,
+              "confirmationNumber": "QA-ac168811-60a8-4584-b6b4-3ed5e2365180",
+              "reservationStatus": "confirmed",
+              "unitStatus": "reserved",
+              "guest": {
+                "id": "6ae15196bce70ec2bf5fd870",
+                "name": "מזמין בדיקה",
+                "vip": false,
+                "blacklisted": false
+              },
+              "company": null,
+              "roomType": {
+                "id": "6ae15196bce70ec2bf5fd86f",
+                "name": "Standard",
+                "code": "STD"
+              },
+              "room": {
+                "id": "6ae15196bce70ec2bf5fd872",
+                "number": "101",
+                "floor": 1,
+                "cleanStatus": "clean",
+                "opsStatus": "available",
+                "occStatus": "vacant",
+                "occupiedBy": null
+              },
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "adults": 3,
+              "children": 1,
+              "eta": null,
+              "source": "direct",
+              "specialRequests": "נא להכין כרית נוספת",
+              "guarantee": {
+                "type": "none",
+                "ok": false,
+                "label": "לא נרשמה ערבות",
+                "paid": 0,
+                "total": 2000,
+                "paymentStatus": "unpaid"
+              },
+              "billing": {
+                "roomPayer": "booker",
+                "extrasPayer": "booker",
+                "occupantName": "דני כהן",
+                "occupantPhone": null,
+                "guaranteeType": "none"
+              },
+              "readiness": {
+                "state": "ready",
+                "reasons": [
+                  {
+                    "code": "guarantee",
+                    "label": "לא נרשמה ערבות",
+                    "severity": "info",
+                    "action": "guarantee"
+                  }
+                ]
+              },
+              "queue": null
+            },
+            {
+              "key": "6ae15196bce70ec2bf5fd871:6ae15196bce70ec2bf5fd875:1",
+              "reservationId": "6ae15196bce70ec2bf5fd871",
+              "unitId": "6ae15196bce70ec2bf5fd875",
+              "unitIndex": 2,
+              "unitsTotal": 2,
+              "confirmationNumber": "QA-ac168811-60a8-4584-b6b4-3ed5e2365180",
+              "reservationStatus": "confirmed",
+              "unitStatus": "reserved",
+              "guest": {
+                "id": "6ae15196bce70ec2bf5fd870",
+                "name": "מזמין בדיקה",
+                "vip": false,
+                "blacklisted": false
+              },
+              "company": null,
+              "roomType": {
+                "id": "6ae15196bce70ec2bf5fd86f",
+                "name": "Standard",
+                "code": "STD"
+              },
+              "room": {
+                "id": "6ae15196bce70ec2bf5fd874",
+                "number": "102",
+                "floor": 1,
+                "cleanStatus": "clean",
+                "opsStatus": "available",
+                "occStatus": "vacant",
+                "occupiedBy": null
+              },
+              "arrivalDate": "2026-10-29",
+              "departureDate": "2026-10-30",
+              "nights": 1,
+              "adults": 3,
+              "children": 1,
+              "eta": null,
+              "source": "direct",
+              "specialRequests": "נא להכין כרית נוספת",
+              "guarantee": {
+                "type": "none",
+                "ok": false,
+                "label": "לא נרשמה ערבות",
+                "paid": 0,
+                "total": 2000,
+                "paymentStatus": "unpaid"
+              },
+              "billing": {
+                "roomPayer": "booker",
+                "extrasPayer": "booker",
+                "occupantName": "נועה לוי",
+                "occupantPhone": null,
+                "guaranteeType": "none"
+              },
+              "readiness": {
+                "state": "ready",
+                "reasons": [
+                  {
+                    "code": "guarantee",
+                    "label": "לא נרשמה ערבות",
+                    "severity": "info",
+                    "action": "guarantee"
+                  }
+                ]
+              },
+              "queue": null
+            }
+          ]
+        },
+        "tomorrow": {
+          "date": "2026-10-29",
+          "businessDate": "2026-10-28",
+          "policy": {
+            "requireInspection": false,
+            "requireGuarantee": true,
+            "requireRegistration": true,
+            "requireSignature": false,
+            "termsVersion": "he-1",
+            "termsText": ""
+          },
+          "counts": {
+            "all": 0,
+            "ready": 0,
+            "waiting": 0,
+            "queued": 0,
+            "blocked": 0,
+            "checked_in": 0
+          },
+          "total": 0,
+          "page": 1,
+          "pages": 1,
+          "pageSize": 50,
+          "rows": []
+        }
+      }
+    },
+    {
+      "code": "AD11",
+      "name": "room type filter follows unit type rather than the booking header",
+      "status": "failed",
+      "failure": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '6ae15196bce70ec2bf5fd87e'\n- ]\n",
+      "evidence": {
+        "data": {
+          "date": "2026-10-28",
+          "businessDate": "2026-10-28",
+          "policy": {
+            "requireInspection": false,
+            "requireGuarantee": true,
+            "requireRegistration": true,
+            "requireSignature": false,
+            "termsVersion": "he-1",
+            "termsText": ""
+          },
+          "counts": {
+            "all": 0,
+            "ready": 0,
+            "waiting": 0,
+            "queued": 0,
+            "blocked": 0,
+            "checked_in": 0
+          },
+          "total": 0,
+          "page": 1,
+          "pages": 1,
+          "pageSize": 50,
+          "rows": []
+        }
+      }
+    },
+    {
+      "code": "AD12",
+      "name": "unit occupant can be searched independently of the booker",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n\n0 !== 1\n",
+      "evidence": {
+        "data": {
+          "date": "2026-10-28",
+          "businessDate": "2026-10-28",
+          "policy": {
+            "requireInspection": false,
+            "requireGuarantee": true,
+            "requireRegistration": true,
+            "requireSignature": false,
+            "termsVersion": "he-1",
+            "termsText": ""
+          },
+          "counts": {
+            "all": 0,
+            "ready": 0,
+            "waiting": 0,
+            "queued": 0,
+            "blocked": 0,
+            "checked_in": 0
+          },
+          "total": 0,
+          "page": 1,
+          "pages": 1,
+          "pageSize": 50,
+          "rows": []
+        }
+      }
+    },
+    {
+      "code": "AD13",
+      "name": "operational notes include unit notes without exposing reservation internal notes",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'מיטה נפרדת'\n",
+      "evidence": {
+        "rows": [
+          {
+            "key": "6ae15196bce70ec2bf5fd88d:6ae15196bce70ec2bf5fd88f:0",
+            "reservationId": "6ae15196bce70ec2bf5fd88d",
+            "unitId": "6ae15196bce70ec2bf5fd88f",
+            "unitIndex": 1,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-3ee153f9-0087-482f-a199-d4c9b894c31d",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd88c",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd88b",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd88e",
+              "number": "101",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 0,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          },
+          {
+            "key": "6ae15196bce70ec2bf5fd88d:6ae15196bce70ec2bf5fd891:1",
+            "reservationId": "6ae15196bce70ec2bf5fd88d",
+            "unitId": "6ae15196bce70ec2bf5fd891",
+            "unitIndex": 2,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-3ee153f9-0087-482f-a199-d4c9b894c31d",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd88c",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd88b",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd890",
+              "number": "102",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 3,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 0,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "נועה לוי",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          }
+        ]
+      }
+    },
+    {
+      "code": "AD14",
+      "name": "missing crib count is explicitly unknown rather than zero or confirmed",
+      "status": "failed",
+      "failure": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ undefined\n- {\n-   confirmed: null,\n-   requested: null,\n-   status: 'not_recorded'\n- }\n",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd896:6ae15196bce70ec2bf5fd898:0",
+          "reservationId": "6ae15196bce70ec2bf5fd896",
+          "unitId": "6ae15196bce70ec2bf5fd898",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-4cff4448-8df3-4ab9-a0cc-32f44c8523b4",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd895",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd894",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd897",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 0,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD15",
+      "name": "foreign-property room and account references are not exposed or counted",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n+ actual - expected\n\n+ {\n+   cleanStatus: 'clean',\n+   floor: 1,\n+   id: '6ae15196bce70ec2bf5fd8a5',\n+   number: '101',\n+   occStatus: 'vacant',\n+   occupiedBy: null,\n+   opsStatus: 'available'\n+ }\n- null\n",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd89d:6ae15196bce70ec2bf5fd89f:0",
+          "reservationId": "6ae15196bce70ec2bf5fd89d",
+          "unitId": "6ae15196bce70ec2bf5fd89f",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-662de9c4-dcc6-4042-a3b7-aa8f5ceee8ba",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd89c",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd89b",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd8a5",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 9999,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD16",
+      "name": "mixed currencies cannot be silently summed",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd8ac:6ae15196bce70ec2bf5fd8ae:0",
+          "reservationId": "6ae15196bce70ec2bf5fd8ac",
+          "unitId": "6ae15196bce70ec2bf5fd8ae",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-bf1c1299-fe17-42d3-b4f0-8d675deda4ee",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd8ab",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd8aa",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd8ad",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 300,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD17",
+      "name": "day totals stay unchanged by a name filter",
+      "status": "failed",
+      "failure": "Expected values to be strictly equal:\n\n0 !== 2\n",
+      "evidence": {
+        "data": {
+          "date": "2026-10-28",
+          "businessDate": "2026-10-28",
+          "policy": {
+            "requireInspection": false,
+            "requireGuarantee": true,
+            "requireRegistration": true,
+            "requireSignature": false,
+            "termsVersion": "he-1",
+            "termsText": ""
+          },
+          "counts": {
+            "all": 0,
+            "ready": 0,
+            "waiting": 0,
+            "queued": 0,
+            "blocked": 0,
+            "checked_in": 0
+          },
+          "total": 0,
+          "page": 1,
+          "pages": 1,
+          "pageSize": 50,
+          "rows": []
+        }
+      }
+    },
+    {
+      "code": "AD18",
+      "name": "receipt tax component and cents are included",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "row": {
+          "key": "6ae15196bce70ec2bf5fd8bd:6ae15196bce70ec2bf5fd8bf:0",
+          "reservationId": "6ae15196bce70ec2bf5fd8bd",
+          "unitId": "6ae15196bce70ec2bf5fd8bf",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-bd67c10f-1704-4b01-a7f0-1655db4141e6",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd8bc",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd8bb",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd8be",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 100,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        }
+      }
+    },
+    {
+      "code": "AD19",
+      "name": "single room can use booking composition; inconsistent group totals are flagged",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'needsReview')",
+      "evidence": {
+        "single": {
+          "key": "6ae15196bce70ec2bf5fd8c5:6ae15196bce70ec2bf5fd8c7:0",
+          "reservationId": "6ae15196bce70ec2bf5fd8c5",
+          "unitId": "6ae15196bce70ec2bf5fd8c7",
+          "unitIndex": 1,
+          "unitsTotal": 1,
+          "confirmationNumber": "QA-112e4d0b-26ff-45f0-a3f5-ddb2ccdc1e01",
+          "reservationStatus": "confirmed",
+          "unitStatus": "reserved",
+          "guest": {
+            "id": "6ae15196bce70ec2bf5fd8c4",
+            "name": "מזמין בדיקה",
+            "vip": false,
+            "blacklisted": false
+          },
+          "company": null,
+          "roomType": {
+            "id": "6ae15196bce70ec2bf5fd8c3",
+            "name": "Standard",
+            "code": "STD"
+          },
+          "room": {
+            "id": "6ae15196bce70ec2bf5fd8c6",
+            "number": "101",
+            "floor": 1,
+            "cleanStatus": "clean",
+            "opsStatus": "available",
+            "occStatus": "vacant",
+            "occupiedBy": null
+          },
+          "arrivalDate": "2026-10-28",
+          "departureDate": "2026-10-30",
+          "nights": 2,
+          "adults": 2,
+          "children": 0,
+          "eta": null,
+          "source": "direct",
+          "specialRequests": "נא להכין כרית נוספת",
+          "guarantee": {
+            "type": "none",
+            "ok": false,
+            "label": "לא נרשמה ערבות",
+            "paid": 0,
+            "total": 1000,
+            "paymentStatus": "unpaid"
+          },
+          "billing": {
+            "roomPayer": "booker",
+            "extrasPayer": "booker",
+            "occupantName": "דני כהן",
+            "occupantPhone": null,
+            "guaranteeType": "none"
+          },
+          "readiness": {
+            "state": "ready",
+            "reasons": [
+              {
+                "code": "guarantee",
+                "label": "לא נרשמה ערבות",
+                "severity": "info",
+                "action": "guarantee"
+              }
+            ]
+          },
+          "queue": null
+        },
+        "group": [
+          {
+            "key": "6ae15196bce70ec2bf5fd8cc:6ae15196bce70ec2bf5fd8ce:0",
+            "reservationId": "6ae15196bce70ec2bf5fd8cc",
+            "unitId": "6ae15196bce70ec2bf5fd8ce",
+            "unitIndex": 1,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-23126d33-041f-430d-813c-7da139a36e67",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd8cb",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd8ca",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd8cd",
+              "number": "101",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 10,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 0,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          },
+          {
+            "key": "6ae15196bce70ec2bf5fd8cc:6ae15196bce70ec2bf5fd8d0:1",
+            "reservationId": "6ae15196bce70ec2bf5fd8cc",
+            "unitId": "6ae15196bce70ec2bf5fd8d0",
+            "unitIndex": 2,
+            "unitsTotal": 2,
+            "confirmationNumber": "QA-23126d33-041f-430d-813c-7da139a36e67",
+            "reservationStatus": "confirmed",
+            "unitStatus": "reserved",
+            "guest": {
+              "id": "6ae15196bce70ec2bf5fd8cb",
+              "name": "מזמין בדיקה",
+              "vip": false,
+              "blacklisted": false
+            },
+            "company": null,
+            "roomType": {
+              "id": "6ae15196bce70ec2bf5fd8ca",
+              "name": "Standard",
+              "code": "STD"
+            },
+            "room": {
+              "id": "6ae15196bce70ec2bf5fd8cf",
+              "number": "102",
+              "floor": 1,
+              "cleanStatus": "clean",
+              "opsStatus": "available",
+              "occStatus": "vacant",
+              "occupiedBy": null
+            },
+            "arrivalDate": "2026-10-28",
+            "departureDate": "2026-10-30",
+            "nights": 2,
+            "adults": 10,
+            "children": 1,
+            "eta": null,
+            "source": "direct",
+            "specialRequests": "נא להכין כרית נוספת",
+            "guarantee": {
+              "type": "none",
+              "ok": false,
+              "label": "לא נרשמה ערבות",
+              "paid": 0,
+              "total": 2000,
+              "paymentStatus": "unpaid"
+            },
+            "billing": {
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "נועה לוי",
+              "occupantPhone": null,
+              "guaranteeType": "none"
+            },
+            "readiness": {
+              "state": "ready",
+              "reasons": [
+                {
+                  "code": "guarantee",
+                  "label": "לא נרשמה ערבות",
+                  "severity": "info",
+                  "action": "guarantee"
+                }
+              ]
+            },
+            "queue": null
+          }
+        ]
+      }
+    },
+    {
+      "code": "AD20",
+      "name": "housekeeping receives no payment or free-text notes while reception does",
+      "status": "failed",
+      "failure": "Cannot read properties of undefined (reading 'netPaid')",
+      "evidence": {
+        "hk": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "date": "2026-10-28",
+              "businessDate": "2026-10-28",
+              "policy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "counts": {
+                "all": 1,
+                "ready": 1,
+                "waiting": 0,
+                "queued": 0,
+                "blocked": 0,
+                "checked_in": 0
+              },
+              "total": 1,
+              "page": 1,
+              "pages": 1,
+              "pageSize": 50,
+              "rows": [
+                {
+                  "key": "6ae15197bce70ec2bf5fd8d5:6ae15197bce70ec2bf5fd8d7:0",
+                  "reservationId": "6ae15197bce70ec2bf5fd8d5",
+                  "unitId": "6ae15197bce70ec2bf5fd8d7",
+                  "unitIndex": 1,
+                  "unitsTotal": 1,
+                  "confirmationNumber": "QA-559785ea-4fa9-4888-aecd-e271e57b0764",
+                  "reservationStatus": "confirmed",
+                  "unitStatus": "reserved",
+                  "guest": {
+                    "name": "מזמין בדיקה",
+                    "vip": false
+                  },
+                  "roomType": {
+                    "id": "6ae15197bce70ec2bf5fd8d3",
+                    "name": "Standard",
+                    "code": "STD"
+                  },
+                  "room": {
+                    "id": "6ae15197bce70ec2bf5fd8d6",
+                    "number": "101",
+                    "floor": 1,
+                    "cleanStatus": "clean",
+                    "opsStatus": "available",
+                    "occStatus": "vacant",
+                    "occupiedBy": null
+                  },
+                  "arrivalDate": "2026-10-28",
+                  "departureDate": "2026-10-30",
+                  "nights": 2,
+                  "adults": 2,
+                  "children": 0,
+                  "eta": null,
+                  "readiness": {
+                    "state": "ready",
+                    "reasons": []
+                  },
+                  "queue": null
+                }
+              ]
+            }
+          }
+        },
+        "front": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "date": "2026-10-28",
+              "businessDate": "2026-10-28",
+              "policy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "counts": {
+                "all": 1,
+                "ready": 1,
+                "waiting": 0,
+                "queued": 0,
+                "blocked": 0,
+                "checked_in": 0
+              },
+              "total": 1,
+              "page": 1,
+              "pages": 1,
+              "pageSize": 50,
+              "rows": [
+                {
+                  "key": "6ae15197bce70ec2bf5fd8d5:6ae15197bce70ec2bf5fd8d7:0",
+                  "reservationId": "6ae15197bce70ec2bf5fd8d5",
+                  "unitId": "6ae15197bce70ec2bf5fd8d7",
+                  "unitIndex": 1,
+                  "unitsTotal": 1,
+                  "confirmationNumber": "QA-559785ea-4fa9-4888-aecd-e271e57b0764",
+                  "reservationStatus": "confirmed",
+                  "unitStatus": "reserved",
+                  "guest": {
+                    "id": "6ae15197bce70ec2bf5fd8d4",
+                    "name": "מזמין בדיקה",
+                    "vip": false,
+                    "blacklisted": false
+                  },
+                  "company": null,
+                  "roomType": {
+                    "id": "6ae15197bce70ec2bf5fd8d3",
+                    "name": "Standard",
+                    "code": "STD"
+                  },
+                  "room": {
+                    "id": "6ae15197bce70ec2bf5fd8d6",
+                    "number": "101",
+                    "floor": 1,
+                    "cleanStatus": "clean",
+                    "opsStatus": "available",
+                    "occStatus": "vacant",
+                    "occupiedBy": null
+                  },
+                  "arrivalDate": "2026-10-28",
+                  "departureDate": "2026-10-30",
+                  "nights": 2,
+                  "adults": 2,
+                  "children": 0,
+                  "eta": null,
+                  "source": "direct",
+                  "specialRequests": "נא להכין כרית נוספת",
+                  "guarantee": {
+                    "type": "none",
+                    "ok": false,
+                    "label": "לא נרשמה ערבות",
+                    "paid": 300,
+                    "total": 1000,
+                    "paymentStatus": "unpaid"
+                  },
+                  "billing": {
+                    "roomPayer": "booker",
+                    "extrasPayer": "booker",
+                    "occupantName": "דני כהן",
+                    "occupantPhone": null,
+                    "guaranteeType": "none"
+                  },
+                  "readiness": {
+                    "state": "ready",
+                    "reasons": [
+                      {
+                        "code": "guarantee",
+                        "label": "לא נרשמה ערבות",
+                        "severity": "info",
+                        "action": "guarantee"
+                      }
+                    ]
+                  },
+                  "queue": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "AD21",
+      "name": "real authentication and property scope protect arrival summaries",
+      "status": "passed",
+      "evidence": {
+        "absent": {
+          "status": 401,
+          "body": {
+            "success": false,
+            "error": "Authentication required"
+          }
+        },
+        "foreign": {
+          "status": 403,
+          "body": {
+            "success": false,
+            "error": "Property scope violation"
+          }
+        }
+      }
+    },
+    {
+      "code": "AD22",
+      "name": "arrival display is read only including implicit legacy units",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae15197bce70ec2bf5fd8eb",
+              "name": "Synthetic arrivals display",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 17,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T01:36:23.986Z",
+              "updatedAt": "2026-10-28T01:36:23.986Z",
+              "__v": 0
+            }
+          ],
+          "RoomType": [
+            {
+              "_id": "6ae15197bce70ec2bf5fd8ec",
+              "property": "6ae15197bce70ec2bf5fd8eb",
+              "code": "STD",
+              "name": "Standard",
+              "capacityBase": 2,
+              "capacityMax": 6,
+              "adultsMax": 2,
+              "childrenMax": 0,
+              "baseRate": 500,
+              "bedType": "double",
+              "extraBedAllowed": false,
+              "cribAllowed": true,
+              "amenities": [],
+              "images": [],
+              "sellable": true,
+              "showInEngine": true,
+              "closedToSale": false,
+              "sellOnChannels": [],
+              "blockOnChannels": [],
+              "allowRatePlans": [],
+              "overbookingAllowed": false,
+              "overbookingLimit": 0,
+              "active": true,
+              "sortOrder": 0,
+              "createdAt": "2026-10-28T01:36:23.989Z",
+              "updatedAt": "2026-10-28T01:36:23.989Z",
+              "__v": 0
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae15197bce70ec2bf5fd8ef",
+              "property": "6ae15197bce70ec2bf5fd8eb",
+              "roomType": "6ae15197bce70ec2bf5fd8ec",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true,
+              "createdAt": "2026-10-28T01:36:23.995Z",
+              "updatedAt": "2026-10-28T01:36:23.995Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae15198bce70ec2bf5fd8f1",
+              "property": "6ae15197bce70ec2bf5fd8eb",
+              "roomType": "6ae15197bce70ec2bf5fd8ec",
+              "number": "102",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true,
+              "createdAt": "2026-10-28T01:36:24.000Z",
+              "updatedAt": "2026-10-28T01:36:24.000Z",
+              "__v": 0
+            }
+          ],
+          "GuestProfile": [
+            {
+              "_id": "6ae15197bce70ec2bf5fd8ed",
+              "property": "6ae15197bce70ec2bf5fd8eb",
+              "firstName": "מזמין",
+              "lastName": "בדיקה",
+              "gender": "unknown",
+              "language": "he",
+              "idDocType": "passport",
+              "title": "",
+              "membershipTier": "",
+              "membershipPoints": 0,
+              "vipLevel": 0,
+              "isBlacklisted": false,
+              "bedTypePreference": "",
+              "floorPreference": "any",
+              "smokingPreference": "non-smoking",
+              "pillow": "",
+              "tags": [],
+              "marketingConsent": false,
+              "privacyConsent": false,
+              "totalStays": 0,
+              "totalRevenue": 0,
+              "noShowCount": 0,
+              "cancellationCount": 0,
+              "isAnonymized": false,
+              "phones": [],
+              "emails": [],
+              "addresses": [],
+              "notes": [],
+              "createdAt": "2026-10-28T01:36:23.991Z",
+              "updatedAt": "2026-10-28T01:36:23.991Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae15197bce70ec2bf5fd8ee",
+              "property": "6ae15197bce70ec2bf5fd8eb",
+              "confirmationNumber": "QA-487cd68e-5669-4ebc-8609-ffa82a39c95c",
+              "status": "confirmed",
+              "primaryGuest": "6ae15197bce70ec2bf5fd8ed",
+              "additionalGuests": [],
+              "adults": 3,
+              "children": 1,
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "roomsCount": 2,
+              "source": "direct",
+              "roomType": "6ae15197bce70ec2bf5fd8ec",
+              "ratePerNight": 500,
+              "totalAmount": 2000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "specialRequests": "נא להכין כרית נוספת",
+              "internalNotes": "PRIVATE_INTERNAL_NOTE",
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T01:36:23.993Z",
+              "updatedAt": "2026-10-28T01:36:23.993Z",
+              "__v": 0
+            }
+          ],
+          "ReservationRoom": [],
+          "Folio": [
+            {
+              "_id": "6ae15198bce70ec2bf5fd8f3",
+              "property": "6ae15197bce70ec2bf5fd8eb",
+              "reservation": "6ae15197bce70ec2bf5fd8ee",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "createdAt": "2026-10-28T01:36:24.005Z",
+              "updatedAt": "2026-10-28T01:36:24.005Z",
+              "__v": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

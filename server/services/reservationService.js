@@ -18,7 +18,7 @@ import {
 } from './availabilityService.js';
 import { enqueueChannelUpdate } from './channelQueueService.js';
 import { audit } from './auditService.js';
-import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { openBusinessDate } from '../utils/businessDate.js';
 import { fireEvent } from './automationEngine.js';
 import { withLocks } from './locks.js';
 import { runStayTransaction } from './stayTransaction.js';
@@ -54,8 +54,8 @@ export async function allocateConfirmationNumber(propertyId, session = null) {
 }
 
 async function todayByPropertyTimezone(propertyId) {
-  const prop = await Property.findById(propertyId).select('timezone').lean();
-  return todayYmdInTimezone(prop?.timezone || 'Asia/Jerusalem');
+  const prop = await Property.findById(propertyId).select('timezone dayClose').lean();
+  return openBusinessDate(prop);
 }
 
 // Selling inventory is check-then-write; two clerks selling the last room at the same moment must
@@ -771,8 +771,8 @@ export async function markNoShow({ reservationId, actorId, actorName, ip, sessio
     throw httpError(`Cannot mark no-show from status ${res.status}`, 409);
   }
   await assertNoEnteredUnits(res._id, session);
-  const property = await Property.findById(res.property).session(session).select('timezone').lean();
-  if (res.arrivalDate > todayYmdInTimezone(property?.timezone)) throw httpError('לא ניתן לסמן אי הגעה לפני יום ההגעה', 409);
+  const property = await Property.findById(res.property).session(session).select('timezone dayClose').lean();
+  if (res.arrivalDate > openBusinessDate(property)) throw httpError('לא ניתן לסמן אי הגעה לפני יום ההגעה', 409);
   const units = await ReservationRoom.countDocuments({ reservation: res._id }).session(session);
   if ((res.roomsCount || 1) > 1 || units > 1) throw httpError('הזמנה מרובת חדרים — נדרש טיפול לפי יחידה', 409);
   if (await ArrivalQueueEntry.exists({ reservation: res._id, status: 'active' }).session(session)) throw httpError('האורח רשום בתור ההמתנה — יש להסיר מהתור קודם', 409);

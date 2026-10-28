@@ -200,9 +200,12 @@ const PropertySchema = new Schema({
     },
   },
 
-  // Day close (FIN-12). The business day is the property's local date; closing records the day,
-  // posts its nights once and keeps the last closed date so days are closed in order.
+  // Day close (FIN-12). Closing atomically advances the managed date; absent businessDate is
+  // an unactivated legacy property, which retains the local-calendar fallback.
   dayClose: {
+    businessDate: String,
+    migrationId: { type: Schema.Types.ObjectId, ref: 'BusinessDayMigration' },
+    writeVersion: { type: Number, default: 0 },
     lastClosedDate: String,                                  // YYYY-MM-DD
     lastRunId:      { type: Schema.Types.ObjectId, ref: 'DayCloseRun' },
     // Automatic close (off by default): at `time` (property local) the previous business day is closed.

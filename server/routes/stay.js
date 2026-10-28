@@ -9,6 +9,7 @@ import {
 } from '../services/stayChangeService.js';
 import { getTourist, recordTourist } from '../services/touristService.js';
 import { reinstatePreview, reinstateReservation, reverseCheckInPreview, reverseCheckIn, postStayCharge } from '../services/reversalService.js';
+import { roomSwapOptions, previewRoomSwap, swapRooms } from '../services/roomSwapService.js';
 
 const router = Router();
 
@@ -49,6 +50,19 @@ function actorOf(req) {
   const a = actorOrSystem(req);
   return { id: a.id, name: a.name, role: a.role };
 }
+
+router.get('/room-swap/options', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return roomSwapOptions({ propertyId: scope(req), reservationId: req.query.reservationId, q: req.query.q, actor: actorOf(req) });
+}));
+router.post('/room-swap/preview', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return previewRoomSwap({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req) });
+}));
+router.post('/room-swap', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return swapRooms({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
 
 // ── FD-09 ───────────────────────────────────────────────────────────────────
 router.get('/:id/move-candidates', handle(async (req) => {

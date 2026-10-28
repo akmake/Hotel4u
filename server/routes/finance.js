@@ -11,6 +11,7 @@ import {
 import { listCodes, createCode, updateCode, CATALOG_ROLES } from '../services/chargeCodeService.js';
 import { dayReport } from '../services/ledgerService.js';
 import { closeSettledFolio } from '../services/reversalService.js';
+import { MIGRATION_ROLES, previewBusinessDayMigration, applyBusinessDayMigration, rollbackBusinessDayMigration } from '../services/businessDayMigrationService.js';
 import { getTaxPolicy, updateTaxPolicy, TAX_ADMIN_ROLES } from '../services/touristService.js';
 import { documentContext, issueDocument, listDocuments, setAllocation, printDocument, sendDocument, listSeries, setSeriesStart, SERIES_ROLES } from '../services/documentService.js';
 import { journal, vatReport, receiptsReport, undocumentedReport, allocationsReport, cashDay, closeCash, accountantWorkbook } from '../services/financeReportsService.js';
@@ -263,6 +264,18 @@ router.put('/tax-policy', handle(async (req) => {
 }));
 
 // ── FIN-12 ──────────────────────────────────────────────────────────────────
+router.get('/day-close/migration', handle(async (req) => {
+  requireRoles(req, MIGRATION_ROLES, 'דוח מעבר יום עסקי מותר להנהלה או לכספים');
+  return previewBusinessDayMigration({ propertyId: scope(req), actor: actorOf(req), targetDate: req.query.targetDate });
+}));
+router.post('/day-close/migration/apply', handle(async (req) => {
+  requireRoles(req, MIGRATION_ROLES, 'הפעלת יום עסקי מותרת להנהלה או לכספים');
+  return applyBusinessDayMigration({ propertyId: scope(req), actor: actorOf(req), input: req.body || {}, ip: req.ip });
+}));
+router.post('/day-close/migration/:migrationId/rollback', handle(async (req) => {
+  requireRoles(req, MIGRATION_ROLES, 'ביטול מעבר יום עסקי מותר להנהלה או לכספים');
+  return rollbackBusinessDayMigration({ propertyId: scope(req), migrationId: req.params.migrationId, actor: actorOf(req), input: req.body || {}, ip: req.ip });
+}));
 router.get('/day-close', handle(async (req) => {
   requireRoles(req, DAY_READ, 'אין הרשאה לסגירת יום');
   return getDayClose({ propertyId: scope(req) });

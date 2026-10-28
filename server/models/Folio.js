@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { guardFinancialSave, guardFinancialQuery } from '../services/financialPeriodGuard.js';
 const { Schema, model } = mongoose;
 
 export const LINE_TYPE = ['charge', 'payment', 'refund', 'adjustment', 'tax', 'fee', 'discount', 'deposit'];
@@ -12,6 +13,7 @@ const FolioLineSchema = new Schema({
   taxAmount:   { type: Number, default: 0 },
   department:  String,                                     // rooms, f&b, spa, parking, minibar
   serviceDate: { type: String, required: true },           // 'YYYY-MM-DD'
+  accountingDate: String,                                // Immutable booking day; serviceDate may be historical.
   postedAt:    { type: Date, default: Date.now },
   source:      { type: String, enum: ['pms','pos','manual','channel','routing','night_audit'], default: 'pms' },
   status:      { type: String, enum: LINE_STATUS, default: 'posted' },
@@ -93,4 +95,17 @@ FolioSchema.virtual('totalPayments').get(function () {
     .reduce((sum, l) => sum + Math.abs(l.amount), 0);
 });
 
+FolioSchema.pre('save', async function () { await guardFinancialSave(this); });
+for (const operation of ['updateOne', 'updateMany', 'findOneAndUpdate', 'replaceOne', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete']) FolioSchema.pre(operation, guardFinancialQuery);
+FolioSchema.pre('insertMany', async function (docs) {
+  const properties = docs.filter((d) => d.lines?.length).map((d) => d.property);
+  if (properties.length && await mongoose.model('Property').exists({ _id: { $in: properties }, 'dayClose.businessDate': { $exists: true } })) throw Object.assign(new Error('שורות כספיות נרשמות בשמירת חשבון אטומית'), { status: 409, code: 'financial_query_write_forbidden' });
+});
+FolioSchema.pre('bulkWrite', async function (operations) {
+  for (const operation of operations) for (const [kind, value] of Object.entries(operation)) {
+    if (kind === 'insertOne') {
+      if (value.document.lines?.length && await mongoose.model('Property').exists({ _id: value.document.property, 'dayClose.businessDate': { $exists: true } })) throw Object.assign(new Error('שורות כספיות נרשמות בשמירת חשבון אטומית'), { status: 409, code: 'financial_query_write_forbidden' });
+    } else await guardFinancialQuery.call({ model: this, op: kind, getFilter: () => value.filter || {}, getUpdate: () => value.update || value.replacement || {}, getOptions: () => ({ upsert: value.upsert }) });
+  }
+});
 export default model('Folio', FolioSchema);

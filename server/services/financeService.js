@@ -28,6 +28,8 @@ import { planNights, postNightsUntil } from './roomCharges.js';
 import { markNoShow, withReservationTransaction } from './reservationService.js';
 import { withLocks } from './locks.js';
 import { runStayTransaction } from './stayTransaction.js';
+import { financialWrite } from './financialTransaction.js';
+import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { issueCreditNote } from './invoiceService.js';
 import { docCoverage, docDto } from './documentService.js';
 import { raiseWork } from './platformService.js';
@@ -131,9 +133,9 @@ function opRef(key) {
   return `op:${k}`;
 }
 
-async function loadFolio(folioId, propertyId) {
+async function loadFolio(folioId, propertyId, session = null) {
   if (!isId(String(folioId || ''))) throw httpError('מזהה חשבון לא תקין', 400);
-  const folio = await Folio.findById(folioId);
+  const folio = await Folio.findById(folioId).session(session);
   if (!folio || String(folio.property) !== String(propertyId)) throw httpError('החשבון לא נמצא', 404);
   return folio;
 }
@@ -251,7 +253,7 @@ export async function getStayFolios({ propertyId, reservationId }) {
   const res = await Reservation.findOne({ _id: reservationId, property: propertyId })
     .populate('primaryGuest', 'firstName lastName').populate('assignedRoom', 'number').populate('company', 'name creditLimit').lean();
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
-  const property = await Property.findById(propertyId).select('vatRate defaultCurrency financePolicy timezone').lean();
+  const property = await Property.findById(propertyId).select('vatRate defaultCurrency financePolicy timezone dayClose').lean();
   const folios = await Folio.find({ reservation: res._id }).sort({ createdAt: 1 }).lean();
   const stayUnits = await ReservationRoom.find({ reservation: res._id }).populate('assignedRoom', 'number').sort({ createdAt: 1, _id: 1 }).lean();
   const unitLabels = new Map(stayUnits.map((u, i) => [String(u._id), `חדר ${u.assignedRoom?.number || i + 1}${u.occupantName ? ` · ${u.occupantName}` : ''}`]));
@@ -316,17 +318,18 @@ export async function getStayFolios({ propertyId, reservationId }) {
 }
 
 // ── FIN-02 charge ───────────────────────────────────────────────────────────
-export async function postCharge({ propertyId, folioId, input, actor, ip }) {
-  const folio = await loadFolio(folioId, propertyId);
+export async function postCharge({ propertyId, folioId, input, actor, ip, session = null, afterCommit = null }) {
+  if (!session) return financialWrite(`folio:${folioId}`, (session, afterCommit) => postCharge({ propertyId, folioId, input, actor, ip, session, afterCommit }), propertyId);
+  const folio = await loadFolio(folioId, propertyId, session);
   const reference = opRef(input.idempotencyKey);
   const dup = folio.lines.find((l) => l.reference === reference);
   if (dup) return { folioId: String(folio._id), lineId: String(dup._id), duplicate: true, balance: folioBalance(folio) };
   if (folio.status === 'closed') throw httpError('החשבון סגור — חיוב נרשם בחשבון פתוח בלבד', 409);
-  const res = await Reservation.findById(folio.reservation).select('status arrivalDate departureDate tourist property').lean();
+  const res = await Reservation.findById(folio.reservation).session(session).select('status arrivalDate departureDate tourist property').lean();
   if (!res || !ACTIVE_STAY.includes(res.status)) throw httpError('לא ניתן לחייב הזמנה שבוטלה או לא הגיעה', 409);
   // G6: after departure a charge is a post-stay charge (manager, reason, own window) — not a regular one.
   if (res.status === 'checked_out' && input.auditAction !== 'folio.post_stay_charge') throw httpError('האורח כבר יצא — חיוב מאוחר נרשם דרך "חיוב אחרי יציאה" בתיק ההזמנה', 409, { code: 'post_stay_required' });
-  const property = await Property.findById(propertyId).select('vatRate timezone').lean();
+  const property = await Property.findById(propertyId).session(session).select('vatRate timezone dayClose').lean();
   const today = businessDateOf(property);
   const errors = {};
   // G1: the code comes from the property catalogue — it decides price lock, VAT class and who may post.
@@ -349,18 +352,19 @@ export async function postCharge({ propertyId, folioId, input, actor, ip }) {
     department: code.code, serviceDate, source: input.source === 'pos' ? 'pos' : 'manual', status: 'posted', reference,
     quantity: qty, unitPrice: unit, reason: input.reason ? String(input.reason).slice(0, 300) : undefined, createdBy: actor.id || undefined,
   });
-  await folio.save();
+  await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: input.auditAction || 'folio.charge', entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), gross, net, tax, department: code.code, vatClass: code.vatClass, serviceDate }, reason: input.reason || undefined, ip });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: input.auditAction || 'folio.charge', entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), gross, net, tax, department: code.code, vatClass: code.vatClass, serviceDate }, reason: input.reason || undefined, ip, session, afterCommit });
   return { folioId: String(folio._id), lineId: String(line._id), gross, net, tax, duplicate: false, balance: folioBalance(folio) };
 }
 
 // FIN-02-A03: a reversal is an opposite line linked to the original — nothing is deleted.
-export async function reverseCharge({ propertyId, folioId, lineId, reason, actor, ip }) {
+export async function reverseCharge({ propertyId, folioId, lineId, reason, actor, ip, session = null, afterCommit = null }) {
+  if (!session) return financialWrite(`folio:${folioId}`, (session, afterCommit) => reverseCharge({ propertyId, folioId, lineId, reason, actor, ip, session, afterCommit }), propertyId);
   if (!REVERSE_ROLES.includes(actor.role)) throw httpError('היפוך חיוב מותר למנהל או לכספים', 403);
   const why = String(reason || '').trim().slice(0, 300);
   if (why.length < 3) throw httpError('היפוך חיוב מחייב סיבה', 422, { fields: { reason: 'יש לפרט סיבה' } });
-  const folio = await loadFolio(folioId, propertyId);
+  const folio = await loadFolio(folioId, propertyId, session);
   if (folio.status === 'closed') throw httpError('החשבון סגור — תיקון במסמך זיכוי', 409);
   const line = folio.lines.id(lineId);
   if (!line) throw httpError('השורה לא נמצאה', 404);
@@ -371,40 +375,41 @@ export async function reverseCharge({ propertyId, folioId, lineId, reason, actor
   if (existing) throw httpError('החיוב כבר הופך', 409);
   const onDocs = await linesOnIssuedDocs(folio._id);
   if (onDocs.has(String(line._id))) throw httpError(`החיוב כלול במסמך ${onDocs.get(String(line._id))} שהונפק — התיקון במסמך זיכוי (T18)`, 409, { code: 'on_document' });
-  const property = await Property.findById(propertyId).select('timezone').lean();
+  const property = await Property.findById(propertyId).session(session).select('timezone dayClose').lean();
   folio.lines.push({
     type: 'adjustment', description: `היפוך: ${line.description}`, amount: -round2(line.amount), taxAmount: -round2(line.taxAmount || 0), vatRate: line.vatRate, taxReason: line.taxReason,
     department: line.department, serviceDate: businessDateOf(property), source: 'manual', status: 'posted', reference,
     reversalOf: line._id, reason: why, createdBy: actor.id || undefined,
   });
   try {
-    await folio.save();
+    await folio.save({ session });
   } catch (e) {
     if (e?.name === 'VersionError') throw httpError('החשבון עודכן בינתיים — רעננו', 409);
     throw e;
   }
   const rev = folio.lines[folio.lines.length - 1];
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.charge_reversed', entityType: 'Folio', entityId: folio._id, reason: why, before: { lineId: String(line._id), gross: round2(line.amount + (line.taxAmount || 0)) }, after: { reversalLineId: String(rev._id) }, ip });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.charge_reversed', entityType: 'Folio', entityId: folio._id, reason: why, before: { lineId: String(line._id), gross: round2(line.amount + (line.taxAmount || 0)) }, after: { reversalLineId: String(rev._id) }, ip, session, afterCommit });
   return { folioId: String(folio._id), lineId: String(rev._id), balance: folioBalance(folio) };
 }
 
 // ── FIN-03 payment / deposit (manual methods; card = external terminal record) ──
-export async function recordFolioPayment({ propertyId, folioId, input, actor, ip }) {
-  const folio = await loadFolio(folioId, propertyId);
+export async function recordFolioPayment({ propertyId, folioId, input, actor, ip, session = null, afterCommit = null }) {
+  if (!session) return financialWrite(`folio:${folioId}`, (session, afterCommit) => recordFolioPayment({ propertyId, folioId, input, actor, ip, session, afterCommit }), propertyId);
+  const folio = await loadFolio(folioId, propertyId, session);
   const reference = opRef(input.idempotencyKey);
   const dup = folio.lines.find((l) => l.reference === reference);
   if (dup) return { folioId: String(folio._id), lineId: String(dup._id), duplicate: true, balance: folioBalance(folio) };
   if (folio.status === 'closed') throw httpError('החשבון סגור', 409);
-  const res = await Reservation.findById(folio.reservation).select('status totalAmount tourist').lean();
+  const res = await Reservation.findById(folio.reservation).session(session).select('status totalAmount tourist').lean();
   if (!res || ['cancelled', 'no_show'].includes(res.status)) throw httpError('לא ניתן לרשום תשלום להזמנה שבוטלה', 409);
-  const property = await Property.findById(propertyId).select('timezone financePolicy').lean();
+  const property = await Property.findById(propertyId).session(session).select('timezone financePolicy dayClose').lean();
   const amount = round2(input.amount);
   const kind = input.kind === 'deposit' ? 'deposit' : 'payment';
   const errors = {};
   if (!(amount > 0)) errors.amount = 'סכום חיובי';
   if (!PAY_METHODS.includes(input.method)) errors.method = 'יש לבחור אמצעי';
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי התשלום', 422, { fields: errors });
-  const { methodRef, payDetails } = paymentDetails({ method: input.method, amount, input, today: businessDateOf(property) });
+  const { methodRef, payDetails } = paymentDetails({ method: input.method, amount, input, today: todayYmdInTimezone(property.timezone || 'Asia/Jerusalem') });
   const pm = await resolvePaymentMethod({ propertyId, method: input.method, methodRef });
   const balance = folioBalance(folio);
   if (kind === 'payment' && amount - balance > 0.005) {
@@ -412,7 +417,7 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   }
   if (kind === 'deposit') {
     // A deposit is capped by what the stay is expected to cost, minus what was already paid.
-    const all = await Folio.find({ reservation: folio.reservation }).select('lines').lean();
+    const all = await Folio.find({ reservation: folio.reservation }).session(session).select('lines').lean();
     const paid = round2(all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && ['payment', 'deposit'].includes(l.type)).reduce((s, l) => s - Number(l.amount || 0), 0));
     const refunded = round2(all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && l.type === 'refund').reduce((s, l) => s + Number(l.amount || 0), 0));
     const expected = round2(Math.max(Number(res.totalAmount || 0), all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && !['payment', 'deposit', 'refund'].includes(l.type)).reduce((s, l) => s + Number(l.amount || 0) + Number(l.taxAmount || 0), 0)));
@@ -421,14 +426,14 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   }
   if (input.method === 'cash' && property?.financePolicy?.cashLimitPerStay) {
     // T25: cash is checked cumulatively per stay, not per receipt.
-    const all = await Folio.find({ reservation: folio.reservation }).select('lines').lean();
+    const all = await Folio.find({ reservation: folio.reservation }).session(session).select('lines').lean();
     const cash = round2(all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && ['payment', 'deposit'].includes(l.type) && l.method === 'cash').reduce((s, l) => s - Number(l.amount || 0), 0));
     const limit = Number(property.financePolicy.cashLimitPerStay);
     if (cash + amount - limit > 0.005) throw httpError(`מזומן מצטבר לשהייה מוגבל ל־${limit.toFixed(2)} לפי מדיניות הנכס (כבר התקבלו ${cash.toFixed(2)})`, 422, { fields: { amount: 'מעל מגבלת מזומן' }, code: 'cash_limit' });
   }
   if (input.method === 'cash' && property?.financePolicy?.cashRule === 'il_2024') {
     // IL11: the legal cash limit on the whole stay (the transaction) — cumulative; tourist threshold when verified.
-    const all = await Folio.find({ reservation: folio.reservation }).select('lines').lean();
+    const all = await Folio.find({ reservation: folio.reservation }).session(session).select('lines').lean();
     const flat = all.flatMap((f) => f.lines).filter((l) => l.status === 'posted');
     const charges = round2(flat.filter((l) => !['payment', 'deposit', 'refund'].includes(l.type)).reduce((s2, l) => s2 + Number(l.amount || 0) + Number(l.taxAmount || 0), 0));
     const price = Math.max(Number(res.totalAmount || 0), charges);
@@ -445,15 +450,16 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
     method: input.method, methodRef: methodRef || undefined, payDetails, reason: input.note ? String(input.note).slice(0, 200) : undefined,
     createdBy: actor.id || undefined,
   });
-  await folio.save();
+  await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: `folio.${kind}`, entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), amount, method: input.method, hasReference: !!methodRef }, ip });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: `folio.${kind}`, entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), amount, method: input.method, hasReference: !!methodRef }, ip, session, afterCommit });
   return { folioId: String(folio._id), lineId: String(line._id), duplicate: false, balance: folioBalance(folio), change: payDetails?.change ?? null };
 }
 
 // ── FIN-04 refund of a specific payment ─────────────────────────────────────
-export async function refundPayment({ propertyId, folioId, paymentLineId, input, actor, ip }) {
-  const folio = await loadFolio(folioId, propertyId);
+export async function refundPayment({ propertyId, folioId, paymentLineId, input, actor, ip, session = null, afterCommit = null }) {
+  if (!session) return financialWrite(`folio:${folioId}`, (session, afterCommit) => refundPayment({ propertyId, folioId, paymentLineId, input, actor, ip, session, afterCommit }), propertyId);
+  const folio = await loadFolio(folioId, propertyId, session);
   const reference = opRef(input.idempotencyKey);
   const dup = folio.lines.find((l) => l.reference === reference);
   if (dup) return { folioId: String(folio._id), lineId: String(dup._id), duplicate: true, balance: folioBalance(folio) };
@@ -466,7 +472,7 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
   if (!REFUND_REASONS[input.reasonCode]) errors.reasonCode = 'יש לבחור סיבה';
   if (input.reasonCode === 'other' && why.length < 3) errors.note = 'יש לפרט';
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי ההחזר', 422, { fields: errors });
-  const property = await Property.findById(propertyId).select('timezone financePolicy').lean();
+  const property = await Property.findById(propertyId).session(session).select('timezone financePolicy dayClose').lean();
   const threshold = Number(property?.financePolicy?.refundApprovalOver ?? 0);
   // T36: above the threshold only a manager/finance role may refund — checked here, not in the UI.
   if (amount > threshold && !REFUND_ROLES.includes(actor.role)) throw httpError(threshold > 0 ? `החזר מעל ${threshold.toFixed(2)} מחייב מנהל או כספים` : 'החזר כספי מחייב מנהל או כספים', 403, { code: 'approval_required' });
@@ -482,9 +488,9 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
     amount, taxAmount: 0, serviceDate: businessDateOf(property), source: 'manual', status: 'posted', reference,
     refundOf: pay._id, method: pay.method || undefined, reason: why || REFUND_REASONS[input.reasonCode], createdBy: actor.id || undefined,
   });
-  await folio.save();
+  await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.refund', entityType: 'Folio', entityId: folio._id, reason: why || input.reasonCode, after: { lineId: String(line._id), refundOf: String(pay._id), amount, refundedTotal: round2(already + amount) }, ip });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.refund', entityType: 'Folio', entityId: folio._id, reason: why || input.reasonCode, after: { lineId: String(line._id), refundOf: String(pay._id), amount, refundedTotal: round2(already + amount) }, ip, session, afterCommit });
   return { folioId: String(folio._id), lineId: String(line._id), duplicate: false, balance: folioBalance(folio), refundable: round2(refundable - amount) };
 }
 
@@ -506,9 +512,9 @@ export async function creditNote({ propertyId, invoiceId, amount, selections, re
 async function dayState(propertyId) {
   const property = await Property.findById(propertyId).select('name timezone dayClose').lean();
   if (!property) throw httpError('הנכס לא נמצא', 404);
-  const today = businessDateOf(property);
+  const today = todayYmdInTimezone(property.timezone || 'Asia/Jerusalem');
   const last = property.dayClose?.lastClosedDate || null;
-  let dateToClose = today;
+  let dateToClose = property.dayClose?.businessDate || today;
   if (last) {
     const next = addDays(last, 1);
     dateToClose = next <= today ? next : null;
@@ -648,14 +654,16 @@ async function setStep(runId, key, patch, session = null) {
 }
 
 async function snapshotFor(propertyId, date) {
-  const folios = await Folio.find({ property: propertyId, 'lines.serviceDate': date }).select('lines').lean();
+  const folios = await Folio.find({ property: propertyId, $or: [{ 'lines.serviceDate': date }, { 'lines.accountingDate': date }] }).select('lines').lean();
   let roomGross = 0; let otherGross = 0; let payments = 0; let refunds = 0; let roomNights = 0;
   for (const f of folios) {
     for (const l of f.lines) {
-      if (l.serviceDate !== date || l.status !== 'posted') continue;
+      if (l.status !== 'posted') continue;
+      if (l.serviceDate === date && l.type === 'charge' && ['rooms', 'room'].includes(l.department)) roomNights += 1;
+      if ((l.accountingDate || l.serviceDate) !== date) continue;
       const g = Number(l.amount || 0) + Number(l.taxAmount || 0);
       const isRoom = ['rooms', 'room'].includes(l.department);
-      if (l.type === 'charge') { if (isRoom) { roomGross += g; roomNights += 1; } else otherGross += g; }
+      if (l.type === 'charge') { if (isRoom) roomGross += g; else otherGross += g; }
       else if (l.type === 'adjustment' && l.reversalOf) { if (isRoom) roomGross += g; else otherGross += g; }
       else if (['payment', 'deposit'].includes(l.type)) payments += -g;
       else if (l.type === 'refund') refunds += g;
@@ -680,11 +688,17 @@ async function snapshotFor(propertyId, date) {
 
 export async function runDayClose({ propertyId, date, arrivals, reason, actor, ip }) {
   if (!NIGHT_ROLES.includes(actor.role) && actor.role !== 'system') throw httpError('סגירת יום מותרת למנהל משמרת/לילה או לכספים', 403);
-  return withLocks([`dayclose:${propertyId}`], (lease) => runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip, lease }));
+  return withLocks([`dayclose:${propertyId}`], (lease) => runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip, lease }), { waitMs: 4000 });
 }
 
 async function runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip, lease }) {
-  const { dateToClose, today } = await dayState(propertyId);
+  const { dateToClose, today, property } = await dayState(propertyId);
+  if (!property.dayClose?.businessDate) {
+    const legacyLines = await Folio.exists({ property: propertyId, lines: { $elemMatch: { $or: [{ accountingDate: { $exists: false } }, { accountingDate: null }, { accountingDate: '' }] } } });
+    const completedHistory = property.dayClose?.lastClosedDate || property.dayClose?.lastRunId || await DayCloseRun.exists({ property: propertyId, status: 'done' });
+    if (legacyLines || completedHistory) throw httpError('נדרש דוח התאמה והפעלת יום עסקי לפני סגירה על נתונים קיימים', 409, { code: 'business_day_migration_required' });
+  }
+  await Property.updateOne({ _id: propertyId }, { $inc: { 'dayClose.writeVersion': 1 } });
   if (!dateToClose) throw httpError('היום העסקי כבר נסגר — אין יום פתוח לסגירה', 409, { code: 'already_closed' });
   if (date && date !== dateToClose) throw httpError(date > today ? 'לא סוגרים יום עתידי' : `יש לסגור קודם את ${dateToClose} — ימים נסגרים לפי הסדר`, 409, { code: 'out_of_order' });
   const day = dateToClose;
@@ -707,7 +721,7 @@ async function runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip
       let posted = 0;
       const errors = [];
       for (const r of stays) {
-        try { posted += await postNightsUntil({ reservation: r, until, source: 'night_audit', actorId: actor.id, guardLease: lease }); }
+        try { posted += await postNightsUntil({ reservation: r, until, source: 'night_audit', actorId: actor.id, guardLease: lease, accountingDate: day }); }
         catch (e) { errors.push(`${r.confirmationNumber}: ${e.message}`); }
       }
       if (errors.length) { const err = new Error(`${errors.length} שהיות לא חויבו: ${errors.slice(0, 3).join(' · ')}`); err.partial = { posted }; throw err; }
@@ -741,7 +755,7 @@ async function runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip
       if (broken.length) {
         await runStayTransaction((session) => raiseWork({ propertyId, session, kind: 'finance', severity: 'urgent', title: `סגירת ${day}: ${broken.length} בדיקות כספיות נכשלו`, body: broken.map((c) => c.label).join(' · ').slice(0, 500), source: { type: 'day_close', id: String(run._id), label: run.runNo, link: `/pms/night-audit/report?date=${day}` }, dedupeKey: `ledger:${day}` }), lease, { operation: 'תיעוד התראה כספית' });
       }
-      return { ...storedFrom(ledger), checks: checks.map(({ key, ok, amount, label }) => ({ key, ok, amount: amount ?? null, label })) };
+      return { ...storedFrom(ledger), detail: ledger, checks: checks.map(({ key, ok, amount, label }) => ({ key, ok, amount: amount ?? null, label })) };
     },
   };
 
@@ -768,7 +782,7 @@ async function runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip
   }
   try {
     await runStayTransaction(async (session, afterCommit) => {
-      await Property.updateOne({ _id: propertyId }, { $set: { 'dayClose.lastClosedDate': day, 'dayClose.lastRunId': run._id } }, { session });
+      await Property.updateOne({ _id: propertyId }, { $set: { 'dayClose.lastClosedDate': day, 'dayClose.lastRunId': run._id, 'dayClose.businessDate': addDays(day, 1) } }, { session });
       await setStep(run._id, 'advance', { status: 'done', finishedAt: new Date(), result: { closed: day } }, session);
       await DayCloseRun.updateOne({ _id: run._id }, { $set: { status: 'done', finishedAt: new Date() } }, { session });
       await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'day_close.completed', entityType: 'DayCloseRun', entityId: run._id, after: { businessDate: day, runNo: run.runNo }, ip, session, afterCommit });

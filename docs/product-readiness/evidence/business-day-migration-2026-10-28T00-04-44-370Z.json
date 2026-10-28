@@ -1,0 +1,4161 @@
+{
+  "startedAt": "2026-10-28T00:04:44.370Z",
+  "finishedAt": "2026-10-28T00:04:50.192Z",
+  "mode": "isolated local replica; synthetic fixtures; no existing hotel migration",
+  "hashes": {
+    "../services/businessDayMigrationService.js": "e8ec8c58fdd03392adb3a418074b5ec7993ad773d583ba36e540575cacf505bd",
+    "../models/BusinessDayMigration.js": "eab082ac70b25d2f14ce02f71c9c10faf9a3b06deba37e1337c0e6d8c9a19e01",
+    "../models/Property.js": "3dc27f078f2695338f8fd37b46e8192fd85768c78e3b76fbaf8b2782d650e6dd",
+    "../services/financeService.js": "4dd48db9f615cf934e8d360bf70588206173fa5e83e11ad25bb3e8dc60150314",
+    "../services/ledgerService.js": "8cf62c9aa467ec2dac939f2676a814038cc908d6075e7f1ee75bd35226a0ac99",
+    "../routes/finance.js": "b4f1f2b43d6dad5bee968c123c9a11a6e43ca6b3e6272628f826d678eb46a1d1",
+    "../services/stayTransaction.js": "f7b5c974646b4137c45d630960b2c24da801d47d6a9736a988079554dcbbcedf",
+    "../services/locks.js": "c00a5085eb99c2932377a14dacef9a337998ff4383dccd1f3eccc2ff73bdc215",
+    "./businessDayMigrationReadiness.mjs": "cafb7dadf23aaf5f536ace0664022d50d2296c0187284ed4fa4ffc84805c0575"
+  },
+  "counts": {
+    "passed": 33,
+    "failed": 0,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "MG01",
+      "name": "preflight is read-only and reconciles a consistent historical close",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026a2",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1d7eeba3a6b9d026a8"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:45.777Z",
+              "updatedAt": "2026-10-28T00:04:45.810Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026a5",
+              "property": "6ae13c1d7eeba3a6b9d026a2",
+              "confirmationNumber": "99ed4bb9-1afe-4e21-8349-fc880b6baf7c",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1d7eeba3a6b9d026a4",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1d7eeba3a6b9d026a3",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:45.791Z",
+              "updatedAt": "2026-10-28T00:04:45.791Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026a6",
+              "property": "6ae13c1d7eeba3a6b9d026a2",
+              "reservation": "6ae13c1d7eeba3a6b9d026a5",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1d7eeba3a6b9d026a7"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:45.796Z",
+              "updatedAt": "2026-10-28T00:04:45.796Z",
+              "__v": 0
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026a8",
+              "property": "6ae13c1d7eeba3a6b9d026a2",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 10,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 10,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:45.806Z",
+              "updatedAt": "2026-10-28T00:04:45.806Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [],
+          "AuditLog": []
+        },
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1d7eeba3a6b9d026a2",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": true,
+          "planHash": "52d3d3dce69b6b9548fc61492cb5f1bbcfb11cfd5aad4732edaaa46166375851",
+          "sourceFingerprint": "aa54bf3f7d46f92fd77b23dfcc45b943be1720318b0f4df3712a8b0bd1b5ec18",
+          "financialHash": "8c10ac476b4ad64fbd48cd01688fbd97994206aa1659d36c8c4888d8e6515737",
+          "blockers": [],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": true,
+              "actual": {
+                "opening": "0.00",
+                "closing": "10.00",
+                "charges": "10.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 1,
+            "postedBalance": "10.00"
+          },
+          "changes": [
+            {
+              "folio": "6ae13c1d7eeba3a6b9d026a6",
+              "line": "6ae13c1d7eeba3a6b9d026a7",
+              "index": 0,
+              "accountingDate": "2026-10-26"
+            }
+          ],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        },
+        "after": {
+          "Property": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026a2",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1d7eeba3a6b9d026a8"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:45.777Z",
+              "updatedAt": "2026-10-28T00:04:45.810Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026a5",
+              "property": "6ae13c1d7eeba3a6b9d026a2",
+              "confirmationNumber": "99ed4bb9-1afe-4e21-8349-fc880b6baf7c",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1d7eeba3a6b9d026a4",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1d7eeba3a6b9d026a3",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:45.791Z",
+              "updatedAt": "2026-10-28T00:04:45.791Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026a6",
+              "property": "6ae13c1d7eeba3a6b9d026a2",
+              "reservation": "6ae13c1d7eeba3a6b9d026a5",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1d7eeba3a6b9d026a7"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:45.796Z",
+              "updatedAt": "2026-10-28T00:04:45.796Z",
+              "__v": 0
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026a8",
+              "property": "6ae13c1d7eeba3a6b9d026a2",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 10,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 10,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:45.806Z",
+              "updatedAt": "2026-10-28T00:04:45.806Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [],
+          "AuditLog": []
+        }
+      }
+    },
+    {
+      "code": "MG02",
+      "name": "activation adds only verified accounting dates and preserves historical trial",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "migrationId": "6ae13c1d7eeba3a6b9d026b1",
+          "propertyId": "6ae13c1d7eeba3a6b9d026a9",
+          "status": "applied",
+          "businessDate": "2026-10-27",
+          "changedLines": 1,
+          "sourceFingerprint": "a984e737962c7d6224b94a913a9b64aa3d56a29cdc9545b48b67044d3e9a7df8",
+          "afterFingerprint": "f1a046a0c47d208e47ad74e66a42950cc5453a1e10684ad060c44e93749c1b50",
+          "financialHash": "861a6bd77336eef72c048195ae6dbb5812d2959da21d7dc88b51723acff69708"
+        }
+      }
+    },
+    {
+      "code": "MG03",
+      "name": "stored trial mismatch blocks activation without changing source data",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026b7",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1d7eeba3a6b9d026bd"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:45.949Z",
+              "updatedAt": "2026-10-28T00:04:45.970Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026ba",
+              "property": "6ae13c1d7eeba3a6b9d026b7",
+              "confirmationNumber": "dd36be4f-bd5f-4827-a09d-5acb90597156",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1d7eeba3a6b9d026b9",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1d7eeba3a6b9d026b8",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:45.959Z",
+              "updatedAt": "2026-10-28T00:04:45.959Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026bb",
+              "property": "6ae13c1d7eeba3a6b9d026b7",
+              "reservation": "6ae13c1d7eeba3a6b9d026ba",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1d7eeba3a6b9d026bc"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:45.962Z",
+              "updatedAt": "2026-10-28T00:04:45.962Z",
+              "__v": 0
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1d7eeba3a6b9d026bd",
+              "property": "6ae13c1d7eeba3a6b9d026b7",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 10,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 999,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:45.968Z",
+              "updatedAt": "2026-10-28T00:04:45.968Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [],
+          "AuditLog": []
+        },
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1d7eeba3a6b9d026b7",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "008816f6fe647f564f803cee033b8a5338246416fbdf25d39be0d3eca4a0b36a",
+          "sourceFingerprint": "5f4dd4ac7306297b2beb38d8c4cdb6936f76b89f33b062f888c4d2970517f88a",
+          "financialHash": "82c0d22fbda7982f9a80fe388df69a3f218f5d116bd1ff5dc999accb71bb9a72",
+          "blockers": [
+            {
+              "code": "closed_trial_mismatch",
+              "message": "המאזן החי אינו תואם למאזן שנשמר בסגירה",
+              "ref": "2026-10-26"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": false,
+              "actual": {
+                "opening": "0.00",
+                "closing": "10.00",
+                "charges": "10.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 999,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 1,
+            "postedBalance": "10.00"
+          },
+          "changes": [
+            {
+              "folio": "6ae13c1d7eeba3a6b9d026bb",
+              "line": "6ae13c1d7eeba3a6b9d026bc",
+              "index": 0,
+              "accountingDate": "2026-10-26"
+            }
+          ],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "המעבר חסום עד לבירור הפערים בדוח",
+            "code": "migration_blocked",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "MG04",
+      "name": "unfinished close must be resolved before migration",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1e7eeba3a6b9d026bf",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "39838c19d866b7bcf72aad9efad03cf2b060b4e43c75e9f1fedc4865314da371",
+          "sourceFingerprint": "3e6796b25c1f9270702eae4b57f39d02e7692a9897c8344c4654a7f224438f18",
+          "financialHash": "14896508f54aa0a65d2ad9ec594ce27ba637e1b1038f06e96f33c5315ff6c4af",
+          "blockers": [
+            {
+              "code": "unfinished_day_close",
+              "message": "קיימת ריצת סגירה שטרם הושלמה; יש להשלים או לברר אותה לפני המעבר"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": true,
+              "actual": {
+                "opening": "0.00",
+                "closing": "10.00",
+                "charges": "10.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 1,
+            "postedBalance": "10.00"
+          },
+          "changes": [
+            {
+              "folio": "6ae13c1e7eeba3a6b9d026c3",
+              "line": "6ae13c1e7eeba3a6b9d026c4",
+              "index": 0,
+              "accountingDate": "2026-10-26"
+            }
+          ],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG05",
+      "name": "missing close history cannot be replaced by trusting the property pointer",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1e7eeba3a6b9d026c7",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "15694a585a5be333deaae93b6d7caebb34e631b423a087b3a2732fe16b653922",
+          "sourceFingerprint": "3d106eb8c040076f30ec6857875282b1691a65b2255aad4994d79dea68e31e1b",
+          "financialHash": "4db94cfbea0673d096d1212858b214901267e07c4000f93b92daa47c8563be63",
+          "blockers": [
+            {
+              "code": "close_pointer_mismatch",
+              "message": "תאריך הנכס אינו תואם לריצת הסגירה האחרונה"
+            },
+            {
+              "code": "close_pointer_mismatch",
+              "message": "מזהה ריצת הסגירה בנכס אינו תואם להיסטוריה"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 1,
+            "postedBalance": "10.00"
+          },
+          "changes": [
+            {
+              "folio": "6ae13c1e7eeba3a6b9d026cb",
+              "line": "6ae13c1e7eeba3a6b9d026cc",
+              "index": 0,
+              "accountingDate": "2026-10-26"
+            }
+          ],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG06",
+      "name": "gaps in historical close dates block activation",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1e7eeba3a6b9d026ce",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-29",
+          "ready": false,
+          "planHash": "f9ad4c410f2580a0430a7e647f8d42afc8b03990311d0a67c84eafb64a21ff8b",
+          "sourceFingerprint": "d9e83a82ced1559f0b131339527b9f6cd7177803cf25ac7ab9d0ed9d1cc208ce",
+          "financialHash": "44220ba91023b68a68ac6bcb5a3be355005518bb8a1e5d6c8cacf6b0790503c2",
+          "blockers": [
+            {
+              "code": "close_history_gap",
+              "message": "היסטוריית הסגירות אינה רציפה",
+              "ref": "2026-10-28"
+            },
+            {
+              "code": "closed_trial_mismatch",
+              "message": "המאזן החי אינו תואם למאזן שנשמר בסגירה",
+              "ref": "2026-10-28"
+            }
+          ],
+          "warnings": [],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": true,
+              "actual": {
+                "opening": "0.00",
+                "closing": "10.00",
+                "charges": "10.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            },
+            {
+              "date": "2026-10-28",
+              "matches": false,
+              "actual": {
+                "opening": "10.00",
+                "closing": "10.00",
+                "charges": "0.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 1,
+            "postedBalance": "10.00"
+          },
+          "changes": [
+            {
+              "folio": "6ae13c1e7eeba3a6b9d026d2",
+              "line": "6ae13c1e7eeba3a6b9d026d3",
+              "index": 0,
+              "accountingDate": "2026-10-26"
+            }
+          ],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG07",
+      "name": "a source change after preview requires a new plan",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "הנתונים השתנו מאז הדוח — יש להפיק דוח חדש",
+            "code": "migration_plan_stale",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "MG08",
+      "name": "identical concurrent activation is applied once and replays one journal result",
+      "status": "passed",
+      "evidence": {
+        "results": [
+          {
+            "migrationId": "6ae13c1e7eeba3a6b9d026e8",
+            "propertyId": "6ae13c1e7eeba3a6b9d026df",
+            "status": "applied",
+            "businessDate": "2026-10-27",
+            "changedLines": 1,
+            "sourceFingerprint": "84ea42bca01a04666d26f8d82270504e19295ceb180c9680a91663c15474e2c3",
+            "afterFingerprint": "5056ec3a8ac116f3b573a8e3b7345c0b17862ebc1f682ae4a4f8c41967b4685d",
+            "financialHash": "35ccbbe058bbce6ddbb94b50fbc658acb9e7c311a3663a113d3da903b886324b"
+          },
+          {
+            "migrationId": "6ae13c1e7eeba3a6b9d026e8",
+            "propertyId": "6ae13c1e7eeba3a6b9d026df",
+            "status": "applied",
+            "businessDate": "2026-10-27",
+            "changedLines": 1,
+            "sourceFingerprint": "84ea42bca01a04666d26f8d82270504e19295ceb180c9680a91663c15474e2c3",
+            "afterFingerprint": "5056ec3a8ac116f3b573a8e3b7345c0b17862ebc1f682ae4a4f8c41967b4685d",
+            "financialHash": "35ccbbe058bbce6ddbb94b50fbc658acb9e7c311a3663a113d3da903b886324b",
+            "duplicate": true
+          }
+        ]
+      }
+    },
+    {
+      "code": "MG09",
+      "name": "same migration operation key with different content is rejected",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "מזהה הפעולה כבר שימש לתוכן אחר",
+            "code": "migration_key_conflict",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "MG10",
+      "name": "failure updating the second folio restores the first folio too",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d026fc",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1e7eeba3a6b9d02704"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:46.492Z",
+              "updatedAt": "2026-10-28T00:04:46.521Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d026ff",
+              "property": "6ae13c1e7eeba3a6b9d026fc",
+              "confirmationNumber": "94c1cc4d-bd9a-43e5-b7ef-460f2249e806",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1e7eeba3a6b9d026fe",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1e7eeba3a6b9d026fd",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:46.503Z",
+              "updatedAt": "2026-10-28T00:04:46.503Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d02700",
+              "property": "6ae13c1e7eeba3a6b9d026fc",
+              "reservation": "6ae13c1e7eeba3a6b9d026ff",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1e7eeba3a6b9d02701"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:46.506Z",
+              "updatedAt": "2026-10-28T00:04:46.506Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae13c1e7eeba3a6b9d02702",
+              "property": "6ae13c1e7eeba3a6b9d026fc",
+              "reservation": "6ae13c1e7eeba3a6b9d026ff",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1e7eeba3a6b9d02703"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:46.511Z",
+              "updatedAt": "2026-10-28T00:04:46.511Z",
+              "__v": 0
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d02704",
+              "property": "6ae13c1e7eeba3a6b9d026fc",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 20,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 20,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:46.517Z",
+              "updatedAt": "2026-10-28T00:04:46.517Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [],
+          "AuditLog": []
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "QA_MIGRATION_SECOND_FOLIO"
+          }
+        }
+      }
+    },
+    {
+      "code": "MG11",
+      "name": "failed activation audit restores dates property and journal",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d02707",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1e7eeba3a6b9d0270d"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:46.560Z",
+              "updatedAt": "2026-10-28T00:04:46.582Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d0270a",
+              "property": "6ae13c1e7eeba3a6b9d02707",
+              "confirmationNumber": "b68d88ce-e54c-4f92-b788-0f6dc3720f07",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1e7eeba3a6b9d02709",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1e7eeba3a6b9d02708",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:46.571Z",
+              "updatedAt": "2026-10-28T00:04:46.571Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d0270b",
+              "property": "6ae13c1e7eeba3a6b9d02707",
+              "reservation": "6ae13c1e7eeba3a6b9d0270a",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1e7eeba3a6b9d0270c"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:46.574Z",
+              "updatedAt": "2026-10-28T00:04:46.574Z",
+              "__v": 0
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d0270d",
+              "property": "6ae13c1e7eeba3a6b9d02707",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 10,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 10,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:46.578Z",
+              "updatedAt": "2026-10-28T00:04:46.578Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [],
+          "AuditLog": []
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "QA_MIGRATION_AUDIT"
+          }
+        }
+      }
+    },
+    {
+      "code": "MG12",
+      "name": "failed migration journal write cannot leave an activated property",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d02713",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1e7eeba3a6b9d02719"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:46.630Z",
+              "updatedAt": "2026-10-28T00:04:46.653Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d02716",
+              "property": "6ae13c1e7eeba3a6b9d02713",
+              "confirmationNumber": "7486eddd-5301-4284-a430-1067298908bd",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1e7eeba3a6b9d02715",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1e7eeba3a6b9d02714",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:46.640Z",
+              "updatedAt": "2026-10-28T00:04:46.640Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d02717",
+              "property": "6ae13c1e7eeba3a6b9d02713",
+              "reservation": "6ae13c1e7eeba3a6b9d02716",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1e7eeba3a6b9d02718"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:46.644Z",
+              "updatedAt": "2026-10-28T00:04:46.644Z",
+              "__v": 0
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1e7eeba3a6b9d02719",
+              "property": "6ae13c1e7eeba3a6b9d02713",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 10,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 10,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:46.650Z",
+              "updatedAt": "2026-10-28T00:04:46.650Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [],
+          "AuditLog": []
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "QA_MIGRATION_JOURNAL"
+          }
+        }
+      }
+    },
+    {
+      "code": "MG13",
+      "name": "rollback before activity restores the exact source fingerprint and replays safely",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "migrationId": "6ae13c1e7eeba3a6b9d02724",
+          "status": "rolled_back",
+          "sourceFingerprint": "032c66ca47eda5fe999f2d70a36eae706230bc6e4e595ddf915efdf7fa7cb356"
+        }
+      }
+    },
+    {
+      "code": "MG14",
+      "name": "new financial activity prevents automatic migration rollback",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "הנתונים השתנו מאז ההפעלה — ביטול אוטומטי אינו מותר",
+            "code": "rollback_has_activity",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "MG15",
+      "name": "a later day close prevents automatic migration rollback",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "הנתונים השתנו מאז ההפעלה — ביטול אוטומטי אינו מותר",
+            "code": "rollback_has_activity",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "MG16",
+      "name": "expired activation lease commits neither dates nor journal",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d0275b",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1f7eeba3a6b9d02761"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:47.191Z",
+              "updatedAt": "2026-10-28T00:04:47.217Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d0275e",
+              "property": "6ae13c1f7eeba3a6b9d0275b",
+              "confirmationNumber": "f8bc232b-2822-4f2c-9637-657dfd936a32",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1f7eeba3a6b9d0275d",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1f7eeba3a6b9d0275c",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:47.204Z",
+              "updatedAt": "2026-10-28T00:04:47.204Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d0275f",
+              "property": "6ae13c1f7eeba3a6b9d0275b",
+              "reservation": "6ae13c1f7eeba3a6b9d0275e",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1f7eeba3a6b9d02760"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:47.208Z",
+              "updatedAt": "2026-10-28T00:04:47.208Z",
+              "__v": 0
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d02761",
+              "property": "6ae13c1f7eeba3a6b9d0275b",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 10,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 10,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:47.213Z",
+              "updatedAt": "2026-10-28T00:04:47.213Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [],
+          "AuditLog": []
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+            "code": "lock_expired",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "MG17",
+      "name": "unmatched legacy night-audit charge is blocked instead of assigned an invented day",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1f7eeba3a6b9d0276d",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "aa0631d11fa2c2c6efb220297cea0cd13b840db3225091e358163e24d61bc3f1",
+          "sourceFingerprint": "1878b30707f5a5135bf6819303b109a2f71482cbb385b0771a17ced1c1ed0e1e",
+          "financialHash": "a3aab599c3c7c391917d8bf8c64df05425234a1dfac97b3c9c3b1091c2348fe1",
+          "blockers": [
+            {
+              "code": "unmatched_night_audit",
+              "message": "חיוב לילה אינו מקושר לסגירה שהושלמה; אין לנחש את יומו",
+              "ref": "6ae13c1f7eeba3a6b9d02771:6ae13c1f7eeba3a6b9d02772"
+            },
+            {
+              "code": "closed_trial_mismatch",
+              "message": "המאזן החי אינו תואם למאזן שנשמר בסגירה",
+              "ref": "2026-10-26"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": false,
+              "actual": {
+                "opening": "0.00",
+                "closing": "0.00",
+                "charges": "0.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 0,
+            "postedBalance": "10.00"
+          },
+          "changes": [],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG18",
+      "name": "legacy amounts requiring rounding are blocked without changing money",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1f7eeba3a6b9d02774",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "a1ca74871ec77303538f9fd29cc819172180cf172e84ca9e490c39d2312cec92",
+          "sourceFingerprint": "543ce51e8bce2cb76a645d2526cdfcf47dbb59ee327ce827a349e988f6bf9350",
+          "financialHash": "0f78590316b291e5d24f2d7fe0108205d2f1071252f8a8e6e811a6cf6f70c763",
+          "blockers": [
+            {
+              "code": "invalid_money",
+              "message": "סכום חסר או דיוק כספי שאינו ניתן להעברה ללא תיקון",
+              "ref": "6ae13c1f7eeba3a6b9d02778:6ae13c1f7eeba3a6b9d02779"
+            },
+            {
+              "code": "closed_trial_mismatch",
+              "message": "המאזן החי אינו תואם למאזן שנשמר בסגירה",
+              "ref": "2026-10-26"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": false,
+              "actual": {
+                "opening": "0.00",
+                "closing": "0.00",
+                "charges": "0.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 0,
+            "postedBalance": "0.00"
+          },
+          "changes": [],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG19",
+      "name": "foreign reservation links block migration",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1f7eeba3a6b9d0277c",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "0da6d4560b144afbbfaa244ec5f1faa5568adb4996476c627f2674d9a9a899da",
+          "sourceFingerprint": "307bb5af08474f017f674c0c4c0ba509dfb2e62b5e5a875fe45730614235bc4f",
+          "financialHash": "2d2494ba2e17cc20bc6facf20dcacc7122c1afc3769f7e240627af58af8af81f",
+          "blockers": [
+            {
+              "code": "foreign_or_missing_reservation",
+              "message": "חשבון מקושר להזמנה חסרה או לנכס אחר",
+              "ref": "6ae13c1f7eeba3a6b9d02780"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": true,
+              "actual": {
+                "opening": "0.00",
+                "closing": "10.00",
+                "charges": "10.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 1,
+            "postedBalance": "10.00"
+          },
+          "changes": [
+            {
+              "folio": "6ae13c1f7eeba3a6b9d02780",
+              "line": "6ae13c1f7eeba3a6b9d02781",
+              "index": 0,
+              "accountingDate": "2026-10-26"
+            }
+          ],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG20",
+      "name": "receptionist cannot preview or apply migration",
+      "status": "passed",
+      "evidence": {
+        "results": [
+          {
+            "ok": false,
+            "error": {
+              "message": "הפעלת יום עסקי מותרת להנהלה או לכספים",
+              "code": "migration_forbidden",
+              "status": 403
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "הפעלת יום עסקי מותרת להנהלה או לכספים",
+              "code": "migration_forbidden",
+              "status": 403
+            }
+          }
+        ]
+      }
+    },
+    {
+      "code": "MG21",
+      "name": "ordinary day close cannot bypass migration review on inconsistent legacy history",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d02791",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1f7eeba3a6b9d02797"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:47.498Z",
+              "updatedAt": "2026-10-28T00:04:47.524Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d02794",
+              "property": "6ae13c1f7eeba3a6b9d02791",
+              "confirmationNumber": "6533ce2c-3fea-4f7d-84c3-9cefc4f254a7",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1f7eeba3a6b9d02793",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1f7eeba3a6b9d02792",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:47.510Z",
+              "updatedAt": "2026-10-28T00:04:47.510Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d02795",
+              "property": "6ae13c1f7eeba3a6b9d02791",
+              "reservation": "6ae13c1f7eeba3a6b9d02794",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1f7eeba3a6b9d02796"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:47.514Z",
+              "updatedAt": "2026-10-28T00:04:47.514Z",
+              "__v": 0
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d02797",
+              "property": "6ae13c1f7eeba3a6b9d02791",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 10,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 999,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:47.521Z",
+              "updatedAt": "2026-10-28T00:04:47.521Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [],
+          "AuditLog": []
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "נדרש דוח התאמה והפעלת יום עסקי לפני סגירה על נתונים קיימים",
+            "code": "business_day_migration_required",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "MG22",
+      "name": "scope checks and rollback lookup cannot expose another property migration",
+      "status": "passed",
+      "evidence": {
+        "scope": {
+          "ok": false,
+          "error": {
+            "message": "הנכס אינו בתחום ההרשאה",
+            "code": "migration_forbidden",
+            "status": 403
+          }
+        },
+        "rollback": {
+          "ok": false,
+          "error": {
+            "message": "המעבר לא נמצא בנכס",
+            "code": "migration_not_found",
+            "status": 404
+          }
+        }
+      }
+    },
+    {
+      "code": "MG23",
+      "name": "oversized properties fail closed before a partial scan can be mistaken for readiness",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1f7eeba3a6b9d027ae",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "efffa7ad8b8a8d0ec72e98ab6a05d53507fe01c70ca379771362080603780e51",
+          "sourceFingerprint": "771fb26b24cdd4a9f0a23af64fb7a575b30dda54ba8b5899f898229d4bc01636",
+          "financialHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "blockers": [
+            {
+              "code": "migration_too_large",
+              "message": "נדרש מעבר מתוכנן בקבוצות; הנתונים חורגים מגבול הפעולה האטומית"
+            },
+            {
+              "code": "close_pointer_mismatch",
+              "message": "תאריך הנכס אינו תואם לריצת הסגירה האחרונה"
+            },
+            {
+              "code": "close_pointer_mismatch",
+              "message": "מזהה ריצת הסגירה בנכס אינו תואם להיסטוריה"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [],
+          "totals": {
+            "folios": 251,
+            "lines": 1,
+            "missingAccountingDates": 0,
+            "postedBalance": "0.00"
+          },
+          "changes": [],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG24",
+      "name": "already activated property does not get a new migration plan silently",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1f7eeba3a6b9d028af",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "cfff62a07d5541855de53dd1543dde1f0990b49ab13206145adca659813437d8",
+          "sourceFingerprint": "eb210a9de648b942dc99358a325ddd4029881b8e67abad7ff4a13e60a3b2dce0",
+          "financialHash": "c31f7560981635044b3d95509e264754b91d5a354bed8569e1ae9254b87e7ec5",
+          "blockers": [
+            {
+              "code": "already_managed",
+              "message": "הנכס כבר משתמש ביום עסקי מנוהל"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": true,
+              "actual": {
+                "opening": "0.00",
+                "closing": "10.00",
+                "charges": "10.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 0,
+            "postedBalance": "10.00"
+          },
+          "changes": [],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG25",
+      "name": "invalid service date blocks migration rather than normalizing a nonexistent date",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c1f7eeba3a6b9d028bc",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "f4074e1bdec04b2a9ff52ade7cc58200a8f686af0bc0212315a2bd9cebf511a3",
+          "sourceFingerprint": "4cac5fc4aea596f8e925cc1636eeb50685f859c431cb8f0b752e29404b24aecd",
+          "financialHash": "ef3e07cb6253f9ed0e3416d90caf3da4104e0fc6b3777619d967a906964e47c8",
+          "blockers": [
+            {
+              "code": "invalid_line_dates",
+              "message": "מועד השירות או זמן הרישום בשורה אינם תקינים",
+              "ref": "6ae13c1f7eeba3a6b9d028c0:6ae13c1f7eeba3a6b9d028c1"
+            },
+            {
+              "code": "closed_trial_mismatch",
+              "message": "המאזן החי אינו תואם למאזן שנשמר בסגירה",
+              "ref": "2026-10-26"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": false,
+              "actual": {
+                "opening": "0.00",
+                "closing": "0.00",
+                "charges": "0.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 0,
+            "postedBalance": "10.00"
+          },
+          "changes": [],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG26",
+      "name": "failed rollback audit leaves the activated state intact and permits retry",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "Property": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d028c3",
+              "name": "Synthetic migration hotel",
+              "timezone": "Asia/Jerusalem",
+              "defaultCurrency": "ILS",
+              "country": "IL",
+              "activeLanguages": [
+                "he",
+                "en"
+              ],
+              "checkInTime": "15:00",
+              "checkOutTime": "11:00",
+              "totalRooms": 0,
+              "vatRate": 18,
+              "invoicePrefix": "INV",
+              "invoiceSequence": 1000,
+              "docSequences": {
+                "tax_invoice": 0,
+                "tax_invoice_receipt": 0,
+                "receipt": 0,
+                "proforma": 0,
+                "credit_note": 0,
+                "debit_note": 0
+              },
+              "fiscal": {
+                "ita": {
+                  "connected": false,
+                  "env": "sandbox"
+                },
+                "allocationMode": "manual"
+              },
+              "reservationPrefix": "RES",
+              "reservationSequence": 1000,
+              "defaultCancellationHours": 24,
+              "defaultCancellationFee": "first_night",
+              "petPolicy": "not_allowed",
+              "smokingPolicy": "non_smoking",
+              "requiredGuestFields": [
+                "firstName",
+                "lastName"
+              ],
+              "requiredCheckInFields": [
+                "primaryGuest",
+                "assignedRoom"
+              ],
+              "requiredCheckOutFields": [
+                "folioBalanced"
+              ],
+              "opsPolicy": {
+                "checklists": {
+                  "checkout_clean": [
+                    "מצעים הוחלפו",
+                    "חדר רחצה נוקה וחוטא",
+                    "מגבות ומוצרי אירוח הושלמו",
+                    "רצפה נשאבה ונשטפה",
+                    "מיניבר נבדק",
+                    "פח אשפה רוקן"
+                  ],
+                  "stayover": [
+                    "מיטה סודרה",
+                    "מגבות הוחלפו לפי בקשה",
+                    "פח אשפה רוקן",
+                    "מוצרי אירוח הושלמו"
+                  ],
+                  "inspection": [
+                    "ניקיון כללי תקין",
+                    "אין ליקוי גלוי בציוד",
+                    "תאורה ומיזוג פועלים",
+                    "מוצרי אירוח מלאים"
+                  ]
+                },
+                "inspectorMustDiffer": true
+              },
+              "dayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 1,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1f7eeba3a6b9d028c9",
+                "businessDate": "2026-10-27",
+                "migrationId": "6ae13c1f7eeba3a6b9d028cb"
+              },
+              "policyVersion": 0,
+              "restDays": [],
+              "childMaxAge": null,
+              "pricingMode": "rates",
+              "onlineBooking": {
+                "enabled": false,
+                "payment": "full",
+                "depositPct": 30,
+                "holdMinutes": 20,
+                "ratePlanCodes": []
+              },
+              "boardPricing": {
+                "infantMaxAge": 2,
+                "version": 0,
+                "supplements": []
+              },
+              "taxPolicy": {
+                "tourist": {
+                  "enabled": false,
+                  "visaTypes": [],
+                  "chargeCodes": [
+                    "rooms"
+                  ],
+                  "pricing": "net_of_vat",
+                  "version": 0
+                }
+              },
+              "financePolicy": {
+                "cashLimitPerStay": null,
+                "refundApprovalOver": 0,
+                "postStayDays": 30,
+                "cashRule": "none",
+                "cashThreshold": 6000,
+                "touristCashThreshold": 40000
+              },
+              "checkInPolicy": {
+                "requireInspection": false,
+                "requireGuarantee": true,
+                "requireRegistration": true,
+                "requireSignature": false,
+                "termsVersion": "he-1",
+                "termsText": ""
+              },
+              "active": true,
+              "cancellationPolicies": [],
+              "buildings": [],
+              "housekeepingZones": [],
+              "publicAreas": [],
+              "taxes": [],
+              "surcharges": [],
+              "paymentMethods": [],
+              "messageTemplates": [],
+              "documentTemplates": [],
+              "crmSla": {
+                "leadStaleDays": 7,
+                "leadDueGraceHours": 0,
+                "leadHighScoreThreshold": 65,
+                "leadHighScoreUnassignedEscalationHours": 24,
+                "leadAttentionScoreThreshold": 85,
+                "oppAtRiskInactiveDays": 14,
+                "oppStalledInactiveDays": 30,
+                "oppOverdueCloseEscalationDays": 0,
+                "oppAttentionScoreThreshold": 24
+              },
+              "createdAt": "2026-10-28T00:04:47.896Z",
+              "updatedAt": "2026-10-28T00:04:47.947Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d028c6",
+              "property": "6ae13c1f7eeba3a6b9d028c3",
+              "confirmationNumber": "a01a4ed7-f019-4a2c-b41a-51125e102ce8",
+              "status": "confirmed",
+              "primaryGuest": "6ae13c1f7eeba3a6b9d028c5",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-30",
+              "departureDate": "2026-11-01",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae13c1f7eeba3a6b9d028c4",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T00:04:47.907Z",
+              "updatedAt": "2026-10-28T00:04:47.907Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d028c7",
+              "property": "6ae13c1f7eeba3a6b9d028c3",
+              "reservation": "6ae13c1f7eeba3a6b9d028c6",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [
+                {
+                  "type": "charge",
+                  "description": "Synthetic historical line",
+                  "amount": 10,
+                  "taxAmount": 0,
+                  "department": "other",
+                  "serviceDate": "2026-10-26",
+                  "postedAt": "2026-10-26T10:00:00.000Z",
+                  "source": "manual",
+                  "status": "posted",
+                  "_id": "6ae13c1f7eeba3a6b9d028c8",
+                  "accountingDate": "2026-10-26"
+                }
+              ],
+              "createdAt": "2026-10-28T00:04:47.911Z",
+              "updatedAt": "2026-10-28T00:04:47.946Z",
+              "__v": 1
+            }
+          ],
+          "DayCloseRun": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d028c9",
+              "property": "6ae13c1f7eeba3a6b9d028c3",
+              "businessDate": "2026-10-26",
+              "runNo": "DC-2026-10-26",
+              "status": "done",
+              "attempts": 0,
+              "options": {
+                "arrivals": "none"
+              },
+              "steps": [
+                {
+                  "key": "post_nights",
+                  "status": "done"
+                },
+                {
+                  "key": "no_shows",
+                  "status": "skipped"
+                },
+                {
+                  "key": "snapshot",
+                  "status": "done"
+                },
+                {
+                  "key": "ledgers",
+                  "status": "done",
+                  "result": {
+                    "trial": {
+                      "opening": 0,
+                      "charges": 10,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 10,
+                      "difference": 0
+                    }
+                  }
+                },
+                {
+                  "key": "advance",
+                  "status": "done"
+                }
+              ],
+              "finishedAt": "2026-10-27T02:00:00.000Z",
+              "createdAt": "2026-10-28T00:04:47.917Z",
+              "updatedAt": "2026-10-28T00:04:47.917Z",
+              "__v": 0
+            }
+          ],
+          "BusinessDayMigration": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d028cb",
+              "property": "6ae13c1f7eeba3a6b9d028c3",
+              "requestKey": "a5e94995-d8b1-45eb-9d50-27933bfef222",
+              "requestHash": "ee78e88e786a695944cf46e72ef6892de9b155d8b5dce26d3d7e89ff4b7bb3cf",
+              "status": "applied",
+              "targetDate": "2026-10-27",
+              "sourceFingerprint": "0e0326b55974157b7504bfc4798b6a4910a92f1fe4c6529ab3c1673027213ac0",
+              "afterFingerprint": "fc917e74d86af8c493f0c228ea17d909a35ef686e10bd6320a7231bf778b89bd",
+              "financialHash": "61dd33cc5cbb5290dbd0f521c797c9afed3108e22f4320ac5d1469ed8146e6b5",
+              "originalDayClose": {
+                "auto": {
+                  "enabled": false,
+                  "time": "03:00",
+                  "arrivals": "keep"
+                },
+                "writeVersion": 0,
+                "lastClosedDate": "2026-10-26",
+                "lastRunId": "6ae13c1f7eeba3a6b9d028c9"
+              },
+              "hadDayClose": true,
+              "folios": [
+                {
+                  "folio": "6ae13c1f7eeba3a6b9d028c7",
+                  "version": 0,
+                  "hadVersion": true,
+                  "updatedAt": "2026-10-28T00:04:47.911Z",
+                  "hadUpdatedAt": true,
+                  "_id": "6ae13c1f7eeba3a6b9d028cd"
+                }
+              ],
+              "changes": [
+                {
+                  "folio": "6ae13c1f7eeba3a6b9d028c7",
+                  "line": "6ae13c1f7eeba3a6b9d028c8",
+                  "index": 0,
+                  "accountingDate": "2026-10-26",
+                  "_id": "6ae13c1f7eeba3a6b9d028ce"
+                }
+              ],
+              "backupReference": "Synthetic fixture backup reference; not a real hotel backup",
+              "reason": "Synthetic reviewed activation",
+              "appliedBy": "6ae13c1c7eeba3a6b9d026a1",
+              "appliedByName": "Synthetic migration QA",
+              "result": {
+                "migrationId": "6ae13c1f7eeba3a6b9d028cb",
+                "propertyId": "6ae13c1f7eeba3a6b9d028c3",
+                "status": "applied",
+                "businessDate": "2026-10-27",
+                "changedLines": 1,
+                "sourceFingerprint": "0e0326b55974157b7504bfc4798b6a4910a92f1fe4c6529ab3c1673027213ac0",
+                "afterFingerprint": "fc917e74d86af8c493f0c228ea17d909a35ef686e10bd6320a7231bf778b89bd",
+                "financialHash": "61dd33cc5cbb5290dbd0f521c797c9afed3108e22f4320ac5d1469ed8146e6b5"
+              },
+              "createdAt": "2026-10-28T00:04:47.955Z",
+              "updatedAt": "2026-10-28T00:04:47.955Z",
+              "__v": 0
+            }
+          ],
+          "AuditLog": [
+            {
+              "_id": "6ae13c1f7eeba3a6b9d028cf",
+              "property": "6ae13c1f7eeba3a6b9d028c3",
+              "actor": "6ae13c1c7eeba3a6b9d026a1",
+              "actorName": "Synthetic migration QA",
+              "action": "business_day.migration_applied",
+              "entityType": "BusinessDayMigration",
+              "entityId": "6ae13c1f7eeba3a6b9d028cb",
+              "before": {
+                "sourceFingerprint": "0e0326b55974157b7504bfc4798b6a4910a92f1fe4c6529ab3c1673027213ac0"
+              },
+              "after": {
+                "migrationId": "6ae13c1f7eeba3a6b9d028cb",
+                "propertyId": "6ae13c1f7eeba3a6b9d028c3",
+                "status": "applied",
+                "businessDate": "2026-10-27",
+                "changedLines": 1,
+                "sourceFingerprint": "0e0326b55974157b7504bfc4798b6a4910a92f1fe4c6529ab3c1673027213ac0",
+                "afterFingerprint": "fc917e74d86af8c493f0c228ea17d909a35ef686e10bd6320a7231bf778b89bd",
+                "financialHash": "61dd33cc5cbb5290dbd0f521c797c9afed3108e22f4320ac5d1469ed8146e6b5"
+              },
+              "reason": "Synthetic reviewed activation",
+              "createdAt": "2026-10-28T00:04:47.956Z",
+              "__v": 0
+            }
+          ]
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "QA_ROLLBACK_AUDIT"
+          }
+        }
+      }
+    },
+    {
+      "code": "MG27",
+      "name": "imported folios without version or timestamp restore their exact original shape",
+      "status": "passed",
+      "evidence": {}
+    },
+    {
+      "code": "MG28",
+      "name": "real authenticated HTTP routes enforce role and property scope for preview apply and rollback",
+      "status": "passed",
+      "evidence": {
+        "missing": {
+          "status": 401,
+          "body": {
+            "success": false,
+            "error": "Authentication required"
+          }
+        },
+        "role": {
+          "status": 403,
+          "body": {
+            "success": false,
+            "error": "דוח מעבר יום עסקי מותר להנהלה או לכספים"
+          }
+        },
+        "scope": {
+          "status": 403,
+          "body": {
+            "success": false,
+            "error": "Property scope violation"
+          }
+        },
+        "preview": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "version": 1,
+              "propertyId": "6ae13c207eeba3a6b9d028e8",
+              "calendarDate": "2026-10-28",
+              "targetDate": "2026-10-27",
+              "ready": true,
+              "planHash": "a4cae4a3738e999aafdbf9d984dd2a8f36cff5aae49683b1a62f17014df67798",
+              "sourceFingerprint": "8f960f4e3161d121b6d97d6855c2847cd6f6e17802eb0e262b8e6cb8bc212fb3",
+              "financialHash": "41e9258abb48b3230bac42c9d1d3e09951bf505c867f7b9d10cc889190e0a235",
+              "blockers": [],
+              "warnings": [
+                {
+                  "code": "calendar_backlog",
+                  "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+                }
+              ],
+              "checks": [
+                {
+                  "date": "2026-10-26",
+                  "matches": true,
+                  "actual": {
+                    "opening": "0.00",
+                    "closing": "10.00",
+                    "charges": "10.00",
+                    "adjustments": "0.00",
+                    "payments": "0.00",
+                    "refunds": "0.00",
+                    "difference": "0.00"
+                  },
+                  "stored": {
+                    "opening": 0,
+                    "charges": 10,
+                    "adjustments": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "closing": 10,
+                    "difference": 0
+                  }
+                }
+              ],
+              "totals": {
+                "folios": 1,
+                "lines": 1,
+                "missingAccountingDates": 1,
+                "postedBalance": "10.00"
+              },
+              "changes": [
+                {
+                  "folio": "6ae13c207eeba3a6b9d028ec",
+                  "line": "6ae13c207eeba3a6b9d028ed",
+                  "index": 0,
+                  "accountingDate": "2026-10-26"
+                }
+              ],
+              "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+            }
+          }
+        },
+        "applied": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "migrationId": "6ae13c207eeba3a6b9d028fa",
+              "propertyId": "6ae13c207eeba3a6b9d028e8",
+              "status": "applied",
+              "businessDate": "2026-10-27",
+              "changedLines": 1,
+              "sourceFingerprint": "8f960f4e3161d121b6d97d6855c2847cd6f6e17802eb0e262b8e6cb8bc212fb3",
+              "afterFingerprint": "335671002615a637e5ebd9b826524d6c3291dd044eb8af4732a9c94119a3e958",
+              "financialHash": "41e9258abb48b3230bac42c9d1d3e09951bf505c867f7b9d10cc889190e0a235"
+            }
+          }
+        },
+        "rollbackScope": {
+          "status": 403,
+          "body": {
+            "success": false,
+            "error": "Property scope violation"
+          }
+        },
+        "rolledBack": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "migrationId": "6ae13c207eeba3a6b9d028fa",
+              "status": "rolled_back",
+              "sourceFingerprint": "8f960f4e3161d121b6d97d6855c2847cd6f6e17802eb0e262b8e6cb8bc212fb3"
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "MG29",
+      "name": "existing explicit accounting dates are preserved and only missing dates roll back",
+      "status": "passed",
+      "evidence": {}
+    },
+    {
+      "code": "MG30",
+      "name": "backup reference reason and target date are validated before activation",
+      "status": "passed",
+      "evidence": {
+        "target": {
+          "version": 1,
+          "propertyId": "6ae13c217eeba3a6b9d02918",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "22b5ac88033b036d639669a67c7c3934c2c93b7b7dd9c4b5c6d01cb9f0959937",
+          "sourceFingerprint": "6f9a1d692275a9f8eb2a02e0a88c213e4de0409428f67a056c5b7df41731a5ee",
+          "financialHash": "8a742b7fead36451659246e80e5c68a7d17fad6c1a07ed3cfd323d5df7873272",
+          "blockers": [
+            {
+              "code": "target_date_mismatch",
+              "message": "יום היעד חייב להיות היום הראשון לאחר הסגירה האחרונה"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": true,
+              "actual": {
+                "opening": "0.00",
+                "closing": "10.00",
+                "charges": "10.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 1,
+            "postedBalance": "10.00"
+          },
+          "changes": [
+            {
+              "folio": "6ae13c217eeba3a6b9d0291c",
+              "line": "6ae13c217eeba3a6b9d0291d",
+              "index": 0,
+              "accountingDate": "2026-10-26"
+            }
+          ],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        },
+        "input": {
+          "ok": false,
+          "error": {
+            "message": "נדרשים דוח התאמה מזוהה, סיבה והפניה לגיבוי",
+            "code": "migration_input_required",
+            "status": 422
+          }
+        }
+      }
+    },
+    {
+      "code": "MG31",
+      "name": "mixed currency cannot be reconciled by silently summing unlike money",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c217eeba3a6b9d0291f",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "1b7ce1963779adc419cc3c52dad6d21452614a7c02faf45cd3a52100b516984e",
+          "sourceFingerprint": "7063579144dc551ad59d4a19d403946541634f325008bbacfa87634a3cc7d238",
+          "financialHash": "bcfad49d5645677f41526f25011cef9505096a6b2add9b382126f7e66470ed72",
+          "blockers": [
+            {
+              "code": "currency_mismatch",
+              "message": "מטבע החשבון אינו תואם למטבע הנכס; נדרשת התאמה נפרדת",
+              "ref": "6ae13c217eeba3a6b9d02923"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": true,
+              "actual": {
+                "opening": "0.00",
+                "closing": "10.00",
+                "charges": "10.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 1,
+            "postedBalance": "10.00"
+          },
+          "changes": [
+            {
+              "folio": "6ae13c217eeba3a6b9d02923",
+              "line": "6ae13c217eeba3a6b9d02924",
+              "index": 0,
+              "accountingDate": "2026-10-26"
+            }
+          ],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG32",
+      "name": "legacy payment with an inconsistent positive sign is not normalized silently",
+      "status": "passed",
+      "evidence": {
+        "plan": {
+          "version": 1,
+          "propertyId": "6ae13c217eeba3a6b9d02926",
+          "calendarDate": "2026-10-28",
+          "targetDate": "2026-10-27",
+          "ready": false,
+          "planHash": "f65b84a960194b07cecbc695f2cfeb4810b7d9fd3ca92534a8cd3f9324494542",
+          "sourceFingerprint": "fdd3ea00e6be50da93cdf96b291fe7dab95bbcc369fa150da2a23c355be40819",
+          "financialHash": "8d202258df3fd303c12e1fe803980040def1866ce4e10606bdb05915e7d7d3fe",
+          "blockers": [
+            {
+              "code": "invalid_money_direction",
+              "message": "סימן הסכום אינו תואם לסוג התנועה; אין לתקן אותו אוטומטית במעבר",
+              "ref": "6ae13c217eeba3a6b9d0292a:6ae13c217eeba3a6b9d0292b"
+            },
+            {
+              "code": "closed_trial_mismatch",
+              "message": "המאזן החי אינו תואם למאזן שנשמר בסגירה",
+              "ref": "2026-10-26"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "calendar_backlog",
+              "message": "היום העסקי המוצע מוקדם מלוח השנה; נדרשת השלמת פיגור בסגירות"
+            }
+          ],
+          "checks": [
+            {
+              "date": "2026-10-26",
+              "matches": false,
+              "actual": {
+                "opening": "0.00",
+                "closing": "0.00",
+                "charges": "0.00",
+                "adjustments": "0.00",
+                "payments": "0.00",
+                "refunds": "0.00",
+                "difference": "0.00"
+              },
+              "stored": {
+                "opening": 0,
+                "charges": 10,
+                "adjustments": 0,
+                "payments": 0,
+                "refunds": 0,
+                "closing": 10,
+                "difference": 0
+              }
+            }
+          ],
+          "totals": {
+            "folios": 1,
+            "lines": 1,
+            "missingAccountingDates": 0,
+            "postedBalance": "10.00"
+          },
+          "changes": [],
+          "rollbackPolicy": "Only before any subsequent financial or closing change; backup reference is an operator attestation, not proof of a restorable database backup."
+        }
+      }
+    },
+    {
+      "code": "MG33",
+      "name": "a genuinely empty new hotel can still bootstrap its first close",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "ok": true,
+          "value": {
+            "id": "6ae13c217eeba3a6b9d02930",
+            "runNo": "DC-20261028",
+            "businessDate": "2026-10-28",
+            "status": "done",
+            "attempts": 1,
+            "options": {
+              "arrivals": "none"
+            },
+            "startedBy": "Synthetic migration QA",
+            "createdAt": "2026-10-28T00:04:49.231Z",
+            "finishedAt": "2026-10-28T00:04:49.296Z",
+            "steps": [
+              {
+                "key": "post_nights",
+                "status": "done",
+                "startedAt": "2026-10-28T00:04:49.238Z",
+                "finishedAt": "2026-10-28T00:04:49.244Z",
+                "result": {
+                  "posted": 0,
+                  "stays": 0
+                },
+                "error": null
+              },
+              {
+                "key": "no_shows",
+                "status": "skipped",
+                "startedAt": "2026-10-28T00:04:49.248Z",
+                "finishedAt": "2026-10-28T00:04:49.253Z",
+                "result": {
+                  "skipped": true
+                },
+                "error": null
+              },
+              {
+                "key": "snapshot",
+                "status": "done",
+                "startedAt": "2026-10-28T00:04:49.258Z",
+                "finishedAt": "2026-10-28T00:04:49.268Z",
+                "result": {
+                  "rooms": 0,
+                  "sellable": 0,
+                  "roomNights": 0,
+                  "occupancyPct": 0,
+                  "roomRevenue": 0,
+                  "otherRevenue": 0,
+                  "adr": 0,
+                  "payments": 0,
+                  "refunds": 0,
+                  "arrived": 0,
+                  "departed": 0,
+                  "noShows": 0
+                },
+                "error": null
+              },
+              {
+                "key": "ledgers",
+                "status": "done",
+                "startedAt": "2026-10-28T00:04:49.273Z",
+                "finishedAt": "2026-10-28T00:04:49.289Z",
+                "result": {
+                  "trial": {
+                    "opening": 0,
+                    "charges": 0,
+                    "adjustments": 0,
+                    "payments": 0,
+                    "refunds": 0,
+                    "closing": 0,
+                    "difference": 0
+                  },
+                  "ledgers": {
+                    "guest": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "deposit": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "ar": {
+                      "balance": 0,
+                      "folios": 0
+                    },
+                    "void": {
+                      "balance": 0,
+                      "folios": 0
+                    }
+                  },
+                  "revenue": {
+                    "groups": [],
+                    "total": {
+                      "net": 0,
+                      "tax": 0,
+                      "gross": 0
+                    }
+                  },
+                  "payments": [],
+                  "refunds": [],
+                  "unmappedCodes": [],
+                  "detail": {
+                    "date": "2026-10-28",
+                    "trial": {
+                      "opening": 0,
+                      "charges": 0,
+                      "adjustments": 0,
+                      "payments": 0,
+                      "refunds": 0,
+                      "closing": 0,
+                      "difference": 0
+                    },
+                    "ledgers": {
+                      "guest": {
+                        "label": "יתרות שוהים ועוזבים (Guest Ledger)",
+                        "balance": 0,
+                        "folios": 0
+                      },
+                      "deposit": {
+                        "label": "הזמנות שטרם הגיעו — מקדמות וחיובים מראש (Deposit Ledger)",
+                        "balance": 0,
+                        "folios": 0
+                      },
+                      "ar": {
+                        "label": "חייבים — חברות (AR / City Ledger)",
+                        "balance": 0,
+                        "folios": 0
+                      },
+                      "void": {
+                        "label": "יתרות בהזמנות שבוטלו / לא הגיעו",
+                        "balance": 0,
+                        "folios": 0
+                      }
+                    },
+                    "revenue": {
+                      "rows": [],
+                      "groups": [],
+                      "total": {
+                        "net": 0,
+                        "tax": 0,
+                        "gross": 0
+                      }
+                    },
+                    "payments": [],
+                    "refunds": [],
+                    "unmappedCodes": []
+                  },
+                  "checks": [
+                    {
+                      "key": "opening",
+                      "ok": null,
+                      "amount": null,
+                      "label": "אין סגירה שמורה ליום הקודם — בדיקת פתיחה לא בוצעה"
+                    },
+                    {
+                      "key": "trial",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "מאזן הבוחן מאוזן"
+                    },
+                    {
+                      "key": "codes",
+                      "ok": true,
+                      "amount": null,
+                      "label": "כל החיובים בקודים מהקטלוג"
+                    },
+                    {
+                      "key": "void",
+                      "ok": true,
+                      "amount": 0,
+                      "label": "אין יתרות בהזמנות שבוטלו"
+                    }
+                  ]
+                },
+                "error": null
+              },
+              {
+                "key": "advance",
+                "status": "done",
+                "startedAt": null,
+                "finishedAt": "2026-10-28T00:04:49.295Z",
+                "result": {
+                  "closed": "2026-10-28"
+                },
+                "error": null
+              }
+            ],
+            "readiness": {
+              "arrivals": 0,
+              "departures": 0,
+              "queueOpen": 0
+            }
+          }
+        }
+      }
+    }
+  ]
+}

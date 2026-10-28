@@ -1,0 +1,39 @@
+{
+  "recordedAtUtc": "2026-10-28T00:39:06.1795264Z",
+  "mode": "Manual browser interaction through CUA; real RoomSwapDialog and authenticated stay routes; disposable local replica; synthetic guests; no app.js or .env",
+  "desktopOnly": true,
+  "fullApplicationNavigationTested": false,
+  "workflows": [
+    {
+      "name": "Normal swap",
+      "result": "passed",
+      "observed": "Preview displayed both guests and destinations; confirm disabled before reason and both acknowledgements; commit showed Danny in 102 and Noa in 101 with one operation"
+    },
+    {
+      "name": "Committed swap with lost success response",
+      "result": "passed",
+      "injected": "Harness sends HTTP 503 after the real service has committed",
+      "steps": [
+        "Preview and acknowledge both sides",
+        "Commit real swap",
+        "Observe uncertain state and check-status action",
+        "Close dialog",
+        "Reopen dialog and observe retained request",
+        "Check status using exact saved request"
+      ],
+      "observed": "Danny in 102; Noa in 101; operation count 1; duplicate true"
+    }
+  ],
+  "artifactSha256": {
+    "room-swap-preview.png": "da317424c56cb0b809af1f9d4e83065ddf35317aebe190c830cac7654b4c7f5c",
+    "room-swap-pending.png": "f08ecdd96dd16bebef9e048f7279912237def9e2a5d74ffa1043f016923713f0",
+    "room-swap-recovered.png": "aacfcd8cdc6fe5b61dcc3296e42149ab3a1447eaa2d578f4f21a709cead8e96c",
+    "room-swap-recovered-detail.png": "f699b3c1510d11fc6c850420ba02f441d479c2ea8b5e7e2039dc507c5bba43de"
+  },
+  "limits": [
+    "Standalone component harness; not full InHousePage navigation",
+    "No mobile or complete accessibility audit",
+    "No real room turnover or locks provider",
+    "Backend test count is separate from manual browser workflows"
+  ]
+}

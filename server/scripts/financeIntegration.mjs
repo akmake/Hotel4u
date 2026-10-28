@@ -228,7 +228,8 @@ async function main() {
     const resIds = (await Reservation.find({ property: { $in: props } }).select('_id').lean()).map((x) => x._id);
     await AuditLog.deleteMany({ $or: [{ property: { $in: props } }, { entityId: { $in: [...props, ...resIds] } }] });
     await removeFiscalTestFixtures(props, TAG);
-    await Folio.deleteMany({ property: { $in: props } });
+    // Explicit raw cleanup of the throw-away fixture properties; runtime deletes stay guarded.
+    await Folio.collection.deleteMany({ property: { $in: props } });
     await ReservationRoom.deleteMany({ property: { $in: props } });
     await Reservation.deleteMany({ property: { $in: props } });
     await DayCloseRun.deleteMany({ property: { $in: props } });

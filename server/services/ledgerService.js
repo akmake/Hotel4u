@@ -39,15 +39,21 @@ function localDate(date, tz) {
 export async function businessDateResolver(propertyId) {
   const property = await Property.findById(propertyId).select('timezone dayClose').lean();
   if (!property) throw httpError('הנכס לא נמצא', 404);
-  const tz = property.timezone || 'Asia/Jerusalem';
   const runs = await DayCloseRun.find({ property: propertyId, status: 'done' }).select('businessDate finishedAt updatedAt').sort({ businessDate: 1 }).lean();
+  return resolverForSnapshot(property, runs);
+}
+
+// The same legacy interpretation is used by read-only migration previews and live reports.
+export function resolverForSnapshot(property, runs) {
+  const tz = property.timezone || 'Asia/Jerusalem';
   const closedAt = new Map(runs.map((r) => [r.businessDate, new Date(r.finishedAt || r.updatedAt).getTime()]));
   const byTime = [...closedAt.entries()].map(([date, at]) => ({ date, at })).sort((a, b) => a.at - b.at);
   const last = property.dayClose?.lastClosedDate || (runs.length ? runs[runs.length - 1].businessDate : null);
   const today = localDate(new Date(), tz);
-  const nextToClose = last ? addDays(last, 1) : today;
-  const openDate = nextToClose > today ? nextToClose : today;
+  const nextToClose = property.dayClose?.businessDate || (last ? addDays(last, 1) : today);
+  const openDate = property.dayClose?.businessDate || (nextToClose > today ? nextToClose : today);
   const resolve = (line) => {
+    if (line.accountingDate) return line.accountingDate;
     const t = new Date(line.postedAt || 0).getTime();
     if (line.source === 'night_audit') {
       const run = byTime.find((c) => c.at >= t);
@@ -68,7 +74,7 @@ export async function computeLedger(propertyId, date) {
   const { resolve, openDate } = await businessDateResolver(propertyId);
   if (date > openDate) throw httpError('לא מפיקים דוח ליום עתידי', 422);
   const [folios, codes] = await Promise.all([
-    Folio.find({ property: propertyId }).select('reservation ownerType status settlement lines.type lines.amount lines.taxAmount lines.status lines.postedAt lines.source lines.department lines.method lines.reversalOf').lean(),
+    Folio.find({ property: propertyId }).select('reservation ownerType status settlement lines.type lines.amount lines.taxAmount lines.status lines.postedAt lines.accountingDate lines.source lines.department lines.method lines.reversalOf').lean(),
     codeMap(propertyId),
   ]);
   const resIds = [...new Set(folios.map((f) => String(f.reservation)))];
@@ -225,7 +231,7 @@ export async function dayReport({ propertyId, date }) {
   return {
     date: day, openDate, lastClosed,
     closed: !!run, runNo: run?.runNo || null, closedAt: run?.finishedAt || null, closedBy: run?.startedByName || null,
-    ledger: live, stored, checks,
+    ledger: stored?.detail || live, frozen: !!stored?.detail, stored, checks,
     flash: await flashFor(propertyId, day),
   };
 }

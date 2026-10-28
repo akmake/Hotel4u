@@ -158,11 +158,13 @@ export async function postPlannedNights({ reservation, items, source = 'night_au
   return added;
 }
 
-export async function postNightsUntil({ reservation, until, source, actorId, unitFilter, includeStatuses, session = null, guardLease = null }) {
+export async function postNightsUntil({ reservation, until, source, actorId, unitFilter, includeStatuses, session = null, guardLease = null, accountingDate = null }) {
   if (!session) return withLocks([`res:${reservation._id}`], (lease) => runStayTransaction(async (session) => {
     const current = await Reservation.findById(reservation._id).session(session);
     if (!current) throw Object.assign(new Error('Reservation not found'), { status: 404 });
-    const posted = await postNightsUntil({ reservation: current, until, source, actorId, unitFilter, includeStatuses, session });
+    session.financialDayCloseLease = guardLease;
+    session.financialPostingDate = accountingDate;
+    const posted = await postNightsUntil({ reservation: current, until, source, actorId, unitFilter, includeStatuses, session, accountingDate });
     if (guardLease) await guardLease.assertOwned(session);
     return posted;
   }, lease, { operation: 'רישום לילות' }), { waitMs: 4000 });

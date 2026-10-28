@@ -14,7 +14,7 @@ import QueueDialog from '../components/frontdesk/QueueDialog';
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const REFUND_ROLES = [...MANAGER_ROLES, 'finance_manager'];
 
-export default function DashboardPage({ summaryAppearance, rowAppearance, assignAppearance }) {
+export default function DashboardPage({ summaryAppearance, rowAppearance, assignAppearance, checkinAppearance }) {
   const { propertyId, property } = useProperty() || {};
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
@@ -59,6 +59,7 @@ export default function DashboardPage({ summaryAppearance, rowAppearance, assign
       onCheckOut={(id) => { setSelected(null); setCheckoutId(String(id)); }}
     />
     <CheckInWizard
+      appearance={checkinAppearance}
       open={!!checkinId}
       propertyId={propertyId}
       reservationId={checkinId}

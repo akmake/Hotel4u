@@ -3,7 +3,7 @@
 // assign room, add to the waiting queue, walk-in, no-show. Filter/sort/page state lives in the URL
 // so refresh and back keep the context; `?checkin=<reservationId>` opens the wizard directly.
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { ChevronLeft, ChevronRight, MoreHorizontal, Search, X, Crown, Moon, User, Baby, RefreshCw, ArrowUpDown } from 'lucide-react';
@@ -18,6 +18,7 @@ import CheckInWizard from '../components/frontdesk/CheckInWizard';
 import AssignRoomDialog from '../components/frontdesk/AssignRoomDialog';
 import QueueDialog from '../components/frontdesk/QueueDialog';
 import WalkInDialog from '../components/frontdesk/WalkInDialog';
+import { ArrivalPartyInfo, ArrivalPaymentInfo, ArrivalPreparationInfo } from '../components/frontdesk/ArrivalFacts';
 
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 
@@ -43,7 +44,9 @@ export default function ArrivalsPage() {
   const includeCheckedIn = params.get('all') === '1';
 
   const [draftQ, setDraftQ] = useState(params.get('q') || '');
-  const [data, setData] = useState(null);
+  const [loadedData, setData] = useState(null);
+  const data = loadedData?.loadedForPropertyId === propertyId ? loadedData : null;
+  const loadVersion = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [roomTypes, setRoomTypes] = useState([]);
@@ -72,7 +75,8 @@ export default function ArrivalsPage() {
   }, [setParams]);
 
   const load = useCallback(async () => {
-    if (!propertyId) return;
+    const version = ++loadVersion.current;
+    if (!propertyId) { setData(null); setLoading(false); return; }
     setLoading(true); setError(null);
     try {
       const d = await frontdesk.arrivals(propertyId, {
@@ -87,22 +91,25 @@ export default function ArrivalsPage() {
         page: p('page'),
         pageSize: p('size'),
       });
-      setData(d);
+      if (version === loadVersion.current) setData({ ...d, loadedForPropertyId: propertyId });
     } catch (e) {
-      setError(e.message);
+      if (version === loadVersion.current) setError(e.message);
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId, params.toString()]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); return () => { loadVersion.current += 1; }; }, [load]);
   useLiveRefresh(propertyId, ['Reservation', 'ReservationRoom', 'Folio', 'ArrivalQueueEntry', 'Room'], load);
   const committedQ = params.get('q') || '';
   useEffect(() => { setDraftQ(committedQ); }, [committedQ]);
   useEffect(() => {
+    let current = true;
+    setRoomTypes([]);
     if (!propertyId) return;
-    propApi.roomTypes(propertyId).then((r) => setRoomTypes(Array.isArray(r) ? r : r?.data || [])).catch(() => setRoomTypes([]));
+    propApi.roomTypes(propertyId).then((r) => { if (current) setRoomTypes(Array.isArray(r) ? r : r?.data || []); }).catch(() => { if (current) setRoomTypes([]); });
+    return () => { current = false; };
   }, [propertyId]);
 
   const businessDate = data?.businessDate;
@@ -209,6 +216,8 @@ export default function ArrivalsPage() {
                 <th scope="col" aria-sort={ariaSort('guest')}><button type="button" className="ui-th-sort" onClick={() => sortBy('guest')}>אורח{sortIcon('guest')}{p('sort') !== 'guest' && <ArrowUpDown size={11} aria-hidden="true" />}</button></th>
                 <th scope="col" aria-sort={ariaSort('room')}><button type="button" className="ui-th-sort" onClick={() => sortBy('room')}>יחידה{sortIcon('room')}{p('sort') !== 'room' && <ArrowUpDown size={11} aria-hidden="true" />}</button></th>
                 <th scope="col">שהייה</th>
+                <th scope="col">תשלום ויתרה</th>
+                <th scope="col">הכנות והערות</th>
                 <th scope="col" aria-sort={ariaSort('eta')}><button type="button" className="ui-th-sort" onClick={() => sortBy('eta')}>הגעה צפויה{sortIcon('eta')}{p('sort') !== 'eta' && <ArrowUpDown size={11} aria-hidden="true" />}</button></th>
                 <th scope="col">מוכנות</th>
                 <th scope="col">סטטוס</th>
@@ -217,10 +226,10 @@ export default function ArrivalsPage() {
             </thead>
             <tbody>
               {loading && !data && (
-                <tr><td colSpan={7}><div className="ui-empty"><Spinner /> טוען הגעות…</div></td></tr>
+                <tr><td colSpan={9}><div className="ui-empty"><Spinner /> טוען הגעות…</div></td></tr>
               )}
               {data && data.rows.length === 0 && (
-                <tr><td colSpan={7}>
+                <tr><td colSpan={9}>
                   {(data.counts.all || 0) === 0 ? (
                     <div className="ui-empty"><strong>אין הגעות ב{isToday ? 'יום הזה' : `־${formatShort(viewDate)}`}</strong>אפשר ליצור הזמנת Walk-in לאורח שהגיע ללא הזמנה.</div>
                   ) : (
@@ -335,6 +344,7 @@ function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, o
               {multi && <span> · יחידה {row.unitIndex}/{row.unitsTotal}</span>}
               {row.company && <span> · {row.company.name}</span>}
             </div>
+            {row.guest.isBookerName && <div className="ui-sub">שם המזמין; שם אורח היחידה לא הוזן</div>}
           </div>
         </div>
       </td>
@@ -355,10 +365,11 @@ function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, o
         <div className="tabular-nums">{formatShort(row.arrivalDate)} – {formatShort(row.departureDate)}</div>
         <div className="ui-stay-chips">
           <span className="ui-mini" title="לילות"><Moon size={11} aria-hidden="true" />{row.nights}<span className="sr-only"> לילות</span></span>
-          <span className="ui-mini" title="מבוגרים"><User size={11} aria-hidden="true" />{row.adults}<span className="sr-only"> מבוגרים</span></span>
-          <span className="ui-mini" title="ילדים"><Baby size={11} aria-hidden="true" />{row.children || 0}<span className="sr-only"> ילדים</span></span>
+          <ArrivalPartyInfo row={row} />
         </div>
       </td>
+      <td><ArrivalPaymentInfo row={row} /></td>
+      <td><ArrivalPreparationInfo row={row} /></td>
       <td className="tabular-nums">
         {row.eta ? <button type="button" className="ui-link" onClick={onEta} disabled={done}>{row.eta}</button>
           : done ? '—' : <button type="button" className="ui-link is-muted" onClick={onEta}>לא ידוע</button>}

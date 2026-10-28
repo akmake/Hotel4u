@@ -41,7 +41,7 @@ export function decide(tourist, rule) {
 }
 
 async function ruleOf(propertyId, session = null) {
-  const p = await Property.findById(propertyId).session(session).select('taxPolicy vatRate timezone').lean();
+  const p = await Property.findById(propertyId).session(session).select('taxPolicy vatRate timezone dayClose').lean();
   return { rule: p?.taxPolicy?.tourist || { enabled: false }, vatRate: p?.vatRate ?? 18, property: p };
 }
 
@@ -95,7 +95,7 @@ export async function recordTourist({ propertyId, reservationId, input, actor, i
   const res = await Reservation.findOne({ _id: reservationId, property: propertyId });
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
   if (['cancelled', 'no_show'].includes(res.status)) throw httpError('לא רושמים מעמד להזמנה שבוטלה', 409);
-  const property = await Property.findById(propertyId).select('timezone').lean();
+  const property = await Property.findById(propertyId).select('timezone dayClose').lean();
   const today = businessDateOf(property);
   const nonResident = !!input.nonResident;
   const country = String(input.passportCountry || '').trim().toUpperCase();

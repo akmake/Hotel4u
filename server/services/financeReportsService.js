@@ -22,6 +22,7 @@ import CashierClose from '../models/CashierClose.js';
 import { audit } from './auditService.js';
 import { httpError, businessDateOf, MANAGER_ROLES } from './frontDeskService.js';
 import { undocumentedByFolio } from './documentService.js';
+import { financialWrite } from './financialTransaction.js';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -39,8 +40,8 @@ function range(from, to, fallbackDays = 30, property) {
   return { from: f, to: t };
 }
 
-async function prop(propertyId) {
-  const p = await Property.findById(propertyId).select('name legalName taxNumber timezone vatRate').lean();
+async function prop(propertyId, session = null) {
+  const p = await Property.findById(propertyId).session(session).select('name legalName taxNumber timezone vatRate dayClose').lean();
   if (!p) throw httpError('הנכס לא נמצא', 404);
   return p;
 }
@@ -126,7 +127,7 @@ export async function vatReport({ propertyId, from, to }) {
 export async function receiptsReport({ propertyId, from, to }) {
   const p = await prop(propertyId);
   const r = range(from, to, 30, p);
-  const folios = await Folio.find({ property: propertyId, lines: { $elemMatch: { serviceDate: { $gte: r.from, $lte: r.to }, type: { $in: ['payment', 'deposit', 'refund'] }, status: 'posted' } } })
+  const folios = await Folio.find({ property: propertyId, lines: { $elemMatch: { $or: [{ accountingDate: { $gte: r.from, $lte: r.to } }, { accountingDate: { $exists: false }, serviceDate: { $gte: r.from, $lte: r.to } }], type: { $in: ['payment', 'deposit', 'refund'] }, status: 'posted' } } })
     .select('reservation lines').lean();
   const docs = await Invoice.find({ folio: { $in: folios.map((f) => f._id) }, type: { $in: ['receipt', 'tax_invoice_receipt'] } }).select('invoiceNumber type payments.folioLineId payments.nettedLineIds').lean();
   const onDoc = new Map();
@@ -140,10 +141,11 @@ export async function receiptsReport({ propertyId, from, to }) {
   for (const f of folios) {
     const rv = res.get(String(f.reservation));
     for (const l of f.lines) {
-      if (l.status !== 'posted' || !['payment', 'deposit', 'refund'].includes(l.type) || l.serviceDate < r.from || l.serviceDate > r.to) continue;
+      const date = l.accountingDate || l.serviceDate;
+      if (l.status !== 'posted' || !['payment', 'deposit', 'refund'].includes(l.type) || date < r.from || date > r.to) continue;
       const amount = round2(l.type === 'refund' ? -Math.abs(l.amount) : Math.abs(l.amount));
       rows.push({
-        id: String(l._id), date: l.serviceDate, kind: l.type, method: l.method || 'other', methodLabel: METHOD_LABELS[l.method] || l.method || 'אחר', amount,
+        id: String(l._id), date, serviceDate: l.serviceDate, kind: l.type, method: l.method || 'other', methodLabel: METHOD_LABELS[l.method] || l.method || 'אחר', amount,
         reference: l.methodRef || '', details: l.payDetails || null,
         confirmationNumber: rv?.confirmationNumber || '', guest: rv?.primaryGuest ? `${rv.primaryGuest.firstName || ''} ${rv.primaryGuest.lastName || ''}`.trim() : '',
         by: users.get(String(l.createdBy)) || '', document: onDoc.get(String(l._id)) || null,
@@ -212,22 +214,22 @@ export async function allocationsReport({ propertyId, from, to }) {
 }
 
 // ── cash drawer per cashier ─────────────────────────────────────────────────
-async function cashLines(propertyId, date) {
-  const folios = await Folio.find({ property: propertyId, lines: { $elemMatch: { serviceDate: date, method: 'cash', status: 'posted' } } }).select('lines').lean();
+async function cashLines(propertyId, date, session = null) {
+  const folios = await Folio.find({ property: propertyId, lines: { $elemMatch: { $or: [{ accountingDate: date }, { accountingDate: { $exists: false }, serviceDate: date }], method: 'cash', status: 'posted' } } }).session(session).select('lines').lean();
   const out = [];
   for (const f of folios) for (const l of f.lines) {
-    if (l.serviceDate !== date || l.method !== 'cash' || l.status !== 'posted' || !['payment', 'deposit', 'refund'].includes(l.type)) continue;
+    if ((l.accountingDate || l.serviceDate) !== date || l.method !== 'cash' || l.status !== 'posted' || !['payment', 'deposit', 'refund'].includes(l.type)) continue;
     out.push({ user: l.createdBy ? String(l.createdBy) : null, amount: round2(l.type === 'refund' ? -Math.abs(l.amount) : Math.abs(l.amount)) });
   }
   return out;
 }
 
-export async function cashDay({ propertyId, date }) {
-  const p = await prop(propertyId);
+export async function cashDay({ propertyId, date, session = null }) {
+  const p = await prop(propertyId, session);
   const day = YMD.test(date || '') ? date : businessDateOf(p);
-  const lines = await cashLines(propertyId, day);
+  const lines = await cashLines(propertyId, day, session);
   const users = new Map((await User.find({ property: propertyId }).select('firstName lastName role').lean()).map((u) => [String(u._id), u]));
-  const closes = await CashierClose.find({ property: propertyId, businessDate: day }).sort({ createdAt: 1 }).lean();
+  const closes = await CashierClose.find({ property: propertyId, businessDate: day }).session(session).sort({ createdAt: 1 }).lean();
   const ids = new Set([...lines.map((l) => l.user).filter(Boolean), ...closes.map((c) => String(c.user))]);
   const rows = [...ids].map((uid) => {
     const of = lines.filter((l) => l.user === uid);
@@ -244,29 +246,33 @@ export async function cashDay({ propertyId, date }) {
   return { date: day, rows, unattributed, total: round2(lines.reduce((s, l) => s + l.amount, 0)), counted: round2(rows.reduce((s, x) => s + (x.close?.counted || 0), 0)), variance: round2(rows.reduce((s, x) => s + (x.close?.variance || 0), 0)) };
 }
 
-export async function closeCash({ propertyId, date, userId, counted, note, actor, ip }) {
-  const p = await prop(propertyId);
+export async function closeCash({ propertyId, date, userId, counted, note, actor, ip, session = null, afterCommit = null }) {
+  if (!session) return financialWrite(`cash:${propertyId}:${userId || actor.id}`, (session, afterCommit) => closeCash({ propertyId, date, userId, counted, note, actor, ip, session, afterCommit }), propertyId);
+  const p = await prop(propertyId, session);
   const day = YMD.test(date || '') ? date : businessDateOf(p);
+  if (p.dayClose?.lastClosedDate && day <= p.dayClose.lastClosedDate) throw httpError('אין לשנות קופה של יום עסקי סגור', 409, { code: 'closed_business_day' });
+  if (day > businessDateOf(p)) throw httpError('אין לסגור קופה של יום עתידי', 422);
+  await Property.updateOne({ _id: propertyId }, { $inc: { 'dayClose.writeVersion': 1 } }, { session });
   const target = userId || actor.id;
   const isManager = [...MANAGER_ROLES, 'finance_manager'].includes(actor.role);
   if (String(target) !== String(actor.id) && !isManager) throw httpError('סגירת קופה של עובד אחר — למנהל או לכספים', 403);
   const c = Number(counted);
   if (!Number.isFinite(c) || c < 0) throw httpError('יש להזין את הסכום שנספר', 422, { fields: { counted: 'סכום' } });
-  const lines = (await cashLines(propertyId, day)).filter((l) => l.user === String(target));
+  const lines = (await cashLines(propertyId, day, session)).filter((l) => l.user === String(target));
   const expected = round2(lines.reduce((s, l) => s + l.amount, 0));
   const variance = round2(c - expected);
   const why = String(note || '').trim().slice(0, 300);
-  const prev = await CashierClose.findOne({ property: propertyId, businessDate: day, user: target, active: true });
+  const prev = await CashierClose.findOne({ property: propertyId, businessDate: day, user: target, active: true }).session(session);
   if (prev && why.length < 3) throw httpError('הקופה כבר נסגרה — סגירה מתקנת מחייבת סיבה', 422, { fields: { note: 'סיבה' } });
   if (Math.abs(variance) > 0.005 && why.length < 3) throw httpError(`יש הפרש של ${variance.toFixed(2)} — נדרש הסבר`, 422, { fields: { note: 'הסבר להפרש' } });
   const u = await User.findById(target).select('firstName lastName').lean();
-  const row = await CashierClose.create({
+  const [row] = await CashierClose.create([{
     property: propertyId, businessDate: day, user: target, userName: u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : undefined,
     expected, counted: round2(c), variance, receipts: lines.length, note: why || undefined, closedBy: actor.id || undefined, closedByName: actor.name, supersedes: prev?._id,
-  });
-  if (prev) await CashierClose.updateOne({ _id: prev._id }, { $set: { active: false } });
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: prev ? 'cash.close_corrected' : 'cash.closed', entityType: 'CashierClose', entityId: row._id, after: { date: day, user: String(target), expected, counted: round2(c), variance }, reason: why || undefined, ip });
-  return cashDay({ propertyId, date: day });
+  }], { session });
+  if (prev) await CashierClose.updateOne({ _id: prev._id }, { $set: { active: false } }, { session });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: prev ? 'cash.close_corrected' : 'cash.closed', entityType: 'CashierClose', entityId: row._id, after: { date: day, user: String(target), expected, counted: round2(c), variance }, reason: why || undefined, ip, session, afterCommit });
+  return cashDay({ propertyId, date: day, session });
 }
 
 // ── accountant workbook ─────────────────────────────────────────────────────

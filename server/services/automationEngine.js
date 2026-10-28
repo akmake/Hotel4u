@@ -18,6 +18,8 @@ import Property        from '../models/Property.js';
 import Reservation     from '../models/Reservation.js';
 import GuestProfile    from '../models/GuestProfile.js';
 import Folio           from '../models/Folio.js';
+import { financialWrite } from './financialTransaction.js';
+import { openBusinessDate } from '../utils/businessDate.js';
 import { push as pushNotification } from './notificationService.js';
 import { emit as emitWebhook }     from './webhookService.js';
 import { dispatchDirectEmail, dispatchDirectSms } from './notificationDispatcher.js';
@@ -155,9 +157,15 @@ async function handleUpdateReservation(params, ctx) {
 async function handlePostCharge(params, ctx) {
   const reservationId = params.reservationId || get(ctx, 'reservation._id');
   if (!reservationId || !params.amount) return;
-  const folio = await Folio.findOne({ reservation: reservationId, status: 'open' }).sort({ createdAt: -1 });
+  const reservation = await Reservation.findById(reservationId).select('property').lean();
+  if (!reservation) return;
+  return financialWrite(`automation:${reservationId}`, async (session) => {
+  const folio = await Folio.findOne({ reservation: reservationId, status: 'open' }).session(session).sort({ createdAt: -1 });
   if (!folio) return;
+  const property = await Property.findById(reservation.property).session(session).select('timezone dayClose').lean();
   folio.lines.push({
+    type:        'charge',
+    serviceDate: openBusinessDate(property),
     description: interpolate(params.description || 'Automation charge', ctx),
     amount:      Number(params.amount),
     taxAmount:   Number(params.taxAmount || 0),
@@ -166,7 +174,8 @@ async function handlePostCharge(params, ctx) {
     status:      'posted',
     postedAt:    new Date(),
   });
-  await folio.save();
+  await folio.save({ session });
+  }, String(reservation.property));
 }
 
 async function resolveGuestContact(ctx) {

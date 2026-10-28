@@ -7,13 +7,13 @@
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, MousePointer2, Plus, X } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuthStore } from '../../stores/authStore';
 import { ops } from '../../utils/api';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/ui/Toast';
-import { Page, Card, ErrorBanner, Banner, Spinner, Modal, Field, Segmented, ConfirmDialog, Tag, useLoader, useAction, useUrlState } from '../../components/kit';
+import { Card, ErrorBanner, Banner, Spinner, Modal, Field, Segmented, ConfirmDialog, Tag, useLoader, useAction, useUrlState } from '../../components/kit';
 import './AvailabilityPage.css';
 
 const BLOCK_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'maintenance_manager', 'revenue_manager'];
@@ -69,18 +69,32 @@ export default function AvailabilityPage() {
     if (i >= 0) setSel({ a: i, b: i });
   };
   const s = data?.summary;
+  const goBack = () => { if ((window.history.state?.idx || 0) > 0) navigate(-1); else navigate('/pms'); };
 
   return (
-    <Page wide>
-      <div className="ac-workspace">
+    <div className="ac-workspace avl-page" dir="rtl">
       <ToastContainer toasts={toasts} />
-      <header className="ac-page-head">
-        <div className="ac-page-title"><span className="ac-eyebrow">מלאי וחדרים</span><h1>לוח זמינות</h1></div>
-        {s && <div className="ac-msum" aria-label={`סיכום ${monthName(month)}`}>
-          <div><span>תפוסה בחודש</span><b className="ui-num">{s.occupancyPct}<small>%</small></b></div>
-          <div><span>לילות חדר שנמכרו</span><b className="ui-num">{s.definite.toLocaleString('he-IL')}</b></div>
-          <div><span>הגעות בחודש</span><b className="ui-num">{s.arrivals.toLocaleString('he-IL')}</b></div>
-        </div>}
+      <header className="avl-head">
+        <button type="button" className="avl-icon" onClick={goBack} aria-label="חזרה" title="חזרה"><ArrowRight size={20} /></button>
+        <div className="avl-title"><h1>לוח זמינות</h1><span>{monthName(month)}</span></div>
+        <div className="avl-nav">
+          <button type="button" className="avl-icon" onClick={() => url.set({ month: addMonths(month, -1) })} aria-label="חודש קודם"><ChevronRight size={20} /></button>
+          <button type="button" className="avl-icon" onClick={() => url.set({ month: addMonths(month, 1) })} aria-label="חודש הבא"><ChevronLeft size={20} /></button>
+          <button type="button" className="avl-btn" onClick={goToday}>היום</button>
+          {loading && <Spinner />}
+        </div>
+        {data?.staleArrivals > 0 && (
+          <button type="button" className="avl-alert" onClick={() => navigate('/pms/arrivals')} title="הזמנות שתאריך ההגעה שלהן עבר ולא נקלטו">
+            <AlertTriangle size={15} aria-hidden="true" />{data.staleArrivals} הזמנות לטיפול
+          </button>
+        )}
+        {s && (
+          <dl className="avl-sum" aria-label={`סיכום ${monthName(month)}`}>
+            <div><dt>תפוסה בחודש</dt><dd className="ui-num">{s.occupancyPct}%</dd></div>
+            <div><dt>לילות חדר נמכרו</dt><dd className="ui-num">{s.definite.toLocaleString('he-IL')}</dd></div>
+            <div><dt>הגעות בחודש</dt><dd className="ui-num">{s.arrivals.toLocaleString('he-IL')}</dd></div>
+          </dl>
+        )}
       </header>
       <ErrorBanner error={error} onRetry={reload} />
       {loading && !data && <div className="ui-empty"><Spinner /> טוען…</div>}
@@ -88,24 +102,6 @@ export default function AvailabilityPage() {
       {data && data.rows.length > 0 && (
         <div className="ac-layout">
           <section className="ac-cal" aria-label={`לוח זמינות ${monthName(month)}`} aria-busy={loading}>
-            <div className="ac-cal-head">
-              <div className="ac-month-title"><CalendarDays size={19} aria-hidden="true" /><h2>{monthName(month)}</h2></div>
-              <div className="ac-nav">
-                <button type="button" className="ac-navbtn" onClick={() => url.set({ month: addMonths(month, -1) })} aria-label="חודש קודם"><ChevronRight size={16} /></button>
-                <button type="button" className="ac-navbtn" onClick={() => url.set({ month: addMonths(month, 1) })} aria-label="חודש הבא"><ChevronLeft size={16} /></button>
-              </div>
-              <button type="button" className="ac-btn" onClick={goToday}>היום</button>
-              {loading && <Spinner />}
-              {data.staleArrivals > 0 && (
-                <button type="button" className="ac-alert" onClick={() => navigate('/pms/arrivals')} title={`${data.staleArrivals} הזמנות שתאריך ההגעה שלהן עבר ולא נקלטו — לחצו לטיפול`}>
-                  <AlertTriangle size={14} />{data.staleArrivals} הזמנות לטיפול
-                </button>
-              )}
-            </div>
-            <div className="ac-hint">
-              <span className="ac-guide">המספר בכל יום מציין חדרים פנויים למכירה</span>
-              <div className="ac-legend"><span className="ac-lg"><i className="is-ok" />תפוסה</span><span className="ac-lg"><i className="is-hi" />מעל 80%</span><span className="ac-lg"><i className="is-max" />מלא</span></div>
-            </div>
             <div className="ac-dows">{DAYS.map((d, i) => <div key={d} className={i >= 5 ? 'is-wk' : ''}>{d}</div>)}</div>
             <div className="ac-grid">
               {Array.from({ length: dow(data.dates[0]) }, (_, i) => <div key={`lead${i}`} className="ac-day is-out" aria-hidden="true" />)}
@@ -149,19 +145,21 @@ export default function AvailabilityPage() {
               })}
               {Array.from({ length: (7 - ((dow(data.dates[0]) + data.dates.length) % 7)) % 7 }, (_, i) => <div key={`tail${i}`} className="ac-day is-out" aria-hidden="true" />)}
             </div>
-            <footer className="ac-cal-foot"><MousePointer2 size={13} aria-hidden="true" /><span>בחרו יום לפרטים · גררו לבחירת טווח</span><span className="ac-key-hint">Shift להרחבה · Esc לניקוי</span></footer>
+            <footer className="avl-foot">
+              <span>המספר הגדול בכל יום = חדרים פנויים למכירה</span>
+              <span className="avl-legend"><span><i className="is-ok" />תפוסה</span><span><i className="is-hi" />מעל 80%</span><span><i className="is-max" />מלא</span></span>
+              <span className="avl-keys">לחיצה על יום לפרטים · גרירה לטווח · Esc לניקוי</span>
+            </footer>
           </section>
           <aside className="ac-panel" aria-live="polite">
             {range
               ? <Details key={`${range[0]}-${range[1]}`} data={data} range={range} today={today} canBlock={canBlock} onBook={book} onBlock={setBlockRange} navigate={navigate} onClear={() => setSel(null)} />
               : (
                 <div className="ac-empty">
-                  <span className="ac-eyebrow">פרטי הזמינות</span>
-                  <CalendarDays size={30} strokeWidth={1.25} aria-hidden="true" />
-                  <h2>כל הפרטים,<br />ביום שתבחרו.</h2>
-                  <p>בחרו תאריך בלוח כדי לראות זמינות לפי סוג חדר, תנועת אורחים ואפשרויות להזמנה.</p>
-                  <div className="ac-empty-types"><span className="ac-eyebrow">סוגי החדרים במלון</span>{data.rows.map((row) => <div key={row.roomType.id}><span>{row.roomType.name}</span><span className="ui-num">{row.rooms} חדרים</span></div>)}</div>
-                  <span className="ac-empty-note">לבדיקת שהייה של כמה לילות, בחרו טווח בלוח.</span>
+                  <h2>בחרו יום או טווח בלוח</h2>
+                  <p>כאן יופיעו הזמינות לפי סוג חדר, התנועה באותו יום והאפשרות להזמין.</p>
+                  <h3>סוגי החדרים במלון</h3>
+                  <div className="ac-empty-types">{data.rows.map((row) => <div key={row.roomType.id}><span>{row.roomType.name}</span><span className="ui-num">{row.rooms} חדרים</span></div>)}</div>
                 </div>
               )}
           </aside>
@@ -203,8 +201,7 @@ export default function AvailabilityPage() {
         requireReason
         onConfirm={async (reason) => { await ops.releaseBlock(propertyId, release.id, reason); setRelease(null); success('החסימה שוחררה'); reload(); }}
       />
-      </div>
-    </Page>
+    </div>
   );
 }
 
@@ -227,8 +224,7 @@ function Details({ data, range, today, canBlock, onBook, onBlock, navigate, onCl
   return (
     <div className="ac-details">
       <div className="ac-p-head">
-        <div className="ac-p-top"><span className="ac-eyebrow">{single ? 'פרטי היום' : 'פרטי השהייה'}</span><button type="button" className="ac-navbtn" onClick={onClear} aria-label="ניקוי בחירת תאריכים"><X size={15} /></button></div>
-        <h2>{single ? `יום ${DAYS[dow(first)]}, ${dm(first)}` : `${dm(first)} – ${dm(last)}`}</h2>
+        <div className="ac-p-top"><h2>{single ? `יום ${DAYS[dow(first)]}, ${dm(first)}` : `${dm(first)} – ${dm(last)}`}</h2><button type="button" className="ac-navbtn" onClick={onClear} aria-label="ניקוי בחירת תאריכים"><X size={15} /></button></div>
         <div className="ac-p-sub">{single ? (first < today ? 'יום שעבר — מה היה בפועל' : first === today ? 'היום' : 'לילה אחד') : `${days.length} לילות · יציאה ב־${dm(checkout)}`}</div>
         <div className={`ac-availability ${minFree <= 0 || T.some((t) => t.stopSell) ? 'is-full' : ''}`}><strong className="ui-num">{minFree}</strong><span>{single ? 'חדרים פנויים למכירה' : 'חדרים פנויים לכל הלילות'}</span></div>
         <div className="ac-p-acts">

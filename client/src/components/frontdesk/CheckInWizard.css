@@ -1,0 +1,123 @@
+/* Check-in in the approved /pms look: grey field, white cards, Material 3 buttons and fields.
+   Four layouts of the same steps: accordion, stepper, steps + summary (split), side sheet. */
+.ci {
+  --ci-canvas: color-mix(in srgb, #808080 12%, white); --ci-card: #fff; --ci-line: rgb(var(--fg) / .08);
+  --ci-teal: #006a61; --ci-outline: #6f7977; --ci-select: #cce8e3; --ci-on-select: #324b47; --ci-ease: cubic-bezier(.2, 0, 0, 1);
+  position: fixed; z-index: 51; display: flex; flex-direction: column; background: var(--ci-canvas); color: rgb(var(--fg));
+  font-family: 'Heebo', sans-serif; box-shadow: 0 24px 64px rgb(0 0 0 / .22); outline: none;
+}
+.ci-accordion, .ci-stepper, .ci-split { top: max(24px, 5vh); left: 50%; transform: translateX(-50%); width: calc(100vw - 32px); max-height: calc(100vh - max(48px, 10vh)); border-radius: 16px; overflow: hidden; }
+.ci-accordion { max-width: 820px; }
+.ci-stepper { max-width: 880px; }
+.ci-split { max-width: 1180px; height: min(780px, calc(100vh - max(48px, 10vh))); }
+.ci-sheet { top: 0; bottom: 0; left: 0; width: min(660px, 100vw); box-shadow: 8px 0 40px rgb(0 0 0 / .16); }
+
+.ci-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 24px 16px; background: var(--ci-card); border-bottom: 1px solid var(--ci-line); }
+.ci-title { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.ci-head p { margin: 2px 0 0; font-size: 13px; color: rgb(var(--fg-muted)); }
+.ci-close { display: grid; place-items: center; flex: none; width: 40px; height: 40px; margin: -6px -8px 0 0; border-radius: 50%; color: rgb(var(--fg-secondary)); }
+.ci-close:hover { background: rgb(63 73 71 / .08); }
+.ci-close:focus-visible { outline: 3px solid var(--ci-teal); outline-offset: 2px; }
+.ci-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 20px 24px 24px; }
+.ci-foot { padding: 14px 24px 18px; background: var(--ci-card); border-top: 1px solid var(--ci-line); }
+
+/* Stay facts and special request: white tiles and a soft note on the grey field. */
+.ci .ck-tiles { gap: 8px; border: 0; border-radius: 0; background: none; overflow: visible; }
+.ci .ck-tiles > div, .ci .ck-tiles > div + div { padding: 12px 16px; border: 0; border-radius: 12px; background: var(--ci-card); }
+.ci .ck-tiles span { font-size: 12px; color: rgb(var(--fg-muted)); }
+.ci .ck-tiles strong { font-size: 16px; font-weight: 600; }
+.ci .ck-tiles .is-due strong { color: rgb(180 83 9); }
+.ci .ck-note { padding: 10px 14px; border: 0; border-radius: 12px; background: rgb(var(--warning) / .1); color: rgb(146 64 14); font-size: 14px; }
+
+/* Shared step look. */
+.ci .ui-h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+.ci .ui-step-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ci-line); }
+.ci .ui-sub-card { border: 0; border-radius: 12px; background: var(--ci-canvas); }
+.ci .ui-banner { border-radius: 12px; }
+.ci .ck-unit { border: 1px solid rgb(var(--fg) / .1); border-radius: 12px; background: var(--ci-card); }
+
+/* Material 3 common buttons and outlined fields. */
+.ci .btn { height: 40px; padding: 0 24px; border-radius: 9999px; font-size: 14px; font-weight: 500; letter-spacing: .1px; transition: background-color .2s var(--ci-ease), box-shadow .2s var(--ci-ease); }
+.ci .btn-primary { border-color: transparent; background: var(--ci-teal); color: #fff; }
+.ci .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, #fff 8%, var(--ci-teal)); box-shadow: 0 1px 2px 0 rgb(0 0 0 / .3), 0 1px 3px 1px rgb(0 0 0 / .15); }
+.ci .btn-secondary { border: 1px solid var(--ci-outline); background: transparent; color: var(--ci-teal); }
+.ci .btn-secondary:hover:not(:disabled) { background: rgb(0 106 97 / .08); }
+.ci .btn-ghost { border-color: transparent; background: transparent; color: var(--ci-teal); padding: 0 12px; }
+.ci .btn-ghost:hover:not(:disabled) { background: rgb(0 106 97 / .08); }
+.ci .btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.ci .btn:disabled { border-color: rgb(22 29 28 / .12); background: rgb(22 29 28 / .12); color: rgb(22 29 28 / .38); box-shadow: none; }
+.ci .btn-secondary:disabled, .ci .btn-ghost:disabled { background: transparent; }
+.ci .btn:focus-visible { outline: 3px solid var(--ci-teal); outline-offset: 2px; }
+.ci :is(.input, .select) { min-height: 40px; border: 1px solid rgb(var(--fg) / .22); border-radius: 8px; background: var(--ci-card); font-size: 14px; }
+.ci :is(.input, .select):hover { border-color: rgb(var(--fg) / .4); }
+.ci :is(.input, .select):focus { border-color: var(--ci-teal); box-shadow: inset 0 0 0 1px var(--ci-teal); outline: none; }
+
+/* Confirmation block: a white card (in the sheet it lives in the pinned footer). */
+.ci .ck-confirm { position: static; margin: 0; padding: 16px 20px; border: 0; border-radius: 12px; background: var(--ci-card); box-shadow: none; }
+.ci .ck-confirm .ui-step-foot { margin: 0; padding: 0; border: 0; }
+.ci .ck-confirm .ui-issues li { border-radius: 9999px; background: var(--ci-canvas); border-color: transparent; }
+.ci-foot .ck-confirm, .ci-pane > .ck-confirm { padding: 0; border-radius: 0; background: none; }
+
+/* Step markers shared by stepper, split and sheet. */
+.ci-dot { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; background: rgb(var(--fg) / .08); color: rgb(var(--fg-secondary)); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ci-step { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 12px; background: transparent; color: rgb(var(--fg-secondary)); font: inherit; text-align: start; transition: background-color .15s var(--ci-ease); }
+.ci-step strong { font-size: 14px; font-weight: 500; }
+.ci-step small { font-size: 12px; color: rgb(var(--fg-muted)); }
+.ci-step small.is-todo, .ci-block small.is-todo { color: rgb(180 83 9); }
+.ci-step:hover { background: rgb(var(--fg) / .05); }
+.ci-step[aria-current="step"] { background: var(--ci-card); color: rgb(var(--fg)); box-shadow: inset 0 0 0 1px rgb(var(--accent-600) / .45); }
+.ci-step[aria-current="step"] .ci-dot { background: var(--ci-select); color: var(--ci-on-select); }
+.ci-step.is-done .ci-dot, .ci-block.is-done .ci-dot { background: var(--ci-teal); color: #fff; }
+.ci-step:focus-visible { outline: 3px solid var(--ci-teal); outline-offset: 2px; }
+.ci-pane { padding: 18px 20px 20px; border-radius: 12px; background: var(--ci-card); }
+
+/* 2 · Stepper: one step at a time under a progress row. */
+.ci-stepper { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ci-stepper .ci-step { background: var(--ci-card); }
+
+/* 3 · Split: steps with their state on one side, the step in the middle, the stay summary on the other. */
+.ci-split .ci-body { padding: 20px 24px; }
+.ci-grid { display: grid; grid-template-columns: 250px minmax(0, 1fr) 260px; align-items: start; gap: 16px; }
+.ci-nav { position: sticky; top: 0; display: grid; gap: 4px; }
+.ci-nav .ci-step { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; column-gap: 10px; row-gap: 2px; padding: 12px; }
+.ci-nav .ci-dot { grid-row: span 2; }
+.ci-nav .ci-step small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci-aside { position: sticky; top: 0; display: grid; gap: 8px; }
+.ci-aside .ck-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* 4 · Sheet: every section open in one scroll, confirmation pinned at the bottom. */
+.ci-block { padding: 16px 20px 20px; border-radius: 12px; background: var(--ci-card); }
+.ci-block > header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.ci-block > header h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.ci-block > header small { margin-inline-start: auto; font-size: 12px; color: rgb(var(--fg-muted)); text-align: end; }
+.ci-block .ui-h3 { display: none; }
+
+/* 1 · Accordion: the existing sections as white cards. */
+.ci .ck-sec { border: 0; border-radius: 12px; background: var(--ci-card); box-shadow: none; overflow: hidden; }
+.ci .ck-sec.is-open { box-shadow: inset 0 0 0 1px rgb(var(--accent-600) / .45); }
+.ci .ck-sec-head { padding: 14px 16px; }
+.ci .ck-sec-n { width: 28px; height: 28px; background: rgb(var(--fg) / .08); color: rgb(var(--fg-secondary)); font-size: 13px; font-weight: 600; }
+.ci .ck-sec.is-done .ck-sec-n { background: var(--ci-teal); color: #fff; }
+.ci .ck-sec-title { font-size: 15px; }
+.ci .ck-sec-body { padding: 16px; border-top: 1px solid var(--ci-line); }
+
+@media (max-width: 1000px) {
+  .ci-grid { grid-template-columns: minmax(0, 1fr); }
+  .ci-nav { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ci-aside { position: static; }
+}
+@media (max-width: 640px) { .ci-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ci-body { padding: 16px; } }
+@media (prefers-reduced-motion: reduce) { .ci .btn, .ci-step { transition: none; } }
+
+/* Fixes (2026-10-28): items in the scrolling column must never shrink — an overflow-hidden section
+   would otherwise be squashed to the window height and its open body hidden. Section summaries wrap
+   on their own line under the title instead of being cut with an ellipsis. */
+.ci-body > * { flex-shrink: 0; }
+.ci .ck-sec { overflow: visible; }
+.ci .ck-sec-head { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 2px; border-radius: 12px; }
+.ci .ck-sec.is-open .ck-sec-head { border-end-start-radius: 0; border-end-end-radius: 0; }
+.ci .ck-sec-head:hover { background: rgb(var(--fg) / .03); }
+.ci .ck-sec-n { grid-row: span 2; }
+.ci .ck-sec-title { grid-column: 2; }
+.ci .ck-sec-sum { grid-column: 2; overflow: visible; white-space: normal; text-overflow: clip; text-align: start; font-size: 13px; line-height: 18px; }
+.ci .ck-sec-chev { grid-column: 3; grid-row: 1 / span 2; }

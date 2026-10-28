@@ -95,7 +95,7 @@ async function inHouseUnit(res, unitId, fromRoomId, session = null) {
 }
 
 // ── FD-09 room move ─────────────────────────────────────────────────────────
-function capacityIssue(res, unit, units, type) {
+export function capacityIssue(res, unit, units, type) {
   if (!type || type.active === false) return 'סוג חדר היעד אינו פעיל';
   const multi = Math.max(Number(res.roomsCount || 1), units.length) > 1;
   const known = multi && Number.isInteger(unit.adults) && Number.isInteger(unit.children);
@@ -514,7 +514,7 @@ async function modificationPlan({ propertyId, res, changes, session = null }) {
   const rooms = res.roomsCount || 1;
   const roomTypeId = changes.roomTypeId || String(res.roomType);
   const ratePlanId = changes.ratePlanId || (res.ratePlan ? String(res.ratePlan) : null);
-  const property = await Property.findById(propertyId).session(session).select('timezone vatRate').lean();
+  const property = await Property.findById(propertyId).session(session).select('timezone vatRate dayClose').lean();
   const today = businessDateOf(property);
   const fields = {};
   if (!YMD.test(arrival) || !YMD.test(departure) || departure <= arrival) fields.dates = 'טווח תאריכים לא תקין';

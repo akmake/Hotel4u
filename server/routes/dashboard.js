@@ -9,12 +9,12 @@ import Folio from '../models/Folio.js';
 import Payment from '../models/Payment.js';
 import ChannelUpdateQueue from '../models/ChannelUpdateQueue.js';
 import Property from '../models/Property.js';
-import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { openBusinessDate } from '../utils/businessDate.js';
 
 // The property's calendar day (Israel is UTC+2/3 — the server's UTC day is wrong after midnight).
 async function propertyToday(propertyId) {
-  const p = await Property.findById(propertyId).select('timezone').lean();
-  return todayYmdInTimezone(p?.timezone || 'Asia/Jerusalem');
+  const p = await Property.findById(propertyId).select('timezone dayClose').lean();
+  return openBusinessDate(p);
 }
 
 const router = Router();

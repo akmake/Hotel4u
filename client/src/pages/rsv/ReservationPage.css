@@ -1,0 +1,88 @@
+/* Reservation file in the approved /pms look: one header row (back, guest, status, one contextual
+   action, account, everything else in "⋯"), a summary strip of the stay, then white cards on the
+   grey canvas — who and what on one side, money and terms on the other. */
+.page-content:has(> .rsv-page) { background: color-mix(in srgb, #808080 12%, white); }
+.rsv-page {
+  --rsv-teal: #006a61; --rsv-outline: #6f7977; --rsv-line: rgb(var(--fg) / .08);
+  display: flex; flex-direction: column; gap: 14px; max-width: 1280px; margin: 0 auto; color: rgb(var(--fg)); font-family: 'Heebo', sans-serif;
+}
+
+/* Header row */
+.rsv-head { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid rgb(var(--fg) / .14); }
+.rsv-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; margin-inline-end: -4px; border-radius: 50%; color: rgb(var(--fg)); }
+.rsv-icon:hover { background: rgb(63 73 71 / .08); }
+.rsv-title { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-width: 0; }
+.rsv-title h1 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 22px; line-height: 30px; font-weight: 600; }
+.rsv-vip { color: rgb(180 83 9); }
+.rsv-status { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 9999px; background: rgb(var(--fg) / .07); color: rgb(var(--fg-secondary)); font-size: 12.5px; font-weight: 600; }
+.rsv-status.is-ok { background: rgb(var(--success) / .12); color: rgb(21 101 52); }
+.rsv-status.is-warn { background: rgb(var(--warning) / .14); color: rgb(146 64 14); }
+.rsv-status.is-bad { background: rgb(var(--danger) / .1); color: rgb(153 27 27); }
+.rsv-meta { font-size: 13px; color: rgb(var(--fg-muted)); }
+.rsv-actions { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; }
+.rsv-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 24px; border: 1px solid var(--rsv-outline); border-radius: 9999px; background: transparent; color: var(--rsv-teal); font: inherit; font-size: 14px; font-weight: 500; letter-spacing: .1px; white-space: nowrap; transition: background-color .2s cubic-bezier(.2, 0, 0, 1), box-shadow .2s cubic-bezier(.2, 0, 0, 1); }
+.rsv-btn:hover { background: rgb(0 106 97 / .08); }
+.rsv-btn.is-filled { border-color: transparent; background: var(--rsv-teal); color: #fff; }
+.rsv-btn.is-filled:hover { background: color-mix(in srgb, #fff 8%, var(--rsv-teal)); box-shadow: 0 1px 2px 0 rgb(0 0 0 / .3), 0 1px 3px 1px rgb(0 0 0 / .15); }
+.rsv-page .rsv-actions .btn.btn-icon { width: 40px; height: 40px; border: 0; border-radius: 50%; color: rgb(var(--fg-secondary)); }
+.rsv-page .rsv-actions .btn.btn-icon:hover { background: rgb(63 73 71 / .08); }
+.rsv-btn:focus-visible, .rsv-icon:focus-visible, .rsv-link:focus-visible, .rsv-page .btn-icon:focus-visible { outline: 3px solid var(--rsv-teal); outline-offset: 2px; }
+
+/* Summary strip */
+.rsv-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.rsv-facts > div { display: grid; align-content: start; gap: 2px; padding: 14px 16px; border-radius: 12px; background: #fff; }
+.rsv-facts span { font-size: 12px; color: rgb(var(--fg-muted)); }
+.rsv-facts b { font-size: 18px; line-height: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rsv-facts small { font-size: 12.5px; color: rgb(var(--fg-muted)); }
+.rsv-facts .is-due b { color: rgb(185 28 28); }
+
+/* Two columns of cards */
+.rsv-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); align-items: start; gap: 14px; }
+.rsv-col { display: grid; gap: 14px; min-width: 0; }
+.rsv-card { padding: 16px 20px 18px; border-radius: 12px; background: #fff; }
+.rsv-card h2 { margin: 0 0 8px; font-size: 15px; line-height: 22px; font-weight: 600; }
+.rsv-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.rsv-card-head h2 { margin: 0; }
+.rsv-dl { display: grid; margin: 0; }
+.rsv-dl > div { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--rsv-line); font-size: 14px; line-height: 20px; }
+.rsv-dl > div:first-child { padding-top: 4px; border-top: 0; }
+.rsv-dl dt { font-size: 13px; color: rgb(var(--fg-muted)); }
+.rsv-dl dd { margin: 0; overflow-wrap: anywhere; }
+aside .rsv-dl > div { grid-template-columns: 112px minmax(0, 1fr); }
+.rsv-units { display: grid; margin: 0; padding: 0; list-style: none; }
+.rsv-units li { display: grid; grid-template-columns: 56px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, .7fr) minmax(0, .9fr) 40px; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--rsv-line); font-size: 13.5px; }
+.rsv-units li:first-child { border-top: 0; }
+.rsv-units b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rsv-history { display: grid; margin: 0; padding: 0; list-style: none; }
+.rsv-history li { display: grid; gap: 2px; padding: 8px 0; border-top: 1px solid var(--rsv-line); }
+.rsv-history li:first-child { padding-top: 2px; border-top: 0; }
+.rsv-history b { font-size: 13.5px; font-weight: 500; }
+.rsv-history span { font-size: 12.5px; color: rgb(var(--fg-muted)); }
+.rsv-link { margin-top: 6px; padding: 4px 0; color: var(--rsv-teal); font-size: 13px; font-weight: 500; }
+.rsv-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rsv-details { margin-top: 6px; }
+.rsv-details summary { padding: 6px 0; color: var(--rsv-teal); font-size: 13px; font-weight: 500; cursor: pointer; }
+.rsv-note, .rsv-empty { margin: 6px 0 0; font-size: 13px; color: rgb(var(--fg-muted)); }
+.rsv-tax { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: rgb(var(--fg-secondary)); }
+
+/* Notices kept from the old page (created, cancelled, hold, quote, party): same card language. */
+.rsv-page > .ui-card { border: 0; border-radius: 12px; }
+
+@media (max-width: 1000px) { .rsv-grid { grid-template-columns: minmax(0, 1fr); } .rsv-head { flex-wrap: wrap; } .rsv-actions { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .rsv-btn { transition: none; } }
+
+/* Actions on the page (2026-10-28): every action is visible with what it does — or, when it can't
+   run now, why not. The cancellation sits apart, under a divider. */
+.rsv-acts { display: grid; margin: 0 -8px; padding: 0; list-style: none; }
+.rsv-acts button { display: grid; gap: 1px; width: 100%; padding: 9px 8px; border-radius: 8px; color: rgb(var(--fg)); text-align: start; transition: background-color .15s ease-out; }
+.rsv-acts button:hover:not(:disabled) { background: rgb(0 106 97 / .06); }
+.rsv-acts button:focus-visible { outline: 3px solid var(--rsv-teal); outline-offset: -1px; }
+.rsv-acts b { font-size: 14px; font-weight: 500; }
+.rsv-acts small { font-size: 12.5px; color: rgb(var(--fg-muted)); }
+.rsv-acts button:disabled { cursor: default; }
+.rsv-acts button:disabled b { color: rgb(var(--fg-muted)); }
+.rsv-acts button.is-danger b { color: rgb(185 28 28); }
+.rsv-acts button.is-danger:hover:not(:disabled) { background: rgb(var(--danger) / .06); }
+.rsv-acts button.is-danger:disabled b { color: rgb(185 28 28 / .5); }
+.rsv-acts-sep { height: 1px; margin: 6px 8px; background: var(--rsv-line); }
+@media (prefers-reduced-motion: reduce) { .rsv-acts button { transition: none; } }

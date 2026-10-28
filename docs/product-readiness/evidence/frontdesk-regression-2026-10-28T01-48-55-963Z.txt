@@ -1,0 +1,55 @@
+PASS  FD-02 lists today's arrival as one unit row
+PASS  FD-02 unassigned unit is blocked with reason no_room
+PASS  FD-02 business date comes from the property timezone
+PASS  RBAC: housekeeper cannot read arrivals
+PASS  Scope: another property is rejected
+PASS  INV-02 returns free rooms of the booked type for the full range
+PASS  INV-02 assigns a free room
+PASS  INV-02 replacing an assignment requires a reason
+PASS  INV-02 room held by another stay for the range → 409
+PASS  T04 clean room with OOO is blocked, cleanliness does not lift it
+PASS  T04 even a manager override cannot check in to an OOO room
+PASS  T05 dirty room is not shown as ready
+PASS  T05 check-in without override is refused with per-unit reasons
+PASS  T05 receptionist cannot override
+PASS  T05 manager override requires a reason
+PASS  FD-03 missing guarantee and registration block entry
+PASS  FD-05 invalid registration returns field errors
+PASS  FD-05 registration saved
+PASS  FD-05 audit entry has no ID number
+PASS  FD-05 marketing consent stays off unless chosen
+PASS  FIN-03 company guarantee without a company is refused
+PASS  FIN-03 a voucher needs its number (no self-declared guarantee)
+PASS  Legacy /reservations/:id/check-in obeys readiness (dirty room → 409)
+PASS  Concurrent check-ins: one succeeds, the other gets 409
+PASS  Check-in no longer pre-posts lodging (day close / checkout post nights)
+PASS  FD-03 single-room check-in succeeds when ready
+PASS  INT-04 key result is reported separately (no provider)
+PASS  FD-03 reservation, unit and room updated
+PASS  FD-03 repeating the check-in does not enter twice
+PASS  FD-03 context shows one implicit unit per booked room before records exist
+PASS  Units materialised from roomsCount on first write
+PASS  INV-02 second unit assigned to a different room
+PASS  INV-02 the same room cannot be given to two units
+PASS  FD-02 a two-room reservation shows two rows
+PASS  T03 ready unit enters alone; reservation is partially checked in
+PASS  FD-04 receptionist cannot set urgent priority
+PASS  FD-04 unit added to the queue
+PASS  FD-04 arrival time is server time, not client-supplied
+PASS  FD-04 the same unit cannot be queued twice
+PASS  FD-04 queueing does not change the reservation
+PASS  Housekeeping queue view has no guarantee/blacklist/notes
+PASS  FD-04 housekeeping can read the queue with live readiness
+PASS  FD-04 take ownership is atomic; a stale version gets a conflict
+PASS  FD-04-A02 housekeeping priority raised without marking the room ready
+PASS  T03 second unit enters later; reservation becomes in-house; queue resolved
+PASS  FD-04 removal requires a reason
+PASS  FD-04 removal without a version is refused
+PASS  FD-04 removal keeps the reservation confirmed
+PASS  RSV-07 no-show is refused for a multi-room reservation
+PASS  RSV-07 no-show is refused before the arrival day
+PASS  A stay for another day cannot be overridden in (dates must change)
+PASS  Housekeeping manager arrivals rows carry no guarantee or special requests
+PASS  RBAC: housekeeper cannot check guests in
+
+Summary: PASS=53 FAIL=0

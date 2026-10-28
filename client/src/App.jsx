@@ -52,7 +52,7 @@ const CustomerLookupPage       = lazy(() => import('./pages/admin/CustomerLookup
 const SalesPerformancePage     = lazy(() => import('./pages/admin/SalesPerformancePage'));
 
 // ── hotel4u PMS (future) ──────────────────────────────────────────────────────
-const DashboardPage        = lazy(() => import('./pages/DashboardPage'));
+const TodayPage            = lazy(() => import('./pages/TodayPage'));
 const ReceptionDesignPage  = lazy(() => import('./pages/ReceptionDesignPage'));
 const AvailabilityDesignPage = lazy(() => import('./pages/AvailabilityDesignPage'));
 const ReservationsPage     = lazy(() => import('./pages/rsv/ReservationsListPage'));
@@ -72,6 +72,7 @@ const RoomChartPage        = lazy(() => import('./pages/inv/RoomChartPage'));
 const RoomRackPage         = lazy(() => import('./pages/RoomRackPage'));
 const TapeChartPage        = lazy(() => import('./pages/TapeChartPage'));
 const RoomCalendarDesignPage = lazy(() => import('./pages/RoomCalendarDesignPage'));
+const TodayDesignPage = lazy(() => import('./pages/TodayDesignPage'));
 const MealsPage            = lazy(() => import('./pages/ops/MealsPage'));
 const HotelStatusPage      = lazy(() => import('./pages/ops/HotelStatusPage'));
 const OpsReportsPage       = lazy(() => import('./pages/ops/OpsReportsPage'));
@@ -233,10 +234,11 @@ export default function App() {
 
             {/* ── hotel4u PMS (future) ── */}
             <Route path="pms" element={<PmsRoleGuard />}>
-              <Route index                    element={<DashboardPage />} />
+              <Route index                    element={<TodayPage />} />
               <Route path="design"           element={<ReceptionDesignPage />} />
               <Route path="design/availability" element={<AvailabilityDesignPage />} />
               <Route path="design/room-calendar" element={<RoomCalendarDesignPage />} />
+              <Route path="design/today" element={<TodayDesignPage />} />
               <Route path="tape-chart"        element={<RoomChartPage />} />
               <Route path="room-rack"         element={<RoomRackPage />} />
               <Route path="tape-chart-classic" element={<TapeChartPage />} />

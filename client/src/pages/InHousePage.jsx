@@ -18,6 +18,7 @@ import {
 import { ChargeDialog, GuestRequestDialog, TimeDialog } from '../components/frontdesk/StayDialogs';
 import CheckOutWizard from '../components/frontdesk/CheckOutWizard';
 import { MoveRoomDialog, ExtendDialog, EarlyDepartureDialog } from '../components/stay/StayChangeDialogs';
+import RoomSwapDialog from '../components/stay/RoomSwapDialog';
 
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const REFUND_ROLES = [...MANAGER_ROLES, 'finance_manager'];
@@ -163,6 +164,7 @@ export default function InHousePage() {
                   ? <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'early', stay: selected })}>עזיבה מוקדמת</button>
                   : <button type="button" className="btn btn-primary btn-sm" onClick={() => url.set({ checkout: selected.reservationId }, { resetPage: false })}>יציאה</button>}
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'move', stay: selected })}>מעבר חדר</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'swap', stay: selected })}>החלפה עם אורח אחר</button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'extend', stay: selected })}>הארכה</button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'charge', stay: selected })}>חיוב שירות</button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'request', stay: selected })}>בקשת אורח</button>
@@ -205,6 +207,14 @@ export default function InHousePage() {
         canChangePrice={isManager}
         onDone={(out) => { setDialog(null); success(`עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.ticket ? (out.ticket.linked ? ' · נרשם בתקלה הפתוחה' : ' · נפתחה תקלה בתחזוקה') + (out.ticket.blocked ? ' והחדר נחסם' : '') : ''}${out.key ? ' · יש להנפיק מפתח' : ''}`); reload(); }}
       />
+      {dialog?.kind === 'swap' && <RoomSwapDialog
+        key={`${propertyId}:${dialog.stay.reservationId}`}
+        open
+        onClose={() => setDialog(null)}
+        propertyId={propertyId}
+        reservationId={dialog.stay.reservationId}
+        onDone={(out) => { setDialog(null); success(`החדרים ${out.first.from} ו־${out.first.to} הוחלפו · יש להנפיק מפתחות חדשים לשני האורחים`); reload(); }}
+      />}
       <ExtendDialog
         open={dialog?.kind === 'extend'}
         onClose={() => setDialog(null)}

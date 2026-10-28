@@ -13,6 +13,7 @@ import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import StaySegment from '../models/StaySegment.js';
 import { runStayTransaction } from './stayTransaction.js';
+import { financialWrite } from './financialTransaction.js';
 import Room from '../models/Room.js';
 import { resolveChargeCode, taxFor } from './chargeCodeService.js';
 import { vatForLine } from './touristService.js';
@@ -369,9 +370,9 @@ export async function getCheckOutContext({ propertyId, reservationId }) {
 }
 
 // ── FIN-03 / FIN-04 at the desk (manual methods, idempotent) ────────────────
-async function loadFolioInScope(folioId, propertyId) {
+async function loadFolioInScope(folioId, propertyId, session = null) {
   if (!isId(String(folioId || ''))) throw httpError('מזהה חשבון לא תקין', 400);
-  const folio = await Folio.findById(folioId);
+  const folio = await Folio.findById(folioId).session(session);
   if (!folio) throw httpError('החשבון לא נמצא', 404);
   if (String(folio.property) !== String(propertyId)) throw httpError('החשבון אינו שייך לנכס הפעיל', 403);
   return folio;
@@ -389,9 +390,10 @@ export async function recordPayment({ propertyId, folioId, input, actor, ip }) {
   return recordFolioPayment({ propertyId, folioId, input: { ...input, kind: 'payment' }, actor, ip });
 }
 
-export async function refundCredit({ propertyId, folioId, input, actor, ip }) {
+export async function refundCredit({ propertyId, folioId, input, actor, ip, session = null, afterCommit = null }) {
+  if (!session) return financialWrite(`folio:${folioId}`, (session, afterCommit) => refundCredit({ propertyId, folioId, input, actor, ip, session, afterCommit }), propertyId);
   if (!REFUND_ROLES.includes(actor.role)) throw httpError('החזר כספי מותר למנהל או לכספים בלבד', 403);
-  const folio = await loadFolioInScope(folioId, propertyId);
+  const folio = await loadFolioInScope(folioId, propertyId, session);
   const reference = idemRef(input.idempotencyKey);
   const existing = folio.lines.find((l) => l.reference === reference);
   if (existing) return { folioId: String(folio._id), lineId: String(existing._id), balance: folioBalance(folio), duplicate: true };
@@ -409,23 +411,24 @@ export async function refundCredit({ propertyId, folioId, input, actor, ip }) {
     description: `החזר — ${reasonText}`,
     amount,
     taxAmount: 0,
-    serviceDate: businessDateOf(await loadProperty(propertyId)),
+    serviceDate: businessDateOf(await loadProperty(propertyId, session)),
     source: 'manual',
     status: 'posted',
     reference,
     createdBy: actor.id || undefined,
   });
-  await folio.save();
+  await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
-  await audit({ property: folio.property, actor: actor.id, actorName: actor.name, action: 'folio.refund', entityType: 'Folio', entityId: folio._id, reason: reasonText, after: { amount, method: input.method, lineId: String(line._id) }, ip });
+  await audit({ property: folio.property, actor: actor.id, actorName: actor.name, action: 'folio.refund', entityType: 'Folio', entityId: folio._id, reason: reasonText, after: { amount, method: input.method, lineId: String(line._id) }, ip, session, afterCommit });
   return { folioId: String(folio._id), lineId: String(line._id), balance: folioBalance(folio), duplicate: false };
 }
 
 // FD-06-A06 / FIN-02 (light): a service charge typed as the price the guest pays. VAT is
 // extracted from the gross with the property's configured rate (T22: 118 at 18% → 100 + 18).
-export async function postServiceCharge({ propertyId, reservationId, input, actor, ip }) {
-  const property = await Property.findById(propertyId).select('vatRate timezone').lean();
-  const res = await loadReservationInScope(reservationId, propertyId);
+export async function postServiceCharge({ propertyId, reservationId, input, actor, ip, session = null, afterCommit = null }) {
+  if (!session) return financialWrite(`res:${reservationId}`, (session, afterCommit) => postServiceCharge({ propertyId, reservationId, input, actor, ip, session, afterCommit }), propertyId);
+  const property = await Property.findById(propertyId).session(session).select('vatRate timezone dayClose').lean();
+  const res = await loadReservationInScope(reservationId, propertyId, session);
   if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('חיוב שירות נרשם רק לשהייה פעילה', 409);
   // G1: code from the property catalogue (price lock, VAT class, who may post).
   const code = await resolveChargeCode({ propertyId, code: input.department, actorRole: actor.role, unitPrice: input.amount });
@@ -434,11 +437,11 @@ export async function postServiceCharge({ propertyId, reservationId, input, acto
   const errors = {};
   if (!(gross > 0)) errors.amount = 'סכום לא תקין';
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי החיוב', 422, { fields: errors });
-  const folios = await Folio.find({ reservation: res._id, status: { $ne: 'closed' } });
+  const folios = await Folio.find({ reservation: res._id, status: { $ne: 'closed' } }).session(session);
   let folio = input.folioId ? folios.find((f) => String(f._id) === String(input.folioId)) : folios.find((f) => f.ownerType === 'guest') || folios[0];
   if (input.folioId && !folio) throw httpError('החשבון שנבחר אינו פתוח בהזמנה זו', 422);
   if (!folio) {
-    folio = await Folio.create({ property: res.property, reservation: res._id, ownerType: 'guest', currency: res.currency || 'ILS', lines: [] });
+    [folio] = await Folio.create([{ property: res.property, reservation: res._id, ownerType: 'guest', currency: res.currency || 'ILS', lines: [] }], { session });
   }
   const reference = idemRef(input.idempotencyKey);
   const existing = folio.lines.find((l) => l.reference === reference);
@@ -449,9 +452,9 @@ export async function postServiceCharge({ propertyId, reservationId, input, acto
     type: 'charge', description, amount: net, taxAmount: lineVat.rate === 0 ? 0 : round2(gross - net), department: code.code, vatRate: lineVat.rate, taxReason: lineVat.reason || undefined,
     serviceDate: businessDateOf(property), source: 'manual', status: 'posted', reference, createdBy: actor.id || undefined,
   });
-  await folio.save();
+  await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
-  await audit({ property: res.property, actor: actor.id, actorName: actor.name, action: 'folio.charge', entityType: 'Folio', entityId: folio._id, after: { gross, net, tax: round2(gross - net), vatRate: property?.vatRate, vatClass: code.vatClass, department: code.code, lineId: String(line._id) }, ip });
+  await audit({ property: res.property, actor: actor.id, actorName: actor.name, action: 'folio.charge', entityType: 'Folio', entityId: folio._id, after: { gross, net, tax: round2(gross - net), vatRate: property?.vatRate, vatClass: code.vatClass, department: code.code, lineId: String(line._id) }, ip, session, afterCommit });
   return { folioId: String(folio._id), lineId: String(line._id), net, tax: round2(gross - net), duplicate: false };
 }
 
@@ -462,8 +465,11 @@ export async function completeCheckOut(args) {
   const units = await ReservationRoom.find({ reservation: res._id }).select('assignedRoom roomTypeBooked').lean();
   const roomIds = [...new Set([res.assignedRoom, ...units.map((u) => u.assignedRoom)].filter(Boolean).map(String))];
   const typeIds = [...new Set([res.roomType, ...units.map((u) => u.roomTypeBooked)].filter(Boolean).map(String))];
-  const keys = [`res:${args.reservationId}`, ...roomIds.map((r) => `room:${r}`), ...typeIds.map((t) => `inv:${args.propertyId}:${t}`)];
-  return withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => checkOutLocked({ ...args, session, afterCommit, lockedRooms: roomIds, lockedTypes: typeIds }), lease, { operation: 'יציאת אורח' }), { waitMs: 4000 });
+  const keys = [`dayclose:${args.propertyId}`, `res:${args.reservationId}`, ...roomIds.map((r) => `room:${r}`), ...typeIds.map((t) => `inv:${args.propertyId}:${t}`)];
+  return withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => {
+    session.financialDayCloseLease = lease;
+    return checkOutLocked({ ...args, session, afterCommit, lockedRooms: roomIds, lockedTypes: typeIds });
+  }, lease, { operation: 'יציאת אורח' }), { waitMs: 4000 });
 }
 
 async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes, settlements = [], early: earlyInput, actor, ip, session, afterCommit, lockedRooms, lockedTypes }) {
@@ -626,11 +632,11 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
   });
 
   if (finalDeparture) {
-    afterCommit.push(() => fireEvent('checkout.completed', {
+    afterCommit.push(() => { fireEvent('checkout.completed', {
       property: String(res.property),
       reservation: res.toObject(),
       actor: { id: actor.id, name: actor.name },
-    }).catch(() => null));
+    }).catch(() => null); });
   }
 
   return {
@@ -647,7 +653,8 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
 
 // Post the lodging nights already used (up to today) so the guest can pay the full amount now.
 export async function postPendingNights({ propertyId, reservationId, actor, ip }) {
-  return withLocks([`res:${reservationId}`], (lease) => runStayTransaction(async (session, afterCommit) => {
+  return withLocks([`dayclose:${propertyId}`, `res:${reservationId}`], (lease) => runStayTransaction(async (session, afterCommit) => {
+    session.financialDayCloseLease = lease;
     const property = await loadProperty(propertyId, session);
     const res = await loadReservationInScope(reservationId, propertyId, session);
     if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('רישום לילות רק לשהייה פעילה', 409);

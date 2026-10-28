@@ -535,7 +535,19 @@ async function seed() {
   ]);
 
   const folios = [];
+  const advanceConfNums = new Set(futureReservations.map(r => r.confirmationNumber));
   for (const res of reservations) {
+    if (advanceConfNums.has(res.confirmationNumber)) {
+      // A future booking has no stay charges yet, but money taken in advance is already on its
+      // account — otherwise a "paid" booking arrives with nothing paid.
+      const prepaid = res.paymentStatus === 'paid' ? res.totalAmount : res.paymentStatus === 'partial' ? Math.round(res.totalAmount * 0.5) : 0;
+      if (prepaid > 0) {
+        folios.push({ property: property._id, reservation: res._id, ownerType:'guest', status:'open', currency:'ILS', lines: [
+          { type: res.paymentStatus === 'paid' ? 'payment' : 'deposit', description: res.paymentStatus === 'paid' ? 'תשלום מראש' : 'מקדמה', amount: -prepaid, taxAmount:0, serviceDate: d(0), status:'posted', source:'pms' },
+        ] });
+      }
+      continue;
+    }
     if (futureConfNums.has(res.confirmationNumber)) continue;
 
     const lines = [];

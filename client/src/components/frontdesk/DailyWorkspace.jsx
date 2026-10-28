@@ -6,7 +6,7 @@
 // payment and the guest's special requests. Readiness is computed by the server.
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Plus, CalendarDays, LogIn, LogOut, CheckCircle2, Check, ChevronDown, Crown, MessageSquareText, BedDouble, Moon, User, Baby, AlertTriangle, Wrench, Sparkles, ChevronLeft, Users, Bell } from 'lucide-react';
+import { RefreshCw, Plus, CalendarDays, LogIn, LogOut, CheckCircle2, Check, ChevronDown, Crown, MessageSquareText, BedDouble, Moon, User, Baby, AlertTriangle, Wrench, Sparkles, ChevronLeft, Users, Bell, Search, X } from 'lucide-react';
 import { guestInitials } from '../kit';
 import { frontdesk } from '../../utils/api';
 import { cleanLabel, opsLabel } from '../../lib/labels';
@@ -40,9 +40,15 @@ function problems(r) {
   return out;
 }
 
+// Booking marked paid in advance while its account holds less than the total: say exactly that.
+function unrecordedPrepay(g) {
+  return !!g && g.paymentStatus === 'paid' && g.total > 0 && g.paid < g.total;
+}
+
 function payment(g) {
   if (!g) return { tone: '', text: '—' };
   if (g.total > 0 && g.paid >= g.total) return { tone: 'ok', text: 'שולם במלואו' };
+  if (unrecordedPrepay(g)) return { tone: 'warn', text: g.paid > 0 ? `סומן כשולם · נרשמו ${money(g.paid)} מתוך ${money(g.total)}` : 'סומן כשולם · לא נרשם תשלום' };
   if (g.paid > 0) return { tone: 'warn', text: `שולם ${money(g.paid)} מתוך ${money(g.total)}` };
   return g.ok ? { tone: 'warn', text: 'לא שולם · יש ערבות' } : { tone: 'bad', text: 'לא שולם' };
 }
@@ -172,6 +178,53 @@ function lanesOf(items, stateOf, order = []) {
 
 // Finished-table action: one main button, the row's other actions behind an attached arrow.
 // The menu is portalled and fixed so the scrolling list never clips it.
+// The arrival's state word opens the full list of what holds it (blocked first, then waiting).
+const SEVERITY_TEXT = { blocked: 'חוסם', waiting: 'ממתין', info: 'לידיעה' };
+function StateWhy({ state, tone, reasons }) {
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  useEffect(() => {
+    if (!pos) return undefined;
+    const onDown = (e) => { if (!popRef.current?.contains(e.target) && !btnRef.current?.contains(e.target)) setPos(null); };
+    const onKey = (e) => { if (e.key === 'Escape') { setPos(null); btnRef.current?.focus(); } };
+    const close = () => setPos(null);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [pos]);
+  const text = STATE_TEXT[state] || state;
+  if (!reasons.length) return <span className={`dk-state-tag ${tone}`}>{text}</span>;
+  const order = { blocked: 0, waiting: 1 };
+  const list = [...reasons].sort((a, b) => (order[a.severity] ?? 2) - (order[b.severity] ?? 2));
+  const toggle = () => {
+    if (pos) { setPos(null); return; }
+    const box = btnRef.current.getBoundingClientRect();
+    setPos({ top: box.bottom + 6, right: Math.max(12, window.innerWidth - box.right) });
+  };
+  return (
+    <>
+      <button ref={btnRef} type="button" className={`dk-state-tag is-why ${tone}`} aria-expanded={!!pos} aria-haspopup="dialog" onClick={(e) => { e.stopPropagation(); toggle(); }}>
+        {text}<ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {pos && createPortal(
+        <div ref={popRef} className="dk-why-pop" role="dialog" aria-label={`למה ${text}`} dir="rtl" style={pos} onClick={(e) => e.stopPropagation()}>
+          <b>למה {text}?</b>
+          <ul>{list.map((r, i) => <li key={i} className={`is-${r.severity || 'info'}`}><span>{r.label}</span><small>{SEVERITY_TEXT[r.severity] || ''}</small></li>)}</ul>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function SplitAction({ label, tone, onClick, items = [] }) {
   const [menu, setMenu] = useState(null);
   const groupRef = useRef(null);
@@ -277,7 +330,7 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
                 {done ? <span className="dk-muted">נכנס</span> : (
                   <>
                     <div className="dk-chips">
-                      <span className={`dk-state-tag ${tone}`}>{STATE_TEXT[st] || st}</span>
+                      <StateWhy state={st} tone={tone} reasons={all} />
                       <span className={`dk-chip ${pay.tone}`}>{pay.text}</span>
                       {!room && <span className="dk-chip bad">לא משובץ חדר</span>}
                     </div>
@@ -304,7 +357,15 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
               </td>
             </tr>,
             isOpen && (
-              <Detail key={`${r.key}-d`} cols={5} items={[
+              <Detail key={`${r.key}-d`} cols={5} items={appearance === 'table' ? [
+                // The row already shows state, payment status and the first missing item; the details add only what it doesn't.
+                room && ['החדר', <>חדר {room.number} · קומה {room.floor ?? '—'} · {room.occupiedBy ? `עדיין תפוס (${room.occupiedBy})` : cleanLabel(room.cleanStatus)} · {opsLabel(room.opsStatus)}</>],
+                ['תשלום', unrecordedPrepay(r.guarantee)
+                  ? <>סה״כ {money(r.guarantee.total)} · ההזמנה סומנה כשולמה מראש, אבל {r.guarantee.paid > 0 ? `בחשבון נרשמו רק ${money(r.guarantee.paid)}` : 'לא נרשם תשלום בחשבון'}</>
+                  : <>סה״כ {money(r.guarantee?.total)}{r.guarantee?.label ? ` · ${r.guarantee.label}` : ''}</>],
+                r.specialRequests && ['בקשות מיוחדות', r.specialRequests],
+                reasons.length > 1 && ['מה חסר לצ׳ק-אין', reasons.map((x) => x.label).join(' · ')],
+              ].filter(Boolean) : [
                 ['החדר', room ? <><b>חדר {room.number}</b> · קומה {room.floor ?? '—'} · {r.roomType?.name}<br />{room.occupiedBy ? `עדיין תפוס (${room.occupiedBy}) — יעבור לניקיון אחרי היציאה` : cleanLabel(room.cleanStatus)} · {opsLabel(room.opsStatus)}</> : <b>טרם שובץ חדר</b>],
                 ['תשלום', <><b>{pay.text}</b><br />סה״כ {money(r.guarantee?.total)} · {r.guarantee?.label}</>],
                 ['בקשות מיוחדות', r.specialRequests ? <span className="dk-req">{r.specialRequests}</span> : <span className="dk-muted">אין בקשות מיוחדות בהזמנה</span>],
@@ -468,8 +529,30 @@ function InHouseTable({ rows, onOpen, appearance }) {
   );
 }
 
-function AlertsList({ alerts, notes, onAlert }) {
-  const items = [...(alerts.data || [])].sort((a, b) => Number(b.type === 'danger') - Number(a.type === 'danger'));
+// Guest search on the today list: any of the given fields contains the query.
+function matches(q, ...values) {
+  return !q || values.some((v) => String(v ?? '').toLowerCase().includes(q));
+}
+
+// At-a-glance breakdown of the open list: one stacked bar and its counts.
+function Meter({ parts }) {
+  const total = parts.reduce((sum, p) => sum + p.value, 0);
+  return (
+    <div className="dk-meter" role="group" aria-label={parts.map((p) => `${p.value} ${p.label}`).join(', ')}>
+      <div className="dk-meter-bar" aria-hidden="true">{total > 0 && parts.map((p) => p.value > 0 && <i key={p.label} className={p.tone} style={{ flexGrow: p.value }} />)}</div>
+      <ul className="dk-meter-legend" aria-hidden="true">{parts.map((p) => <li key={p.label} className={p.tone}><b>{p.value}</b>{p.label}</li>)}</ul>
+    </div>
+  );
+}
+
+function NoMatch({ query }) {
+  return <div className="dk-state">לא נמצאו תוצאות ל״{query.trim()}״.</div>;
+}
+
+function AlertsList({ alerts, notes: allNotes, onAlert, q = '' }) {
+  const items = [...(alerts.data || [])].filter((a) => matches(q, a.text)).sort((a, b) => Number(b.type === 'danger') - Number(a.type === 'danger'));
+  const notes = allNotes.filter((w) => matches(q, w.title, w.body));
+  if (q && !items.length && !notes.length) return <div className="dk-state">לא נמצאו התראות שמתאימות לחיפוש.</div>;
   if (!items.length && !notes.length) return <div className="dk-state"><CheckCircle2 size={18} />אין התראות פתוחות.</div>;
   return (
     <div className="dk-list">
@@ -510,6 +593,8 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
     }
   }
   const [onlyIssues, setOnlyIssues] = useState(false);
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
   const [openKey, setOpenKey] = useState(null);
   const notes = (work.data?.rows || []).filter((w) => w.kind === 'handover');
 
@@ -517,13 +602,18 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
   const aCounts = arrivals.data?.counts || {};
   const aOpen = aAll.filter((r) => r.readiness.state !== 'checked_in');
   const aIssues = aOpen.filter((r) => r.readiness.state !== 'ready');
-  const aRows = [...(onlyIssues ? aIssues : aAll)].sort((a, b) => (RANK[a.readiness.state] ?? 9) - (RANK[b.readiness.state] ?? 9) || String(a.eta || '99').localeCompare(String(b.eta || '99')));
+  const aRows = [...(onlyIssues ? aIssues : aAll)].filter((r) => matches(q, r.guest?.name, r.billing?.occupantName, r.confirmationNumber, r.room?.number, r.company?.name)).sort((a, b) => (RANK[a.readiness.state] ?? 9) - (RANK[b.readiness.state] ?? 9) || String(a.eta || '99').localeCompare(String(b.eta || '99')));
 
   const dAll = departures.data?.rows || [];
   const flagged = (r) => r.state !== 'completed' && problems(r).length > 0;
   const dOpen = dAll.filter((r) => r.state !== 'completed');
   const dIssues = dOpen.filter(flagged);
-  const dRows = [...(onlyIssues ? dIssues : dAll)].sort((a, b) => Number(a.state === 'completed') - Number(b.state === 'completed') || Number(flagged(b)) - Number(flagged(a)) || String(a.etd || '99').localeCompare(String(b.etd || '99')));
+  const dRows = [...(onlyIssues ? dIssues : dAll)].filter((r) => matches(q, r.guest?.name, r.confirmationNumber, r.company?.name, ...(r.units || []).map((u) => u.room))).sort((a, b) => Number(a.state === 'completed') - Number(b.state === 'completed') || Number(flagged(b)) - Number(flagged(a)) || String(a.etd || '99').localeCompare(String(b.etd || '99')));
+
+  const hAll = inhouse.data?.rows || [];
+  const hRows = hAll.filter((r) => matches(q, r.guest?.name, r.confirmationNumber, r.company?.name, ...(r.rooms || []).map((x) => x.number)));
+  const hOwed = hAll.filter((r) => (r.money?.owed || 0) > 0).length;
+  const urgent = (alerts.data || []).filter((a) => a.type === 'danger').length;
 
   const extra = (alerts.data?.length || 0) + notes.length;
   const pick = (t) => { setTab(t); setOpenKey(null); setOnlyIssues(false); };
@@ -531,6 +621,13 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
   const summary = tab === 'arrivals'
     ? (arrivals.data ? `${aCounts.ready || 0} מוכנים · ${aIssues.length} דורשים טיפול · ${aCounts.checked_in || 0} כבר נכנסו` : '')
     : tab === 'departures' ? (departures.data ? `${dOpen.length - dIssues.length} תקינים · ${dIssues.length} דורשים טיפול · ${dAll.length - dOpen.length} כבר יצאו` : '') : tab === 'inhouse' ? `${(inhouse.data?.rows || []).length} אורחים בבית כרגע` : 'חשבונות פתוחים, תקלות והעברת משמרת';
+
+  const meter = {
+    arrivals: arrivals.data && [{ label: 'מוכנים', value: aCounts.ready || 0, tone: 'ok' }, { label: 'דורשים טיפול', value: aIssues.length, tone: 'warn' }, { label: 'נכנסו', value: aCounts.checked_in || 0, tone: 'done' }],
+    departures: departures.data && [{ label: 'תקינים', value: dOpen.length - dIssues.length, tone: 'ok' }, { label: 'דורשים טיפול', value: dIssues.length, tone: 'warn' }, { label: 'יצאו', value: dAll.length - dOpen.length, tone: 'done' }],
+    inhouse: inhouse.data && [{ label: 'שולם', value: hAll.length - hOwed, tone: 'ok' }, { label: 'יתרה לתשלום', value: hOwed, tone: 'warn' }],
+    alerts: alerts.data && [{ label: 'דחוף', value: urgent, tone: 'bad' }, { label: 'לטיפול', value: alerts.data.length - urgent, tone: 'warn' }, { label: 'העברת משמרת', value: notes.length, tone: 'done' }],
+  }[tab];
 
   return (
     <div className="dk" dir="rtl">
@@ -553,28 +650,37 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
             <Tile on={tab === 'alerts'} onClick={() => pick('alerts')} Icon={Bell} label="התראות" value={alerts.data ? extra : '—'} appearance={summaryAppearance} details={alerts.data && work.data ? [{ value: alerts.data.length, label: 'התראות' }, { value: notes.length, label: 'העברת משמרת' }] : []} />
           </div>
           <div className="dk-bar">
-            {summaryAppearance && <b className="reception-activity-caption">{{ arrivals: 'הגעות היום', departures: 'עזיבות היום', inhouse: 'אורחים במלון', alerts: 'התראות והעברת משמרת' }[tab]}</b>}
-            <span>{summary}</span>
+            {summaryAppearance ? (
+              <>
+                <b className="reception-activity-caption">{{ arrivals: 'הגעות היום', departures: 'עזיבות היום', inhouse: 'אורחים במלון', alerts: 'התראות והעברת משמרת' }[tab]}</b>
+                {meter ? <Meter parts={meter} /> : <span>{summary}</span>}
+                <label className="dk-search">
+                  <Search size={16} aria-hidden="true" />
+                  <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} placeholder="חיפוש אורח, הזמנה או חדר" aria-label="חיפוש אורח, מספר הזמנה או חדר" />
+                  {query && <button type="button" aria-label="ניקוי החיפוש" onClick={() => setQuery('')}><X size={14} /></button>}
+                </label>
+              </>
+            ) : <span>{summary}</span>}
             {(tab === 'arrivals' || tab === 'departures') && <Filter on={onlyIssues} setOn={setOnlyIssues} issues={issuesNow} />}
           </div>
           {billingError && <div className="dk-state dk-err" role="alert">{billingError}</div>}
           <div className="dk-scroll">
             {tab === 'arrivals' && (
               <Status query={arrivals} empty="אין הגעות היום.">
-                {aAll.length ? <ArrivalsTable rows={aRows} openKey={openKey} setOpenKey={setOpenKey} onCheckIn={onCheckIn} onAssign={onAssign} onQueue={onQueue} onBilling={onBilling} appearance={rowAppearance} /> : null}
+                {aAll.length ? q && !aRows.length ? <NoMatch query={query} /> : <ArrivalsTable rows={aRows} openKey={openKey} setOpenKey={setOpenKey} onCheckIn={onCheckIn} onAssign={onAssign} onQueue={onQueue} onBilling={onBilling} appearance={rowAppearance} /> : null}
               </Status>
             )}
             {tab === 'departures' && (
               <Status query={departures} empty="אין עזיבות היום.">
-                {dAll.length ? <DeparturesTable rows={dRows} openKey={openKey} setOpenKey={setOpenKey} outTime={property?.checkOutTime || '11:00'} onCheckOut={onCheckOut} appearance={rowAppearance} /> : null}
+                {dAll.length ? q && !dRows.length ? <NoMatch query={query} /> : <DeparturesTable rows={dRows} openKey={openKey} setOpenKey={setOpenKey} outTime={property?.checkOutTime || '11:00'} onCheckOut={onCheckOut} appearance={rowAppearance} /> : null}
               </Status>
             )}
             {tab === 'inhouse' && (
               <Status query={inhouse} empty="אין שוהים כרגע.">
-                {(inhouse.data?.rows || []).length ? <InHouseTable rows={inhouse.data.rows} onOpen={onOpen} appearance={rowAppearance} /> : null}
+                {hAll.length ? q && !hRows.length ? <NoMatch query={query} /> : <InHouseTable rows={hRows} onOpen={onOpen} appearance={rowAppearance} /> : null}
               </Status>
             )}
-            {tab === 'alerts' && <Status query={alerts} empty="אין התראות פתוחות."><AlertsList alerts={alerts} notes={notes} onAlert={onAlert} /></Status>}
+            {tab === 'alerts' && <Status query={alerts} empty="אין התראות פתוחות."><AlertsList alerts={alerts} notes={notes} onAlert={onAlert} q={q} /></Status>}
           </div>
         </section>
         <RoomsCard arrivals={arrivals} tickets={tickets} onPick={(key) => { setTab('arrivals'); setOnlyIssues(false); setOpenKey(key); }} />

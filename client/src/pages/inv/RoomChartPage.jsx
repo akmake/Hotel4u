@@ -1,14 +1,16 @@
 // Room chart (tape chart): rooms × nights. A bar is a stay on its room (click → reservation file);
-// an empty night opens a new booking for that room; hatched = room out of sale; the row under each room
-// type counts stays sold but not yet assigned a room. Changes (assign, move) happen in the reservation
-// file, under the same rules as everywhere else.
+// an empty night opens a new booking for that room; hatched = room out of sale. Rooms are grouped by
+// floor or by room type (or not at all). Changes (assign, move) happen in the reservation file,
+// under the same rules as everywhere else.
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronRight, ChevronLeft, CalendarDays, Plus, Crown, ArrowRight } from 'lucide-react';
 import { useProperty } from '../../context/PropertyContext';
 import { ops } from '../../utils/api';
-import { Page, Toolbar, Card, Segmented, Empty, ErrorBanner, Spinner, useLoader, useUrlState } from '../../components/kit';
+import { Empty, ErrorBanner, Spinner, useLoader, useUrlState } from '../../components/kit';
+import { cleanLabel } from '../../lib/labels';
+import './RoomChartPage.css';
 import DragMoveDialog from '../../components/stay/DragMoveDialog';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/ui/Toast';
@@ -24,7 +26,8 @@ const STATUS_LABEL = { in_house: 'בבית', checked_in: 'בבית', checked_out
 export default function RoomChartPage() {
   const { propertyId } = useProperty();
   const navigate = useNavigate();
-  const url = useUrlState({ from: '', days: '14' });
+  const url = useUrlState({ from: '', days: '14', group: 'floor' });
+  const group = url.get('group') || 'floor';
   const days = Number(url.get('days')) || 14;
   const { toasts, success } = useToast();
   const [pending, setPending] = useState(null);
@@ -58,53 +61,76 @@ export default function RoomChartPage() {
     const inHouse = ['in_house', 'checked_in'].includes(b.unitStatus || b.status);
     setPending({ res: { status: inHouse ? 'in_house' : b.status, primaryGuest: { firstName: b.guest || '' } }, resId: b.reservationId, sourceRoomId: b.roomId, targetRoomId: room.id });
   };
-  const cols = data ? `140px repeat(${data.dates.length}, minmax(44px, 1fr))` : '';
+  const cols = data ? `176px repeat(${data.dates.length}, minmax(44px, 1fr))` : '';
   const book = (room, typeId, date) => navigate(`/pms/reservations/new?arrival=${date}&departure=${addDays(date, 1)}&roomTypeId=${typeId}&roomId=${room.id}`);
 
+  const lastNight = data?.dates?.[data.dates.length - 1];
+  const byNumber = (a, b) => String(a.room.number).localeCompare(String(b.room.number), undefined, { numeric: true });
+  const groups = useMemo(() => {
+    if (!data) return [];
+    const all = data.types.flatMap((t) => t.rooms.map((room) => ({ t, room })));
+    if (group === 'type') return data.types.filter((t) => t.rooms.length).map((t) => ({ key: t.id, label: t.name, items: t.rooms.map((room) => ({ t, room })) }));
+    if (group === 'none') return [{ key: 'all', label: null, items: all }];
+    const floors = [...new Set(all.map((x) => x.room.floor ?? 0))].sort((a, b) => a - b);
+    return floors.map((f) => ({ key: `f${f}`, label: `קומה ${f}`, items: all.filter((x) => (x.room.floor ?? 0) === f).sort(byNumber) }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, group]);
+
   return (
-    <Page wide>
+    <div className={`board-page ${days > 14 ? "is-dense" : ""}`} dir="rtl">
       <ToastContainer toasts={toasts} />
       <DragMoveDialog pending={pending} rooms={allRooms} propertyId={propertyId} onClose={() => setPending(null)} onDone={(msg) => { setPending(null); success(msg); reload(); }} />
-      <Toolbar
-        start={(
-          <>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => url.set({ from: addDays(from, -7) })} aria-label="שבוע קודם"><ChevronRight size={15} /></button>
-            <label className="ui-datebox"><span className="sr-only">מתאריך</span><input type="date" value={from || ''} onChange={(e) => e.target.value && url.set({ from: e.target.value })} /></label>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => url.set({ from: addDays(from, 7) })} aria-label="שבוע הבא"><ChevronLeft size={15} /></button>
-            {data && url.get('from') && <button type="button" className="btn btn-ghost btn-sm" onClick={() => url.set({ from: '' })}>היום</button>}
-            <Segmented label="טווח" value={String(days)} onChange={(v) => url.set({ days: v })} options={[{ value: '14', label: 'שבועיים' }, { value: '31', label: 'חודש' }]} />
-          </>
-        )}
-        end={<span className="ui-sub">לחיצה על שהייה — תיק ההזמנה · גרירה לחדר אחר — שיבוץ / מעבר חדר · לילה פנוי — הזמנה חדשה</span>}
-      />
+      <header className="board-head">
+        <button type="button" className="board-icon board-back" onClick={() => navigate('/pms')} aria-label="חזרה ליום בקבלה" title="חזרה ליום בקבלה"><ArrowRight size={20} /></button>
+        <div className="board-title">
+          <h1>לוח חדרים</h1>
+          <span>{data ? `${dm(data.dates[0])} – ${dm(lastNight)}` : ''}</span>
+        </div>
+        <div className="board-tools">
+          <div className="board-nav">
+            <button type="button" className="board-icon" onClick={() => url.set({ from: addDays(from, -7) })} aria-label="שבוע קודם"><ChevronRight size={20} /></button>
+            <label className="board-date"><span className="sr-only">מתאריך</span><CalendarDays size={16} aria-hidden="true" /><input type="date" value={from || ''} onChange={(e) => e.target.value && url.set({ from: e.target.value })} /></label>
+            <button type="button" className="board-icon" onClick={() => url.set({ from: addDays(from, 7) })} aria-label="שבוע הבא"><ChevronLeft size={20} /></button>
+            {data && url.get('from') && <button type="button" className="board-btn" onClick={() => url.set({ from: '' })}>היום</button>}
+          </div>
+          <div className="board-seg" role="group" aria-label="טווח">
+            {[{ value: '14', label: 'שבועיים' }, { value: '31', label: 'חודש' }].map((o) => (
+              <button key={o.value} type="button" aria-pressed={String(days) === o.value} onClick={() => url.set({ days: o.value })}>{o.label}</button>
+            ))}
+          </div>
+          <label className="board-select">
+            <span>חלוקה</span>
+            <select value={group} onChange={(e) => url.set({ group: e.target.value })} aria-label="חלוקת החדרים">
+              <option value="floor">לפי קומה</option>
+              <option value="type">לפי סוג חדר</option>
+              <option value="none">בלי חלוקה</option>
+            </select>
+          </label>
+          <button type="button" className="board-btn is-filled" onClick={() => navigate('/pms/reservations/new')}><Plus size={18} aria-hidden="true" />הזמנה חדשה</button>
+        </div>
+      </header>
       <ErrorBanner error={error} onRetry={reload} />
       {loading && !data && <div className="ui-empty"><Spinner /> טוען…</div>}
       {data && !data.types.length && <Empty title="אין חדרים">מגדירים חדרים במסך הקמת מלון.</Empty>}
       {data && data.types.length > 0 && (
-        <Card flush>
+        <section className="board-card" aria-label="לוח חדרים">
           <div className="chart-wrap" role="grid" aria-label="לוח חדרים">
             <div className="chart-row chart-head" style={{ gridTemplateColumns: cols }}>
-              <div className="chart-room">חדר</div>
-              {data.dates.map((d) => <div key={d} className={`chart-day ${d === data.today ? 'is-today' : ''} ${dow(d) >= 5 ? 'is-weekend' : ''}`}><small>{DAY[dow(d)]}</small>{dm(d)}</div>)}
+              <div className="chart-room">חדר · ניקיון</div>
+              {data.dates.map((d) => <div key={d} className={`chart-day ${d === data.today ? 'is-today' : ''} ${dow(d) >= 5 ? 'is-weekend' : ''}`} title={`${DAY[dow(d)]} ${he(d)}`}><small>{d === data.today ? 'היום' : DAY[dow(d)]}</small><b>{dm(d)}</b></div>)}
             </div>
-            {data.types.map((t) => (
-              <div key={t.id} role="rowgroup">
-                <div className="chart-row chart-type" style={{ gridTemplateColumns: cols }}>
-                  <div className="chart-room"><b>{t.name}</b></div>
-                  {data.dates.map((d) => {
-                    const n = t.unassigned[d] || 0;
-                    return <div key={d} className={`chart-day ${n ? 'has-unassigned' : ''}`} title={n ? `${n} הזמנות בלי חדר משובץ` : undefined}>{n ? n : ''}</div>;
-                  })}
-                </div>
-                {t.rooms.map((room) => (
+            {groups.map((g) => (
+              <Fragment key={g.key}>
+                {g.label && <div className="chart-group"><b>{g.label}</b><small>{g.items.length} חדרים</small></div>}
+                {g.items.map(({ t, room }) => (
                   <div key={room.id} className={`chart-row ${over === room.id ? 'is-drop' : ''}`} style={{ gridTemplateColumns: cols }}
                     onDragOver={(e) => { e.preventDefault(); if (over !== room.id) setOver(room.id); }} onDragLeave={() => setOver((o) => (o === room.id ? null : o))} onDrop={(e) => drop(room, e)}>
                     <div className="chart-room" style={{ gridColumn: 1, gridRow: 1 }}>
                       <span className="ui-num"><b>{room.number}</b></span>
-                      <span className={`chart-dot is-${room.cleanStatus}`} title={room.cleanStatus} />
+                      <span className={`chart-clean is-${room.cleanStatus}`}>{cleanLabel(room.cleanStatus)}</span>
                       {room.heldNow && <span className="chart-held" title={room.heldNow.until ? `חסום עד ${he(room.heldNow.until)}` : 'חסום עד שחרור'}>חסום</span>}
                     </div>
-                    {data.dates.map((d, i) => <button key={d} type="button" style={{ gridColumn: i + 2 }} className={`chart-cell ${d === data.today ? 'is-today' : ''}`} onClick={() => book(room, t.id, d)} aria-label={`הזמנה לחדר ${room.number} ב־${he(d)}`} disabled={d < data.today} />)}
+                    {data.dates.map((d, i) => <button key={d} type="button" style={{ gridColumn: i + 2 }} className={`chart-cell ${d === data.today ? 'is-today' : ''}`} onClick={() => book(room, t.id, d)} aria-label={`הזמנה חדשה לחדר ${room.number} ב־${he(d)}`} title={d < data.today ? undefined : `הזמנה חדשה · חדר ${room.number} · ${he(d)}`} disabled={d < data.today} />)}
                     {(blocksByRoom.get(room.id) || []).map((b) => {
                       const s = span(b.from, b.to);
                       return <div key={`${b.from}`} className="chart-bar is-block" style={{ gridColumn: `${s.start + 2} / span ${s.len}` }} title={`חסום ${he(b.from)}–${he(b.to)}: ${b.reason}`}>{b.reason}</div>;
@@ -113,20 +139,26 @@ export default function RoomChartPage() {
                       const s = span(b.from, b.to);
                       return (
                         <button key={`${b.reservationId}-${b.from}`} type="button" draggable={(b.unitStatus || b.status) !== 'checked_out'}
-                          onDragStart={(e) => { e.dataTransfer.setData('application/json', JSON.stringify(b)); e.dataTransfer.effectAllowed = 'move'; }} className={`chart-bar ${STATUS_CLASS[b.unitStatus || b.status] || ''} ${s.cutStart ? 'cut-start' : ''} ${s.cutEnd ? 'cut-end' : ''}`}
+                          onDragStart={(e) => { e.dataTransfer.setData('application/json', JSON.stringify(b)); e.dataTransfer.effectAllowed = 'move'; }} className={`chart-bar ${STATUS_CLASS[b.unitStatus || b.status] || 'is-booked'} ${s.cutStart ? 'cut-start' : ''} ${s.cutEnd ? 'cut-end' : ''}`}
                           style={{ gridColumn: `${s.start + 2} / span ${s.len}` }} onClick={() => navigate(`/pms/reservations/${b.reservationId}`)}
                           title={`${b.guest || '—'} · ${b.confirmation} · ${he(b.from)}–${he(b.to)} · ${STATUS_LABEL[b.unitStatus || b.status] || b.status}`}>
-                          {b.vip && '★ '}{b.guest || b.confirmation}
+                          {b.vip && <Crown size={12} aria-label="VIP" />}<span>{b.guest || b.confirmation}</span>
                         </button>
                       );
                     })}
                   </div>
                 ))}
-              </div>
+              </Fragment>
             ))}
           </div>
-        </Card>
+        </section>
       )}
-    </Page>
+      <ul className="board-legend" aria-label="מקרא">
+        <li><i className="is-in" />בבית</li>
+        <li><i className="is-booked" />מאושר</li>
+        <li><i className="is-hold" />שמור / ממתין לתשלום</li>
+        <li><i className="is-out" />עזב</li>
+      </ul>
+    </div>
   );
 }

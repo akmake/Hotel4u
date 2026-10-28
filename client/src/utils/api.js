@@ -335,6 +335,9 @@ export const booking = {
 
 // ── Stay changes: move, extend, early departure, booking change, cancellation (FD-09…11, RSV-05/06) ──
 export const stay = {
+  swapOptions:    (propertyId, reservationId, q) => api.get(`/stay/room-swap/options?propertyId=${propertyId}${qs({ reservationId, q })}`),
+  swapPreview:    (propertyId, body)       => api.post('/stay/room-swap/preview', { ...body, propertyId }),
+  swap:           (propertyId, body)       => api.post('/stay/room-swap', { ...body, propertyId }),
   moveCandidates: (propertyId, id, unitId, fromRoomId) => api.get(`/stay/${id}/move-candidates?propertyId=${propertyId}${qs({ unitId, fromRoomId })}`),
   move:           (propertyId, id, body)   => api.post(`/stay/${id}/move`, { ...body, propertyId }),
   extension:      (propertyId, id, newDeparture) => api.get(`/stay/${id}/extension?propertyId=${propertyId}${qs({ newDeparture })}`),

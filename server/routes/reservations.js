@@ -27,7 +27,7 @@ import { postCharge } from '../services/financeService.js';
 import { randomUUID } from 'node:crypto';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import { emit } from '../services/webhookService.js';
-import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { openBusinessDate } from '../utils/businessDate.js';
 import { sendEmail, buildReservationConfirmationEmail } from '../services/emailService.js';
 
 const router = Router();
@@ -647,8 +647,8 @@ function escapeRegex(value = '') {
 }
 
 async function todayByPropertyTimezone(propertyId) {
-  const prop = await Property.findById(propertyId).select('timezone').lean();
-  return todayYmdInTimezone(prop?.timezone || 'Asia/Jerusalem');
+  const prop = await Property.findById(propertyId).select('timezone dayClose').lean();
+  return openBusinessDate(prop);
 }
 
 async function nextDerivedConfirmation(base = 'RES-DRV') {

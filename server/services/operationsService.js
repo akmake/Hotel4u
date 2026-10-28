@@ -57,7 +57,7 @@ function policyOf(property) {
 
 async function loadOpsProperty(propertyId) {
   const property = await loadProperty(propertyId);
-  const full = await (await import('../models/Property.js')).default.findById(propertyId).select('opsPolicy checkInPolicy timezone').lean();
+  const full = await (await import('../models/Property.js')).default.findById(propertyId).select('opsPolicy checkInPolicy timezone dayClose').lean();
   return { ...property, opsPolicy: full?.opsPolicy, checkInPolicy: full?.checkInPolicy };
 }
 

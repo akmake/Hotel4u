@@ -34,7 +34,8 @@ const outcome = async (fn) => { try { return { ok: true, value: await fn() }; } 
 async function fixture({ roomsCount = 1, board = false, partial = false } = {}) {
   const property = await Property.create({ name: 'Synthetic departure QA', timezone: 'Asia/Jerusalem', vatRate: 18 });
   const propertyId = id(property), today = businessDateOf(property), arrival = plus(today, -1), departure = plus(today, 1);
-  await Property.updateOne({ _id: propertyId }, { $set: { 'dayClose.lastClosedDate': plus(today, -1) } });
+  // This suite tests an already-managed hotel; migration of legacy state has its own suite.
+  await Property.updateOne({ _id: propertyId }, { $set: { 'dayClose.businessDate': today, 'dayClose.lastClosedDate': plus(today, -1) } });
   const type = await RoomType.create({ property: propertyId, code: 'STD', name: 'Synthetic room', capacityMax: 4, baseRate: 500 });
   const guest = await GuestProfile.create({ property: propertyId, firstName: 'Synthetic', lastName: 'Guest' });
   const res = await Reservation.create({ property: propertyId, confirmationNumber: randomUUID(), primaryGuest: guest._id, roomType: type._id, arrivalDate: arrival, departureDate: departure, nights: 2, adults: 2, children: 0, roomsCount, status: partial ? 'partially_checked_in' : 'in_house', checkedInAt: new Date(), ratePerNight: 500, totalAmount: (board ? 1400 : 1000) * roomsCount, priceSnapshot: { nightly: [arrival, today].map((date) => ({ date, price: 500 })), total: (board ? 1400 : 1000) * roomsCount, ...(board ? { board: { type: 'half_board', source: 'supplement', nightly: [arrival, today].map((date) => ({ date, price: 200 })) } } : {}) } });
@@ -78,7 +79,7 @@ try {
     e.response = await outcome(() => checkout(f, { actor: { ...actor, role: 'receptionist' }, settlements: [{ folioId: id(f.folio), mode: 'company_ar' }] })); e.after = await state(f); assert.equal(e.response.error?.status, 409); assert.deepEqual(e.after, e.before);
   });
   await check('RF01', 'a missing meal line is recovered even when the room night was already posted', async (e) => {
-    const f = await fixture({ board: true }); await Folio.updateOne({ _id: f.folio._id }, { $push: { lines: { type: 'charge', description: 'Synthetic existing night', department: 'rooms', serviceDate: f.arrival, reference: `night:${id(f.units[0])}:${f.arrival}`, amount: 500, taxAmount: 0, status: 'posted' } } });
+    const f = await fixture({ board: true }); await Folio.collection.updateOne({ _id: f.folio._id }, { $push: { lines: { _id: new mongoose.Types.ObjectId(), type: 'charge', description: 'Synthetic existing night', department: 'rooms', serviceDate: f.arrival, accountingDate: f.today, postedAt: new Date(), source: 'pms', reference: `night:${id(f.units[0])}:${f.arrival}`, amount: 500, taxAmount: 0, status: 'posted' } } });
     const res = await Reservation.findById(f.resId); e.posted = await postNightsUntil({ reservation: res, until: f.today }); const saved = await Folio.findById(f.folio._id).lean(); assert.equal(saved.lines.filter((l) => l.department === 'rooms').length, 1); assert.equal(saved.lines.filter((l) => l.department === 'board').length, 1);
   });
   await check('RF02', 'explicit zero nightly price is preserved rather than replaced by a flat fallback', async (e) => {
@@ -154,7 +155,7 @@ try {
   });
   await check('DC09', 'failure saving an urgent ledger warning cannot silently complete day close', async (e) => {
     const f = await fixture(); const original = WorkItem.create;
-    await Folio.updateOne({ _id: f.folio._id }, { $push: { lines: { type: 'charge', description: 'Synthetic unmapped revenue', department: 'qa_unmapped', amount: 1, taxAmount: 0, status: 'posted', serviceDate: f.today } } });
+    await Folio.collection.updateOne({ _id: f.folio._id }, { $push: { lines: { _id: new mongoose.Types.ObjectId(), type: 'charge', description: 'Synthetic unmapped revenue', department: 'qa_unmapped', amount: 1, taxAmount: 0, status: 'posted', source: 'pms', postedAt: new Date(), serviceDate: f.today, accountingDate: f.today } } });
     WorkItem.create = function (entry, ...rest) { if (String((Array.isArray(entry) ? entry[0] : entry)?.dedupeKey).startsWith('ledger:')) throw new Error('QA_LEDGER_WARNING'); return original.call(this, entry, ...rest); };
     try { e.first = await outcome(() => closeDay(f)); } finally { WorkItem.create = original; }
     assert.equal(e.first.value?.status, 'failed'); assert.equal((await Property.findById(f.propertyId)).dayClose.lastClosedDate, plus(f.today, -1)); e.second = await outcome(() => closeDay(f)); assert.equal(e.second.value?.status, 'done'); assert.equal(await WorkItem.countDocuments({ property: f.propertyId, dedupeKey: `ledger:${f.today}` }), 1);

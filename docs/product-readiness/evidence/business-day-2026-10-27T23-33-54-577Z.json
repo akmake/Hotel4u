@@ -1,0 +1,90 @@
+{
+  "startedAt": "2026-10-27T23:33:54.577Z",
+  "finishedAt": "2026-10-27T23:33:56.860Z",
+  "mode": "isolated local replica; synthetic fixtures",
+  "hashes": {
+    "../models/Folio.js": "cdf400397c641276adf2c62f00a822b8707e99b9abc9a17255791a5687a221ad",
+    "../models/Property.js": "ccb0f24df8988bfbe25ae63cb20a615a1a3f4b5c2c5bcabf577cf07eb903852c",
+    "../services/financeService.js": "e4e07dddd95ff1b131592c1ca9250e65feea9c75b7665a9d90837fa6da215b7a",
+    "../services/ledgerService.js": "fbcb7f46a9310e1d3ef3d31d3244f3dbd909f85b315ae677ffe2494d6d361bb7",
+    "../services/frontDeskService.js": "037723467a962cd316276117a20e76b6b5e42daddb1ff944b3a2c349bd093336",
+    "./businessDayReadiness.mjs": "43d24fc1c3668954052a8e6961cc1403d2e48a6f589d6ac0838794fb12857bd3"
+  },
+  "counts": {
+    "passed": 0,
+    "failed": 10,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "BD01",
+      "name": "managed business day does not move with the calendar",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD02",
+      "name": "late service charge retains its service date but books to the open business day",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD03",
+      "name": "explicit booking into a closed accounting period is rejected",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD04",
+      "name": "saved closed-day amounts cannot be edited through document save",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD05",
+      "name": "query updates cannot bypass closed financial-line protection",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD06",
+      "name": "managed-period financial document saves require an atomic session",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD07",
+      "name": "successful close advances the managed date exactly one day and late charges use it",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD08",
+      "name": "next-day posting cannot change the closed trial balance",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD09",
+      "name": "reversal books on the new open day and preserves the original closed line",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    },
+    {
+      "code": "BD10",
+      "name": "managed finance entry point serializes a charge racing day close",
+      "status": "failed",
+      "failure": "Reservation validation failed: nights: Path `nights` is required.",
+      "evidence": {}
+    }
+  ]
+}

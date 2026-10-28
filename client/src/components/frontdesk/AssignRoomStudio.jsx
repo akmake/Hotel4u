@@ -3,6 +3,7 @@
 //   seatmap  — KAYAK seat selection: tabbed map of squares, legend card, summary card, confirm.
 //   twopane  — Apple availability modal: filters on one side, available cards on the other.
 //   quick    — Jira assignee picker: a small searchable list at the click point, one click assigns.
+//   today    — the approved /pms look: room cards under one header on a grey field, Material buttons.
 // All four take the dialog's own state (candidates, selection, save), so the server path is unchanged.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
@@ -429,10 +430,86 @@ function QuickView({ p }) {
   );
 }
 
+// ── 5. Today look (approved /pms style): room cards under one header on a grey field ─────────
+function availabilityText(c) {
+  if (c.current) return 'משובץ כעת';
+  if (c.conflict) return `תפוס · ${c.conflict}`;
+  if (c.opsStatus !== 'available') return 'חסום לשיבוץ';
+  if (c.occupiedBy) return 'פנוי לטווח · אורח קודם טרם יצא';
+  return c.readyNow ? 'פנוי ומוכן לכניסה' : 'פנוי לכל הלילות';
+}
+
+function TodayRoomRow({ c, selected, onPick }) {
+  const state = roomState(c);
+  return (
+    <button type="button" role="radio" aria-checked={selected === c.id} disabled={state === 'blocked'} className={`ast-row is-${state}`} onClick={() => onPick(c.id)}>
+      <span className="ast-radio" aria-hidden="true" />
+      <span className="ast-room"><b>{c.number}</b><small>קומה {c.floor}</small></span>
+      <span className="ast-type">{c.roomType?.name || '—'}{!c.sameType && <em>סוג אחר</em>}</span>
+      <span className="ast-cond"><i aria-hidden="true" />{cleanLabel(c.cleanStatus)} · {opsLabel(c.opsStatus)}</span>
+      <span className="ast-avail">{availabilityText(c)}</span>
+    </button>
+  );
+}
+
+function TodayView({ p }) {
+  const [showBlocked, setShowBlocked] = useState(false);
+  const free = p.candidates.filter((c) => roomState(c) !== 'blocked');
+  const blocked = p.candidates.filter((c) => roomState(c) === 'blocked');
+  const nights = p.data?.range.nights;
+  return (
+    <Shell p={p} className="as-modal is-today">
+      <header className="ast-head">
+        <div>
+          <DialogPrimitive.Title className="ast-title">{p.replacing || p.data?.currentRoomId ? 'החלפת חדר' : 'שיבוץ חדר'} · {p.row?.guest?.name}</DialogPrimitive.Title>
+          <p>{p.row?.confirmationNumber}{p.data ? ` · ${stayOf(p.data)} · ${nights} לילות · ${p.data.roomType?.name || ''}` : ''}</p>
+        </div>
+        <DialogPrimitive.Close className="ast-icon" aria-label="סגירה" disabled={p.saving}><X size={20} /></DialogPrimitive.Close>
+      </header>
+      <div className="ast-bar">
+        <div className="ast-seg" role="group" aria-label="סוגי חדרים">
+          <button type="button" aria-pressed={!p.allTypes} onClick={() => p.setAllTypes(false)}>סוג החדר בהזמנה</button>
+          <button type="button" aria-pressed={p.allTypes} onClick={() => p.setAllTypes(true)}>כל הסוגים</button>
+        </div>
+        {p.data && <span>{free.filter((c) => !c.current).length} חדרים פנויים לכל הלילות</span>}
+      </div>
+      <div className="ast-body">
+        <Notices p={p} />
+        {p.loading && !p.data ? <Loading /> : (
+          <>
+            {free.length > 0 && (
+              <div className="ast-list" role="radiogroup" aria-label="חדרים פנויים">
+                <div className="ast-cols" aria-hidden="true"><span /><span>חדר</span><span>סוג</span><span>ניקיון ותפעול</span><span>זמינות לטווח</span></div>
+                {free.map((c) => <TodayRoomRow key={c.id} c={c} selected={p.selected} onPick={p.setSelected} />)}
+              </div>
+            )}
+            {!free.length && <p className="ast-empty">אין חדר פנוי לכל הלילות{p.allTypes ? '' : ' מהסוג שהוזמן — אפשר להציג את כל הסוגים'}.</p>}
+            {blocked.length > 0 && (
+              <>
+                <button type="button" className="ast-more" aria-expanded={showBlocked} onClick={() => setShowBlocked(!showBlocked)}>
+                  {showBlocked ? 'הסתרת החדרים שאינם זמינים' : `${blocked.length} חדרים אינם זמינים לטווח`}<ChevronDown size={16} aria-hidden="true" />
+                </button>
+                {showBlocked && <div className="ast-list">{blocked.map((c) => <TodayRoomRow key={c.id} c={c} selected={p.selected} onPick={p.setSelected} />)}</div>}
+              </>
+            )}
+            {p.replacing && <ReasonField p={p} />}
+          </>
+        )}
+      </div>
+      <footer className="ast-foot">
+        {p.disabledReason && p.selected && <span className="ast-note">{p.disabledReason}</span>}
+        <button type="button" className="ast-btn" onClick={p.onClose} disabled={p.saving}>ביטול</button>
+        <button type="button" className="ast-btn is-filled" onClick={() => p.save()} disabled={!!p.disabledReason || p.saving}>{confirmLabel(p)}</button>
+      </footer>
+    </Shell>
+  );
+}
+
 export default function AssignRoomStudio(props) {
   const p = props;
   if (p.variant === 'seatmap') return <SeatmapView p={p} />;
   if (p.variant === 'twopane') return <TwoPaneView p={p} />;
   if (p.variant === 'quick') return <QuickView p={p} />;
+  if (p.variant === 'today') return <TodayView p={p} />;
   return <SheetView p={p} />;
 }

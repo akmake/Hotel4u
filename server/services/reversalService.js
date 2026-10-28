@@ -59,7 +59,7 @@ async function moneyAfter(res, since) {
 // ── Reinstate (cancelled / no-show) ─────────────────────────────────────────
 export async function reinstatePreview({ propertyId, reservationId }) {
   const res = await loadRes(propertyId, reservationId);
-  const property = await Property.findById(propertyId).select('timezone').lean();
+  const property = await Property.findById(propertyId).select('timezone dayClose').lean();
   const today = businessDateOf(property);
   const blockers = [];
   if (!['cancelled', 'no_show'].includes(res.status)) blockers.push('רק הזמנה שבוטלה או סומנה "לא הגיע" ניתנת לשחזור');
@@ -135,7 +135,7 @@ async function roomNightsPosted(resId) {
 
 export async function reverseCheckInPreview({ propertyId, reservationId }) {
   const res = await loadRes(propertyId, reservationId);
-  const property = await Property.findById(propertyId).select('timezone').lean();
+  const property = await Property.findById(propertyId).select('timezone dayClose').lean();
   const today = businessDateOf(property);
   const blockers = [];
   if (!IN_HOUSE_STATUSES.includes(res.status)) blockers.push('ההזמנה אינה בשהייה');
@@ -182,7 +182,7 @@ export async function postStayCharge({ propertyId, reservationId, input, actor, 
   const why = reasonOf(input.reason);
   const res = await loadRes(propertyId, reservationId);
   if (res.status !== 'checked_out') throw httpError('חיוב אחרי יציאה רק להזמנה שיצאה — לשהייה פעילה רושמים חיוב רגיל', 409);
-  const property = await Property.findById(propertyId).select('timezone financePolicy').lean();
+  const property = await Property.findById(propertyId).select('timezone financePolicy dayClose').lean();
   const today = businessDateOf(property);
   const windowDays = Number(property?.financePolicy?.postStayDays ?? 30);
   const out = res.checkedOutAt ? localDate(res.checkedOutAt, property?.timezone) : res.departureDate;

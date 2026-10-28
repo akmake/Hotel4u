@@ -61,7 +61,7 @@ const HK_REASON_CODES = new Set(['no_room', 'room_blocked', 'room_occupied', 'ro
 function forHousekeeping(req, row) {
   if (!HK_ROLES.includes(req.actor?.role)) return row;
   const out = { ...row };
-  delete out.guarantee; delete out.billing; delete out.company; delete out.specialRequests; delete out.notes; delete out.guestContact; delete out.source;
+  delete out.guarantee; delete out.billing; delete out.company; delete out.specialRequests; delete out.notes; delete out.unitNotes; delete out.payment; delete out.sharedPayment; delete out.guestContact; delete out.source;
   if (out.guest) out.guest = { name: out.guest.name, vip: out.guest.vip };
   if (out.readiness) out.readiness = { ...out.readiness, reasons: (out.readiness.reasons || []).filter((r) => HK_REASON_CODES.has(r.code)) };
   return out;

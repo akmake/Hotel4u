@@ -171,7 +171,7 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
 
 // ── INV-03 ──────────────────────────────────────────────────────────────────
 export async function searchAvailability({ propertyId, query, session = null, excludeReservationId = null }) {
-  const property = await Property.findById(propertyId).session(session).select('timezone vatRate defaultCancellationHours defaultCancellationFee defaultCurrency boardPricing childMaxAge').lean();
+  const property = await Property.findById(propertyId).session(session).select('timezone vatRate defaultCancellationHours defaultCancellationFee defaultCurrency boardPricing childMaxAge dayClose').lean();
   if (!property) throw httpError('הנכס לא נמצא', 404);
   const today = businessDateOf(property);
   const stay = validateStay({ arrival: query.arrival, departure: query.departure, adults: Number(query.adults ?? 2), children: Number(query.children ?? 0), rooms: Number(query.rooms ?? 1), today });
@@ -263,7 +263,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
   }
 
   const { offer, search } = await resolveOffer({ propertyId, input, session });
-  const property = await Property.findById(propertyId).select('timezone vatRate').lean();
+  const property = await Property.findById(propertyId).select('timezone vatRate dayClose').lean();
   const fields = {};
   if (!SOURCES.includes(input.source || 'direct')) fields.source = 'ערוץ לא מוכר';
   if (search.children > 0) {
@@ -543,7 +543,7 @@ export async function getStayFile({ propertyId, id, role }) {
     .populate('additionalGuests', 'firstName lastName')
     .populate('roomType', 'name code').populate('ratePlan', 'code name').populate('company', 'name').populate('assignedRoom', 'number').lean();
   if (!r) throw httpError('ההזמנה לא נמצאה', 404);
-  const property = await Property.findById(propertyId).select('timezone').lean();
+  const property = await Property.findById(propertyId).select('timezone dayClose').lean();
   const today = businessDateOf(property);
   const [units, folios, docs, requests, history] = await Promise.all([
     ReservationRoom.find({ reservation: r._id }).populate('assignedRoom', 'number floor cleanStatus opsStatus').populate('roomTypeBooked', 'name').sort({ createdAt: 1, _id: 1 }).lean(),

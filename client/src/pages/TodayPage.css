@@ -1,0 +1,300 @@
+/* "היום בקבלה" — approved look (2026-10-28), extracted from the reception and today design pages.
+   Glass summary cards, guest rows as cards under one header, one split action per row,
+   soft room cards, neutral grey canvas, Material 3 buttons. Navigation style stays per user. */
+/* An isolated working page. Future approved decisions accumulate here. */
+.today-page { --reception-ink: rgb(var(--fg));
+  --reception-muted: rgb(var(--fg-muted));
+  --reception-paper: rgb(var(--bg-elevated));
+  --reception-layer: rgb(var(--bg-group));
+  --reception-line: rgb(var(--border-strong));
+  --reception-active: rgb(var(--accent-700));
+  --reception-display: 'Rubik', 'Heebo', sans-serif;
+  container: today / inline-size;
+  min-width: 0;
+  font-family: 'Heebo', sans-serif; }
+.today-page .dk { height: auto; overflow: visible; padding: 0; background: transparent; }
+.today-page .dk-head { flex-wrap: wrap; margin-bottom: 22px; }
+.today-page .dk-head h1 { font-weight: 500; }
+.today-page .dk-body { flex: none; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+.today-page .dk-activity { background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.today-page .dk-tiles { padding: 0 0 18px; gap: 10px; }
+.today-page .dk-activity > .dk-bar { padding: 15px 16px; background: var(--reception-paper); border: 1px solid rgb(var(--border)); border-bottom: 0; border-radius: 12px 12px 0 0; flex-wrap: wrap; }
+.today-page .dk-activity > .dk-scroll { overflow: auto; background: var(--reception-paper); border: 1px solid rgb(var(--border)); border-radius: 0 0 12px 12px; }
+.today-page .dk-rooms { max-height: none; }
+.today-page .reception-summary { display: flex; flex-direction: column; align-items: stretch; min-width: 0; padding: 0; text-align: start; color: var(--reception-ink); background: var(--reception-paper); border: 0; box-shadow: 0 5px 22px rgb(var(--fg) / .035); overflow: hidden; transition: box-shadow .16s; }
+.today-page .reception-summary:hover { box-shadow: 0 7px 26px rgb(var(--fg) / .07); }
+.today-page .reception-summary.is-on { box-shadow: 0 0 0 1.5px rgb(var(--accent-600) / .55), 0 5px 22px rgb(var(--fg) / .035); }
+.today-page .reception-summary:focus-visible { outline: 2px solid rgb(var(--accent-700)); outline-offset: 4px; }
+.reception-summary-face { display: flex; flex-direction: column; padding: 14px 16px 10px; }
+.reception-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; font-size: 13px; font-weight: 500; }
+.reception-summary-heading > svg { flex-shrink: 0; color: var(--reception-muted); }
+.reception-summary-face > strong { display: block; font-family: var(--reception-display); font-size: clamp(34px, 3.5cqw, 44px); font-weight: 500; line-height: 1.1; letter-spacing: -1px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.reception-summary-details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto; }
+.reception-summary-details > span { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.reception-summary-details b { font-size: 18px; line-height: 1.2; font-weight: 500; font-variant-numeric: tabular-nums; }
+.reception-summary-details > span > span { font-size: 11px; color: var(--reception-muted); overflow-wrap: anywhere; }
+/* two treatments of the same live tables, with their existing controls. */
+.today-page .dk-table .dk-guest b { font-size: 14px; font-weight: 500; }
+.today-page .dk-table .dk-guest small { margin-top: 4px; font-size: 11px; }
+.today-page .dk-table .dk-av { width: 30px; height: 30px; background: rgb(var(--bg-group)); color: var(--reception-muted); font-weight: 500; }
+.today-page .dk-table .dk-room b { font-family: var(--reception-display); font-size: 16px; font-weight: 500; }
+.today-page .dk-table .dk-room span { margin-top: 3px; font-size: 11px; }
+.today-page .dk-table .dk-chip { height: 22px; padding-inline: 8px; border-radius: 7px; font-size: 11px; font-weight: 500; }
+.today-page .dk-table .dk-chip.bad { background: rgb(var(--danger) / .065); }
+.today-page .dk-table .dk-chip.warn { background: rgb(var(--warning) / .08); }
+.today-page .dk-table .dk-chip.ok { background: rgb(var(--success) / .07); }
+.today-page .dk-table .dk-state-tag { font-size: 12px; font-weight: 500; }
+.today-page .dk-table .dk-state-tag::before { width: 5px; height: 5px; }
+.today-page .dk-table .dk-why { margin-top: 5px; font-size: 11px; }
+.today-page .dk-table .dk-btn { height: 32px; padding-inline: 12px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+.today-page .dk-table th { font-size: 11px; font-weight: 400; }
+@container today (max-width: 1100px) {
+  .today-page .dk-body { grid-template-columns: minmax(0, 1fr); }
+}
+@container today (max-width: 650px) {
+  .today-page .dk-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .today-page .dk-head nav { flex-wrap: wrap; }
+  .reception-summary-face { padding: 12px 14px 9px; }
+  .reception-summary-face > strong { font-size: 38px; }
+}
+@container today (max-width: 360px) {
+  .today-page .dk-tiles { gap: 10px; }
+  .reception-summary-face { padding: 12px; }
+  .reception-summary-heading { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .today-page .reception-summary { transition: none; }
+}
+.today-page .dk-table .dk-group-bar { flex-wrap: wrap; }
+/* Finished table — table columns under one header, but every guest is its own card:
+   white rows with a 1px edge and 12px corners, 8px apart on a quiet grey field inside the panel. */
+.today-page .dk-activity > .dk-scroll:has(> .dk-table) { padding: 0 12px 4px; background: rgb(var(--bg-group)); }
+.today-page .dk-table { min-width: 760px; border-collapse: separate; border-spacing: 0 8px; }
+.today-page .dk-table thead th { padding: 12px 16px 0; background: rgb(var(--bg-group)); border: 0; color: rgb(var(--fg-muted)); font-size: 12px; font-weight: 500; }
+.today-page .dk-table thead th:first-child { width: 30%; }
+.today-page .dk-table thead th:nth-child(2) { width: 13%; }
+.today-page .dk-table thead th:last-child { width: 1%; }
+.today-page .dk-table tbody td { padding: 14px 16px; background: var(--reception-paper); border: 0; border-block: 1px solid var(--reception-surface-edge, rgb(var(--border))); transition: background-color .15s ease-out, border-color .15s ease-out; }
+.today-page .dk-table tbody td:first-child { border-inline-start: 1px solid var(--reception-surface-edge, rgb(var(--border))); border-start-start-radius: 12px; border-end-start-radius: 12px; }
+.today-page .dk-table tbody td:last-child { border-inline-end: 1px solid var(--reception-surface-edge, rgb(var(--border))); border-start-end-radius: 12px; border-end-end-radius: 12px; }
+.today-page .dk-table tbody tr:not(.dk-detail, .dk-group):hover > td { background: rgb(var(--bg-content)); border-color: rgb(var(--border-strong)); }
+.today-page .dk-table tbody tr.is-open > td { background: rgb(var(--accent-50) / .7); border-color: rgb(var(--accent-600) / .55); }
+.today-page .dk-table tr.is-done { opacity: .55; }
+.today-page .dk-table .dk-guest { gap: 12px; }
+.today-page .dk-table .dk-av { width: 34px; height: 34px; background: rgb(var(--accent-50)); color: var(--reception-active); font-size: 12px; font-weight: 600; }
+.today-page .dk-table .dk-guest b { font-size: 14px; font-weight: 600; }
+.today-page .dk-table .dk-guest small { margin-top: 2px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.today-page .dk-table .dk-room b { font-family: inherit; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.today-page .dk-table .dk-room span { margin-top: 2px; font-size: 12px; }
+.today-page .dk-table .dk-stay2 { display: grid; grid-template-columns: repeat(2, max-content); gap: 3px 14px; font-size: 12px; }
+.today-page .dk-table .dk-chips { align-items: baseline; gap: 0; max-width: none; }
+.today-page .dk-table .dk-state-tag { flex-basis: 100%; margin-bottom: 3px; font-size: 13px; font-weight: 600; }
+.today-page .dk-table .dk-state-tag::before { width: 7px; height: 7px; }
+.today-page .dk-table .dk-chip { height: auto; padding: 0; border-radius: 0; background: none; color: rgb(var(--fg-secondary)); font-size: 12.5px; font-weight: 400; }
+.today-page .dk-table .dk-chip + .dk-chip::before { content: '·'; margin-inline: 6px; color: rgb(var(--fg-faint)); }
+.today-page .dk-table .dk-chip.bad { background: none; color: rgb(185 28 28); }
+.today-page .dk-table .dk-chip.warn { background: none; color: rgb(180 83 9); }
+.today-page .dk-table .dk-chip.ok { background: none; color: rgb(var(--fg-secondary)); }
+.today-page .dk-table .dk-why { margin-top: 3px; font-size: 12.5px; }
+.today-page .dk-table .dk-act { text-align: end; white-space: nowrap; }
+.today-page .dk-table .dk-btns { flex-direction: row; align-items: center; gap: 4px; }
+.today-page .dk-table .dk-btn { height: 32px; padding-inline: 14px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+.today-page .dk-table .dk-btn.is-ghost { padding-inline: 10px; }
+.today-page .dk-table .dk-group > td { padding: 10px 16px; background: rgb(var(--bg-content)); }
+.today-page .dk-table .dk-detail > td { padding: 0; overflow: hidden; }
+.today-page .dk-table .dk-facts > div { padding: 12px 16px 14px; font-size: 13px; }
+.today-page .dk-table .dk-facts > div > span { font-size: 12px; font-weight: 500; }
+@media (prefers-reduced-motion: reduce) {
+  .today-page .dk-table tbody td { transition: none; }
+}
+/* Finished table actions: one control per row, identical size; check-in/out green, needs-handling orange.
+   Extra actions sit behind the attached arrow. */
+.today-page .dk-table .dk-act { width: 1%; }
+.dk-split { --split-bg: 21 128 61; --split-hover: 17 107 51; display: inline-flex; width: 156px; height: 38px; border-radius: 9px; overflow: hidden; vertical-align: middle; }
+.dk-split.is-assign { --split-bg: 194 87 12; --split-hover: 168 74 10; }
+.dk-split button { display: inline-flex; align-items: center; justify-content: center; height: 100%; border: 0; background: rgb(var(--split-bg)); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .15s ease-out; }
+.dk-split button:hover, .dk-split button[aria-expanded="true"] { background: rgb(var(--split-hover)); }
+.dk-split button:focus-visible { outline: 2px solid rgb(var(--split-bg)); outline-offset: -4px; }
+.dk-split-main { flex: 1; min-width: 0; padding: 0 12px; }
+.dk-split .dk-split-arrow { flex: none; width: 36px; border-inline-start: 1px solid rgb(255 255 255 / .3); }
+.dk-split.is-plain { box-shadow: inset 0 0 0 1px rgb(var(--border-strong)); }
+.dk-split.is-plain button { background: transparent; color: rgb(var(--fg)); font-weight: 500; }
+.dk-split.is-plain button:hover { background: rgb(var(--bg-hover)); }
+.dk-split.is-plain button:focus-visible { outline-color: rgb(var(--accent-600)); }
+.dk-split-menu { position: fixed; z-index: 60; display: grid; padding: 4px; border: 1px solid rgb(var(--border)); border-radius: 10px; background: rgb(var(--bg-elevated)); box-shadow: 0 10px 28px rgb(var(--fg) / .12), 0 2px 6px rgb(var(--fg) / .06); font-family: 'Heebo', sans-serif; }
+.dk-split-menu button { height: 38px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: rgb(var(--fg)); font: inherit; font-size: 14px; text-align: start; cursor: pointer; }
+.dk-split-menu button:hover, .dk-split-menu button:focus-visible { background: rgb(var(--bg-hover)); outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .dk-split button { transition: none; }
+}
+.reception-status-heading { display: block; grid-column: 1 / -1; }
+.today-page .dk-table .reception-status-heading > td { display: flex; align-items: center; gap: 10px; width: 100%; padding: 17px 4px 6px; border: 0; background: transparent; }
+.reception-status-heading span { font-size: 15px; font-weight: 500; }
+.reception-status-heading b { min-width: 25px; padding: 2px 7px; border-radius: 7px; background: rgb(var(--accent-50)); color: var(--reception-active); font-size: 12px; font-weight: 500; }
+@container today (max-width: 700px) {
+  .today-page .dk-table .reception-guest-row .dk-btns { display: flex; flex-wrap: wrap; }
+  .today-page .dk-table .reception-guest-row .dk-stay2 { white-space: normal; }
+  .today-page .dk-table .reception-guest-row .dk-guest small { overflow-wrap: anywhere; }
+}
+.today-page .dk-rooms { scroll-margin-block-start: 18px; border: 0; border-radius: 20px; box-shadow: none; background: transparent; }
+.today-page .dk-rooms-head { padding: 17px 18px; background: var(--reception-paper); border-radius: 18px 18px 0 0; }
+.today-page .dk-rooms-head h2 { font-size: 15px; font-weight: 500; }
+.today-page .dk-rooms-head > span { margin-top: 5px; font-size: 11px; }
+.today-page .dk-rooms .dk-cardlist { border: 0; background: transparent; padding: 12px 0 0; gap: 12px; overflow: visible; }
+.today-page .dk-rooms .dk-rcard { margin: 0; min-width: 0; background: var(--reception-paper); border: 0; box-shadow: 0 3px 15px rgb(var(--fg) / .035); transition: background .15s; }
+.today-page .dk-rooms .dk-rcard:hover { transform: none; background: rgb(var(--accent-50)); box-shadow: var(--reception-surface-shadow); }
+.today-page .dk-rooms .dk-rc-room { border: 0; padding: 0; min-width: 0; gap: 5px; }
+.today-page .dk-rooms .dk-rc-room small { font-size: 11px; letter-spacing: 0; font-weight: 400; }
+.today-page .dk-rooms .dk-rc-room b { font-family: var(--reception-display); font-size: 30px; font-weight: 500; }
+.today-page .dk-rooms .dk-rc-who b { font-size: 13px; font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
+.today-page .dk-rooms .dk-rc-who > span { font-size: 11px; }
+.today-page .dk-rooms .dk-rc-pill { height: 24px; padding: 0 8px; gap: 5px; border-radius: 8px; font-size: 11px; font-weight: 500; }
+.today-page .dk-rooms .dk-rc-pill::before { width: 5px; height: 5px; box-shadow: none; }
+.today-page .dk-rooms .dk-rc-meters { gap: 10px; }
+.today-page .dk-rooms .dk-rc-meters i { display: none; }
+.today-page .dk-rooms .dk-rc-meters span { font-size: 11px; font-weight: 400; }
+.today-page .dk-rooms .dk-rc-meters b { font-size: 11px; font-weight: 500; }
+.today-page .dk-rooms .dk-rc-meters > div:only-child { grid-column: 1 / -1; }
+.today-page .dk-rooms .dk-rc-tk { margin-top: 0; padding: 8px 10px; border-radius: 8px; font-size: 11px; }
+.today-page .dk-rcard { padding: 18px; gap: 16px; border-radius: 20px; }
+.today-page .dk-rc-top { gap: 14px; }
+.today-page .dk-rooms .dk-rc-room { padding: 11px 12px; min-width: 64px; border-radius: 14px; background: rgb(var(--bg-group)); }
+.today-page .dk-rc-meters > div { padding: 9px 11px; border-radius: 10px; background: rgb(var(--bg-content)); }
+@media (prefers-reduced-motion: reduce) {
+  .today-page .dk-rooms .dk-rcard { transition: none; }
+}
+/* a close key shadow defines the edge; a short ambient shadow adds depth.
+   Keep the same white background, card fills and user-selected arrangements. */
+.page-content:has(> .today-page) { background: rgb(var(--bg-elevated)); }
+.today-page { --reception-surface-edge: transparent; --reception-surface-shadow: 0 0 0 transparent; }
+.today-page .reception-summary, .today-page .dk-rooms-head, .today-page .dk-rooms .dk-rcard { border: 1px solid var(--reception-surface-edge);
+  box-shadow: var(--reception-surface-shadow); }
+.today-page .reception-summary.is-on { box-shadow: 0 0 0 1.5px rgb(var(--accent-600) / .7), var(--reception-surface-shadow, 0 0 0 transparent); }
+.today-page .dk-activity > .dk-scroll { border: 1px solid var(--reception-surface-edge);
+  box-shadow: var(--reception-surface-shadow); }
+.reception-activity-caption { color: var(--reception-active); font-size: 14px; font-weight: 500; white-space: nowrap; }
+/* Milk glass — frosted white panes over a quiet teal-and-sand field, so the blur has something to hold. */
+.today-page .dk-tiles:has(> .reception-summary.is-glass) { padding: 14px; margin-bottom: 18px; border-radius: 26px; background: radial-gradient(60% 140% at 10% 0%, rgb(var(--accent-600) / .17), transparent 62%), radial-gradient(55% 140% at 92% 100%, rgb(var(--accent-600) / .12), transparent 66%), radial-gradient(40% 110% at 55% 45%, rgb(214 190 150 / .24), transparent 70%), rgb(var(--bg-group)); }
+.today-page .reception-summary.is-glass { border: 1px solid rgb(255 255 255 / .8); border-radius: 18px; background: rgb(255 255 255 / .56); -webkit-backdrop-filter: blur(22px) saturate(160%); backdrop-filter: blur(22px) saturate(160%); box-shadow: inset 0 1px 0 rgb(255 255 255 / .9), 0 1px 2px rgb(16 60 52 / .05), 0 12px 32px -14px rgb(16 60 52 / .22); transition: background-color .2s ease-out, box-shadow .2s ease-out; }
+.today-page .reception-summary.is-glass:hover { background: rgb(255 255 255 / .7); box-shadow: inset 0 1px 0 rgb(255 255 255 / .9), 0 1px 2px rgb(16 60 52 / .05), 0 16px 36px -14px rgb(16 60 52 / .28); }
+.today-page .reception-summary.is-glass.is-on { background: rgb(255 255 255 / .86); box-shadow: inset 0 1px 0 #fff, 0 0 0 1.5px rgb(var(--accent-600) / .55), 0 16px 36px -14px rgb(16 60 52 / .28); }
+.reception-summary.is-glass .reception-summary-face { padding: 16px 18px 4px; }
+.reception-summary.is-glass .reception-summary-heading { font-size: 13.5px; color: rgb(var(--fg-secondary)); }
+.reception-summary.is-glass .reception-summary-face > strong { margin-top: 4px; font-size: clamp(36px, 3.6cqw, 46px); color: var(--reception-active); }
+.reception-summary.is-glass .reception-summary-details { display: flex; gap: 0; padding: 8px 18px 14px; }
+.reception-summary.is-glass .reception-summary-details > span { flex-direction: row; align-items: baseline; gap: 5px; }
+.reception-summary.is-glass .reception-summary-details > span + span { margin-inline-start: 12px; padding-inline-start: 12px; border-inline-start: 1px solid rgb(var(--fg) / .12); }
+.reception-summary.is-glass .reception-summary-details b { font-size: 13.5px; font-weight: 600; }
+.reception-summary.is-glass .reception-summary-details > span > span { font-size: 12px; color: rgb(var(--fg-secondary)); }
+@media (prefers-reduced-motion: reduce) {
+  .today-page .reception-summary.is-glass { transition: none; }
+}
+/* Base: the configuration as it is, on the same quiet grey canvas as the reception design page. */
+.page-content:has(> .today-page) { background: color-mix(in srgb, #808080 12%, white); }
+/* ── The user's configuration with Material 3 buttons only ─────────────────────────────────────
+   Common buttons (filled / outlined / text / standard icon), split button and segmented button:
+   Material shapes, sizes, 8% state layers and level-1 elevation on filled hover. Colours stay the
+   product's: primary teal from the generated scheme, check-in green, needs-handling orange. */
+.today-page { --mb-primary: #006a61; --mb-outline: #6f7977; --mb-on-surface: #161d1c; --mb-on-surface-variant: #3f4947; --mb-ease: cubic-bezier(.2, 0, 0, 1); --mb-elev-1: 0 1px 2px 0 rgb(0 0 0 / .3), 0 1px 3px 1px rgb(0 0 0 / .15); }
+.today-page .dk .dk-btn { height: 40px; padding: 0 24px; gap: 8px; border: 1px solid var(--mb-outline); border-radius: 9999px; background: transparent; color: var(--mb-primary); font-size: 14px; font-weight: 500; letter-spacing: .1px; transition: background-color .2s var(--mb-ease), box-shadow .2s var(--mb-ease); }
+.today-page .dk .dk-btn:has(svg):not(.is-icon) { padding-inline: 16px 24px; }
+.today-page .dk .dk-btn svg { width: 18px; height: 18px; }
+.today-page .dk .dk-btn:hover { background: rgb(0 106 97 / .08); }
+.today-page .dk .dk-btn:active { background: rgb(0 106 97 / .1); }
+.today-page .dk .dk-btn.is-primary { border-color: transparent; background: var(--mb-primary); color: #fff; }
+.today-page .dk .dk-btn.is-primary:hover { background: color-mix(in srgb, #fff 8%, var(--mb-primary)); box-shadow: var(--mb-elev-1); }
+.today-page .dk .dk-btn.is-primary:active { background: color-mix(in srgb, #fff 10%, var(--mb-primary)); box-shadow: none; }
+.today-page .dk .dk-btn.is-ghost { padding: 0 12px; border-color: transparent; background: transparent; }
+.today-page .dk .dk-btn.is-icon { width: 40px; padding: 0; border: 0; background: transparent; color: var(--mb-on-surface-variant); }
+.today-page .dk .dk-btn.is-icon:hover { background: rgb(63 73 71 / .08); }
+.today-page .dk .dk-btn:disabled { border-color: rgb(22 29 28 / .12); background: transparent; color: rgb(22 29 28 / .38); box-shadow: none; cursor: default; }
+.today-page .dk .dk-btn.is-primary:disabled { border-color: transparent; background: rgb(22 29 28 / .12); }
+.today-page .dk .dk-btn:focus-visible { outline: 3px solid var(--mb-primary); outline-offset: 2px; }
+.today-page .dk-split { --split-bg: 21 128 61; width: 156px; height: 40px; gap: 2px; border-radius: 0; overflow: visible; box-shadow: none; }
+.today-page .dk-split.is-assign { --split-bg: 194 87 12; }
+.today-page .dk-split button { background-color: rgb(var(--split-bg)); color: #fff; font-size: 14px; font-weight: 500; letter-spacing: .1px; transition: box-shadow .2s var(--mb-ease); }
+.today-page .dk-split button:hover, .today-page .dk-split button[aria-expanded="true"] { background-color: rgb(var(--split-bg)); background-image: linear-gradient(rgb(255 255 255 / .08), rgb(255 255 255 / .08)); box-shadow: var(--mb-elev-1); }
+.today-page .dk-split button:active { background-image: linear-gradient(rgb(255 255 255 / .1), rgb(255 255 255 / .1)); box-shadow: none; }
+.today-page .dk-split button:focus-visible { outline: 3px solid rgb(var(--split-bg)); outline-offset: 2px; }
+.today-page .dk-split-main { padding: 0 16px; border-radius: 9999px; }
+.today-page .dk-split:has(.dk-split-arrow) .dk-split-main { border-start-end-radius: 4px; border-end-end-radius: 4px; }
+.today-page .dk-split .dk-split-arrow { width: 40px; border-inline-start: 0; border-radius: 9999px; border-start-start-radius: 4px; border-end-start-radius: 4px; }
+.today-page .dk-split.is-plain button { border: 1px solid var(--mb-outline); background-color: transparent; color: var(--mb-primary); }
+.today-page .dk-split.is-plain button:hover { background-color: transparent; background-image: linear-gradient(rgb(0 106 97 / .08), rgb(0 106 97 / .08)); box-shadow: none; }
+.today-page .dk-split.is-plain button:focus-visible { outline-color: var(--mb-primary); }
+.today-page .dk-seg { gap: 0; padding: 0; border: 1px solid var(--mb-outline); border-radius: 9999px; background: none; overflow: hidden; }
+.today-page .dk-seg button { height: 40px; padding: 0 16px; border-radius: 0; background: none; color: var(--mb-on-surface); font-size: 14px; font-weight: 500; letter-spacing: .1px; box-shadow: none; transition: background-color .2s var(--mb-ease); }
+.today-page .dk-seg button + button { border-inline-start: 1px solid var(--mb-outline); }
+.today-page .dk-seg button:hover { background: rgb(22 29 28 / .08); }
+.today-page .dk-seg button.is-on { background: #cce8e3; color: #324b47; box-shadow: none; }
+.today-page .dk-seg button:focus-visible { outline: 3px solid var(--mb-primary); outline-offset: -3px; }
+@media (prefers-reduced-motion: reduce) {
+  .today-page :is(.dk-btn, .dk-split button, .dk-seg button) { transition: none; }
+}
+
+/* The list is not a panel: its header is a section title on the canvas, and the guest cards sit
+   directly on the canvas under the column labels (2026-10-28). */
+.today-page .dk-activity > .dk-bar { gap: 8px 16px; padding: 6px 4px 2px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.today-page .reception-activity-caption { font-size: 20px; line-height: 28px; font-weight: 600; color: var(--reception-ink); }
+.today-page .dk-activity > .dk-bar > span { font-size: 13px; color: var(--reception-muted); }
+.today-page .dk-activity > .dk-scroll, .today-page .dk-activity > .dk-scroll:has(> .dk-table) { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; overflow-x: auto; overflow-y: visible; }
+.today-page .dk-table thead th { background: transparent; }
+
+/* The page fits the screen with gutters on both sides: title and summary stay put, the guest list
+   and the rooms column each scroll inside their own area. Narrow screens fall back to page scroll. */
+.today-page { --today-canvas: color-mix(in srgb, #808080 12%, white); height: 100%; }
+.today-page .dk { height: 100%; overflow: hidden; padding: 22px 28px 0; }
+.today-page .dk-head { flex-shrink: 0; margin-bottom: 4px; }
+.today-page .dk-body { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+.today-page .dk-activity { display: flex; flex-direction: column; min-height: 0; }
+.today-page .dk-tiles, .today-page .dk-activity > .dk-bar { flex-shrink: 0; }
+.today-page .dk-activity > .dk-scroll, .today-page .dk-activity > .dk-scroll:has(> .dk-table) { flex: 1; min-height: 0; margin: 0 -4px; padding: 0 4px 24px; overflow: auto; }
+.today-page .dk-table thead th { position: sticky; top: 0; z-index: 1; background: var(--today-canvas); }
+.today-page .dk-rooms { display: flex; flex-direction: column; min-height: 0; }
+.today-page .dk-rooms .dk-cardlist { flex: 1; min-height: 0; margin: 0 -4px; padding: 12px 4px 24px; overflow-y: auto; }
+@container today (max-width: 1100px) {
+  .today-page .dk { height: auto; overflow: visible; }
+  .today-page .dk-activity > .dk-scroll, .today-page .dk-activity > .dk-scroll:has(> .dk-table), .today-page .dk-rooms .dk-cardlist { flex: none; overflow-y: visible; }
+}
+@media (max-width: 1023px) { .today-page .dk { padding: 16px 16px 0; } }
+
+/* List header: section title, an at-a-glance breakdown (stacked bar + counts), guest search, filter. */
+.today-page .dk-activity > .dk-bar { align-items: center; gap: 10px 20px; padding: 6px 0 4px; }
+.today-page .dk-meter { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.today-page .dk-meter-bar { display: flex; flex-shrink: 0; gap: 2px; width: 132px; height: 8px; border-radius: 9999px; background: rgb(var(--fg) / .08); overflow: hidden; }
+.today-page .dk-meter-bar i { min-width: 6px; }
+.today-page .dk-meter-bar i.ok, .today-page .dk-meter-legend li.ok::before { background: rgb(var(--success)); }
+.today-page .dk-meter-bar i.warn, .today-page .dk-meter-legend li.warn::before { background: rgb(var(--warning)); }
+.today-page .dk-meter-bar i.bad, .today-page .dk-meter-legend li.bad::before { background: rgb(var(--danger)); }
+.today-page .dk-meter-bar i.done, .today-page .dk-meter-legend li.done::before { background: rgb(var(--fg) / .28); }
+.today-page .dk-meter-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--reception-muted); }
+.today-page .dk-meter-legend li { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.today-page .dk-meter-legend li::before { content: ''; align-self: center; width: 8px; height: 8px; border-radius: 50%; }
+.today-page .dk-meter-legend b { font-size: 15px; font-weight: 600; color: var(--reception-ink); font-variant-numeric: tabular-nums; }
+.today-page .dk-search { display: flex; align-items: center; gap: 8px; width: min(280px, 100%); height: 40px; margin-inline-start: auto; padding: 0 14px; border: 1px solid rgb(var(--fg) / .14); border-radius: 9999px; background: var(--reception-paper); color: var(--reception-muted); cursor: text; transition: border-color .15s ease-out, box-shadow .15s ease-out; }
+.today-page .dk-search:hover { border-color: rgb(var(--fg) / .28); }
+.today-page .dk-search:focus-within { border-color: #006a61; box-shadow: inset 0 0 0 1px #006a61; }
+.today-page .dk-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--reception-ink); font: inherit; font-size: 14px; outline: none; }
+.today-page .dk-search input::placeholder { color: var(--reception-muted); }
+.today-page .dk-search button { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--reception-muted); }
+.today-page .dk-search button:hover { background: rgb(var(--fg) / .08); color: var(--reception-ink); }
+.today-page .dk-search button:focus-visible { outline: 2px solid #006a61; outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .today-page .dk-search { transition: none; } }
+
+/* Opened guest: the row and its details read as one card — a teal hairline around both, the details
+   under a divider, the four facts in one calm line (label above value), no boxes or grid rules. */
+.today-page .dk-table tbody tr.is-open > td,
+.today-page .dk-table tbody tr.is-open:hover > td { background: var(--reception-paper); border-color: rgb(var(--accent-600) / .45); border-bottom-color: transparent; }
+.today-page .dk-table tbody tr.is-open > td:first-child { border-end-start-radius: 0; }
+.today-page .dk-table tbody tr.is-open > td:last-child { border-end-end-radius: 0; }
+.today-page .dk-table tbody tr.dk-detail > td { position: relative; top: -8px; padding: 0; border: 1px solid rgb(var(--accent-600) / .45); border-top: 0; border-radius: 0 0 12px 12px; background: var(--reception-paper); }
+/* Facts start under the guest name (cell padding 16 + avatar 34 + gap 12) and flow in one line. */
+.today-page .dk-table .dk-facts { display: flex; flex-wrap: wrap; gap: 12px 56px; margin-inline: 62px 20px; padding: 14px 0 16px; border-top: 1px solid rgb(var(--fg) / .08); }
+.today-page .dk-table .dk-facts > div, .today-page .dk-table .dk-facts > div + div, .today-page .dk-table .dk-facts > div:nth-child(n+3) { max-width: 420px; padding: 0; border: 0; font-size: 14px; line-height: 20px; color: var(--reception-ink); }
+.today-page .dk-table .dk-facts > div > span { display: block; margin-bottom: 2px; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--reception-muted); }
+.today-page .dk-table .dk-facts b { font-weight: 600; }
+.today-page .dk-table .dk-facts .dk-muted { font-size: 13px; color: var(--reception-muted); }
+.today-page .dk-table .dk-facts .dk-req { display: inline-block; padding: 4px 10px; border: 0; border-radius: 8px; background: rgb(var(--warning) / .1); color: rgb(146 64 14); font-size: 13px; font-weight: 500; }
+.today-page .dk-table .dk-facts .dk-issues { gap: 2px; margin: 0; padding: 0; color: rgb(146 64 14); }
+.today-page .dk-table .dk-facts .dk-issues li::before { top: 9px; }
+@container today (max-width: 1100px) { .today-page .dk-table .dk-facts { margin-inline: 16px; gap: 12px 32px; } }

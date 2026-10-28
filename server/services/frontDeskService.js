@@ -21,6 +21,8 @@ import { fireEvent } from './automationEngine.js';
 import { audit } from './auditService.js';
 import { withLocks } from './locks.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
+import { openBusinessDate } from '../utils/businessDate.js';
+import { arrivalParty, arrivalPayment } from './arrivalPresentation.js';
 import { runStayTransaction } from './stayTransaction.js';
 
 export const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
@@ -62,15 +64,15 @@ export function policyOf(property) {
 }
 
 export async function loadProperty(propertyId, session = null) {
-  const property = await Property.findById(propertyId).session(session).select('name timezone checkInTime checkInPolicy').lean();
+  const property = await Property.findById(propertyId).session(session).select('name timezone dayClose checkInTime checkInPolicy').lean();
   if (!property) throw httpError('הנכס לא נמצא', 404);
   return property;
 }
 
-// There is no managed business date yet (FIN-12 / day close is a later slice), so the property's
-// local calendar day stands in for it. Never the browser clock, never UTC.
+// Activated properties keep their open business day until a successful day close advances it.
+// Unactivated properties retain the local calendar fallback for migration compatibility.
 export function businessDateOf(property) {
-  return todayYmdInTimezone(property?.timezone || 'Asia/Jerusalem');
+  return openBusinessDate(property);
 }
 
 // ── Stay units ──────────────────────────────────────────────────────────────
@@ -280,29 +282,22 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   // Entered stays are always loaded so the "checked in" count is right; they are hidden from the
   // rows unless asked for.
   const statuses = [...ARRIVING_STATUSES, ...IN_HOUSE_STATUSES, 'checked_out'];
-  const filter = { property: propertyId, arrivalDate: day, status: { $in: [...new Set(statuses)] } };
-  if (isId(roomTypeId)) filter.roomType = roomTypeId;
+  const arrivingUnitReservations = await ReservationRoom.distinct('reservation', { property: propertyId, arrivalDate: day });
+  const filter = { property: propertyId, $or: [{ arrivalDate: day }, { _id: { $in: arrivingUnitReservations } }], status: { $in: [...new Set(statuses)] } };
 
   let reservations = await Reservation.find(filter)
-    .populate('primaryGuest', 'firstName lastName vipLevel isBlacklisted phone email')
-    .populate('roomType', 'name code')
-    .populate('company', 'name')
+    .populate({ path: 'primaryGuest', match: { property: propertyId }, select: 'firstName lastName vipLevel isBlacklisted' })
+    .populate({ path: 'roomType', match: { property: propertyId }, select: 'name code' })
+    .populate({ path: 'company', match: { property: propertyId }, select: 'name' })
     .lean();
 
   const term = String(q || '').trim().toLowerCase();
-  if (term) {
-    reservations = reservations.filter((r) => {
-      const g = r.primaryGuest || {};
-      return `${g.firstName || ''} ${g.lastName || ''}`.toLowerCase().includes(term)
-        || String(r.confirmationNumber || '').toLowerCase().includes(term);
-    });
-  }
 
   const resIds = reservations.map((r) => r._id);
   const [units, folios, queue] = await Promise.all([
-    ReservationRoom.find({ reservation: { $in: resIds } }).populate('roomTypeBooked', 'name code').sort({ createdAt: 1, _id: 1 }).lean(),
-    Folio.find({ reservation: { $in: resIds } }).select('reservation ownerType ownerRef lines status').lean(),
-    ArrivalQueueEntry.find({ reservation: { $in: resIds }, status: 'active' }).lean(),
+    ReservationRoom.find({ property: propertyId, reservation: { $in: resIds } }).populate({ path: 'roomTypeBooked', match: { property: propertyId }, select: 'name code' }).sort({ createdAt: 1, _id: 1 }).lean(),
+    Folio.find({ property: propertyId, reservation: { $in: resIds } }).select('reservation ownerType ownerRef lines status currency').lean(),
+    ArrivalQueueEntry.find({ property: propertyId, reservation: { $in: resIds }, status: 'active' }).lean(),
   ]);
   const unitsByRes = new Map();
   for (const u of units) {
@@ -311,18 +306,23 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
     unitsByRes.get(k).push(u);
   }
   const folioByRes = new Map(folios.filter((f) => f.ownerType !== 'room').map((f) => [String(f.reservation), f]));
+  const foliosByRes = new Map();
+  for (const f of folios) { const key = String(f.reservation); if (!foliosByRes.has(key)) foliosByRes.set(key, []); foliosByRes.get(key).push(f); }
   const roomFolioByUnit = new Map(folios.filter((f) => f.ownerType === 'room' && f.status !== 'closed').map((f) => [String(f.ownerRef), f]));
   const queueByUnit = new Map(queue.map((e) => [String(e.reservationRoom), e]));
   const queueByRes = new Map(queue.map((e) => [String(e.reservation), e]));
 
-  const allUnits = reservations.flatMap((r) => (unitsByRes.get(String(r._id)) || implicitUnits(r)).map((u) => ({ r, u })));
+  const allUnits = reservations.flatMap((r) => (unitsByRes.get(String(r._id)) || implicitUnits(r)).filter((u) => (u.arrivalDate || r.arrivalDate) === day).map((u) => ({ r, u })));
   const roomIds = [...new Set(allUnits.map(({ u }) => idStr(u.assignedRoom)).filter(Boolean))];
-  const rooms = await Room.find({ _id: { $in: roomIds } }).select('number floor cleanStatus opsStatus occStatus roomType').lean();
+  const rooms = await Room.find({ property: propertyId, _id: { $in: roomIds } }).select('number floor cleanStatus opsStatus occStatus roomType').lean();
   const roomById = new Map(rooms.map((x) => [String(x._id), x]));
   const occ = await occupancyMap(propertyId, roomIds);
 
   let rows = allUnits.map(({ r, u }, idx) => {
     const list = unitsByRes.get(String(r._id)) || allUnits.filter((x) => x.r === r).map((x) => x.u);
+    const party = arrivalParty(r, u, list);
+    const bookingFolios = foliosByRes.get(String(r._id)) || [];
+    const payment = arrivalPayment(r, u, list, bookingFolios);
     const room = roomById.get(idStr(u.assignedRoom)) || null;
     const guarantee = unitPaysSelf(u) ? unitGuaranteeState(u, roomFolioByUnit.get(String(u._id))) : guaranteeState(r, folioByRes.get(String(r._id)));
     const q2 = u._id ? queueByUnit.get(String(u._id)) : queueByRes.get(String(r._id));
@@ -336,13 +336,15 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
       reservationId: String(r._id),
       unitId: u._id ? String(u._id) : null,
       unitIndex: list.indexOf(u) + 1,
-      unitsTotal: list.length,
+      unitsTotal: Math.max(list.length, Number(r.roomsCount || 1)),
       confirmationNumber: r.confirmationNumber,
       reservationStatus: r.status,
       unitStatus: u.status,
       guest: {
         id: idStr(g),
-        name: `${g.firstName || ''} ${g.lastName || ''}`.trim() || 'אורח ללא שם',
+        name: u.occupantName || `${g.firstName || ''} ${g.lastName || ''}`.trim() || 'אורח ללא שם',
+        bookingName: `${g.firstName || ''} ${g.lastName || ''}`.trim() || null,
+        isBookerName: Math.max(list.length, Number(r.roomsCount || 1)) > 1 && !u.occupantName,
         vip: !!(r.isVip || g.vipLevel > 0),
         blacklisted: !!g.isBlacklisted,
       },
@@ -354,11 +356,16 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
       arrivalDate: u.arrivalDate || r.arrivalDate,
       departureDate: u.departureDate || r.departureDate,
       nights: nightsBetween(u.arrivalDate || r.arrivalDate, u.departureDate || r.departureDate),
-      adults: r.adults,
-      children: r.children,
+      adults: party.adults,
+      children: party.children,
+      party,
+      payment,
+      sharedPayment: payment.scope === 'unit' ? arrivalPayment(r, u, list, bookingFolios, { shared: true }) : null,
+      cribs: { requested: null, confirmed: null, status: 'not_recorded' },
       eta: r.eta || null,
       source: r.source,
       specialRequests: r.specialRequests || null,
+      unitNotes: u.notes || null,
       guarantee,
       billing: unitBilling(u),
       readiness: readinessResult,
@@ -370,6 +377,9 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   const counts = { all: rows.length, ready: 0, waiting: 0, queued: 0, blocked: 0, checked_in: 0 };
   for (const row of rows) counts[row.readiness.state] = (counts[row.readiness.state] || 0) + 1;
   if (!includeCheckedIn) rows = rows.filter((r) => r.readiness.state !== 'checked_in');
+
+  if (term) rows = rows.filter((r) => `${r.guest.name} ${r.guest.bookingName || ''} ${r.confirmationNumber || ''}`.toLowerCase().includes(term));
+  if (isId(roomTypeId)) rows = rows.filter((r) => r.roomType?.id === roomTypeId);
 
   if (assignment === 'assigned') rows = rows.filter((r) => r.room);
   else if (assignment === 'unassigned') rows = rows.filter((r) => !r.room);
@@ -385,6 +395,13 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   const total = rows.length;
   const pages = Math.max(1, Math.ceil(total / size));
   const current = Math.min(Math.max(1, Number(page) || 1), pages);
+  const pageRows = rows.slice((current - 1) * size, current * size);
+  const displayedShared = new Set();
+  for (const row of pageRows) for (const summary of [row.payment, row.sharedPayment].filter(Boolean)) {
+    if (summary.scope !== 'shared') continue;
+    summary.showAmounts = !displayedShared.has(row.reservationId);
+    displayedShared.add(row.reservationId);
+  }
 
   return {
     date: day,
@@ -395,7 +412,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
     page: current,
     pages,
     pageSize: size,
-    rows: rows.slice((current - 1) * size, current * size),
+    rows: pageRows,
   };
 }
 
