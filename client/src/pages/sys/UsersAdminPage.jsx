@@ -120,7 +120,7 @@ export default function UsersAdminPage() {
   ];
 
   return (
-    <Page wide>
+    <Page wide title="משתמשים והרשאות" back="/pms">
       <ToastContainer toasts={toasts} />
       <AdminNav end={!isAuditor && <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'new' })}><Plus size={14} /> הזמנת משתמש</button>} />
       <Toolbar start={<SearchBox value={url.get('q')} onCommit={(q) => url.set({ q })} placeholder="שם או דוא״ל" id="usr-q" />} />

@@ -298,3 +298,115 @@
 .today-page .dk-table .dk-facts .dk-issues { gap: 2px; margin: 0; padding: 0; color: rgb(146 64 14); }
 .today-page .dk-table .dk-facts .dk-issues li::before { top: 9px; }
 @container today (max-width: 1100px) { .today-page .dk-table .dk-facts { margin-inline: 16px; gap: 12px 32px; } }
+/* 2026-10-28: no tinted field behind the summary — the tiles are solid white cards (same structure, shadow and teal selection). */
+.today-page .dk-tiles:has(> .reception-summary.is-glass) { padding: 0; border-radius: 0; background: none; }
+.today-page .reception-summary.is-glass, .today-page .reception-summary.is-glass:hover { background: #fff; border-color: rgb(var(--fg) / .06); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.today-page .reception-summary.is-glass.is-on { background: #fff; }
+.page-content:has(> .today-page) { background: #f6f6f6; } /* 2026-10-28: lighter canvas (was #f0f0f0) */
+.today-page { --today-canvas: #f6f6f6; }
+
+/* 2026-10-28: the desk bar — one white panel: day + business-day state | search | live status + new reservation */
+.today-page .dk-head.is-today { display: grid; grid-template-columns: auto minmax(240px, 520px) auto; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 14px; padding: 14px 20px; border: 1px solid rgb(var(--fg) / .07); border-radius: 12px; background: #fff; }
+.today-page .dk-head.is-today h1 { margin: 0; font-size: 22px; font-weight: 600; line-height: 1.2; }
+.today-page .dk-today-sub { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 13px; color: rgb(var(--fg-secondary)); flex-wrap: wrap; }
+.today-page .dk-bday { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: rgb(21 128 61 / .09); color: rgb(21 128 61); font: inherit; font-size: 12.5px; font-weight: 500; }
+.today-page .dk-bday i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.today-page .dk-bday.is-late { background: #ffddb8; color: #653e00; cursor: pointer; }
+.today-page .dk-bday.is-late:hover { background: #ffd09e; }
+.today-page .dk-head-search { width: 100%; margin: 0; height: 44px; background: #f6f6f6; border-color: transparent; }
+.today-page .dk-head-search:focus-within { background: #fff; border-color: #006a61; }
+.today-page .dk-head.is-today nav { display: flex; align-items: center; gap: 16px; }
+.today-page .dk-live { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: rgb(var(--fg-secondary)); white-space: nowrap; }
+.today-page .dk-live i { width: 8px; height: 8px; border-radius: 50%; background: rgb(21 128 61); box-shadow: 0 0 0 3px rgb(21 128 61 / .15); }
+.today-page .dk-split.is-primary { --split-bg: 0 106 97; width: auto; }
+.today-page .dk-split.is-primary .dk-split-main { gap: 8px; padding: 0 20px 0 18px; border-start-start-radius: 9999px; border-end-start-radius: 9999px; }
+.today-page .dk-split.is-primary .dk-split-arrow { width: 40px; border-start-end-radius: 9999px; border-end-end-radius: 9999px; }
+@container today (max-width: 900px) { .today-page .dk-head.is-today { grid-template-columns: 1fr auto; } .today-page .dk-head-search { grid-column: 1 / -1; order: 3; } }
+/* the list bar (title, counts, filter) is a white panel like the desk bar above */
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar { padding: 12px 20px; margin-bottom: 4px; border: 1px solid rgb(var(--fg) / .07); border-radius: 12px; background: #fff; }
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar { padding-inline: 16px; gap: 8px 14px; flex-wrap: nowrap; }
+.today-page .dk:has(.dk-head.is-today) .dk-meter-bar { width: 90px; }
+/* rows fit the column: "0 children" / "1 room" are noise and are hidden, the table may shrink, the action is a bit narrower */
+.today-page .dk-stay2 .is-quiet { display: none; }
+.today-page .dk-table { min-width: 0; }
+.today-page .dk-table .dk-split { width: 140px; }
+.today-page .dk-table thead th:first-child { width: 25%; }
+.today-page .dk-table tbody td, .today-page .dk-table thead th { padding-inline: 10px; }
+.today-page .dk-table .dk-stay2 { grid-template-columns: auto; gap: 3px; }
+
+/* 2026-10-28: one soft shadow for every card on the desk screen, so white lifts off the canvas */
+.today-page { --card-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06); }
+.today-page .dk-head.is-today, .today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar,
+.today-page .dk-rooms-head, .today-page .dk-rooms .dk-rcard { box-shadow: var(--card-shadow); }
+.today-page .reception-summary.is-glass { box-shadow: var(--card-shadow); }
+.today-page .reception-summary.is-glass:hover { box-shadow: 0 1px 2px rgb(16 24 40 / .06), 0 8px 20px rgb(16 24 40 / .09); }
+.today-page .reception-summary.is-glass.is-on { box-shadow: 0 0 0 1.5px rgb(var(--accent-600) / .55), var(--card-shadow); }
+.today-page .dk-rooms .dk-rcard:hover { box-shadow: 0 1px 2px rgb(16 24 40 / .06), 0 8px 20px rgb(16 24 40 / .09); }
+/* guest rows are cells of one table row: the shadow shows only above and below the row, not between cells */
+.today-page .dk-table tbody tr:not(.dk-detail, .dk-group) > td { box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 12px rgb(16 24 40 / .06); clip-path: inset(-14px 0 -14px 0); }
+.today-page .dk-table tbody tr:not(.dk-detail, .dk-group) > td:first-child { clip-path: inset(-14px -14px -14px 0); }
+.today-page .dk-table tbody tr:not(.dk-detail, .dk-group) > td:last-child { clip-path: inset(-14px 0 -14px -14px); }
+
+/* 2026-10-28: the list bar, symmetric — title on the right, the day's breakdown centered (numbers over a proportion bar),
+   the filter on the left. */
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 20px; padding: 14px 20px; }
+.today-page .dk:has(.dk-head.is-today) .reception-activity-caption { font-size: 18px; font-weight: 600; white-space: nowrap; }
+.today-page .dk:has(.dk-head.is-today) .dk-meter { flex-direction: column-reverse; align-items: stretch; gap: 8px; width: 100%; max-width: 440px; margin-inline: auto; }
+.today-page .dk:has(.dk-head.is-today) .dk-meter-bar { width: 100%; height: 6px; }
+.today-page .dk:has(.dk-head.is-today) .dk-meter-legend { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; justify-items: center; }
+.today-page .dk:has(.dk-head.is-today) .dk-meter-legend li { display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center; gap: 0 6px; font-size: 12.5px; }
+.today-page .dk:has(.dk-head.is-today) .dk-meter-legend b { grid-row: 1; grid-column: 1 / -1; justify-self: center; font-size: 22px; line-height: 1.15; font-weight: 500; }
+.today-page .dk:has(.dk-head.is-today) .dk-meter-legend li::before { grid-row: 2; grid-column: 1; }
+.today-page .dk:has(.dk-head.is-today) .dk-bar .dk-seg { justify-self: end; }
+
+/* 2026-10-28: slim list bar — title on the right, the filter that is also the count on the left; no repeated numbers */
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar.is-slim { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 10px 16px; }
+.today-page .dk-bar.is-slim .reception-activity-caption { font-size: 17px; font-weight: 600; white-space: nowrap; }
+.today-page .dk-bar-note { font-size: 13px; color: rgb(var(--fg-secondary)); }
+.today-page .dk-modes button { gap: 8px; padding: 0 14px; white-space: nowrap; }
+.today-page .dk-mode-n { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: rgb(var(--fg) / .07); font-size: 12px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.today-page .dk-mode-n.warn { background: #ffddb8; color: #653e00; }
+.today-page .dk-mode-n.ok { background: rgb(21 128 61 / .1); color: rgb(21 128 61); }
+.today-page .dk-modes button.is-on .dk-mode-n { background: rgb(255 255 255 / .7); }
+
+/* 2026-10-28 — one system for the whole desk screen
+   actions: teal only (primary), amber/red/green are states, never buttons
+   numbers: 34 (summary) · 24 (room) · 15 (row) · 13 (detail)
+   rhythm: 16px between blocks, 12px radius, one soft shadow */
+.today-page { --space: 16px; }
+.today-page .dk-head.is-today { margin-bottom: var(--space); }
+.today-page .dk-tiles:has(> .reception-summary.is-glass) { margin-bottom: var(--space); gap: var(--space); }
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar.is-slim { margin-bottom: 0; }
+.today-page .dk-split, .today-page .dk-split.is-assign { --split-bg: 0 106 97; }
+.today-page .reception-summary.is-glass { border-radius: 12px; border-color: rgb(var(--fg) / .05); }
+.reception-summary.is-glass .reception-summary-face { padding: 14px 16px 2px; }
+.reception-summary.is-glass .reception-summary-face > strong { font-size: 34px; margin-top: 2px; font-weight: 500; letter-spacing: -.5px; }
+.reception-summary.is-glass .reception-summary-details { padding: 6px 16px 12px; }
+.today-page .dk-rooms-head { border-radius: 12px; margin-bottom: var(--space); padding: 14px 16px; }
+.today-page .dk-rooms .dk-cardlist { padding-top: 0; gap: var(--space); }
+.today-page .dk-rooms .dk-rcard, .today-page .dk-rcard { border-radius: 12px; padding: 14px 16px; gap: 12px; }
+.today-page .dk-rooms .dk-rc-room { padding: 0; min-width: 52px; background: none; border: 0; }
+.today-page .dk-rooms .dk-rc-room b { font-size: 24px; }
+.today-page .dk-rc-meters > div { background: #fff; border: 1px solid rgb(var(--fg) / .08); border-radius: 8px; padding: 8px 10px; }
+.today-page .dk-table .dk-room b { font-size: 15px; }
+.today-page .dk-table tbody td:first-child { border-start-start-radius: 12px; border-end-start-radius: 12px; }
+.today-page .dk-table tbody td:last-child { border-start-end-radius: 12px; border-end-end-radius: 12px; }
+.reception-summary.is-glass .reception-summary-details { flex-wrap: wrap; gap: 2px 14px; }
+.reception-summary.is-glass .reception-summary-details > span, .reception-summary.is-glass .reception-summary-details > span > span { white-space: nowrap; overflow-wrap: normal; }
+.reception-summary.is-glass .reception-summary-details > span + span { margin-inline-start: 0; padding-inline-start: 0; border-inline-start: 0; }
+
+/* list bar row: title + underline tabs with counts (one style, no pills/dividers) */
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar.is-slim { padding: 0 20px; min-height: 56px; overflow: hidden; }
+.today-page .dk-modes { gap: 4px; height: 56px; padding: 0; border: 0; border-radius: 0; background: none; overflow: visible; }
+.today-page .dk-modes button { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 100%; padding: 0 14px; border: 0; border-radius: 0; background: none; color: rgb(var(--fg-secondary)); font-size: 14px; font-weight: 500; }
+.today-page .dk-modes button + button { border: 0; }
+.today-page .dk-modes button:hover { background: none; color: rgb(var(--fg)); }
+.today-page .dk-modes button.is-on { background: none; color: #006a61; }
+.today-page .dk-modes button.is-on::after { content: ''; position: absolute; inset-inline: 10px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: #006a61; }
+.today-page .dk-mode-n, .today-page .dk-modes button.is-on .dk-mode-n { min-width: 0; padding: 0; border-radius: 0; background: none; color: rgb(var(--fg-muted)); font-size: 14px; font-weight: 500; }
+.today-page .dk-modes button.is-on .dk-mode-n { color: #006a61; }
+.today-page .dk-mode-n.warn { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #ffddb8; color: #653e00; font-size: 12px; font-weight: 600; }
+
+/* more air between the rooms column and the list */
+.today-page .dk-body { grid-template-columns: minmax(0, 1fr) 270px; gap: 32px; }
+.today-page .dk-body { grid-template-columns: minmax(0, 1fr) 290px; gap: 32px; }

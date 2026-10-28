@@ -13,6 +13,7 @@ import { useApi } from '../hooks/useApi';
 import { reports as reportsApi, legalReports } from '../utils/api';
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import { TODAY, addDays } from '../utils/date';
+import { BackArrow } from '../components/kit';
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 const RANGES = [
@@ -399,10 +400,10 @@ export default function ReportsPage() {
   const totResTrend = pct(total.reservations, priorTotal.reservations);
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in ui-page is-approved is-legacy">
       {/* header */}
       <div className="page-header">
-        <div>
+        <div><BackArrow />
           <h1 className="page-title">דוחות</h1>
           <p className="page-subtitle">ניתוח ביצועים — {from} עד {to}</p>
         </div>

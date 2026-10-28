@@ -7,7 +7,7 @@ import './TodayPage.css';
 export default function TodayPage() {
   return (
     <div className="today-page" dir="rtl">
-      <DashboardPage summaryAppearance="glass" rowAppearance="table" assignAppearance="today" checkinAppearance="accordion" />
+      <DashboardPage summaryAppearance="glass" rowAppearance="table" assignAppearance="today" checkinAppearance="accordion" headerAppearance="today" />
     </div>
   );
 }

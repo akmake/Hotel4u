@@ -19,6 +19,7 @@ import { crm, properties as propertiesApi } from '../utils/api';
 import { normalizeCrmSla } from '../utils/crmSla';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import { BackArrow } from '../components/kit';
 
 const HEALTH_BADGE = {
   healthy: 'badge-clean',
@@ -362,11 +363,11 @@ export default function OpportunityBoardPage() {
   if (oppError) return <ErrorState message={oppError} onRetry={refreshAll} />;
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in ui-page is-approved is-legacy">
       <ToastContainer toasts={toasts} />
 
       <div className="page-header">
-        <div>
+        <div><BackArrow />
           <h1 className="page-title flex items-center gap-2">
             <Kanban size={20} className="text-brand" />
             Opportunity Board

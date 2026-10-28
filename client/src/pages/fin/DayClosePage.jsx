@@ -103,7 +103,7 @@ export default function DayClosePage() {
   ];
 
   return (
-    <Page>
+    <Page title="סגירת יום" back="/pms">
       <ToastContainer toasts={toasts} />
       <ErrorBanner error={error} onRetry={reload} />
       {loading && !data && <div className="ui-empty"><Spinner /> טוען…</div>}

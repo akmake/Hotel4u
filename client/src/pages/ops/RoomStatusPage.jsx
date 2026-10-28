@@ -83,7 +83,7 @@ export default function RoomStatusPage() {
   ].filter(Boolean);
 
   return (
-    <Page wide>
+    <Page wide title="מצב חדרים" back="/pms">
       <ToastContainer toasts={toasts} />
       <OpsNav role={role} />
       <Toolbar

@@ -195,7 +195,7 @@ export async function listFolios({ propertyId, view = 'open', q, page = 1, pageS
     const res = await Reservation.find(resFilter).select('_id').limit(500).lean();
     filter.reservation = { $in: res.map((r) => r._id) };
   }
-  const folios = await Folio.find(filter).select('reservation ownerType ownerRef status lines.amount lines.taxAmount lines.status settlement currency updatedAt').sort({ updatedAt: -1 }).limit(1000).lean();
+  const folios = await Folio.find(filter).select('reservation ownerType ownerRef status lines.type lines.amount lines.taxAmount lines.status settlement currency updatedAt').sort({ updatedAt: -1 }).limit(1000).lean();
   let rows = folios.map((f) => ({ f, balance: folioBalance(f) }));
   if (view === 'balance') rows = rows.filter((r) => r.balance > 0.005);
   if (view === 'credit') rows = rows.filter((r) => r.balance < -0.005);
@@ -209,7 +209,7 @@ export async function listFolios({ propertyId, view = 'open', q, page = 1, pageS
   const p = Math.min(pages, Math.max(1, Number(page) || 1));
   const slice = rows.slice((p - 1) * size, p * size);
   const resIds = slice.map((r) => r.f.reservation);
-  const reservations = await Reservation.find({ _id: { $in: resIds } }).select('confirmationNumber status arrivalDate departureDate primaryGuest assignedRoom company').populate('primaryGuest', 'firstName lastName').populate('assignedRoom', 'number').lean();
+  const reservations = await Reservation.find({ _id: { $in: resIds } }).select('confirmationNumber status arrivalDate departureDate nights totalAmount guaranteeType depositAmount primaryGuest assignedRoom company').populate('primaryGuest', 'firstName lastName').populate('assignedRoom', 'number').lean();
   const byRes = new Map(reservations.map((r) => [String(r._id), r]));
   const companyIds = slice.filter((r) => r.f.ownerType === 'company' && isId(String(r.f.ownerRef || ''))).map((r) => r.f.ownerRef);
   const companies = new Map((await Company.find({ _id: { $in: companyIds } }).select('name').lean()).map((c) => [String(c._id), c]));
@@ -230,8 +230,12 @@ export async function listFolios({ propertyId, view = 'open', q, page = 1, pageS
         guest: r?.primaryGuest ? `${r.primaryGuest.firstName || ''} ${r.primaryGuest.lastName || ''}`.trim() : '—',
         room: r?.assignedRoom?.number || null, arrivalDate: r?.arrivalDate, departureDate: r?.departureDate,
         updatedAt: f.updatedAt,
+        // read-only context for the index: what was charged/paid, the stay price and its guarantee
+        totals: totalsOf(f.lines), nights: r?.nights ?? null, stayTotal: r?.totalAmount ?? null,
+        guarantee: r?.guaranteeType || 'none', depositRequired: r?.depositAmount || 0,
       };
     }),
+    businessDate: businessDateOf(await Property.findById(propertyId).select('timezone dayClose').lean()),
   };
 }
 
@@ -251,7 +255,7 @@ export async function ensureGuestFolio({ propertyId, reservationId }) {
 export async function getStayFolios({ propertyId, reservationId }) {
   if (!isId(String(reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
   const res = await Reservation.findOne({ _id: reservationId, property: propertyId })
-    .populate('primaryGuest', 'firstName lastName').populate('assignedRoom', 'number').populate('company', 'name creditLimit').lean();
+    .populate('primaryGuest', 'firstName lastName phone email vipLevel').populate('assignedRoom', 'number').populate('company', 'name creditLimit').populate('roomType', 'name').lean();
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
   const property = await Property.findById(propertyId).select('vatRate defaultCurrency financePolicy timezone dayClose').lean();
   const folios = await Folio.find({ reservation: res._id }).sort({ createdAt: 1 }).lean();
@@ -300,6 +304,10 @@ export async function getStayFolios({ propertyId, reservationId }) {
       room: res.assignedRoom?.number || null, arrivalDate: res.arrivalDate, departureDate: res.departureDate, nights: res.nights,
       company: res.company ? { id: String(res.company._id), name: res.company.name } : null,
       totalAmount: res.totalAmount ?? null, currency: res.currency || property?.defaultCurrency || 'ILS',
+      // read-only guest context for the folio header
+      phone: res.primaryGuest?.phone || null, email: res.primaryGuest?.email || null, vipLevel: res.primaryGuest?.vipLevel || 0,
+      adults: res.adults ?? null, children: res.children ?? 0, source: res.source || null,
+      roomType: res.roomType?.name || null, ratePlan: res.priceSnapshot?.ratePlanName || null,
     },
     // FIN-01-F05: a guarantee is shown on its own and is never counted as money received.
     guarantee: { type: res.guaranteeType || 'none', reference: res.guaranteeReference || null, depositRequired: res.depositAmount || 0 },

@@ -118,7 +118,7 @@ export default function HotelStatusPage() {
 
   const viewDate = data?.date;
   return (
-    <Page wide>
+    <Page wide title="מצב המלון" back="/pms">
       <OpsNav
         role={user?.role}
         end={(

@@ -54,7 +54,7 @@ export default function PolicyPage() {
 
   const disabled = !canEdit;
   return (
-    <Page>
+    <Page title="מדיניות תפעול וביטול" back="/pms">
       <ToastContainer toasts={toasts} />
       <AdminNav end={<span className="ui-muted">גרסה {data.version}{data.publishedBy ? ` · ${data.publishedBy} · ${formatDateTime(data.publishedAt)}` : ''}</span>} />
       {!canEdit && <Banner tone="info">צפייה בלבד — פרסום מדיניות מותר למנהל נכס.</Banner>}

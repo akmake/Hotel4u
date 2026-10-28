@@ -12,6 +12,7 @@ import {
   rates as ratesApi, companies as companiesApi,
 } from '../utils/api';
 import { TODAY, addDays } from '../utils/date';
+import { BackArrow } from '../components/kit';
 
 function nights(a, d) {
   if (!a || !d) return 0;
@@ -386,23 +387,20 @@ export default function NewReservationPage() {
   }
 
   return (
-    <div dir="rtl" className="bg-gray-50 min-h-screen">
+    <div dir="rtl" className="ui-page is-approved is-legacy">
       <ToastContainer toasts={toasts} />
 
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/pms/reservations')}
-            className="p-1.5 rounded hover:bg-gray-100 text-gray-500">
-            <ChevronRight size={18} />
-          </button>
-          <h1 className="text-base font-semibold text-gray-900">הזמנה חדשה</h1>
+      <div className="ap-bar">
+        <div className="ap-bar-start">
+          <BackArrow to="/pms/reservations" />
+          <h1 className="ap-title">הזמנה חדשה</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="ap-bar-end">
           <button onClick={() => navigate('/pms/reservations')}
-            className="btn btn-secondary text-sm">ביטול</button>
+            className="btn btn-secondary">ביטול</button>
           <button onClick={submit} disabled={loading || !canSubmit}
-            className="btn btn-primary text-sm gap-2">
+            className="btn btn-primary gap-2">
             {loading
               ? <><Loader2 size={13} className="animate-spin" /> יוצר...</>
               : <><CheckCircle2 size={13} /> {rooms.length > 1 ? `צור ${rooms.length} הזמנות` : 'צור הזמנה'}</>}
@@ -410,7 +408,7 @@ export default function NewReservationPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto p-6 flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         {error && (
           <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
             <AlertCircle size={14} className="flex-shrink-0" />{error}

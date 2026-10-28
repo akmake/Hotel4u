@@ -42,6 +42,7 @@ export default function AvailabilityPage() {
   const [release, setRelease] = useState(null);
   const dragging = useRef(false);
   const dragged = useRef(false);
+  const downAt = useRef(null); // where the press started: a layout shift under a still pointer must not count as a drag
   const selectTodayOnLoad = useRef(false);
 
   const { data, loading, error, reload } = useLoader(async () => (propertyId ? ops.availability(propertyId, { month }) : null), [propertyId, month]);
@@ -76,9 +77,10 @@ export default function AvailabilityPage() {
       <ToastContainer toasts={toasts} />
       <header className="avl-head">
         <button type="button" className="avl-icon" onClick={goBack} aria-label="חזרה" title="חזרה"><ArrowRight size={20} /></button>
-        <div className="avl-title"><h1>לוח זמינות</h1><span>{monthName(month)}</span></div>
-        <div className="avl-nav">
+        <div className="avl-title"><h1>לוח זמינות</h1></div>
+        <div className="avl-nav" role="group" aria-label="ניווט בין חודשים">
           <button type="button" className="avl-icon" onClick={() => url.set({ month: addMonths(month, -1) })} aria-label="חודש קודם"><ChevronRight size={20} /></button>
+          <span className="avl-month" aria-live="polite">{monthName(month)}</span>
           <button type="button" className="avl-icon" onClick={() => url.set({ month: addMonths(month, 1) })} aria-label="חודש הבא"><ChevronLeft size={20} /></button>
           <button type="button" className="avl-btn" onClick={goToday}>היום</button>
           {loading && <Spinner />}
@@ -114,14 +116,14 @@ export default function AvailabilityPage() {
                   <button
                     key={d}
                     type="button"
-                    className={`ac-day ${dow(d) >= 5 ? 'is-wk' : ''} ${past ? 'is-past' : ''} ${d === today ? 'is-today' : ''} ${inSel ? 'is-sel' : ''} ${inSel && i === range[0] ? 'is-range-start' : ''} ${inSel && i === range[1] ? 'is-range-end' : ''} ${closed ? 'is-closed' : ''}`}
+                    className={`ac-day ${dow(d) >= 5 ? 'is-wk' : ''} ${past ? 'is-past' : ''} ${!past && t.occupancyPct >= 100 ? 'is-occ-max' : !past && t.occupancyPct >= 80 ? 'is-occ-hi' : ''} ${d === today ? 'is-today' : ''} ${inSel ? 'is-sel' : ''} ${inSel && i === range[0] ? 'is-range-start' : ''} ${inSel && i === range[1] ? 'is-range-end' : ''} ${closed ? 'is-closed' : ''}`}
                     data-dow={DAYS[dow(d)]}
                     style={{ '--occ': Math.min(100, t.occupancyPct) }}
                     aria-pressed={!!inSel}
                     aria-current={d === today ? 'date' : undefined}
                     aria-label={`${DAYS[dow(d)]} ${dm(d)}: ${closed ? 'סגור למכירה' : `${t.available} פנויים`}, תפוסה ${t.occupancyPct}%, ${t.arrivals} מגיעים, ${t.departures} עוזבים`}
-                    onPointerDown={(e) => { dragged.current = false; if (e.button !== 0 || e.pointerType === 'touch') return; dragging.current = true; pick(i, e.shiftKey); }}
-                    onPointerEnter={(e) => { if (e.pointerType !== 'touch' && dragging.current) { dragged.current = true; setSel((x) => (x ? { a: x.a, b: i } : x)); } }}
+                    onPointerDown={(e) => { dragged.current = false; if (e.button !== 0 || e.pointerType === 'touch') return; dragging.current = true; downAt.current = { x: e.clientX, y: e.clientY }; pick(i, e.shiftKey); }}
+                    onPointerEnter={(e) => { if (e.pointerType === 'touch' || !dragging.current) return; const m = downAt.current; if (m && Math.hypot(e.clientX - m.x, e.clientY - m.y) < 8) return; dragged.current = true; setSel((x) => (x ? { a: x.a, b: i } : x)); }}
                     onClick={(e) => { if (!dragged.current || e.detail === 0) pick(i, e.shiftKey); dragged.current = false; }}
                   >
                     <span className="ac-d-top">
@@ -137,8 +139,8 @@ export default function AvailabilityPage() {
                       <span className="ac-bar"><i className={lvl(t.occupancyPct)} style={{ width: `${Math.min(100, t.occupancyPct)}%` }} /></span>{t.occupancyPct}%
                     </span>
                     <span className="ac-d-move ui-num">
-                      <span className="ac-chip is-in"><ArrowDown size={12} />{t.arrivals}<em> מגיעים</em></span>
-                      <span className="ac-chip is-out"><ArrowUp size={12} />{t.departures}<em> עוזבים</em></span>
+                      <span className="ac-chip is-in" title={`${t.arrivals} מגיעים`}><ArrowDown size={12} />{t.arrivals}<em> מגיעים</em></span>
+                      <span className="ac-chip is-out" title={`${t.departures} עוזבים`}><ArrowUp size={12} />{t.departures}<em> עוזבים</em></span>
                     </span>
                   </button>
                 );
@@ -146,7 +148,7 @@ export default function AvailabilityPage() {
               {Array.from({ length: (7 - ((dow(data.dates[0]) + data.dates.length) % 7)) % 7 }, (_, i) => <div key={`tail${i}`} className="ac-day is-out" aria-hidden="true" />)}
             </div>
             <footer className="avl-foot">
-              <span>המספר הגדול בכל יום = חדרים פנויים למכירה</span>
+              <span>בכל יום: חדרים פנויים · תפוסה · הגעות ועזיבות</span>
               <span className="avl-legend"><span><i className="is-ok" />תפוסה</span><span><i className="is-hi" />מעל 80%</span><span><i className="is-max" />מלא</span></span>
               <span className="avl-keys">לחיצה על יום לפרטים · גרירה לטווח · Esc לניקוי</span>
             </footer>

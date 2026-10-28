@@ -25,7 +25,7 @@ export default function ReceivablesPage() {
   const [paying, setPaying] = useState(null);
   const t = data?.totals;
   return (
-    <Page wide>
+    <Page wide title="חובות פתוחים" back="/pms">
       <ToastContainer toasts={toasts} />
       <ErrorBanner error={error} onRetry={reload} />
       {loading && !data && <div className="ui-empty"><Spinner /> טוען…</div>}

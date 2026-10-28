@@ -67,8 +67,8 @@ function AccountingWorkspace({ propertyId, canWrite, canRecord }) {
     { key: 'details', label: 'פירוט', render: (r) => <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedEntry(r)}>שורות הפקודה</button> },
     { key: 'reverse', label: 'תיקון', render: (r) => canWrite && !r.reversalOf ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setReversing(r); setReverseDate(today()); }}>היפוך פקודה</button> : '—' },
   ];
-  return <Page wide>
-    <div className="ui-toolbar"><div><h1 className="text-xl font-semibold">הנהלת חשבונות</h1><p className="ui-sub">ישות משפטית, ספר כפול ותקופות חשבונאיות</p></div><div className="ui-toolbar-end"><Link className="btn btn-secondary" to="/pms/admin/fiscal">מסמכים ורשות המסים</Link></div></div>
+  return <Page wide title="הנהלת חשבונות" back="/pms">
+    <div className="ui-toolbar"><p className="ui-sub">ישות משפטית, ספר כפול ותקופות חשבונאיות</p><div className="ui-toolbar-end"><Link className="btn btn-secondary btn-sm" to="/pms/admin/fiscal">מסמכים ורשות המסים</Link></div></div>
     <ErrorBanner error={action.error} />
     {message && <div role="status"><Banner tone="ok">{message}</Banner></div>}
     {!canWrite && <Banner tone="info">הרשאת צפייה בלבד.</Banner>}

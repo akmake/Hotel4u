@@ -11,6 +11,7 @@ import { useToast } from '../hooks/useToast';
 import { companies as companiesApi, reservations as resApi } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import { BackArrow } from '../components/kit';
 
 const TYPE_HE    = { corporate:'חברה', agency:'סוכנות', tour_operator:'מפעיל סיורים', government:'ממשלתי' };
 const TYPE_COLOR = { corporate:'#6366f1', agency:'#0891b2', tour_operator:'#059669', government:'#ea580c' };
@@ -451,7 +452,7 @@ export default function CompaniesPage() {
   const drawerCompany = drawer ? (list || []).find(c => c._id === drawer) : null;
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in ui-page is-approved is-legacy">
       <ToastContainer toasts={toasts}/>
 
       {/* modals */}
@@ -477,7 +478,7 @@ export default function CompaniesPage() {
 
       {/* header */}
       <div className="page-header">
-        <div>
+        <div><BackArrow />
           <h1 className="page-title flex items-center gap-2">
             <BriefcaseBusiness size={22} className="text-brand"/> חברות וסוכנים
           </h1>

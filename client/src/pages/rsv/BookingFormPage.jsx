@@ -301,10 +301,9 @@ export default function BookingFormPage() {
   const multi = rows.length > 1;
   const typeLabel = (t) => `${t.name}${t.available !== undefined ? ` · ${t.available} פנויים` : ''}`;
   return (
-    <Page wide>
+    <Page wide title="הזמנה חדשה" back="/pms/reservations">
       <div className="ui-toolbar">
         <div>
-          <div className="ui-h3">הזמנה חדשה</div>
           <div className="ui-sub">{nights > 0 ? `${formatShort(arrival)} – ${formatShort(departure)} · ${nights} לילות · ${rows.length} ${rows.length === 1 ? 'חדר' : 'חדרים'} · ${guests.a} מבוגרים${guests.c ? ` · ${guests.c} ילדים` : ''}` : 'בחרו תאריכים'}</div>
         </div>
         <div className="ui-toolbar-end ui-row">

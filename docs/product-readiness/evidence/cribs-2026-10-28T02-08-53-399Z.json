@@ -1,0 +1,3347 @@
+{
+  "startedAt": "2026-10-28T02:08:53.399Z",
+  "finishedAt": "2026-10-28T02:09:07.297Z",
+  "mode": "new capability; isolated synthetic replica; real JWT; no .env or hotel data",
+  "dependencyHashes": {
+    "../services/cribService.js": "d3064bb52605a9668115a81bd9c331a19a510acd26053a3e0cb8aac796851d5a",
+    "../services/cribPresentation.js": "1e0785af074156a4008dab5723c3b39e9e42416499b362d31daa5b1976f18256",
+    "../models/CribRequest.js": "a709df737132adca0dbe8ed3420d4b40fe6c839c69437796fbd9eded2f4cda3c",
+    "../models/CribStock.js": "72257edfcfc53dfd179c530fc13b0632f302a2dfd0e99955cd5386ab36e558f7",
+    "../models/CribOperation.js": "d4bdce6fb17a2454d679ba3b379a322fc08fb68391840d9de667c12407c5b2aa",
+    "../services/frontDeskService.js": "a19e72e117d608380fb30094a2300717f2975f1e23712dcc35fa2f8fa45fb16b",
+    "../routes/frontdesk.js": "f1ea8d4030a807ade72b3a03b3bee07c1cd7556e59213af6d62a8d4a0bd80123",
+    "../../client/src/components/frontdesk/CribDialog.jsx": "2961a6e05a192d7654877d05c1d446ff054b34f07ab3e01e06a60129bb4af1f5",
+    "../../client/src/components/frontdesk/ArrivalFacts.jsx": "ad6cb1ac9138887a4f06c99bccf60248ca5185bec340404e8b8b62e48628adbc",
+    "../../client/src/pages/ArrivalsPage.jsx": "afd3266f30df69e1aacb525bac66686ec03baa000dc7ff4bd968ab34699cebef",
+    "../../client/src/utils/api.js": "c178842393cf274128f0f3f7c01f4330fae4f21af34ce149306cd31524580b78",
+    "./cribReadiness.mjs": "80d9f93f69b7f6e0ca01570e34ea6da170f1459e26651aa00e85e6ea45ceebe9"
+  },
+  "counts": {
+    "passed": 36,
+    "failed": 0,
+    "blocked": 0
+  },
+  "results": [
+    {
+      "code": "CB01",
+      "name": "request records demand without allocating inventory or promising future stock",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "reservationId": "6ae159364bc391ebaba1adbf",
+          "unitId": "6ae159364bc391ebaba1adc1",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-99275ba6-83e8-4557-9986-49af266a7c71",
+          "room": {
+            "id": "6ae159364bc391ebaba1adc0",
+            "number": "101"
+          },
+          "deliveryRoom": null,
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 1,
+          "cribs": {
+            "requested": 2,
+            "confirmed": 0,
+            "delivered": 0,
+            "pending": 2,
+            "revision": 1,
+            "status": "requested",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": false,
+            "revision": 0,
+            "total": null,
+            "outstanding": 0,
+            "availableNow": null,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        }
+      }
+    },
+    {
+      "code": "CB02",
+      "name": "unknown physical stock prevents delivery without changing the request",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "טרם הוזן מלאי לולים לאחר ספירה פיזית",
+            "code": "crib_stock_unknown",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB03",
+      "name": "partial delivery consumes stock until explicit return",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "reservationId": "6ae159364bc391ebaba1adda",
+          "unitId": "6ae159364bc391ebaba1addc",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-26c34d19-4c95-4012-b7fa-18662a5beebc",
+          "room": {
+            "id": "6ae159364bc391ebaba1addb",
+            "number": "101"
+          },
+          "deliveryRoom": {
+            "id": "6ae159364bc391ebaba1addb",
+            "number": "101"
+          },
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 2,
+          "cribs": {
+            "requested": 3,
+            "confirmed": 1,
+            "delivered": 1,
+            "pending": 2,
+            "revision": 2,
+            "status": "partly_delivered",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 3,
+            "outstanding": 1,
+            "availableNow": 2,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        },
+        "returned": {
+          "reservationId": "6ae159364bc391ebaba1adda",
+          "unitId": "6ae159364bc391ebaba1addc",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-26c34d19-4c95-4012-b7fa-18662a5beebc",
+          "room": {
+            "id": "6ae159364bc391ebaba1addb",
+            "number": "101"
+          },
+          "deliveryRoom": null,
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 3,
+          "cribs": {
+            "requested": 3,
+            "confirmed": 0,
+            "delivered": 0,
+            "pending": 3,
+            "revision": 3,
+            "status": "requested",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 3,
+            "outstanding": 0,
+            "availableNow": 3,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        }
+      }
+    },
+    {
+      "code": "CB04",
+      "name": "invalid, fractional and string quantities or pricing payloads are refused",
+      "status": "passed",
+      "evidence": {
+        "results": [
+          {
+            "ok": false,
+            "error": {
+              "message": "פעולה או כמות לולים לא תקינה",
+              "code": "invalid_crib_quantity",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "פעולה או כמות לולים לא תקינה",
+              "code": "invalid_crib_quantity",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "פעולה או כמות לולים לא תקינה",
+              "code": "invalid_crib_quantity",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "פעולה או כמות לולים לא תקינה",
+              "code": "invalid_crib_quantity",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "פעולת לולים אינה רושמת חיוב",
+              "code": "crib_no_pricing",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "נדרשים מזהה פעולה, גרסה עדכנית וסיבה של 3–300 תווים",
+              "code": "invalid_crib_operation",
+              "status": 422
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "נדרשים מזהה פעולה, גרסה עדכנית וסיבה של 3–300 תווים",
+              "code": "invalid_crib_operation",
+              "status": 422
+            }
+          }
+        ]
+      }
+    },
+    {
+      "code": "CB05",
+      "name": "two concurrent deliveries cannot consume the last crib twice",
+      "status": "passed",
+      "evidence": {
+        "results": [
+          {
+            "ok": true,
+            "value": {
+              "reservationId": "6ae159364bc391ebaba1adfb",
+              "unitId": "6ae159364bc391ebaba1adfd",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-8226bdf2-893e-4764-9165-7400c9602baf",
+              "room": {
+                "id": "6ae159364bc391ebaba1adfc",
+                "number": "101"
+              },
+              "deliveryRoom": {
+                "id": "6ae159364bc391ebaba1adfc",
+                "number": "101"
+              },
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": true,
+              "revision": 2,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 1,
+                "delivered": 1,
+                "pending": 0,
+                "revision": 2,
+                "status": "delivered",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": true,
+                "revision": 1,
+                "total": 1,
+                "outstanding": 1,
+                "availableNow": 0,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "אין מספיק לולים זמינים כעת; הבקשה נשארת בהמתנה",
+              "code": "crib_no_stock",
+              "status": 409
+            }
+          }
+        ]
+      }
+    },
+    {
+      "code": "CB06",
+      "name": "lost-reply replay cannot deliver twice even after later checkout",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "CribRequest": [
+            {
+              "_id": "6ae159374bc391ebaba1ae21",
+              "property": "6ae159374bc391ebaba1ae18",
+              "reservation": "6ae159374bc391ebaba1ae1b",
+              "reservationRoom": "6ae159374bc391ebaba1ae1d",
+              "requestedQty": 1,
+              "outstandingQty": 1,
+              "deliveryRoom": "6ae159374bc391ebaba1ae1c",
+              "revision": 2,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:55.291Z",
+              "updatedAt": "2026-10-28T02:08:55.347Z",
+              "__v": 0
+            }
+          ],
+          "CribStock": [
+            {
+              "_id": "6ae159374bc391ebaba1ae25",
+              "property": "6ae159374bc391ebaba1ae18",
+              "revision": 1,
+              "totalCount": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:55.315Z",
+              "updatedAt": "2026-10-28T02:08:55.315Z",
+              "__v": 0
+            }
+          ],
+          "CribOperation": [
+            {
+              "_id": "6ae159374bc391ebaba1ae22",
+              "property": "6ae159374bc391ebaba1ae18",
+              "requestKey": "712caa87-f2c6-4ec9-82a0-a84c330dacc4",
+              "payloadHash": "34143fee5c60a6ff71f6a93e1867a7833c4fedef91397377f82abb87e36a1acb",
+              "result": {
+                "reservationId": "6ae159374bc391ebaba1ae1b",
+                "unitId": "6ae159374bc391ebaba1ae1d",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-e916606e-3594-4cd5-a5d4-e7836314ce14",
+                "room": {
+                  "id": "6ae159374bc391ebaba1ae1c",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "createdAt": "2026-10-28T02:08:55.295Z",
+              "updatedAt": "2026-10-28T02:08:55.295Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae159374bc391ebaba1ae26",
+              "property": "6ae159374bc391ebaba1ae18",
+              "requestKey": "401c9447-5fec-4cea-b3c3-fc4fbdbc0105",
+              "payloadHash": "8d504424dc8155b37cd096b284faada4e3fed0d80f787478ef9ef1181ed8eb90",
+              "result": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "createdAt": "2026-10-28T02:08:55.317Z",
+              "updatedAt": "2026-10-28T02:08:55.317Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae159374bc391ebaba1ae2b",
+              "property": "6ae159374bc391ebaba1ae18",
+              "requestKey": "28e239a8-4f72-4ae2-8c7b-c769e93fe09e",
+              "payloadHash": "e6ee3ea32eb391b4030359c517aad3ab7bae872e85f2be26419901bb59d19e96",
+              "result": {
+                "reservationId": "6ae159374bc391ebaba1ae1b",
+                "unitId": "6ae159374bc391ebaba1ae1d",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-e916606e-3594-4cd5-a5d4-e7836314ce14",
+                "room": {
+                  "id": "6ae159374bc391ebaba1ae1c",
+                  "number": "101"
+                },
+                "deliveryRoom": {
+                  "id": "6ae159374bc391ebaba1ae1c",
+                  "number": "101"
+                },
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 2,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 1,
+                  "delivered": 1,
+                  "pending": 0,
+                  "revision": 2,
+                  "status": "delivered",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 1,
+                  "availableNow": 0,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "createdAt": "2026-10-28T02:08:55.352Z",
+              "updatedAt": "2026-10-28T02:08:55.352Z",
+              "__v": 0
+            }
+          ],
+          "AuditLog": [
+            {
+              "_id": "6ae159374bc391ebaba1ae23",
+              "property": "6ae159374bc391ebaba1ae18",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.request",
+              "entityType": "CribRequest",
+              "entityId": "6ae159374bc391ebaba1ae21",
+              "before": {
+                "property": "6ae159374bc391ebaba1ae18",
+                "reservation": "6ae159374bc391ebaba1ae1b",
+                "reservationRoom": "6ae159374bc391ebaba1ae1d",
+                "requestedQty": 0,
+                "outstandingQty": 0,
+                "deliveryRoom": null,
+                "revision": 0,
+                "_id": "6ae159374bc391ebaba1ae21"
+              },
+              "after": {
+                "reservationId": "6ae159374bc391ebaba1ae1b",
+                "unitId": "6ae159374bc391ebaba1ae1d",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-e916606e-3594-4cd5-a5d4-e7836314ce14",
+                "room": {
+                  "id": "6ae159374bc391ebaba1ae1c",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "reason": "Synthetic coordinated crib operation",
+              "createdAt": "2026-10-28T02:08:55.296Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae159374bc391ebaba1ae27",
+              "property": "6ae159374bc391ebaba1ae18",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.stock_counted",
+              "entityType": "CribRequest",
+              "entityId": "6ae159374bc391ebaba1ae25",
+              "before": {
+                "configured": false,
+                "revision": 0,
+                "total": null,
+                "outstanding": 0,
+                "availableNow": null,
+                "mode": "physical_now_only"
+              },
+              "after": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "reason": "Synthetic physical count",
+              "createdAt": "2026-10-28T02:08:55.317Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae159374bc391ebaba1ae2c",
+              "property": "6ae159374bc391ebaba1ae18",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.deliver",
+              "entityType": "CribRequest",
+              "entityId": "6ae159374bc391ebaba1ae21",
+              "before": {
+                "_id": "6ae159374bc391ebaba1ae21",
+                "property": "6ae159374bc391ebaba1ae18",
+                "reservation": "6ae159374bc391ebaba1ae1b",
+                "reservationRoom": "6ae159374bc391ebaba1ae1d",
+                "requestedQty": 1,
+                "outstandingQty": 0,
+                "deliveryRoom": null,
+                "revision": 1,
+                "updatedBy": "6ae159354bc391ebaba1adbb",
+                "createdAt": "2026-10-28T02:08:55.291Z",
+                "updatedAt": "2026-10-28T02:08:55.291Z",
+                "__v": 0
+              },
+              "after": {
+                "reservationId": "6ae159374bc391ebaba1ae1b",
+                "unitId": "6ae159374bc391ebaba1ae1d",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-e916606e-3594-4cd5-a5d4-e7836314ce14",
+                "room": {
+                  "id": "6ae159374bc391ebaba1ae1c",
+                  "number": "101"
+                },
+                "deliveryRoom": {
+                  "id": "6ae159374bc391ebaba1ae1c",
+                  "number": "101"
+                },
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 2,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 1,
+                  "delivered": 1,
+                  "pending": 0,
+                  "revision": 2,
+                  "status": "delivered",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 1,
+                  "availableNow": 0,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "reason": "Synthetic coordinated crib operation",
+              "createdAt": "2026-10-28T02:08:55.353Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae159374bc391ebaba1ae1b",
+              "property": "6ae159374bc391ebaba1ae18",
+              "confirmationNumber": "QA-e916606e-3594-4cd5-a5d4-e7836314ce14",
+              "status": "confirmed",
+              "primaryGuest": "6ae159374bc391ebaba1ae1a",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae159374bc391ebaba1ae19",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "specialRequests": "נא להכין כרית נוספת",
+              "internalNotes": "PRIVATE_INTERNAL_NOTE",
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T02:08:55.266Z",
+              "updatedAt": "2026-10-28T02:08:55.266Z",
+              "__v": 0
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae159374bc391ebaba1ae1d",
+              "reservation": "6ae159374bc391ebaba1ae1b",
+              "property": "6ae159374bc391ebaba1ae18",
+              "roomTypeBooked": "6ae159374bc391ebaba1ae19",
+              "assignedRoom": "6ae159374bc391ebaba1ae1c",
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nightlyRate": 500,
+              "guests": [],
+              "adults": 2,
+              "children": 0,
+              "status": "checked_out",
+              "notes": "",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "guaranteeType": "none",
+              "createdAt": "2026-10-28T02:08:55.271Z",
+              "updatedAt": "2026-10-28T02:08:55.359Z",
+              "__v": 0
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae159374bc391ebaba1ae1c",
+              "property": "6ae159374bc391ebaba1ae18",
+              "roomType": "6ae159374bc391ebaba1ae19",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true,
+              "createdAt": "2026-10-28T02:08:55.268Z",
+              "updatedAt": "2026-10-28T02:08:55.268Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae159374bc391ebaba1ae1e",
+              "property": "6ae159374bc391ebaba1ae18",
+              "reservation": "6ae159374bc391ebaba1ae1b",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "createdAt": "2026-10-28T02:08:55.274Z",
+              "updatedAt": "2026-10-28T02:08:55.274Z",
+              "__v": 0
+            }
+          ]
+        },
+        "result": {
+          "reservationId": "6ae159374bc391ebaba1ae1b",
+          "unitId": "6ae159374bc391ebaba1ae1d",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-e916606e-3594-4cd5-a5d4-e7836314ce14",
+          "room": {
+            "id": "6ae159374bc391ebaba1ae1c",
+            "number": "101"
+          },
+          "deliveryRoom": {
+            "id": "6ae159374bc391ebaba1ae1c",
+            "number": "101"
+          },
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 2,
+          "cribs": {
+            "requested": 1,
+            "confirmed": 1,
+            "delivered": 1,
+            "pending": 0,
+            "revision": 2,
+            "status": "delivered",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 1,
+            "outstanding": 1,
+            "availableNow": 0,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי.",
+          "duplicate": true
+        }
+      }
+    },
+    {
+      "code": "CB07",
+      "name": "same operation identity cannot be reused for another quantity",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "מזהה הפעולה כבר שימש עם פרטים אחרים",
+            "code": "crib_request_conflict",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB08",
+      "name": "cancelled stay keeps physical stock outstanding until return",
+      "status": "passed",
+      "evidence": {
+        "context": {
+          "reservationId": "6ae159374bc391ebaba1ae41",
+          "unitId": "6ae159374bc391ebaba1ae43",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-aeb2473e-8057-40b1-9f48-5b7c7b7abd90",
+          "room": {
+            "id": "6ae159374bc391ebaba1ae42",
+            "number": "101"
+          },
+          "deliveryRoom": {
+            "id": "6ae159374bc391ebaba1ae42",
+            "number": "101"
+          },
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": false,
+          "revision": 2,
+          "cribs": {
+            "requested": 1,
+            "confirmed": 1,
+            "delivered": 1,
+            "pending": 0,
+            "revision": 2,
+            "status": "collection_required",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 1,
+            "outstanding": 1,
+            "availableNow": 0,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        },
+        "desk": {
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 1,
+            "outstanding": 1,
+            "availableNow": 0,
+            "mode": "physical_now_only"
+          },
+          "rows": [
+            {
+              "reservationId": "6ae159374bc391ebaba1ae41",
+              "unitId": "6ae159374bc391ebaba1ae43",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-aeb2473e-8057-40b1-9f48-5b7c7b7abd90",
+              "room": {
+                "id": "6ae159374bc391ebaba1ae42",
+                "number": "101"
+              },
+              "deliveryRoom": {
+                "id": "6ae159374bc391ebaba1ae42",
+                "number": "101"
+              },
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": false,
+              "revision": 2,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 1,
+                "delivered": 1,
+                "pending": 0,
+                "revision": 2,
+                "status": "collection_required",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": true,
+                "revision": 1,
+                "total": 1,
+                "outstanding": 1,
+                "availableNow": 0,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+            }
+          ],
+          "hasMore": false,
+          "limit": 200
+        }
+      }
+    },
+    {
+      "code": "CB09",
+      "name": "checked_out stay keeps physical stock outstanding until return",
+      "status": "passed",
+      "evidence": {
+        "context": {
+          "reservationId": "6ae159374bc391ebaba1ae5b",
+          "unitId": "6ae159374bc391ebaba1ae5d",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-97ac4182-60bf-49f6-81ef-1eaf9468a566",
+          "room": {
+            "id": "6ae159374bc391ebaba1ae5c",
+            "number": "101"
+          },
+          "deliveryRoom": {
+            "id": "6ae159374bc391ebaba1ae5c",
+            "number": "101"
+          },
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": false,
+          "revision": 2,
+          "cribs": {
+            "requested": 1,
+            "confirmed": 1,
+            "delivered": 1,
+            "pending": 0,
+            "revision": 2,
+            "status": "collection_required",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 1,
+            "outstanding": 1,
+            "availableNow": 0,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        },
+        "desk": {
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 1,
+            "outstanding": 1,
+            "availableNow": 0,
+            "mode": "physical_now_only"
+          },
+          "rows": [
+            {
+              "reservationId": "6ae159374bc391ebaba1ae5b",
+              "unitId": "6ae159374bc391ebaba1ae5d",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-97ac4182-60bf-49f6-81ef-1eaf9468a566",
+              "room": {
+                "id": "6ae159374bc391ebaba1ae5c",
+                "number": "101"
+              },
+              "deliveryRoom": {
+                "id": "6ae159374bc391ebaba1ae5c",
+                "number": "101"
+              },
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": false,
+              "revision": 2,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 1,
+                "delivered": 1,
+                "pending": 0,
+                "revision": 2,
+                "status": "collection_required",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": true,
+                "revision": 1,
+                "total": 1,
+                "outstanding": 1,
+                "availableNow": 0,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+            }
+          ],
+          "hasMore": false,
+          "limit": 200
+        }
+      }
+    },
+    {
+      "code": "CB10",
+      "name": "a room move does not silently move equipment; return uses the original room",
+      "status": "passed",
+      "evidence": {
+        "context": {
+          "reservationId": "6ae159374bc391ebaba1ae75",
+          "unitId": "6ae159374bc391ebaba1ae77",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-d09e93df-c964-4cf4-a58a-6d1c9fc53a51",
+          "room": {
+            "id": "6ae159374bc391ebaba1ae87",
+            "number": "103"
+          },
+          "deliveryRoom": {
+            "id": "6ae159374bc391ebaba1ae76",
+            "number": "101"
+          },
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 2,
+          "cribs": {
+            "requested": 2,
+            "confirmed": 1,
+            "delivered": 1,
+            "pending": 1,
+            "revision": 2,
+            "status": "collection_required",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 2,
+            "outstanding": 1,
+            "availableNow": 1,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "ההחזרה חייבת להתייחס לחדר שבו הלולים נמסרו",
+            "code": "crib_return_room",
+            "status": 409
+          }
+        },
+        "newDelivery": {
+          "reservationId": "6ae159374bc391ebaba1ae75",
+          "unitId": "6ae159374bc391ebaba1ae77",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-d09e93df-c964-4cf4-a58a-6d1c9fc53a51",
+          "room": {
+            "id": "6ae159374bc391ebaba1ae87",
+            "number": "103"
+          },
+          "deliveryRoom": {
+            "id": "6ae159374bc391ebaba1ae87",
+            "number": "103"
+          },
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 4,
+          "cribs": {
+            "requested": 2,
+            "confirmed": 1,
+            "delivered": 1,
+            "pending": 1,
+            "revision": 4,
+            "status": "partly_delivered",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 2,
+            "outstanding": 1,
+            "availableNow": 1,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        }
+      }
+    },
+    {
+      "code": "CB11",
+      "name": "stock cannot be reduced below physically outstanding quantity",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "הכמות קטנה ממספר הלולים שעדיין בחדרים — יש לאסוף או לברר לפני שינוי",
+            "code": "crib_stock_in_use",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB12",
+      "name": "front desk cannot configure stock; housekeeping cannot change guest demand",
+      "status": "passed",
+      "evidence": {
+        "stock": {
+          "ok": false,
+          "error": {
+            "message": "אין הרשאה לפעולת לולים זו",
+            "code": "crib_forbidden",
+            "status": 403
+          }
+        },
+        "request": {
+          "ok": false,
+          "error": {
+            "message": "אין הרשאה לפעולת לולים זו",
+            "code": "crib_forbidden",
+            "status": 403
+          }
+        }
+      }
+    },
+    {
+      "code": "CB13",
+      "name": "foreign property and wrong reservation-unit pairing are rejected",
+      "status": "passed",
+      "evidence": {
+        "foreign": {
+          "ok": false,
+          "error": {
+            "message": "יחידת השהייה לא נמצאה בנכס",
+            "code": "crib_unit_not_found",
+            "status": 404
+          }
+        },
+        "scope": {
+          "ok": false,
+          "error": {
+            "message": "הנכס אינו בתחום ההרשאה",
+            "code": "crib_forbidden",
+            "status": 403
+          }
+        }
+      }
+    },
+    {
+      "code": "CB14",
+      "name": "physical acknowledgement and fresh revision are mandatory",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "בקשת הלולים השתנתה — טענו מחדש לפני פעולה נוספת",
+            "code": "crib_stale",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB15",
+      "name": "future demand is allowed but cannot consume stock as delivered today",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "מסירה מתועדת רק ביום הגעה או במהלך שהייה עם לילה שנותר",
+            "code": "crib_not_due",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB16",
+      "name": "crib-disabled room type prevents physical delivery",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "סוג החדר אינו מאפשר לול",
+            "code": "crib_not_allowed",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB17",
+      "name": "blocked room and changed destination are rechecked at delivery",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "חדר היחידה השתנה — בדקו שוב לאן למסור",
+            "code": "crib_room_changed",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB18",
+      "name": "delivery cannot exceed demand and collection cannot exceed outstanding",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "אין בחדר כמות כזו של לולים שטרם הוחזרו",
+            "code": "crib_above_outstanding",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB19",
+      "name": "reducing guest demand does not pretend equipment has returned",
+      "status": "passed",
+      "evidence": {
+        "result": {
+          "reservationId": "6ae159394bc391ebaba1af34",
+          "unitId": "6ae159394bc391ebaba1af36",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-9019bb36-24a1-40e5-933f-28a08c864094",
+          "room": {
+            "id": "6ae159394bc391ebaba1af35",
+            "number": "101"
+          },
+          "deliveryRoom": {
+            "id": "6ae159394bc391ebaba1af35",
+            "number": "101"
+          },
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 3,
+          "cribs": {
+            "requested": 0,
+            "confirmed": 1,
+            "delivered": 1,
+            "pending": 0,
+            "revision": 3,
+            "status": "collection_required",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 1,
+            "outstanding": 1,
+            "availableNow": 0,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        }
+      }
+    },
+    {
+      "code": "CB20",
+      "name": "failure in save rolls back stock usage, request, receipt and audit",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "CribRequest": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af58",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "reservation": "6ae1593a4bc391ebaba1af52",
+              "reservationRoom": "6ae1593a4bc391ebaba1af54",
+              "requestedQty": 1,
+              "outstandingQty": 0,
+              "deliveryRoom": null,
+              "revision": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:58.280Z",
+              "updatedAt": "2026-10-28T02:08:58.280Z",
+              "__v": 0
+            }
+          ],
+          "CribStock": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af5c",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "revision": 1,
+              "totalCount": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:58.344Z",
+              "updatedAt": "2026-10-28T02:08:58.344Z",
+              "__v": 0
+            }
+          ],
+          "CribOperation": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af59",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "requestKey": "3ac98fa5-3421-46f1-a5b2-60a9272277da",
+              "payloadHash": "19db172743aa88fd451acf6f02d404b4313b036238a282b0cc1c9d4e575a1a80",
+              "result": {
+                "reservationId": "6ae1593a4bc391ebaba1af52",
+                "unitId": "6ae1593a4bc391ebaba1af54",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-bb32e161-35e7-4df9-bf3a-4ce3ff19c5da",
+                "room": {
+                  "id": "6ae1593a4bc391ebaba1af53",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "createdAt": "2026-10-28T02:08:58.289Z",
+              "updatedAt": "2026-10-28T02:08:58.289Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae1593a4bc391ebaba1af5d",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "requestKey": "53fb6ada-1c55-4fa7-a183-472f10da5051",
+              "payloadHash": "8d504424dc8155b37cd096b284faada4e3fed0d80f787478ef9ef1181ed8eb90",
+              "result": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "createdAt": "2026-10-28T02:08:58.348Z",
+              "updatedAt": "2026-10-28T02:08:58.348Z",
+              "__v": 0
+            }
+          ],
+          "AuditLog": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af5a",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.request",
+              "entityType": "CribRequest",
+              "entityId": "6ae1593a4bc391ebaba1af58",
+              "before": {
+                "property": "6ae1593a4bc391ebaba1af4f",
+                "reservation": "6ae1593a4bc391ebaba1af52",
+                "reservationRoom": "6ae1593a4bc391ebaba1af54",
+                "requestedQty": 0,
+                "outstandingQty": 0,
+                "deliveryRoom": null,
+                "revision": 0,
+                "_id": "6ae1593a4bc391ebaba1af58"
+              },
+              "after": {
+                "reservationId": "6ae1593a4bc391ebaba1af52",
+                "unitId": "6ae1593a4bc391ebaba1af54",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-bb32e161-35e7-4df9-bf3a-4ce3ff19c5da",
+                "room": {
+                  "id": "6ae1593a4bc391ebaba1af53",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "reason": "Synthetic coordinated crib operation",
+              "createdAt": "2026-10-28T02:08:58.290Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae1593a4bc391ebaba1af5e",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.stock_counted",
+              "entityType": "CribRequest",
+              "entityId": "6ae1593a4bc391ebaba1af5c",
+              "before": {
+                "configured": false,
+                "revision": 0,
+                "total": null,
+                "outstanding": 0,
+                "availableNow": null,
+                "mode": "physical_now_only"
+              },
+              "after": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "reason": "Synthetic physical count",
+              "createdAt": "2026-10-28T02:08:58.350Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af52",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "confirmationNumber": "QA-bb32e161-35e7-4df9-bf3a-4ce3ff19c5da",
+              "status": "confirmed",
+              "primaryGuest": "6ae1593a4bc391ebaba1af51",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae1593a4bc391ebaba1af50",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "specialRequests": "נא להכין כרית נוספת",
+              "internalNotes": "PRIVATE_INTERNAL_NOTE",
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T02:08:58.166Z",
+              "updatedAt": "2026-10-28T02:08:58.166Z",
+              "__v": 0
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af54",
+              "reservation": "6ae1593a4bc391ebaba1af52",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "roomTypeBooked": "6ae1593a4bc391ebaba1af50",
+              "assignedRoom": "6ae1593a4bc391ebaba1af53",
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nightlyRate": 500,
+              "guests": [],
+              "adults": 2,
+              "children": 0,
+              "status": "reserved",
+              "notes": "",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "guaranteeType": "none",
+              "createdAt": "2026-10-28T02:08:58.197Z",
+              "updatedAt": "2026-10-28T02:08:58.197Z",
+              "__v": 0
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af53",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "roomType": "6ae1593a4bc391ebaba1af50",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true,
+              "createdAt": "2026-10-28T02:08:58.181Z",
+              "updatedAt": "2026-10-28T02:08:58.181Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af55",
+              "property": "6ae1593a4bc391ebaba1af4f",
+              "reservation": "6ae1593a4bc391ebaba1af52",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "createdAt": "2026-10-28T02:08:58.213Z",
+              "updatedAt": "2026-10-28T02:08:58.213Z",
+              "__v": 0
+            }
+          ]
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "QA_CB20"
+          }
+        }
+      }
+    },
+    {
+      "code": "CB21",
+      "name": "failure in create rolls back stock usage, request, receipt and audit",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "CribRequest": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af6b",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "reservation": "6ae1593a4bc391ebaba1af65",
+              "reservationRoom": "6ae1593a4bc391ebaba1af67",
+              "requestedQty": 1,
+              "outstandingQty": 0,
+              "deliveryRoom": null,
+              "revision": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:58.659Z",
+              "updatedAt": "2026-10-28T02:08:58.659Z",
+              "__v": 0
+            }
+          ],
+          "CribStock": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af6f",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "revision": 1,
+              "totalCount": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:58.732Z",
+              "updatedAt": "2026-10-28T02:08:58.732Z",
+              "__v": 0
+            }
+          ],
+          "CribOperation": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af6c",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "requestKey": "8ea1c939-909f-4519-a4bb-c4cbdac76bcd",
+              "payloadHash": "5a2b8ee3fa1dc6518dcc29d290c32c3e45212b29c2fac0500ef3b77abfbf97da",
+              "result": {
+                "reservationId": "6ae1593a4bc391ebaba1af65",
+                "unitId": "6ae1593a4bc391ebaba1af67",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-29f4cae9-3463-4199-a515-4f6d107174b1",
+                "room": {
+                  "id": "6ae1593a4bc391ebaba1af66",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "createdAt": "2026-10-28T02:08:58.670Z",
+              "updatedAt": "2026-10-28T02:08:58.670Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae1593a4bc391ebaba1af70",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "requestKey": "31f86c54-94e7-49bc-8c6a-214a26dab90b",
+              "payloadHash": "8d504424dc8155b37cd096b284faada4e3fed0d80f787478ef9ef1181ed8eb90",
+              "result": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "createdAt": "2026-10-28T02:08:58.737Z",
+              "updatedAt": "2026-10-28T02:08:58.737Z",
+              "__v": 0
+            }
+          ],
+          "AuditLog": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af6d",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.request",
+              "entityType": "CribRequest",
+              "entityId": "6ae1593a4bc391ebaba1af6b",
+              "before": {
+                "property": "6ae1593a4bc391ebaba1af62",
+                "reservation": "6ae1593a4bc391ebaba1af65",
+                "reservationRoom": "6ae1593a4bc391ebaba1af67",
+                "requestedQty": 0,
+                "outstandingQty": 0,
+                "deliveryRoom": null,
+                "revision": 0,
+                "_id": "6ae1593a4bc391ebaba1af6b"
+              },
+              "after": {
+                "reservationId": "6ae1593a4bc391ebaba1af65",
+                "unitId": "6ae1593a4bc391ebaba1af67",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-29f4cae9-3463-4199-a515-4f6d107174b1",
+                "room": {
+                  "id": "6ae1593a4bc391ebaba1af66",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "reason": "Synthetic coordinated crib operation",
+              "createdAt": "2026-10-28T02:08:58.671Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae1593a4bc391ebaba1af71",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.stock_counted",
+              "entityType": "CribRequest",
+              "entityId": "6ae1593a4bc391ebaba1af6f",
+              "before": {
+                "configured": false,
+                "revision": 0,
+                "total": null,
+                "outstanding": 0,
+                "availableNow": null,
+                "mode": "physical_now_only"
+              },
+              "after": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "reason": "Synthetic physical count",
+              "createdAt": "2026-10-28T02:08:58.738Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af65",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "confirmationNumber": "QA-29f4cae9-3463-4199-a515-4f6d107174b1",
+              "status": "confirmed",
+              "primaryGuest": "6ae1593a4bc391ebaba1af64",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae1593a4bc391ebaba1af63",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "specialRequests": "נא להכין כרית נוספת",
+              "internalNotes": "PRIVATE_INTERNAL_NOTE",
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T02:08:58.556Z",
+              "updatedAt": "2026-10-28T02:08:58.556Z",
+              "__v": 0
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af67",
+              "reservation": "6ae1593a4bc391ebaba1af65",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "roomTypeBooked": "6ae1593a4bc391ebaba1af63",
+              "assignedRoom": "6ae1593a4bc391ebaba1af66",
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nightlyRate": 500,
+              "guests": [],
+              "adults": 2,
+              "children": 0,
+              "status": "reserved",
+              "notes": "",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "guaranteeType": "none",
+              "createdAt": "2026-10-28T02:08:58.587Z",
+              "updatedAt": "2026-10-28T02:08:58.587Z",
+              "__v": 0
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af66",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "roomType": "6ae1593a4bc391ebaba1af63",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true,
+              "createdAt": "2026-10-28T02:08:58.570Z",
+              "updatedAt": "2026-10-28T02:08:58.570Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af68",
+              "property": "6ae1593a4bc391ebaba1af62",
+              "reservation": "6ae1593a4bc391ebaba1af65",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "createdAt": "2026-10-28T02:08:58.602Z",
+              "updatedAt": "2026-10-28T02:08:58.602Z",
+              "__v": 0
+            }
+          ]
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "QA_CB21"
+          }
+        }
+      }
+    },
+    {
+      "code": "CB22",
+      "name": "failure in create rolls back stock usage, request, receipt and audit",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "CribRequest": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af7e",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "reservation": "6ae1593a4bc391ebaba1af78",
+              "reservationRoom": "6ae1593a4bc391ebaba1af7a",
+              "requestedQty": 1,
+              "outstandingQty": 0,
+              "deliveryRoom": null,
+              "revision": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:59.060Z",
+              "updatedAt": "2026-10-28T02:08:59.060Z",
+              "__v": 0
+            }
+          ],
+          "CribStock": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af82",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "revision": 1,
+              "totalCount": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:59.138Z",
+              "updatedAt": "2026-10-28T02:08:59.138Z",
+              "__v": 0
+            }
+          ],
+          "CribOperation": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af7f",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "requestKey": "0134b80e-3d6d-4df8-9f68-2b0a220e338e",
+              "payloadHash": "daa6ae11707430439f24c5611c01f5784d25a51403df02c62ea670a5a6235337",
+              "result": {
+                "reservationId": "6ae1593a4bc391ebaba1af78",
+                "unitId": "6ae1593a4bc391ebaba1af7a",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-820c51ae-fbaa-4afd-9b86-84993df1b76b",
+                "room": {
+                  "id": "6ae1593a4bc391ebaba1af79",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "createdAt": "2026-10-28T02:08:59.066Z",
+              "updatedAt": "2026-10-28T02:08:59.066Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae1593b4bc391ebaba1af83",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "requestKey": "5298bdd5-a6b1-44d8-917e-5826af1413c1",
+              "payloadHash": "8d504424dc8155b37cd096b284faada4e3fed0d80f787478ef9ef1181ed8eb90",
+              "result": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "createdAt": "2026-10-28T02:08:59.142Z",
+              "updatedAt": "2026-10-28T02:08:59.142Z",
+              "__v": 0
+            }
+          ],
+          "AuditLog": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af80",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.request",
+              "entityType": "CribRequest",
+              "entityId": "6ae1593b4bc391ebaba1af7e",
+              "before": {
+                "property": "6ae1593a4bc391ebaba1af75",
+                "reservation": "6ae1593a4bc391ebaba1af78",
+                "reservationRoom": "6ae1593a4bc391ebaba1af7a",
+                "requestedQty": 0,
+                "outstandingQty": 0,
+                "deliveryRoom": null,
+                "revision": 0,
+                "_id": "6ae1593b4bc391ebaba1af7e"
+              },
+              "after": {
+                "reservationId": "6ae1593a4bc391ebaba1af78",
+                "unitId": "6ae1593a4bc391ebaba1af7a",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-820c51ae-fbaa-4afd-9b86-84993df1b76b",
+                "room": {
+                  "id": "6ae1593a4bc391ebaba1af79",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "reason": "Synthetic coordinated crib operation",
+              "createdAt": "2026-10-28T02:08:59.068Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae1593b4bc391ebaba1af84",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.stock_counted",
+              "entityType": "CribRequest",
+              "entityId": "6ae1593b4bc391ebaba1af82",
+              "before": {
+                "configured": false,
+                "revision": 0,
+                "total": null,
+                "outstanding": 0,
+                "availableNow": null,
+                "mode": "physical_now_only"
+              },
+              "after": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "reason": "Synthetic physical count",
+              "createdAt": "2026-10-28T02:08:59.143Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af78",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "confirmationNumber": "QA-820c51ae-fbaa-4afd-9b86-84993df1b76b",
+              "status": "confirmed",
+              "primaryGuest": "6ae1593a4bc391ebaba1af77",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae1593a4bc391ebaba1af76",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "specialRequests": "נא להכין כרית נוספת",
+              "internalNotes": "PRIVATE_INTERNAL_NOTE",
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T02:08:58.946Z",
+              "updatedAt": "2026-10-28T02:08:58.946Z",
+              "__v": 0
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af7a",
+              "reservation": "6ae1593a4bc391ebaba1af78",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "roomTypeBooked": "6ae1593a4bc391ebaba1af76",
+              "assignedRoom": "6ae1593a4bc391ebaba1af79",
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nightlyRate": 500,
+              "guests": [],
+              "adults": 2,
+              "children": 0,
+              "status": "reserved",
+              "notes": "",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "guaranteeType": "none",
+              "createdAt": "2026-10-28T02:08:58.975Z",
+              "updatedAt": "2026-10-28T02:08:58.975Z",
+              "__v": 0
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af79",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "roomType": "6ae1593a4bc391ebaba1af76",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true,
+              "createdAt": "2026-10-28T02:08:58.959Z",
+              "updatedAt": "2026-10-28T02:08:58.959Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae1593a4bc391ebaba1af7b",
+              "property": "6ae1593a4bc391ebaba1af75",
+              "reservation": "6ae1593a4bc391ebaba1af78",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "createdAt": "2026-10-28T02:08:58.991Z",
+              "updatedAt": "2026-10-28T02:08:58.991Z",
+              "__v": 0
+            }
+          ]
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "QA_CB22"
+          }
+        }
+      }
+    },
+    {
+      "code": "CB23",
+      "name": "expired operation ownership aborts delivery before commitment",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "CribRequest": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af92",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "reservation": "6ae1593b4bc391ebaba1af8c",
+              "reservationRoom": "6ae1593b4bc391ebaba1af8e",
+              "requestedQty": 1,
+              "outstandingQty": 0,
+              "deliveryRoom": null,
+              "revision": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:59.448Z",
+              "updatedAt": "2026-10-28T02:08:59.448Z",
+              "__v": 0
+            }
+          ],
+          "CribStock": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af96",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "revision": 1,
+              "totalCount": 1,
+              "updatedBy": "6ae159354bc391ebaba1adbb",
+              "createdAt": "2026-10-28T02:08:59.525Z",
+              "updatedAt": "2026-10-28T02:08:59.525Z",
+              "__v": 0
+            }
+          ],
+          "CribOperation": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af93",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "requestKey": "96242c0f-57d0-48e0-9dc2-3db9144dc734",
+              "payloadHash": "1ef8e499e72cafcb5cc112e1babc729dafe82081c16495f454a7e13b25f68e69",
+              "result": {
+                "reservationId": "6ae1593b4bc391ebaba1af8c",
+                "unitId": "6ae1593b4bc391ebaba1af8e",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-0d05183a-c667-4864-9906-9a50e78fc223",
+                "room": {
+                  "id": "6ae1593b4bc391ebaba1af8d",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "createdAt": "2026-10-28T02:08:59.458Z",
+              "updatedAt": "2026-10-28T02:08:59.458Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae1593b4bc391ebaba1af97",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "requestKey": "c660265c-1f25-4ef1-9eb2-4d05417c9d39",
+              "payloadHash": "8d504424dc8155b37cd096b284faada4e3fed0d80f787478ef9ef1181ed8eb90",
+              "result": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "createdAt": "2026-10-28T02:08:59.528Z",
+              "updatedAt": "2026-10-28T02:08:59.528Z",
+              "__v": 0
+            }
+          ],
+          "AuditLog": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af94",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.request",
+              "entityType": "CribRequest",
+              "entityId": "6ae1593b4bc391ebaba1af92",
+              "before": {
+                "property": "6ae1593b4bc391ebaba1af89",
+                "reservation": "6ae1593b4bc391ebaba1af8c",
+                "reservationRoom": "6ae1593b4bc391ebaba1af8e",
+                "requestedQty": 0,
+                "outstandingQty": 0,
+                "deliveryRoom": null,
+                "revision": 0,
+                "_id": "6ae1593b4bc391ebaba1af92"
+              },
+              "after": {
+                "reservationId": "6ae1593b4bc391ebaba1af8c",
+                "unitId": "6ae1593b4bc391ebaba1af8e",
+                "guest": "דני כהן",
+                "confirmationNumber": "QA-0d05183a-c667-4864-9906-9a50e78fc223",
+                "room": {
+                  "id": "6ae1593b4bc391ebaba1af8d",
+                  "number": "101"
+                },
+                "deliveryRoom": null,
+                "arrival": "2026-10-28",
+                "departure": "2026-10-30",
+                "businessDate": "2026-10-28",
+                "active": true,
+                "revision": 1,
+                "cribs": {
+                  "requested": 1,
+                  "confirmed": 0,
+                  "delivered": 0,
+                  "pending": 1,
+                  "revision": 1,
+                  "status": "requested",
+                  "futureReserved": false
+                },
+                "stock": {
+                  "configured": false,
+                  "revision": 0,
+                  "total": null,
+                  "outstanding": 0,
+                  "availableNow": null,
+                  "mode": "physical_now_only"
+                },
+                "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+              },
+              "reason": "Synthetic coordinated crib operation",
+              "createdAt": "2026-10-28T02:08:59.459Z",
+              "__v": 0
+            },
+            {
+              "_id": "6ae1593b4bc391ebaba1af98",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "actor": "6ae159354bc391ebaba1adbb",
+              "actorName": "Synthetic crib QA",
+              "action": "crib.stock_counted",
+              "entityType": "CribRequest",
+              "entityId": "6ae1593b4bc391ebaba1af96",
+              "before": {
+                "configured": false,
+                "revision": 0,
+                "total": null,
+                "outstanding": 0,
+                "availableNow": null,
+                "mode": "physical_now_only"
+              },
+              "after": {
+                "stock": {
+                  "configured": true,
+                  "revision": 1,
+                  "total": 1,
+                  "outstanding": 0,
+                  "availableNow": 1,
+                  "mode": "physical_now_only"
+                }
+              },
+              "reason": "Synthetic physical count",
+              "createdAt": "2026-10-28T02:08:59.529Z",
+              "__v": 0
+            }
+          ],
+          "Reservation": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af8c",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "confirmationNumber": "QA-0d05183a-c667-4864-9906-9a50e78fc223",
+              "status": "confirmed",
+              "primaryGuest": "6ae1593b4bc391ebaba1af8b",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae1593b4bc391ebaba1af8a",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "specialRequests": "נא להכין כרית נוספת",
+              "internalNotes": "PRIVATE_INTERNAL_NOTE",
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T02:08:59.333Z",
+              "updatedAt": "2026-10-28T02:08:59.333Z",
+              "__v": 0
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af8e",
+              "reservation": "6ae1593b4bc391ebaba1af8c",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "roomTypeBooked": "6ae1593b4bc391ebaba1af8a",
+              "assignedRoom": "6ae1593b4bc391ebaba1af8d",
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nightlyRate": 500,
+              "guests": [],
+              "adults": 2,
+              "children": 0,
+              "status": "reserved",
+              "notes": "",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "guaranteeType": "none",
+              "createdAt": "2026-10-28T02:08:59.364Z",
+              "updatedAt": "2026-10-28T02:08:59.364Z",
+              "__v": 0
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af8d",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "roomType": "6ae1593b4bc391ebaba1af8a",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true,
+              "createdAt": "2026-10-28T02:08:59.348Z",
+              "updatedAt": "2026-10-28T02:08:59.348Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae1593b4bc391ebaba1af8f",
+              "property": "6ae1593b4bc391ebaba1af89",
+              "reservation": "6ae1593b4bc391ebaba1af8c",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "createdAt": "2026-10-28T02:08:59.381Z",
+              "updatedAt": "2026-10-28T02:08:59.381Z",
+              "__v": 0
+            }
+          ]
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "פעולה אחרת מתבצעת כרגע על אותה רשומה — נסו שוב בעוד רגע",
+            "code": "lock_expired",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB24",
+      "name": "stock configuration audit failure rolls back the physical count",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "CribRequest": [],
+          "CribStock": [],
+          "CribOperation": [],
+          "AuditLog": [],
+          "Reservation": [
+            {
+              "_id": "6ae1593b4bc391ebaba1afa3",
+              "property": "6ae1593b4bc391ebaba1afa0",
+              "confirmationNumber": "QA-d7e39e60-3aaf-4194-befc-d6645870c489",
+              "status": "confirmed",
+              "primaryGuest": "6ae1593b4bc391ebaba1afa2",
+              "additionalGuests": [],
+              "adults": 2,
+              "children": 0,
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "roomsCount": 1,
+              "source": "direct",
+              "roomType": "6ae1593b4bc391ebaba1afa1",
+              "ratePerNight": 500,
+              "totalAmount": 1000,
+              "taxAmount": 0,
+              "discountAmount": 0,
+              "surchargeAmount": 0,
+              "paymentStatus": "unpaid",
+              "depositAmount": 0,
+              "depositPaid": 0,
+              "currency": "ILS",
+              "guaranteeType": "none",
+              "confirmationSent": false,
+              "priceSnapshot": {
+                "board": {
+                  "nightly": []
+                },
+                "nightly": []
+              },
+              "payerType": "guest",
+              "childAges": [],
+              "isVip": false,
+              "isOverbooking": false,
+              "specialRequests": "נא להכין כרית נוספת",
+              "internalNotes": "PRIVATE_INTERNAL_NOTE",
+              "language": "he",
+              "reversals": [],
+              "createdAt": "2026-10-28T02:08:59.800Z",
+              "updatedAt": "2026-10-28T02:08:59.800Z",
+              "__v": 0
+            }
+          ],
+          "ReservationRoom": [
+            {
+              "_id": "6ae1593b4bc391ebaba1afa5",
+              "reservation": "6ae1593b4bc391ebaba1afa3",
+              "property": "6ae1593b4bc391ebaba1afa0",
+              "roomTypeBooked": "6ae1593b4bc391ebaba1afa1",
+              "assignedRoom": "6ae1593b4bc391ebaba1afa4",
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nightlyRate": 500,
+              "guests": [],
+              "adults": 2,
+              "children": 0,
+              "status": "reserved",
+              "notes": "",
+              "roomPayer": "booker",
+              "extrasPayer": "booker",
+              "occupantName": "דני כהן",
+              "guaranteeType": "none",
+              "createdAt": "2026-10-28T02:08:59.831Z",
+              "updatedAt": "2026-10-28T02:08:59.831Z",
+              "__v": 0
+            }
+          ],
+          "Room": [
+            {
+              "_id": "6ae1593b4bc391ebaba1afa4",
+              "property": "6ae1593b4bc391ebaba1afa0",
+              "roomType": "6ae1593b4bc391ebaba1afa1",
+              "number": "101",
+              "floor": 1,
+              "opsStatus": "available",
+              "cleanStatus": "clean",
+              "occStatus": "vacant",
+              "isVip": false,
+              "isSmoking": false,
+              "isAccessible": false,
+              "accessibilityFeatures": [],
+              "active": true,
+              "createdAt": "2026-10-28T02:08:59.815Z",
+              "updatedAt": "2026-10-28T02:08:59.815Z",
+              "__v": 0
+            }
+          ],
+          "Folio": [
+            {
+              "_id": "6ae1593b4bc391ebaba1afa6",
+              "property": "6ae1593b4bc391ebaba1afa0",
+              "reservation": "6ae1593b4bc391ebaba1afa3",
+              "ownerType": "guest",
+              "status": "open",
+              "currency": "ILS",
+              "lines": [],
+              "createdAt": "2026-10-28T02:08:59.846Z",
+              "updatedAt": "2026-10-28T02:08:59.846Z",
+              "__v": 0
+            }
+          ]
+        },
+        "result": {
+          "ok": false,
+          "error": {
+            "message": "QA_STOCK_AUDIT"
+          }
+        }
+      }
+    },
+    {
+      "code": "CB25",
+      "name": "stock count replay is idempotent and stale independent count is refused",
+      "status": "passed",
+      "evidence": {
+        "replay": {
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 2,
+            "outstanding": 0,
+            "availableNow": 2,
+            "mode": "physical_now_only"
+          },
+          "duplicate": true
+        },
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "המלאי השתנה — טענו מחדש",
+            "code": "crib_stale",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB26",
+      "name": "operations desk finds original delivery room without exposing free text or money",
+      "status": "passed",
+      "evidence": {
+        "desk": {
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 1,
+            "outstanding": 1,
+            "availableNow": 0,
+            "mode": "physical_now_only"
+          },
+          "rows": [
+            {
+              "reservationId": "6ae1593c4bc391ebaba1afba",
+              "unitId": "6ae1593c4bc391ebaba1afbc",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-f4bb6e50-223e-4f18-b8f1-43853db95612",
+              "room": {
+                "id": "6ae1593c4bc391ebaba1afbb",
+                "number": "101"
+              },
+              "deliveryRoom": {
+                "id": "6ae1593c4bc391ebaba1afbb",
+                "number": "101"
+              },
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": true,
+              "revision": 2,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 1,
+                "delivered": 1,
+                "pending": 0,
+                "revision": 2,
+                "status": "delivered",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": true,
+                "revision": 1,
+                "total": 1,
+                "outstanding": 1,
+                "availableNow": 0,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+            }
+          ],
+          "hasMore": false,
+          "limit": 200
+        },
+        "literal": {
+          "stock": {
+            "configured": true,
+            "revision": 1,
+            "total": 1,
+            "outstanding": 1,
+            "availableNow": 0,
+            "mode": "physical_now_only"
+          },
+          "rows": [],
+          "hasMore": false,
+          "limit": 200
+        }
+      }
+    },
+    {
+      "code": "CB27",
+      "name": "arrivals show independent requested and delivered quantities for each unit",
+      "status": "passed",
+      "evidence": {
+        "arrivals": {
+          "date": "2026-10-28",
+          "businessDate": "2026-10-28",
+          "policy": {
+            "requireInspection": false,
+            "requireGuarantee": true,
+            "requireRegistration": true,
+            "requireSignature": false,
+            "termsVersion": "he-1",
+            "termsText": ""
+          },
+          "counts": {
+            "all": 2,
+            "ready": 2,
+            "waiting": 0,
+            "queued": 0,
+            "blocked": 0,
+            "checked_in": 0
+          },
+          "total": 2,
+          "page": 1,
+          "pages": 1,
+          "pageSize": 50,
+          "rows": [
+            {
+              "key": "6ae1593c4bc391ebaba1afcf:6ae1593c4bc391ebaba1afd1:0",
+              "reservationId": "6ae1593c4bc391ebaba1afcf",
+              "unitId": "6ae1593c4bc391ebaba1afd1",
+              "unitIndex": 1,
+              "unitsTotal": 2,
+              "confirmationNumber": "QA-07beff85-16b4-4d5a-99a4-2cf6e416b30c",
+              "reservationStatus": "confirmed",
+              "unitStatus": "reserved",
+              "guest": {
+                "id": "6ae1593c4bc391ebaba1afce",
+                "name": "דני כהן",
+                "bookingName": "מזמין בדיקה",
+                "isBookerName": false,
+                "vip": false,
+                "blacklisted": false
+              },
+              "company": null,
+              "roomType": {
+                "id": "6ae1593c4bc391ebaba1afcd",
+                "name": "Standard",
+                "code": "STD"
+              },
+              "room": {
+                "id": "6ae1593c4bc391ebaba1afd0",
+                "number": "101",
+                "floor": 1,
+                "cleanStatus": "clean",
+                "opsStatus": "available",
+                "occStatus": "vacant",
+                "occupiedBy": null
+              },
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "adults": 2,
+              "children": 0,
+              "party": {
+                "scope": "unit",
+                "adults": 2,
+                "children": 0,
+                "bookingAdults": 3,
+                "bookingChildren": 1,
+                "needsReview": false
+              },
+              "payment": {
+                "scope": "shared",
+                "currency": "ILS",
+                "status": "unpaid",
+                "received": 0,
+                "refunds": 0,
+                "netPaid": 0,
+                "ledgerBalance": 0,
+                "agreedTotal": 2000,
+                "remainingAgreed": 2000,
+                "declaredPaid": 0,
+                "showAmounts": true,
+                "note": "יתרת מחיר ההזמנה מתייחסת למחיר שסוכם בלבד; חיובים וזיכויים נוספים עשויים לשנות את יתרת החשבון"
+              },
+              "sharedPayment": null,
+              "cribs": {
+                "requested": 2,
+                "confirmed": 1,
+                "delivered": 1,
+                "pending": 1,
+                "revision": 2,
+                "status": "partly_delivered",
+                "futureReserved": false
+              },
+              "eta": null,
+              "source": "direct",
+              "specialRequests": "נא להכין כרית נוספת",
+              "unitNotes": null,
+              "guarantee": {
+                "type": "none",
+                "ok": false,
+                "label": "לא נרשמה ערבות",
+                "paid": 0,
+                "total": 2000,
+                "paymentStatus": "unpaid"
+              },
+              "billing": {
+                "roomPayer": "booker",
+                "extrasPayer": "booker",
+                "occupantName": "דני כהן",
+                "occupantPhone": null,
+                "guaranteeType": "none"
+              },
+              "readiness": {
+                "state": "ready",
+                "reasons": [
+                  {
+                    "code": "guarantee",
+                    "label": "לא נרשמה ערבות",
+                    "severity": "info",
+                    "action": "guarantee"
+                  }
+                ]
+              },
+              "queue": null
+            },
+            {
+              "key": "6ae1593c4bc391ebaba1afcf:6ae1593c4bc391ebaba1afd3:1",
+              "reservationId": "6ae1593c4bc391ebaba1afcf",
+              "unitId": "6ae1593c4bc391ebaba1afd3",
+              "unitIndex": 2,
+              "unitsTotal": 2,
+              "confirmationNumber": "QA-07beff85-16b4-4d5a-99a4-2cf6e416b30c",
+              "reservationStatus": "confirmed",
+              "unitStatus": "reserved",
+              "guest": {
+                "id": "6ae1593c4bc391ebaba1afce",
+                "name": "נועה לוי",
+                "bookingName": "מזמין בדיקה",
+                "isBookerName": false,
+                "vip": false,
+                "blacklisted": false
+              },
+              "company": null,
+              "roomType": {
+                "id": "6ae1593c4bc391ebaba1afcd",
+                "name": "Standard",
+                "code": "STD"
+              },
+              "room": {
+                "id": "6ae1593c4bc391ebaba1afd2",
+                "number": "102",
+                "floor": 1,
+                "cleanStatus": "clean",
+                "opsStatus": "available",
+                "occStatus": "vacant",
+                "occupiedBy": null
+              },
+              "arrivalDate": "2026-10-28",
+              "departureDate": "2026-10-30",
+              "nights": 2,
+              "adults": 1,
+              "children": 1,
+              "party": {
+                "scope": "unit",
+                "adults": 1,
+                "children": 1,
+                "bookingAdults": 3,
+                "bookingChildren": 1,
+                "needsReview": false
+              },
+              "payment": {
+                "scope": "shared",
+                "currency": "ILS",
+                "status": "unpaid",
+                "received": 0,
+                "refunds": 0,
+                "netPaid": 0,
+                "ledgerBalance": 0,
+                "agreedTotal": 2000,
+                "remainingAgreed": 2000,
+                "declaredPaid": 0,
+                "showAmounts": false,
+                "note": "יתרת מחיר ההזמנה מתייחסת למחיר שסוכם בלבד; חיובים וזיכויים נוספים עשויים לשנות את יתרת החשבון"
+              },
+              "sharedPayment": null,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 0,
+                "delivered": 0,
+                "pending": 1,
+                "revision": 1,
+                "status": "requested",
+                "futureReserved": false
+              },
+              "eta": null,
+              "source": "direct",
+              "specialRequests": "נא להכין כרית נוספת",
+              "unitNotes": "מיטה נפרדת",
+              "guarantee": {
+                "type": "none",
+                "ok": false,
+                "label": "לא נרשמה ערבות",
+                "paid": 0,
+                "total": 2000,
+                "paymentStatus": "unpaid"
+              },
+              "billing": {
+                "roomPayer": "booker",
+                "extrasPayer": "booker",
+                "occupantName": "נועה לוי",
+                "occupantPhone": null,
+                "guaranteeType": "none"
+              },
+              "readiness": {
+                "state": "ready",
+                "reasons": [
+                  {
+                    "code": "guarantee",
+                    "label": "לא נרשמה ערבות",
+                    "severity": "info",
+                    "action": "guarantee"
+                  }
+                ]
+              },
+              "queue": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "code": "CB28",
+      "name": "no record remains unknown, while explicitly requested zero is distinct",
+      "status": "passed",
+      "evidence": {
+        "before": {
+          "reservationId": "6ae1593d4bc391ebaba1afeb",
+          "unitId": "6ae1593d4bc391ebaba1afed",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-5f5e0ae7-e606-4d1b-9eb4-27ed67aeec39",
+          "room": {
+            "id": "6ae1593d4bc391ebaba1afec",
+            "number": "101"
+          },
+          "deliveryRoom": null,
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 0,
+          "cribs": {
+            "requested": null,
+            "confirmed": null,
+            "status": "not_recorded"
+          },
+          "stock": {
+            "configured": false,
+            "revision": 0,
+            "total": null,
+            "outstanding": 0,
+            "availableNow": null,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        },
+        "after": {
+          "reservationId": "6ae1593d4bc391ebaba1afeb",
+          "unitId": "6ae1593d4bc391ebaba1afed",
+          "guest": "דני כהן",
+          "confirmationNumber": "QA-5f5e0ae7-e606-4d1b-9eb4-27ed67aeec39",
+          "room": {
+            "id": "6ae1593d4bc391ebaba1afec",
+            "number": "101"
+          },
+          "deliveryRoom": null,
+          "arrival": "2026-10-28",
+          "departure": "2026-10-30",
+          "businessDate": "2026-10-28",
+          "active": true,
+          "revision": 1,
+          "cribs": {
+            "requested": 0,
+            "confirmed": 0,
+            "delivered": 0,
+            "pending": 0,
+            "revision": 1,
+            "status": "none_requested",
+            "futureReserved": false
+          },
+          "stock": {
+            "configured": false,
+            "revision": 0,
+            "total": null,
+            "outstanding": 0,
+            "availableNow": null,
+            "mode": "physical_now_only"
+          },
+          "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+        }
+      }
+    },
+    {
+      "code": "CB29",
+      "name": "simultaneous fresh changes reject a stale revision; identical retries return one receipt",
+      "status": "passed",
+      "evidence": {
+        "results": [
+          {
+            "ok": true,
+            "value": {
+              "reservationId": "6ae1593d4bc391ebaba1aff7",
+              "unitId": "6ae1593d4bc391ebaba1aff9",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-94d51603-859e-4cb0-98af-a2cf906f5749",
+              "room": {
+                "id": "6ae1593d4bc391ebaba1aff8",
+                "number": "101"
+              },
+              "deliveryRoom": null,
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": true,
+              "revision": 1,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 0,
+                "delivered": 0,
+                "pending": 1,
+                "revision": 1,
+                "status": "requested",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": false,
+                "revision": 0,
+                "total": null,
+                "outstanding": 0,
+                "availableNow": null,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+            }
+          },
+          {
+            "ok": false,
+            "error": {
+              "message": "בקשת הלולים השתנתה — טענו מחדש לפני פעולה נוספת",
+              "code": "crib_stale",
+              "status": 409
+            }
+          }
+        ],
+        "same": [
+          {
+            "reservationId": "6ae1593d4bc391ebaba1b006",
+            "unitId": "6ae1593d4bc391ebaba1b008",
+            "guest": "דני כהן",
+            "confirmationNumber": "QA-946cc834-fa7c-4b74-8231-a98b987089cb",
+            "room": {
+              "id": "6ae1593d4bc391ebaba1b007",
+              "number": "101"
+            },
+            "deliveryRoom": null,
+            "arrival": "2026-10-28",
+            "departure": "2026-10-30",
+            "businessDate": "2026-10-28",
+            "active": true,
+            "revision": 1,
+            "cribs": {
+              "requested": 1,
+              "confirmed": 0,
+              "delivered": 0,
+              "pending": 1,
+              "revision": 1,
+              "status": "requested",
+              "futureReserved": false
+            },
+            "stock": {
+              "configured": false,
+              "revision": 0,
+              "total": null,
+              "outstanding": 0,
+              "availableNow": null,
+              "mode": "physical_now_only"
+            },
+            "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+          },
+          {
+            "reservationId": "6ae1593d4bc391ebaba1b006",
+            "unitId": "6ae1593d4bc391ebaba1b008",
+            "guest": "דני כהן",
+            "confirmationNumber": "QA-946cc834-fa7c-4b74-8231-a98b987089cb",
+            "room": {
+              "id": "6ae1593d4bc391ebaba1b007",
+              "number": "101"
+            },
+            "deliveryRoom": null,
+            "arrival": "2026-10-28",
+            "departure": "2026-10-30",
+            "businessDate": "2026-10-28",
+            "active": true,
+            "revision": 1,
+            "cribs": {
+              "requested": 1,
+              "confirmed": 0,
+              "delivered": 0,
+              "pending": 1,
+              "revision": 1,
+              "status": "requested",
+              "futureReserved": false
+            },
+            "stock": {
+              "configured": false,
+              "revision": 0,
+              "total": null,
+              "outstanding": 0,
+              "availableNow": null,
+              "mode": "physical_now_only"
+            },
+            "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי.",
+            "duplicate": true
+          }
+        ]
+      }
+    },
+    {
+      "code": "CB30",
+      "name": "equipment cannot be delivered to a room still occupied by another guest",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "בחדר עדיין שוהה אורח אחר — יש לברר לפני מסירה",
+            "code": "crib_other_occupant",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB31",
+      "name": "configured zero stock differs from unknown stock",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "אין מספיק לולים זמינים כעת; הבקשה נשארת בהמתנה",
+            "code": "crib_no_stock",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB32",
+      "name": "crib workflows never create charges or rewrite financial accounts",
+      "status": "passed",
+      "evidence": {
+        "before": [
+          {
+            "_id": "6ae1593e4bc391ebaba1b040",
+            "property": "6ae1593e4bc391ebaba1b03a",
+            "reservation": "6ae1593e4bc391ebaba1b03d",
+            "ownerType": "guest",
+            "status": "open",
+            "currency": "ILS",
+            "lines": [],
+            "createdAt": "2026-10-28T02:09:02.912Z",
+            "updatedAt": "2026-10-28T02:09:02.912Z",
+            "__v": 0
+          }
+        ]
+      }
+    },
+    {
+      "code": "CB33",
+      "name": "closed pending-only requests disappear from the desk while outstanding items remain tracked",
+      "status": "passed",
+      "evidence": {
+        "desk": {
+          "stock": {
+            "configured": false,
+            "revision": 0,
+            "total": null,
+            "outstanding": 0,
+            "availableNow": null,
+            "mode": "physical_now_only"
+          },
+          "rows": [],
+          "hasMore": false,
+          "limit": 200
+        }
+      }
+    },
+    {
+      "code": "CB36",
+      "name": "dated room block prevents delivery during its active range",
+      "status": "passed",
+      "evidence": {
+        "response": {
+          "ok": false,
+          "error": {
+            "message": "החדר חסום בתאריך המסירה",
+            "code": "crib_room_blocked",
+            "status": 409
+          }
+        }
+      }
+    },
+    {
+      "code": "CB34",
+      "name": "real JWT routes enforce identity, property scope and operation role",
+      "status": "passed",
+      "evidence": {
+        "absent": {
+          "status": 401,
+          "body": {
+            "success": false,
+            "error": "Authentication required"
+          }
+        },
+        "foreign": {
+          "status": 403,
+          "body": {
+            "success": false,
+            "error": "Property scope violation"
+          }
+        },
+        "finance": {
+          "status": 403,
+          "body": {
+            "success": false,
+            "error": "אין הרשאה לפעולת לולים זו",
+            "code": "crib_forbidden"
+          }
+        }
+      }
+    },
+    {
+      "code": "CB35",
+      "name": "real authenticated stock, request, housekeeping delivery, return and replay complete",
+      "status": "passed",
+      "evidence": {
+        "request": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "reservationId": "6ae159414bc391ebaba1b087",
+              "unitId": "6ae159414bc391ebaba1b089",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-2fffc867-6178-45a7-abee-d4380f5777a6",
+              "room": {
+                "id": "6ae159414bc391ebaba1b088",
+                "number": "101"
+              },
+              "deliveryRoom": null,
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": true,
+              "revision": 1,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 0,
+                "delivered": 0,
+                "pending": 1,
+                "revision": 1,
+                "status": "requested",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": false,
+                "revision": 0,
+                "total": null,
+                "outstanding": 0,
+                "availableNow": null,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+            }
+          }
+        },
+        "stock": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "stock": {
+                "configured": true,
+                "revision": 1,
+                "total": 1,
+                "outstanding": 0,
+                "availableNow": 1,
+                "mode": "physical_now_only"
+              }
+            }
+          }
+        },
+        "deliver": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "reservationId": "6ae159414bc391ebaba1b087",
+              "unitId": "6ae159414bc391ebaba1b089",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-2fffc867-6178-45a7-abee-d4380f5777a6",
+              "room": {
+                "id": "6ae159414bc391ebaba1b088",
+                "number": "101"
+              },
+              "deliveryRoom": {
+                "id": "6ae159414bc391ebaba1b088",
+                "number": "101"
+              },
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": true,
+              "revision": 2,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 1,
+                "delivered": 1,
+                "pending": 0,
+                "revision": 2,
+                "status": "delivered",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": true,
+                "revision": 1,
+                "total": 1,
+                "outstanding": 1,
+                "availableNow": 0,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+            }
+          }
+        },
+        "returned": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "reservationId": "6ae159414bc391ebaba1b087",
+              "unitId": "6ae159414bc391ebaba1b089",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-2fffc867-6178-45a7-abee-d4380f5777a6",
+              "room": {
+                "id": "6ae159414bc391ebaba1b088",
+                "number": "101"
+              },
+              "deliveryRoom": null,
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": true,
+              "revision": 3,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 0,
+                "delivered": 0,
+                "pending": 1,
+                "revision": 3,
+                "status": "requested",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": true,
+                "revision": 1,
+                "total": 1,
+                "outstanding": 0,
+                "availableNow": 1,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי."
+            }
+          }
+        },
+        "replay": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "reservationId": "6ae159414bc391ebaba1b087",
+              "unitId": "6ae159414bc391ebaba1b089",
+              "guest": "דני כהן",
+              "confirmationNumber": "QA-2fffc867-6178-45a7-abee-d4380f5777a6",
+              "room": {
+                "id": "6ae159414bc391ebaba1b088",
+                "number": "101"
+              },
+              "deliveryRoom": null,
+              "arrival": "2026-10-28",
+              "departure": "2026-10-30",
+              "businessDate": "2026-10-28",
+              "active": true,
+              "revision": 3,
+              "cribs": {
+                "requested": 1,
+                "confirmed": 0,
+                "delivered": 0,
+                "pending": 1,
+                "revision": 3,
+                "status": "requested",
+                "futureReserved": false
+              },
+              "stock": {
+                "configured": true,
+                "revision": 1,
+                "total": 1,
+                "outstanding": 0,
+                "availableNow": 1,
+                "mode": "physical_now_only"
+              },
+              "note": "בקשה אינה שומרת מלאי עתידי. נמסר = מסירה פיזית שאושרה בידי עובד. אין חיוב אוטומטי.",
+              "duplicate": true
+            }
+          }
+        }
+      }
+    }
+  ]
+}

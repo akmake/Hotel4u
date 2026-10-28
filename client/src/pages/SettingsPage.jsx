@@ -11,6 +11,7 @@ import { users as usersApi, properties as propertiesApi, integrations as integra
 import { normalizeCrmSla } from '../utils/crmSla';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import { BackArrow } from '../components/kit';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ROLE_HE = {
@@ -606,11 +607,11 @@ export default function SettingsPage() {
   const { toasts, success, error: toastError } = useToast();
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in ui-page is-approved is-legacy">
       <ToastContainer toasts={toasts} />
 
       <div className="page-header">
-        <div>
+        <div><BackArrow />
           <div className="page-title flex items-center gap-2">
             <Settings size={22} className="text-brand" />
             הגדרות

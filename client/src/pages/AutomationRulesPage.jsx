@@ -8,6 +8,7 @@ import { useToast } from '../hooks/useToast';
 import { automation as automationApi } from '../utils/api';
 import { PageSpinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import { BackArrow } from '../components/kit';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -631,12 +632,12 @@ export default function AutomationRulesPage() {
   if (loading) return <PageSpinner />;
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-5" dir="rtl">
+    <div className="ui-page is-approved is-legacy" dir="rtl">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2"><BackArrow />
           <Zap size={20} className="text-indigo-500" />
           <h1 className="text-xl font-semibold text-slate-800">כללי אוטומציה</h1>
         </div>

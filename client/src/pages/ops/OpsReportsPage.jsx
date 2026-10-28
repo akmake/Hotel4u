@@ -314,7 +314,7 @@ export default function OpsReportsPage() {
   const floors = useMemo(() => [...new Set((data?.rooms || data?.sheets?.flatMap((s) => s.rows) || []).map((r) => r.floor))].filter((f) => f !== undefined && f !== null).sort((a, b) => a - b), [data]);
 
   return (
-    <Page wide>
+    <Page wide title="דוחות תפעול" back="/pms">
       {report.landscape && <style>{'@media print { @page { size: A4 landscape; margin: 10mm; } }'}</style>}
       {!report.landscape && <style>{'@media print { @page { size: A4 portrait; margin: 10mm; } }'}</style>}
       <div className="ops-reports">

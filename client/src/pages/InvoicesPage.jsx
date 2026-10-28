@@ -76,7 +76,7 @@ export default function InvoicesPage() {
   ];
 
   return (
-    <Page wide>
+    <Page wide title="חשבוניות וקבלות" back="/pms">
       <ToastContainer toasts={toasts} />
       <Toolbar
         start={<SearchBox value={url.get('q')} onCommit={(q) => url.set({ q })} placeholder="מספר מסמך, נמען, ע.מ., מספר הזמנה או הקצאה" id="doc-q" />}

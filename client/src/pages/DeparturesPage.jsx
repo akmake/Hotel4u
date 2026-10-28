@@ -124,7 +124,7 @@ export default function DeparturesPage() {
   ], [url]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Page wide>
+    <Page wide title="עזיבות" back="/pms" meta={data ? `${c.all ?? 0} שהיות` : undefined}>
       <ToastContainer toasts={toasts} />
       <Toolbar
         start={(

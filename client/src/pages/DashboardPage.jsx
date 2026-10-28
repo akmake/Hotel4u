@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useProperty } from '../context/PropertyContext';
 import { useAuthStore } from '../stores/authStore';
 import { useApi } from '../hooks/useApi';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import WalkInDialog from '../components/frontdesk/WalkInDialog';
 import { dashboard, platform, frontdesk, ops } from '../utils/api';
 import DailyWorkspace from '../components/frontdesk/DailyWorkspace';
 import StayDialog from '../components/frontdesk/StayDialog';
@@ -14,7 +16,7 @@ import QueueDialog from '../components/frontdesk/QueueDialog';
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const REFUND_ROLES = [...MANAGER_ROLES, 'finance_manager'];
 
-export default function DashboardPage({ summaryAppearance, rowAppearance, assignAppearance, checkinAppearance }) {
+export default function DashboardPage({ summaryAppearance, rowAppearance, assignAppearance, checkinAppearance, headerAppearance }) {
   const { propertyId, property } = useProperty() || {};
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
@@ -39,6 +41,11 @@ export default function DashboardPage({ summaryAppearance, rowAppearance, assign
   const work = useApi(() => platform.work(propertyId, { status: 'open' }), deps, skip);
   useEffect(() => { const timer = setInterval(() => { if (document.visibilityState === 'visible' && !checkinId && !checkoutId) setRevision(v => v + 1); }, 60000); return () => clearInterval(timer); }, [checkinId, checkoutId]);
   const refresh = () => setRevision(v => v + 1);
+  // Desk header: live updates from other clerks / the scheduler, the time of the last load, and Walk-in.
+  useLiveRefresh(headerAppearance ? propertyId : null, ['Reservation', 'ReservationRoom', 'Folio', 'ArrivalQueueEntry', 'Room', 'MaintenanceTicket', 'WorkItem'], refresh);
+  const [walkInOpen, setWalkInOpen] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  useEffect(() => { if (arrivals.data) setUpdatedAt(new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' }).format(new Date())); }, [arrivals.data]);
   const date = new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', weekday:'long', day:'numeric', month:'long' }).format(new Date());
   const alertAction = a => {
     if (a.reservationId) { setSelected(a.reservationId); return; }
@@ -48,7 +55,8 @@ export default function DashboardPage({ summaryAppearance, rowAppearance, assign
   if (skip) return <div className="dk-state">יש לבחור נכס כדי להציג את יום העבודה.</div>;
   const isManager = MANAGER_ROLES.includes(user?.role);
   return <>
-    <DailyWorkspace propertyId={propertyId} property={property} date={date} stats={stats} arrivals={arrivals} departures={departures} alerts={alerts} work={work} tickets={tickets} inhouse={inhouse} refresh={refresh} navigate={navigate} onOpen={setSelected} onCheckIn={openCheckIn} onCheckOut={setCheckoutId} onAssign={setAssignRow} onQueue={setQueueRow} onAlert={alertAction} summaryAppearance={summaryAppearance} rowAppearance={rowAppearance}/>
+    <DailyWorkspace propertyId={propertyId} property={property} date={date} stats={stats} arrivals={arrivals} departures={departures} alerts={alerts} work={work} tickets={tickets} inhouse={inhouse} refresh={refresh} navigate={navigate} onOpen={setSelected} onCheckIn={openCheckIn} onCheckOut={setCheckoutId} onAssign={setAssignRow} onQueue={setQueueRow} onAlert={alertAction} summaryAppearance={summaryAppearance} rowAppearance={rowAppearance} headerAppearance={headerAppearance} updatedAt={updatedAt} onWalkIn={headerAppearance ? () => setWalkInOpen(true) : null}/>
+    {headerAppearance && <WalkInDialog open={walkInOpen} propertyId={propertyId} businessDate={arrivals.data?.businessDate} onClose={() => setWalkInOpen(false)} onCreated={(r) => { setWalkInOpen(false); refresh(); openCheckIn(String(r._id), undefined); }} />}
     <StayDialog
       open={!!selected}
       propertyId={propertyId}

@@ -11,6 +11,7 @@ import { useToast } from '../hooks/useToast';
 import { rooms as roomsApi, roomTypes as rtApi } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import { BackArrow } from '../components/kit';
 
 /* ── status configs ──────────────────────────────────────────────────────── */
 const CLEAN_CFG = {
@@ -353,7 +354,7 @@ export default function RoomsPage() {
   const popupRoom    = popup     ? allRooms.find(r => String(r._id) === popup) : null;
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in ui-page is-approved is-legacy">
       <ToastContainer toasts={toasts} />
 
       {/* ─── modals ─── */}
@@ -371,7 +372,7 @@ export default function RoomsPage() {
 
       {/* ─── header ─── */}
       <div className="page-header">
-        <div>
+        <div><BackArrow />
           <h1 className="page-title">סטטוס חדרים</h1>
           <p className="page-subtitle">לוח מצב — {allRooms.length} חדרים</p>
         </div>

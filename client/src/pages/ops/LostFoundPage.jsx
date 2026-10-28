@@ -75,7 +75,7 @@ export default function LostFoundPage() {
   const detail = dialog?.kind === 'detail' ? dialog.item : null;
 
   return (
-    <Page wide>
+    <Page wide title="אבידות ומציאות" back="/pms">
       <ToastContainer toasts={toasts} />
       <OpsNav role={role} end={<button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'new' })}><Plus size={14} /> רישום מציאה</button>} />
       <Toolbar start={<SearchBox value={url.get('q')} onCommit={(q) => url.set({ q })} placeholder="תיאור או מזהה (L-0001)" id="lf-q" />} />

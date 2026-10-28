@@ -179,7 +179,7 @@ export default function HousekeepingBoardPage() {
   ], [canPlan, selected, nav]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Page wide>
+    <Page wide title="תכנון חדרנות" back="/pms">
       <ToastContainer toasts={toasts} />
       <OpsNav
         role={user?.role}

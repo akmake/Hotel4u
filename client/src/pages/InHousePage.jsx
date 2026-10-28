@@ -103,12 +103,9 @@ export default function InHousePage() {
   ];
 
   return (
-    <Page wide>
+    <Page wide title="שוהים בבית" meta={data ? `${c.all ?? 0} שהיות` : undefined} back="/pms"
+      tools={<SearchBox value={url.get('q')} onCommit={(q) => url.set({ q })} placeholder="שם, חדר או מספר אישור — Enter" id="ih-q" />}>
       <ToastContainer toasts={toasts} />
-      <Toolbar
-        start={<SearchBox value={url.get('q')} onCommit={(q) => url.set({ q })} placeholder="שם, חדר או מספר אישור — Enter" id="ih-q" />}
-        end={<button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/pms/departures')}>לעזיבות היום</button>}
-      />
       <Tiles
         label="תצוגה"
         selected={view}
@@ -120,7 +117,7 @@ export default function InHousePage() {
           { id: 'balance', label: 'עם יתרה לתשלום', value: data ? c.withBalance : undefined, tone: c.withBalance ? 'warn' : undefined },
         ]}
       />
-      <div className="ui-split">
+      <div className={`ui-split ${selected ? '' : 'is-single'}`}>
         <Card flush>
           <DataTable
             caption="שוהים"
@@ -142,10 +139,8 @@ export default function InHousePage() {
           )}
         </Card>
 
-        <Card title={selected ? selected.guest.name : 'פרטי שהייה'}>
-          {!selected ? (
-            <Empty title="בחרו שהייה מהרשימה">יוצגו כאן היתרה, הבקשות והפעולות לשהייה.</Empty>
-          ) : (
+        {selected && <Card title={selected.guest.name} actions={<button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedId(null)}>סגירה</button>}>
+          {(
             <div className="ui-stack">
               <KeyValues rows={[
                 ['אישור', <bdi key="c">{selected.confirmationNumber}</bdi>],
@@ -174,7 +169,7 @@ export default function InHousePage() {
               {selected.rooms.length > 1 && <div className="ui-sub"><Moon size={11} aria-hidden="true" /> בשהייה עם כמה חדרים — מעבר חדר נבחר ליחידה בתיק ההזמנה.</div>}
             </div>
           )}
-        </Card>
+        </Card>}
       </div>
 
       <ChargeDialog open={dialog?.kind === 'charge'} propertyId={propertyId} stay={dialog?.stay} onClose={() => setDialog(null)} onDone={() => { setDialog(null); success('החיוב נרשם'); reload(); }} />

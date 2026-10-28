@@ -46,7 +46,7 @@ export default function MyTasksPage() {
   }
 
   return (
-    <Page>
+    <Page title="המשימות שלי" back="/pms">
       <ToastContainer toasts={toasts} />
       <OpsNav role={user?.role} />
       <div className="ui-toolbar">

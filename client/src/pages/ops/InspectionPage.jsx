@@ -155,7 +155,7 @@ export default function InspectionPage() {
   ];
 
   return (
-    <Page wide>
+    <Page wide title="בדיקת חדרים" back="/pms">
       <ToastContainer toasts={toasts} />
       <OpsNav role={user?.role} end={data && <span className="ui-muted">{data.inspectorMustDiffer ? 'מדיניות: בודק שונה מהמנקה' : 'מדיניות: המנקה רשאי לאשר'}</span>} />
       <Card flush>

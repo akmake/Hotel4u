@@ -13,7 +13,7 @@ import { frontdesk, properties as propApi } from '../utils/api';
 import { addDays, formatLong, formatShort } from '../utils/date';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/Toast';
-import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, guestInitials } from '../components/kit';
+import { PageBar, Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, guestInitials } from '../components/kit';
 import CheckInWizard from '../components/frontdesk/CheckInWizard';
 import AssignRoomDialog from '../components/frontdesk/AssignRoomDialog';
 import QueueDialog from '../components/frontdesk/QueueDialog';
@@ -104,7 +104,7 @@ export default function ArrivalsPage() {
   }, [propertyId, params.toString()]);
 
   useEffect(() => { load(); return () => { loadVersion.current += 1; }; }, [load]);
-  useLiveRefresh(propertyId, ['Reservation', 'ReservationRoom', 'Folio', 'ArrivalQueueEntry', 'Room'], load);
+  useLiveRefresh(propertyId, ['Reservation', 'ReservationRoom', 'Folio', 'ArrivalQueueEntry', 'Room', 'CribRequest'], load);
   const committedQ = params.get('q') || '';
   useEffect(() => { setDraftQ(committedQ); }, [committedQ]);
   useEffect(() => {
@@ -139,7 +139,9 @@ export default function ArrivalsPage() {
   const ariaSort = (key) => (p('sort') === key ? (p('dir') === 'asc' ? 'ascending' : 'descending') : 'none');
 
   return (
-    <div className="ui-page" dir="rtl">
+    <div className="ui-page is-approved is-wide" dir="rtl">
+      <PageBar title="הגעות" back="/pms" meta={data ? `${Math.max(0, (counts.all ?? 0) - (counts.checked_in ?? 0))} ממתינים לכניסה` : undefined}
+        primary={<button type="button" className="btn btn-primary" onClick={() => setWalkInOpen(true)} disabled={!businessDate}>הזמנת Walk-in</button>} />
       <ToastContainer toasts={toasts} />
 
       {/* Toolbar: date navigation · search · actions (Cloudbeds dashboard layout) */}
@@ -156,7 +158,6 @@ export default function ArrivalsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link to="/pms/arrival-queue" className="btn btn-secondary btn-sm">תור המתנה{counts.queued ? ` · ${counts.queued}` : ''}</Link>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setWalkInOpen(true)} disabled={!businessDate}>הזמנת Walk-in</button>
           {canWorkCribs && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCribDialog({})} disabled={!propertyId}>לולים ואיסוף ציוד</button>}
         </div>
       </div>

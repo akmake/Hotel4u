@@ -11,6 +11,7 @@ import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
 import ReservationDrawer from '../components/reservations/ReservationDrawer';
 import DragMoveDialog from '../components/stay/DragMoveDialog';
+import { BackArrow } from '../components/kit';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const COL_W   = 56;
@@ -423,7 +424,7 @@ export default function RoomRackPage() {
   const totalWidth = LABEL_W + COL_W * dayCount;
 
   return (
-    <div className="animate-fade-in" style={{ direction:'rtl', userSelect: drag || resizeDraft ? 'none' : 'auto' }}>
+    <div className="animate-fade-in ui-page is-approved is-legacy" style={{ direction:'rtl', userSelect: drag || resizeDraft ? 'none' : 'auto' }}>
       <ToastContainer toasts={toasts} />
       <DragGhost drag={drag} />
       {tooltip && <Tooltip res={tooltip.res} x={tooltip.x} y={tooltip.y} />}
@@ -452,9 +453,9 @@ export default function RoomRackPage() {
       )}
 
       {/* ── Header ── */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div>
-          <h1 className="page-title">Room Rack</h1>
+      <div className="page-header">
+        <div><BackArrow />
+          <h1 className="page-title">לוח חדרים שבועי</h1>
           <p className="page-subtitle">{days[0].label} — {days[days.length-1].label} · {filteredRooms.length} חדרים</p>
         </div>
         <div className="mr-auto flex items-center gap-2 flex-wrap">

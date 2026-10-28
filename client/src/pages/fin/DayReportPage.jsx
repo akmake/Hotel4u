@@ -74,11 +74,10 @@ export default function DayReportPage() {
   ];
 
   return (
-    <Page>
+    <Page title="דוח סגירת יום" back="/pms/night-audit">
       <div className="ui-toolbar">
         <div>
-          <div className="ui-h3">דוחות סגירת יום{data ? ` · ${formatLong(data.date)}` : ''}</div>
-          <div className="ui-sub">
+          <div className="ui-sub"><b>{data ? formatLong(data.date) : ''}</b> ·
             {data?.closed ? `נסגר ב־${data.runNo} · ${data.closedBy || '—'} · ${formatDateTime(data.closedAt)}` : data ? 'יום פתוח — הנתונים חיים ועשויים להשתנות עד הסגירה' : ''}
           </div>
         </div>

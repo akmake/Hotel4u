@@ -328,3 +328,109 @@
   .ac-workspace.avl-page .ac-d-move { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ac-workspace.avl-page .ac-day { transition: none; } }
+
+/* 2026-10-28 — less grey: lighter canvas, every day is a solid white card with the soft shadow; past days are quieter
+   by their text, not by a grey wash */
+.page-content:has(> .avl-page) { background: #f6f6f6; }
+.ac-workspace.avl-page .ac-day, .ac-workspace.avl-page .ac-day.is-wk, .ac-workspace.avl-page .ac-day.is-past { background: #fff; box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06); }
+.ac-workspace.avl-page .ac-day.is-past > * { opacity: .72; }
+.ac-workspace.avl-page .ac-day.is-sel { background: #e9f4f2; }
+.ac-workspace.avl-page .ac-day.is-out { background: transparent; box-shadow: none; }
+.ac-workspace.avl-page .ac-day.is-past .ac-d-free b { color: rgb(var(--fg-secondary)); }
+
+/* the header and the weekday row are cards too */
+.avl-head { padding: 10px 16px; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06); }
+.ac-workspace.avl-page .ac-dows { margin-bottom: 8px; padding: 12px 0 10px; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06); }
+
+/* Header card — one reading path: where am I (title, month with its own arrows) → what needs me (alert) → how is the month (summary).
+   Month label sits between its arrows so the control reads as one unit; the alert and the summary share the far end. */
+.avl-head { gap: 20px; padding: 12px 20px; }
+.avl-title { margin-inline-end: 0; }
+.avl-title h1 { font-size: 20px; }
+.avl-nav { gap: 2px; padding-inline-start: 20px; border-inline-start: 1px solid rgb(var(--fg) / .1); }
+.avl-month { min-width: 128px; text-align: center; font-size: 17px; font-weight: 600; color: rgb(var(--fg)); white-space: nowrap; }
+.avl-alert { margin-inline-start: auto; }
+.avl-alert + .avl-sum { margin-inline-start: 0; }
+.avl-sum { gap: 0; padding-inline-start: 4px; }
+.avl-sum > div { gap: 2px; min-width: 104px; padding-inline: 20px; border-inline-start: 1px solid rgb(var(--fg) / .1); }
+.avl-sum > div:first-child { border-inline-start: 0; }
+.avl-sum dt { font-size: 12px; color: rgb(var(--fg-secondary)); }
+.avl-sum dd { font-size: 20px; line-height: 26px; font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .avl-nav { padding-inline-start: 0; border-inline-start: 0; } .avl-alert { margin-inline-start: 0; } .avl-sum > div:first-child { padding-inline-start: 0; } }
+
+/* Day card — the date leads (large), then free rooms, occupancy bar, arrivals/departures: four rows, no side-by-side crowding */
+.ac-workspace.avl-page .ac-day { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; grid-template-areas: 'top' 'free' 'occ' 'move'; align-content: space-between; align-items: center; row-gap: 6px; padding: 10px 12px 10px; }
+.ac-workspace.avl-page .ac-d-top { align-self: start; min-height: 30px; gap: 8px; }
+.ac-workspace.avl-page .ac-d-num { font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -.02em; color: rgb(var(--fg)); }
+.ac-workspace.avl-page .ac-day.is-today .ac-d-num { min-width: 30px; height: 30px; padding-inline: 4px; border-radius: 50%; font-size: 17px; line-height: 30px; }
+.ac-workspace.avl-page .ac-today { font-size: 12px; font-weight: 600; }
+.ac-workspace.avl-page .ac-d-free { grid-area: free; align-self: center; flex-direction: row; align-items: baseline; gap: 5px; }
+.ac-workspace.avl-page .ac-d-free b { font-size: 16px; line-height: 1.2; font-weight: 600; letter-spacing: 0; }
+.ac-workspace.avl-page .ac-d-free b svg { width: 15px; height: 15px; }
+.ac-workspace.avl-page .ac-d-free span { font-size: 12.5px; }
+.ac-workspace.avl-page .ac-d-occ { grid-area: occ; gap: 8px; font-size: 12px; }
+.ac-workspace.avl-page .ac-d-move { grid-area: move; margin-top: 0; gap: 10px; justify-content: flex-start; }
+.ac-workspace.avl-page .ac-chip { gap: 3px; }
+@container availability-day (max-width: 130px) { .ac-workspace.avl-page .ac-chip em { display: none; } }
+.ac-workspace.avl-page .ac-day.is-past > * { opacity: .6; }
+.ac-workspace.avl-page .ac-day.is-past > .ac-d-top { opacity: .85; }
+.ac-workspace.avl-page .ac-day.is-past .ac-d-num { color: rgb(var(--fg-secondary)); }
+
+/* ===== Day card (accent ladder): white card, pale tints for area, the full teal only on small marks =====
+   Question the card answers: "is there room on this day?" Rows, top to bottom:
+   date (leads) · free rooms · occupancy bar + % · arrivals / departures. No tinted fills, no pills. */
+.ac-workspace.avl-page .ac-day, .ac-workspace.avl-page .ac-day.is-wk { grid-template-columns: 1fr auto; grid-template-rows: auto auto auto auto; grid-template-areas: 'top opt' 'free free' 'occ occ' 'move move'; align-content: space-between; align-items: center; row-gap: 5px; column-gap: 8px; padding: 12px 14px 12px; background: #fff; }
+.ac-workspace.avl-page .ac-day.is-sel, .ac-workspace.avl-page .ac-day.is-range-start, .ac-workspace.avl-page .ac-day.is-range-end { background: #eef7f6; }
+.ac-workspace.avl-page .ac-day.is-closed:not(.is-sel) { background: repeating-linear-gradient(135deg, rgb(185 28 28 / .07) 0 6px, #fff 6px 12px); }
+.ac-workspace.avl-page .ac-d-top { grid-area: top; align-self: start; min-height: 28px; }
+.ac-workspace.avl-page .ac-d-num { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -.01em; }
+.ac-workspace.avl-page .ac-day.is-today .ac-d-num { min-width: 28px; height: 28px; padding-inline: 3px; font-size: 16px; line-height: 28px; }
+.ac-workspace.avl-page .ac-d-opt { grid-area: opt; align-self: start; margin: 0; padding: 2px 8px; border-radius: 999px; background: #ffddb8; color: #653e00; font-size: 11.5px; font-weight: 500; }
+.ac-workspace.avl-page .ac-d-top .ac-d-opt { display: none; }
+.ac-workspace.avl-page .ac-d-free { grid-area: free; align-self: center; flex-direction: row; align-items: baseline; gap: 5px; padding: 0; background: none; }
+.ac-workspace.avl-page .ac-d-free b { font-size: 18px; line-height: 1.2; font-weight: 600; color: rgb(var(--fg)); }
+.ac-workspace.avl-page .ac-d-free b svg { width: 16px; height: 16px; }
+.ac-workspace.avl-page .ac-d-free span { font-size: 12.5px; color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-d-free.is-low b, .ac-workspace.avl-page .ac-d-free.is-low span { color: #8a5300; }
+.ac-workspace.avl-page .ac-d-free.is-full b, .ac-workspace.avl-page .ac-d-free.is-full span { color: rgb(185 28 28); }
+.ac-workspace.avl-page .ac-d-occ { grid-area: occ; display: flex; align-items: center; gap: 8px; padding: 0; font-size: 12px; font-weight: 500; color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-d-occ .ac-bar { display: block; position: static; flex: 1; height: 4px; border-radius: 999px; background: #e1efed; }
+.ac-workspace.avl-page .ac-d-occ .ac-bar i { background: #006a61; }
+.ac-workspace.avl-page .ac-d-occ .ac-bar i.is-hi { background: #c27803; }
+.ac-workspace.avl-page .ac-d-occ .ac-bar i.is-max { background: rgb(185 28 28); }
+.ac-workspace.avl-page .ac-d-move { grid-area: move; margin-top: 0; gap: 12px; justify-content: flex-start; font-size: 12px; }
+.ac-workspace.avl-page .ac-chip.is-in, .ac-workspace.avl-page .ac-chip.is-out { color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-day.is-past, .ac-workspace.avl-page .ac-day.is-past.is-wk { background: #fff; }
+.ac-workspace.avl-page .ac-day.is-past > * { opacity: .55; }
+.ac-workspace.avl-page .ac-day.is-past > .ac-d-top { opacity: .8; }
+.ac-workspace.avl-page .ac-day.is-past .ac-d-num { color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-day.is-past .ac-bar i { background: rgb(var(--fg-faint)); }
+
+/* ===== Day card v3 — three distinct displays: date badge · free-rooms figure · arrivals/departures footer =====
+   Kept: occupancy bar + %. */
+.ac-workspace.avl-page .ac-day, .ac-workspace.avl-page .ac-day.is-wk { grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; grid-template-areas: 'top free' 'occ occ' 'move move'; align-content: space-between; align-items: start; row-gap: 8px; column-gap: 10px; padding: 12px 14px 0; }
+/* 1) the date: a calendar badge */
+.ac-workspace.avl-page .ac-d-top { grid-area: top; align-self: start; min-height: 0; gap: 8px; }
+.ac-workspace.avl-page .ac-d-num { display: inline-grid; place-items: center; min-width: 38px; height: 38px; padding-inline: 4px; border-radius: 10px; background: #eef7f6; color: #00463f; font-size: 20px; line-height: 1; font-weight: 600; letter-spacing: 0; }
+.ac-workspace.avl-page .ac-day.is-today .ac-d-num { min-width: 38px; height: 38px; border-radius: 10px; background: #006a61; color: #fff; font-size: 20px; line-height: 1; }
+.ac-workspace.avl-page .ac-day.is-past .ac-d-num { background: rgb(var(--fg) / .06); color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-d-top .ac-d-opt { display: inline; margin: 0; padding: 0; background: none; color: #8a5300; font-size: 11.5px; font-weight: 600; }
+.ac-workspace.avl-page .ac-today { font-size: 11.5px; font-weight: 600; color: #006a61; }
+/* 2) free rooms: a figure with its caption under it, on the far side of the date */
+.ac-workspace.avl-page .ac-d-free { grid-area: free; align-self: start; justify-self: end; flex-direction: column; align-items: flex-end; gap: 1px; text-align: end; }
+.ac-workspace.avl-page .ac-d-free b { font-size: 28px; line-height: 1; font-weight: 600; letter-spacing: -.02em; }
+.ac-workspace.avl-page .ac-d-free b svg { width: 22px; height: 22px; }
+.ac-workspace.avl-page .ac-d-free span { font-size: 12px; }
+/* occupancy: unchanged (bar + %) */
+.ac-workspace.avl-page .ac-d-occ { grid-area: occ; align-self: end; }
+/* 3) arrivals / departures: two equal cells in a footer, each with its own coloured glyph */
+.ac-workspace.avl-page .ac-d-move { grid-area: move; display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0 -14px; border-top: 1px solid rgb(var(--fg) / .08); }
+.ac-workspace.avl-page .ac-d-move .ac-chip { justify-content: center; gap: 6px; padding: 7px 4px; font-size: 13px; font-weight: 600; color: rgb(var(--fg)); }
+.ac-workspace.avl-page .ac-d-move .ac-chip + .ac-chip { border-inline-start: 1px solid rgb(var(--fg) / .08); }
+.ac-workspace.avl-page .ac-d-move .ac-chip svg { box-sizing: content-box; width: 12px; height: 12px; padding: 3px; border-radius: 50%; }
+.ac-workspace.avl-page .ac-d-move .ac-chip.is-in svg { background: rgb(0 106 97 / .12); color: #006a61; }
+.ac-workspace.avl-page .ac-d-move .ac-chip.is-out svg { background: rgb(var(--fg) / .08); color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-d-move .ac-chip em { font-style: normal; font-weight: 400; font-size: 12px; color: rgb(var(--fg-secondary)); }
+@container availability-day (max-width: 150px) { .ac-workspace.avl-page .ac-d-move .ac-chip em { display: none; } }
+.ac-workspace.avl-page .ac-day.is-past > .ac-d-top { opacity: 1; }
+.ac-workspace.avl-page .ac-day.is-past .ac-d-move .ac-chip.is-in svg { background: rgb(var(--fg) / .08); color: rgb(var(--fg-secondary)); }

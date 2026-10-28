@@ -70,7 +70,7 @@ export default function AuditPage() {
   ].filter(Boolean);
 
   return (
-    <Page wide>
+    <Page wide title="יומן ביקורת" back="/pms">
       <ToastContainer toasts={toasts} />
       <AdminNav end={<button type="button" className="btn btn-secondary btn-sm" onClick={doExport} disabled={exp.busy || !data}>{exp.busy ? <Spinner /> : <Download size={14} />} ייצוא CSV</button>} />
       <ErrorBanner error={exp.error} />

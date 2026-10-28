@@ -41,9 +41,9 @@ export default function PreventivePage() {
     ) },
   ];
   return (
-    <Page wide>
+    <Page wide title="תחזוקה מונעת" back="/pms/maintenance">
       <ToastContainer toasts={toasts} />
-      <Toolbar start={<Link to="/pms/maintenance" className="btn btn-ghost btn-sm">← תחזוקה</Link>} end={canEdit && <button type="button" className="btn btn-primary btn-sm" onClick={() => setEdit({ ...EMPTY, id: null })}><Plus size={14} />תכנית חדשה</button>} />
+      <Toolbar end={canEdit && <button type="button" className="btn btn-primary btn-sm" onClick={() => setEdit({ ...EMPTY, id: null })}><Plus size={14} />תכנית חדשה</button>} />
       <ErrorBanner error={error} onRetry={reload} />
       {loading && !data && <div className="ui-empty"><Spinner /> טוען…</div>}
       {data && (

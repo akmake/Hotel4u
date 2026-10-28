@@ -11,6 +11,7 @@ import { useToast } from '../hooks/useToast';
 import { guests as guestApi, guestDataExport } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import { BackArrow } from '../components/kit';
 
 const COUNTRIES = ['ישראל','ארצות הברית','בריטניה','צרפת','גרמניה','איטליה','ספרד','הולנד','שוויץ','רוסיה','יפן','סין','הודו','ברזיל','אוסטרליה'];
 const VIP_LABELS = { 0:'רגיל', 1:'VIP', 2:'VVIP', 3:'VVVIP', 4:'Diamond', 5:'Elite' };
@@ -887,13 +888,13 @@ export default function GuestsPage() {
   const list = data || [];
 
   return (
-    <div className="animate-fade-in" style={{ direction:'rtl' }}>
+    <div className="animate-fade-in ui-page is-approved is-legacy" style={{ direction:'rtl' }}>
       <ToastContainer toasts={toasts} />
       {selectedId && <GuestDrawer guestId={selectedId} propertyId={propertyId} onClose={()=>setSelectedId(null)} onUpdated={()=>refetch()} />}
       {showNew && <NewGuestModal propertyId={propertyId} onClose={()=>setShowNew(false)} onCreated={()=>{success('אורח נוצר!');refetch();}} />}
 
       <div className="page-header">
-        <div>
+        <div><BackArrow />
           <div className="page-title">פרופילי אורחים</div>
           <div className="page-subtitle">{list.length} פרופילים רשומים</div>
         </div>

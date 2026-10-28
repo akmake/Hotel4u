@@ -20,6 +20,7 @@ import { crm, properties as propertiesApi } from '../utils/api';
 import { normalizeCrmSla } from '../utils/crmSla';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import { BackArrow } from '../components/kit';
 
 const STATUS_HE = {
   new: '׳—׳“׳©',
@@ -450,11 +451,11 @@ export default function LeadInboxPage() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in ui-page is-approved is-legacy">
       <ToastContainer toasts={toasts} />
 
       <div className="page-header">
-        <div>
+        <div><BackArrow />
           <h1 className="page-title flex items-center gap-2">
             <Funnel size={20} className="text-brand" />
             Lead Inbox

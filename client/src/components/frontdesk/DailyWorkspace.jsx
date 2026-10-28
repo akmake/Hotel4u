@@ -146,6 +146,19 @@ function Filter({ on, setOn, issues }) {
   );
 }
 
+// Filter that doubles as the count: [value, label, count, tone]
+function Modes({ value, onChange, options }) {
+  return (
+    <div className="dk-seg dk-modes" role="group" aria-label="סינון הרשימה">
+      {options.map(([id, label, n, tone]) => (
+        <button key={id} type="button" className={value === id ? 'is-on' : ''} aria-pressed={value === id} onClick={() => onChange(id)}>
+          {label}<span className={`dk-mode-n ${tone || ''}`}>{n}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Status({ query, empty, children }) {
   if (query.error) return <div className="dk-state" role="alert">המידע לא נטען<button type="button" onClick={query.refetch}>ניסיון נוסף</button></div>;
   if (query.loading && !query.data) return <div className="dk-state">טוען מידע…</div>;
@@ -322,8 +335,8 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
                 <div className="dk-stay2">
                   <span><Moon size={12} />{r.nights} לילות</span>
                   <span><User size={12} />{r.adults} מבוגרים</span>
-                  <span><Baby size={12} />{r.children || 0} ילדים</span>
-                  <span><BedDouble size={12} />{r.unitsTotal || 1} {(r.unitsTotal || 1) === 1 ? 'חדר' : 'חדרים'}</span>
+                  <span className={r.children ? '' : 'is-quiet'}><Baby size={12} />{r.children || 0} ילדים</span>
+                  <span className={(r.unitsTotal || 1) > 1 ? '' : 'is-quiet'}><BedDouble size={12} />{r.unitsTotal || 1} {(r.unitsTotal || 1) === 1 ? 'חדר' : 'חדרים'}</span>
                 </div>
               </td>
               <td className="dk-wide">
@@ -420,7 +433,7 @@ function ArrivalsTable({ rows, openKey, setOpenKey, onCheckIn, onAssign, onQueue
             : null;
           return renderGroup(g, heading);
         })}
-        {!rows.length && <tr><td colSpan={5}><div className="dk-state"><CheckCircle2 size={18} />אין הגעות שדורשות טיפול.</div></td></tr>}
+        {!rows.length && <tr><td colSpan={5}><div className="dk-state"><CheckCircle2 size={18} />אין הגעות בתצוגה זו.</div></td></tr>}
       </tbody>
       )}
     </table>
@@ -479,7 +492,7 @@ function DeparturesTable({ rows, openKey, setOpenKey, outTime, onCheckOut, appea
       )) : (
       <tbody>
         {displayedRows.map(renderRow)}
-        {!rows.length && <tr><td colSpan={4}><div className="dk-state"><CheckCircle2 size={18} />אין עזיבות שדורשות טיפול.</div></td></tr>}
+        {!rows.length && <tr><td colSpan={4}><div className="dk-state"><CheckCircle2 size={18} />אין עזיבות בתצוגה זו.</div></td></tr>}
       </tbody>
       )}
     </table>
@@ -577,7 +590,7 @@ function AlertsList({ alerts, notes: allNotes, onAlert, q = '' }) {
   );
 }
 
-export default function DailyWorkspace({ propertyId, property, date, stats, arrivals, departures, alerts, work, tickets, inhouse, refresh, navigate, onOpen, onCheckIn, onCheckOut, onAssign, onQueue, onAlert, summaryAppearance, rowAppearance }) {
+export default function DailyWorkspace({ propertyId, property, date, stats, arrivals, departures, alerts, work, tickets, inhouse, refresh, navigate, onOpen, onCheckIn, onCheckOut, onAssign, onQueue, onAlert, summaryAppearance, rowAppearance, headerAppearance, updatedAt, onWalkIn }) {
   const [tab, setTab] = useState('arrivals');
   const [billingError, setBillingError] = useState(null);
   async function onBilling({ reservationId, unitIndex, mode }) {
@@ -592,7 +605,9 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
       setBillingError(e.message);
     }
   }
-  const [onlyIssues, setOnlyIssues] = useState(false);
+  const [mode, setMode] = useState('all');
+  const onlyIssues = mode === 'issues';
+  const setOnlyIssues = (on) => setMode(on ? 'issues' : 'all');
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const [openKey, setOpenKey] = useState(null);
@@ -602,13 +617,17 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
   const aCounts = arrivals.data?.counts || {};
   const aOpen = aAll.filter((r) => r.readiness.state !== 'checked_in');
   const aIssues = aOpen.filter((r) => r.readiness.state !== 'ready');
-  const aRows = [...(onlyIssues ? aIssues : aAll)].filter((r) => matches(q, r.guest?.name, r.billing?.occupantName, r.confirmationNumber, r.room?.number, r.company?.name)).sort((a, b) => (RANK[a.readiness.state] ?? 9) - (RANK[b.readiness.state] ?? 9) || String(a.eta || '99').localeCompare(String(b.eta || '99')));
+  const aReady = aOpen.filter((r) => r.readiness.state === 'ready');
+  const aDone = aAll.filter((r) => r.readiness.state === 'checked_in');
+  const aRows = [...(mode === 'issues' ? aIssues : mode === 'ok' ? aReady : mode === 'done' ? aDone : aAll)].filter((r) => matches(q, r.guest?.name, r.billing?.occupantName, r.confirmationNumber, r.room?.number, r.company?.name)).sort((a, b) => (RANK[a.readiness.state] ?? 9) - (RANK[b.readiness.state] ?? 9) || String(a.eta || '99').localeCompare(String(b.eta || '99')));
 
   const dAll = departures.data?.rows || [];
   const flagged = (r) => r.state !== 'completed' && problems(r).length > 0;
   const dOpen = dAll.filter((r) => r.state !== 'completed');
   const dIssues = dOpen.filter(flagged);
-  const dRows = [...(onlyIssues ? dIssues : dAll)].filter((r) => matches(q, r.guest?.name, r.confirmationNumber, r.company?.name, ...(r.units || []).map((u) => u.room))).sort((a, b) => Number(a.state === 'completed') - Number(b.state === 'completed') || Number(flagged(b)) - Number(flagged(a)) || String(a.etd || '99').localeCompare(String(b.etd || '99')));
+  const dFine = dOpen.filter((r) => !flagged(r));
+  const dDone = dAll.filter((r) => r.state === 'completed');
+  const dRows = [...(mode === 'issues' ? dIssues : mode === 'ok' ? dFine : mode === 'done' ? dDone : dAll)].filter((r) => matches(q, r.guest?.name, r.confirmationNumber, r.company?.name, ...(r.units || []).map((u) => u.room))).sort((a, b) => Number(a.state === 'completed') - Number(b.state === 'completed') || Number(flagged(b)) - Number(flagged(a)) || String(a.etd || '99').localeCompare(String(b.etd || '99')));
 
   const hAll = inhouse.data?.rows || [];
   const hRows = hAll.filter((r) => matches(q, r.guest?.name, r.confirmationNumber, r.company?.name, ...(r.rooms || []).map((x) => x.number)));
@@ -616,7 +635,7 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
   const urgent = (alerts.data || []).filter((a) => a.type === 'danger').length;
 
   const extra = (alerts.data?.length || 0) + notes.length;
-  const pick = (t) => { setTab(t); setOpenKey(null); setOnlyIssues(false); };
+  const pick = (t) => { setTab(t); setOpenKey(null); setMode('all'); };
   const issuesNow = tab === 'arrivals' ? aIssues.length : dIssues.length;
   const summary = tab === 'arrivals'
     ? (arrivals.data ? `${aCounts.ready || 0} מוכנים · ${aIssues.length} דורשים טיפול · ${aCounts.checked_in || 0} כבר נכנסו` : '')
@@ -631,6 +650,35 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
 
   return (
     <div className="dk" dir="rtl">
+      {headerAppearance === 'today' ? (() => {
+        // One bar for the desk: where we are (day + business-day state), find anyone, live status, add a stay.
+        const businessDate = arrivals.data?.businessDate;
+        const calendarDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+        const behind = businessDate && businessDate < calendarDay;
+        const bd = businessDate ? `${businessDate.slice(8, 10)}/${businessDate.slice(5, 7)}` : '';
+        return (
+          <header className="dk-head is-today">
+            <div className="dk-title">
+              <h1>היום בקבלה</h1>
+              <span className="dk-today-sub">
+                {date}
+                {businessDate && (behind
+                  ? <button type="button" className="dk-bday is-late" onClick={() => navigate('/pms/night-audit')}><AlertTriangle size={13} aria-hidden="true" />יום עסקי {bd} טרם נסגר</button>
+                  : <span className="dk-bday"><i aria-hidden="true" />יום עסקי {bd} פתוח</span>)}
+              </span>
+            </div>
+            <label className="dk-search dk-head-search">
+              <Search size={17} aria-hidden="true" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} placeholder="חיפוש אורח, הזמנה או חדר" aria-label="חיפוש אורח, מספר הזמנה או חדר" />
+              {query && <button type="button" aria-label="ניקוי החיפוש" onClick={() => setQuery('')}><X size={14} /></button>}
+            </label>
+            <nav aria-label="פעולות קבלה">
+              <span className="dk-live" title="המסך מתעדכן מעצמו כשמשהו משתנה במלון"><i aria-hidden="true" />מתעדכן אוטומטית{updatedAt ? ` · ${updatedAt}` : ''}</span>
+              <SplitAction tone="primary" label={<><Plus size={16} aria-hidden="true" />הזמנה חדשה</>} onClick={() => navigate('/pms/reservations/new')} items={onWalkIn ? [{ label: 'Walk-in — אורח בלי הזמנה', onClick: onWalkIn }] : []} />
+            </nav>
+          </header>
+        );
+      })() : (
       <header className="dk-head">
         <div className="dk-title"><h1>היום בקבלה</h1><span>{date}{stats.data ? ` · תפוסה ${stats.data.occupancy}% · ${stats.data.inHouse} שוהים מתוך ${stats.data.totalRooms} חדרים` : ''}</span></div>
         <nav aria-label="פעולות קבלה">
@@ -639,6 +687,7 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
           <button type="button" className="dk-btn is-primary" onClick={() => navigate('/pms/reservations/new')}><Plus size={15} />הזמנה חדשה</button>
         </nav>
       </header>
+      )}
       {stats.error && <div className="dk-state" role="alert">נתוני הסיכום לא נטענו<button type="button" onClick={stats.refetch}>ניסיון נוסף</button></div>}
 
       <div className="dk-body">
@@ -649,20 +698,29 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
             <Tile on={tab === 'inhouse'} onClick={() => pick('inhouse')} Icon={Users} label="שוהים" value={inhouse.data ? (inhouse.data.rows || []).length : (stats.data?.inHouse ?? '—')} appearance={summaryAppearance} details={stats.data ? [{ value: `${stats.data.occupancy}%`, label: 'תפוסה' }, { value: stats.data.totalRooms, label: 'חדרים במלון' }] : []} />
             <Tile on={tab === 'alerts'} onClick={() => pick('alerts')} Icon={Bell} label="התראות" value={alerts.data ? extra : '—'} appearance={summaryAppearance} details={alerts.data && work.data ? [{ value: alerts.data.length, label: 'התראות' }, { value: notes.length, label: 'העברת משמרת' }] : []} />
           </div>
+          {headerAppearance === 'today' ? (
+            <div className="dk-bar is-slim">
+              <b className="reception-activity-caption">{{ arrivals: 'הגעות היום', departures: 'עזיבות היום', inhouse: 'אורחים במלון', alerts: 'התראות והעברת משמרת' }[tab]}</b>
+              {tab === 'arrivals' && arrivals.data && <Modes value={mode} onChange={setMode} options={[['all', 'הכל', aAll.length], ['issues', 'דורשים טיפול', aIssues.length, 'warn'], ['ok', 'מוכנים', aReady.length, 'ok'], ['done', 'נכנסו', aDone.length]]} />}
+              {tab === 'departures' && departures.data && <Modes value={mode} onChange={setMode} options={[['all', 'הכל', dAll.length], ['issues', 'דורשים טיפול', dIssues.length, 'warn'], ['ok', 'תקינים', dFine.length, 'ok'], ['done', 'יצאו', dDone.length]]} />}
+              {(tab === 'inhouse' || tab === 'alerts') && <span className="dk-bar-note">{summary}</span>}
+            </div>
+          ) : (
           <div className="dk-bar">
             {summaryAppearance ? (
               <>
                 <b className="reception-activity-caption">{{ arrivals: 'הגעות היום', departures: 'עזיבות היום', inhouse: 'אורחים במלון', alerts: 'התראות והעברת משמרת' }[tab]}</b>
                 {meter ? <Meter parts={meter} /> : <span>{summary}</span>}
-                <label className="dk-search">
+                {headerAppearance !== 'today' && <label className="dk-search">
                   <Search size={16} aria-hidden="true" />
                   <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} placeholder="חיפוש אורח, הזמנה או חדר" aria-label="חיפוש אורח, מספר הזמנה או חדר" />
                   {query && <button type="button" aria-label="ניקוי החיפוש" onClick={() => setQuery('')}><X size={14} /></button>}
-                </label>
+                </label>}
               </>
             ) : <span>{summary}</span>}
             {(tab === 'arrivals' || tab === 'departures') && <Filter on={onlyIssues} setOn={setOnlyIssues} issues={issuesNow} />}
           </div>
+          )}
           {billingError && <div className="dk-state dk-err" role="alert">{billingError}</div>}
           <div className="dk-scroll">
             {tab === 'arrivals' && (
@@ -683,7 +741,7 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
             {tab === 'alerts' && <Status query={alerts} empty="אין התראות פתוחות."><AlertsList alerts={alerts} notes={notes} onAlert={onAlert} q={q} /></Status>}
           </div>
         </section>
-        <RoomsCard arrivals={arrivals} tickets={tickets} onPick={(key) => { setTab('arrivals'); setOnlyIssues(false); setOpenKey(key); }} />
+        <RoomsCard arrivals={arrivals} tickets={tickets} onPick={(key) => { setTab('arrivals'); setMode('all'); setOpenKey(key); }} />
       </div>
     </div>
   );

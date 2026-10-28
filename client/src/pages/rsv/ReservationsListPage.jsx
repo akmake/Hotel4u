@@ -76,7 +76,8 @@ export default function ReservationsListPage() {
   const filtered = chips.length > 0 || url.get('status') !== 'all';
 
   return (
-    <Page wide>
+    <Page wide title="הזמנות" back="/pms" meta={data ? `${data.total} תוצאות` : undefined}
+      primary={<button type="button" className="btn btn-primary" onClick={() => nav('/pms/reservations/new')}><Plus size={16} /> הזמנה חדשה</button>}>
       <Toolbar
         start={(
           <>
@@ -95,7 +96,6 @@ export default function ReservationsListPage() {
             </select>
           </>
         )}
-        end={<button type="button" className="btn btn-primary btn-sm" onClick={() => nav('/pms/reservations/new')}><Plus size={14} /> הזמנה חדשה</button>}
       />
       <FilterChips chips={chips} onRemove={(k) => url.set(k === 'range' ? { from: '', to: '' } : { [k]: '' })} onReset={() => url.set({ q: '', from: '', to: '', source: '', status: 'all' })} />
       <Tiles

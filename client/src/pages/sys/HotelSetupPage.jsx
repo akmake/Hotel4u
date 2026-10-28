@@ -25,7 +25,7 @@ export default function HotelSetupPage() {
   const missing = data?.readiness.filter((r) => !r.ok) || [];
 
   return (
-    <Page wide>
+    <Page wide title="הגדרת המלון" back="/pms">
       <ToastContainer toasts={toasts} />
       <AdminNav />
       <ErrorBanner error={error} onRetry={reload} />

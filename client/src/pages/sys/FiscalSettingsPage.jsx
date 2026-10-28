@@ -61,7 +61,7 @@ export default function FiscalSettingsPage() {
   ];
 
   return (
-    <Page>
+    <Page title="מסמכים ורשות המסים" back="/pms">
       <ToastContainer toasts={toasts} />
       <AdminNav />
       {itaResult === 'connected' && <Banner tone="ok">החיבור לרשות המסים הושלם — מספרי הקצאה יתבקשו אוטומטית בהפקת חשבונית. <button type="button" className="btn btn-ghost btn-sm" onClick={() => setParams({})}>סגירה</button></Banner>}

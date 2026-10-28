@@ -11,7 +11,7 @@ import { frontdesk } from '../utils/api';
 import { QUEUE_REASON_LABELS, cleanLabel, opsLabel } from '../lib/labels';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/Toast';
-import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, formatTime, formatWait, minutesSince } from '../components/kit';
+import { PageBar, Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, formatTime, formatWait, minutesSince } from '../components/kit';
 import AssignRoomDialog from '../components/frontdesk/AssignRoomDialog';
 
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
@@ -61,7 +61,8 @@ export default function ArrivalQueuePage() {
   const rows = data?.rows || [];
 
   return (
-    <div className="ui-page" dir="rtl">
+    <div className="ui-page is-approved is-wide" dir="rtl">
+      <PageBar title="תור המתנה לחדר" back="/pms/arrivals" meta={data && view === 'active' ? `${rows.length} ממתינים` : undefined} />
       <ToastContainer toasts={toasts} />
       <div className="ui-toolbar">
         <div className="ui-seg" role="tablist" aria-label="תצוגה">
@@ -70,7 +71,6 @@ export default function ArrivalQueuePage() {
         </div>
         <div className="flex items-center gap-2">
           <button type="button" className="btn btn-ghost btn-sm" onClick={load} aria-label="רענון"><RefreshCw size={14} /></button>
-          <Link to="/pms/arrivals" className="btn btn-secondary btn-sm">להגעות</Link>
         </div>
       </div>
 

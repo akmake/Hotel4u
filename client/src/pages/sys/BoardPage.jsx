@@ -36,7 +36,7 @@ export default function BoardPage() {
   }
   const dis = !canEdit;
   return (
-    <Page>
+    <Page title="לוח ניהול" back="/pms">
       <ToastContainer toasts={toasts} />
       <AdminNav end={<span className="ui-muted">גרסה {data.version}{data.updatedBy ? ` · ${data.updatedBy}` : ''}</span>} />
       <ErrorBanner error={save.error} />

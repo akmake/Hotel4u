@@ -81,7 +81,7 @@ export default function WorkCenterPage() {
   const act = async (fn, msg) => { try { await fn(); success(msg); reload(); } catch (e) { toastError(e.message); reload(); } };
 
   return (
-    <Page>
+    <Page title="מרכז משימות והעברת משמרת" back="/pms">
       <ToastContainer toasts={toasts} />
       <Toolbar
         start={<Segmented label="מצב" value={url.get('status')} onChange={(v) => url.set({ status: v })} options={[{ value: 'open', label: 'פתוחים' }, { value: 'closed', label: 'נסגרו' }, { value: 'all', label: 'הכול' }]} />}

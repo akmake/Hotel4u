@@ -268,7 +268,7 @@ export default function MaintenancePage() {
   ], [isWorker, me, role, url]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Page wide>
+    <Page wide title="תחזוקה" back="/pms">
       <ToastContainer toasts={toasts} />
       <Toolbar
         start={(

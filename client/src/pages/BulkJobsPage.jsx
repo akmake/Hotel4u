@@ -11,6 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 import { reservations as reservationsApi } from '../utils/api';
 import { PageSpinner, ErrorState } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
+import { BackArrow } from '../components/kit';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -953,12 +954,12 @@ export default function BulkJobsPage() {
   if (!propertyId) return <PageSpinner />;
 
   return (
-    <div className="page-container" dir="rtl">
+    <div className="page-container ui-page is-approved is-legacy" dir="rtl">
       <ToastContainer toasts={toasts} />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5"><BackArrow />
           <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
             <ListChecks size={18} className="text-indigo-600"/>
           </div>

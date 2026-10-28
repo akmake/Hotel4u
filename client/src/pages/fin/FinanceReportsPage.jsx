@@ -269,7 +269,7 @@ export default function FinanceReportsPage() {
   const setRange = (f, t) => url.set({ from: f, to: t }, { resetPage: false });
 
   return (
-    <Page wide>
+    <Page wide title="דוחות כספיים ומע״מ" back="/pms">
       <Toolbar
         start={<Segmented label="דוח" value={tab} onChange={(v) => url.set({ tab: v }, { resetPage: false })} options={TABS} />}
         end={tab !== 'cash' && (

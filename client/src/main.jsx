@@ -7,6 +7,7 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { PropertyProvider } from './context/PropertyContext.jsx';
 import './index.css';
 import './components/kit/kit.css';
+import './components/kit/approved.css';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },

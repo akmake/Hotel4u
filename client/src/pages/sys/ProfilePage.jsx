@@ -28,9 +28,8 @@ export default function ProfilePage() {
   const keepThisSession = (token) => { if (token) localStorage.setItem('hotel4u_token', token); };
 
   return (
-    <Page>
+    <Page title="הפרופיל שלי" back="/pms">
       <ToastContainer toasts={toasts} />
-      <div className="ui-toolbar"><div className="ui-h3">הפרופיל שלי</div></div>
       <div className="ui-split">
         <div className="ui-stack">
           <Card title="פרטים והעדפות">

@@ -48,7 +48,7 @@ export default function TaxPolicyPage() {
   const addVisa = () => { const v = visaInput.trim().toUpperCase(); if (v && !t.visaTypes.includes(v)) setT({ visaTypes: [...t.visaTypes, v] }); setVisaInput(''); };
   const dis = !canEdit;
   return (
-    <Page>
+    <Page title="מדיניות מס" back="/pms">
       <ToastContainer toasts={toasts} />
       <AdminNav end={<span className="ui-muted">גרסה {data.tourist.version}{data.tourist.updatedBy ? ` · ${data.tourist.updatedBy}` : ''}{data.tourist.approvedAt ? ` · ${formatDateTime(data.tourist.approvedAt)}` : ''}</span>} />
       {!canEdit && <Banner tone="info">צפייה בלבד — הגדרת כללי מס מותרת להנהלה ולכספים.</Banner>}

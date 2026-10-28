@@ -60,7 +60,7 @@ export default function MealsPage() {
   const dayName = (d) => (d === today ? 'היום' : d === tomorrow ? 'מחר' : weekday(d));
 
   return (
-    <Page wide>
+    <Page wide title="ארוחות" back="/pms">
       <Toolbar
         start={(
           <>

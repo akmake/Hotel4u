@@ -7,6 +7,7 @@ import { rates as ratesApi } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
 import { TODAY, addDays } from '../utils/date';
+import { BackArrow } from '../components/kit';
 
 const DAYS = 14;
 
@@ -644,12 +645,12 @@ export default function RatesPage() {
   const currentPlanObj = activePlans.find(p => String(p._id) === planId);
 
   return (
-    <div className="animate-fade-in" onClick={e => { if (!e.target.closest('[data-cell]')) setEditCell(null); }}>
+    <div className="animate-fade-in ui-page is-approved is-legacy" onClick={e => { if (!e.target.closest('[data-cell]')) setEditCell(null); }}>
       <ToastContainer toasts={toasts} />
 
       {/* Header */}
       <div className="page-header">
-        <div>
+        <div><BackArrow />
           <div className="page-title flex items-center gap-2">
             <DollarSign size={22} className="text-brand" />
             ניהול מחירים

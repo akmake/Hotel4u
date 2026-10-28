@@ -182,7 +182,7 @@ export default function ChargeCodesPage() {
   ];
 
   return (
-    <Page>
+    <Page title="קודי חיוב" back="/pms">
       <ToastContainer toasts={toasts} />
       <AdminNav end={canEdit && url.tab === 'charge' ? <button type="button" className="btn btn-primary btn-sm" onClick={() => setCreating(true)}><Plus size={14} /> קוד חדש</button> : null} />
       {!canEdit && <Banner tone="info">צפייה בלבד — עריכת הקטלוג מותרת להנהלה ולכספים.</Banner>}

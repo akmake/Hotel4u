@@ -3,10 +3,10 @@
 // sit on the field, disabled actions say why, Escape/X/Cancel behave the same, lists keep their
 // filter/sort/page in the URL, and every list has loading / empty / no-results / error states.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as MenuPrimitive from '@radix-ui/react-dropdown-menu';
-import { X, Loader2, AlertCircle, Search, ChevronLeft, ChevronRight, MoreHorizontal, ArrowUpDown } from 'lucide-react';
+import { X, ArrowRight, Loader2, AlertCircle, Search, ChevronLeft, ChevronRight, MoreHorizontal, ArrowUpDown } from 'lucide-react';
 
 // ── Overlays ────────────────────────────────────────────────────────────────
 export function Modal({ open, onClose, title, subtitle, children, footer, width = 560, busy = false, labelledBy }) {
@@ -183,8 +183,44 @@ export function Banner({ tone = 'info', children }) {
 }
 
 // ── Page structure ──────────────────────────────────────────────────────────
-export function Page({ children, wide = false }) {
-  return <div className={`ui-page ${wide ? 'is-wide' : ''}`} dir="rtl">{children}</div>;
+// The one header row of the approved look: back arrow (returns to where the user came from, else
+// to `back`), title with small secondary info, tools, and the single primary action at the far end.
+export function PageBar({ title, meta, back = '/pms', tools, primary }) {
+  const navigate = useNavigate();
+  const goBack = () => { if ((window.history.state?.idx || 0) > 0) navigate(-1); else navigate(back); };
+  return (
+    <header className="ap-bar">
+      <div className="ap-bar-start">
+        <button type="button" className="ap-icon" onClick={goBack} aria-label="חזרה"><ArrowRight size={20} aria-hidden="true" /></button>
+        <h1 className="ap-title">{title}</h1>
+        {meta && <span className="ap-meta">{meta}</span>}
+      </div>
+      {(tools || primary) && <div className="ap-bar-end">{tools}{primary}</div>}
+    </header>
+  );
+}
+
+export function BackArrow({ to = '/pms' }) {
+  const navigate = useNavigate();
+  const goBack = () => { if ((window.history.state?.idx || 0) > 0) navigate(-1); else navigate(to); };
+  return <button type="button" className="ap-icon" onClick={goBack} aria-label="חזרה"><ArrowRight size={20} aria-hidden="true" /></button>;
+}
+
+// Older screens keep their own `.page-header` block; this wrapper gives them the approved canvas,
+// cards, list rows and buttons. Put <BackArrow /> as the first child of the header's title block.
+export function LegacyPage({ children, className = '' }) {
+  return <div className={`ui-page is-approved is-legacy ${className}`} dir="rtl">{children}</div>;
+}
+
+// Pass `title` to get the approved look: grey canvas, one header row, white cards.
+export function Page({ children, wide = false, title, meta, back, tools, primary, approved: forceApproved = false }) {
+  const approved = !!title || forceApproved;
+  return (
+    <div className={`ui-page ${wide ? 'is-wide' : ''} ${approved ? 'is-approved' : ''}`} dir="rtl">
+      {!!title && <PageBar title={title} meta={meta} back={back} tools={tools} primary={primary} />}
+      {children}
+    </div>
+  );
 }
 
 export function Toolbar({ start, end, children }) {
@@ -207,6 +243,37 @@ export function Card({ title, actions, children, flush = false, className = '' }
       )}
       {children}
     </section>
+  );
+}
+
+// The approved "Today" glass summary: frosted cards on a soft teal/sand field. A tile with
+// onSelect acts as a filter; details are small value+label pairs under the big number.
+export function GlassTiles({ items, selected, onSelect, label }) {
+  return (
+    <div className="ap-glass-field" role={onSelect ? 'tablist' : undefined} aria-label={label} style={{ '--tiles': items.length }}>
+      {items.map((t) => {
+        const El = onSelect && !t.static ? 'button' : 'div';
+        const Icon = t.icon;
+        return (
+          <El
+            key={t.id}
+            type={El === 'button' ? 'button' : undefined}
+            role={El === 'button' ? 'tab' : undefined}
+            aria-selected={El === 'button' ? selected === t.id : undefined}
+            className={`ap-glass ${selected === t.id ? 'is-on' : ''} ${t.tone ? `is-${t.tone}` : ''}`}
+            onClick={El === 'button' ? () => onSelect(t.id) : undefined}
+          >
+            <span className="ap-glass-head"><span>{t.label}</span>{Icon && <Icon size={17} aria-hidden="true" />}</span>
+            <strong className="ap-glass-value">{t.value ?? '—'}</strong>
+            {t.details?.length > 0 && (
+              <span className="ap-glass-details">
+                {t.details.filter(Boolean).map((d) => <span key={d.label}><b>{d.value}</b><span>{d.label}</span></span>)}
+              </span>
+            )}
+          </El>
+        );
+      })}
+    </div>
   );
 }
 
