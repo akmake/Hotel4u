@@ -579,6 +579,36 @@ GET    /staff                          owner picker (name + role only)
 GET|POST /queue, POST /queue/:id/take|prioritize|remove, PATCH /queue/:id   FD-04 waiting queue
 ```
 Service: `services/frontDeskService.js`. Model: `models/ArrivalQueueEntry.js`. Policy: `Property.checkInPolicy`.
+- Auto room assignment (2026-11-02): `GET /frontdesk/room-plan?date` proposes a room per unassigned arrival unit
+  (ready-now, VIP, accessibility/smoking/floor prefs, multi-room same floor; reasons + 3 alternatives), `POST /room-plan/apply {items}`
+  runs each through `assignRoom` (per-row failures returned). `services/roomPlanService.js`, dialog `RoomPlanDialog` on /pms/arrivals.
+- Prep from requests (2026-11-02): `services/prepTaskService.js` `detectPrep(text…)` (extra bed, pillows, allergy, celebration,
+  accessibility, early check-in…) → arrivals row `prep` tags; `syncPrepTasks` makes one `arrival_prep` HK task per room+reservation+day
+  (supplies + notes + guest text), on assignment and hourly for today/tomorrow; idempotent, finished tasks untouched.
+- Online check-in + upsells (2026-11-02): `models/OnlineCheckIn.js` (one per reservation; token sha256 + sealed, same link on
+  every send), `services/onlineCheckInService.js`. Public `GET|POST /api/public/checkin/:token` → page `/checkin/:token`
+  (book.css look). Submit = GuestRegistrationCard with **idVerified:false** (check-in now requires an idVerified card; the
+  wizard reuses the online doc "···1234" and signature), eta, requests → guestNotes, upsell requests. Desk:
+  `GET /frontdesk/reservations/:id/online-checkin`, `POST …/online-checkin/link {via:link|email}`, `POST …/upsells/:id
+  {decision}` (approve sets eta/etd; posts via postServiceCharge when in house, else at check-in). Settings
+  `GET|PUT /setup/online-checkin` (offers: kind/price/chargeCode/time; suggested ones inactive until saved) → setup tab
+  "צ׳ק-אין מקוון". Day-before reminder e-mail carries the link (autoSend). Arrivals row `online` + dialog OnlineCheckInDialog.
+  Guest page `/checkin/:token` copies the Mews Guest Portal check-in screens (`pages/checkin/checkin.css`, Heebo).
+- Report subscriptions (2026-11-02, copied from Cloudbeds Reporting → Subscriptions): `models/ReportSubscription.js`,
+  `services/reportSubscriptionService.js` (catalogue: arrivals, departures, in_house, manager_flash, receipts, vat — built from
+  the existing services; daily / weekly days / 1st of month at hotel time; xlsx = one RTL workbook, a sheet per report; csv =
+  file per report; period = yesterday / 7 days / previous month for money). `/api/pms/report-subscriptions` CRUD + `/:id/send`,
+  cron every 5 min (`runDueSubscriptions`). Screen `/pms/reports/subscriptions`. Needs a mail transport to actually send.
+- Report centre (2026-11-02, Cloudbeds Reporting layout): `services/reportCenter.js` — 22 reports defined once
+  ({code, group, period range|month|ahead|none, build → summary/columns/rows/note}); room revenue = booking price spread
+  over its nights. `/api/pms/report-center/catalog | /:code?preset|from&to | /:code/export?format=xlsx|csv`. Screens:
+  `/pms/reports` = home (all reports in group columns + links to existing report screens, `LINKED`), `/pms/reports/r/:code`
+  = view (period chips, summary strip, sortable table + totals, Excel/CSV/print). Legacy KPI page moved to
+  `/pms/reports/performance`. Subscriptions accept every report-centre code (`buildCenter`).
+  Legal & safety group: `guest_register` (every checked-in stay with its current registration card incl. full ID number;
+  `roles` = managers/audit only, viewing/export audited as `report.viewed|exported`, never e-mailed) and `evacuation` (in-house
+  people per floor/room, help-needed flag from requests). CBS report groups by continent + country of residence; the CBS
+  questionnaire itself was not found online — fields not checked against the form.
 QA: `npm run qa:frontdesk` (live server + same DB; cleans up after itself).
 
 #### Availability + room blocks (INV-01 / INV-04, 2026-10-19)

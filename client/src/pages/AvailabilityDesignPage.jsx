@@ -3,47 +3,30 @@ import { SlidersHorizontal, X } from 'lucide-react';
 import AvailabilityPage from './inv/AvailabilityPage';
 import './AvailabilityDesignPage.css';
 
-const DAY_STORAGE_KEY = 'hotel4u:availability-design:days:v2';
-const DAY_APPEARANCES = [
-  { value: 'detailed', label: 'הנוכחי' },
-  { value: 'numeral', label: 'ספרה' },
-  { value: 'fill', label: 'מילוי' },
-  { value: 'ring', label: 'טבעת' },
-];
-
-const FRAME_STORAGE_KEY = 'hotel4u:availability-design:frame:v1';
-const FRAME_APPEARANCES = [
+// The three calendar structures from the impeccable round (2026-11-01), side by side with the current board.
+const LAYOUT_STORAGE_KEY = 'hotel4u:availability-design:layout:v1';
+const LAYOUTS = [
   { value: 'current', label: 'הנוכחי' },
-  { value: 'tiles', label: 'אריחים' },
-  { value: 'strips', label: 'פסי שבועות' },
+  { value: 'original', label: 'המקורי + עקומת החודש' },
+  { value: 'curve', label: 'עקומת החודש מעל הלוח' },
+  { value: 'weeks', label: 'שבועות עם סיכום שבועי' },
+  { value: 'two-months', label: 'שני חודשים זה לצד זה' },
 ];
 
-function savedFrame() {
+function savedLayout() {
   try {
-    const saved = localStorage.getItem(FRAME_STORAGE_KEY);
-    return FRAME_APPEARANCES.some((option) => option.value === saved) ? saved : 'current';
+    const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    return LAYOUTS.some((option) => option.value === saved) ? saved : 'current';
   } catch { return 'current'; }
 }
 
-function savedDayAppearance() {
-  try {
-    const saved = localStorage.getItem(DAY_STORAGE_KEY);
-    return DAY_APPEARANCES.some((option) => option.value === saved) ? saved : 'detailed';
-  } catch { return 'detailed'; }
-}
-
 // Uses the real availability page (live month data, selection panel, booking and block actions).
-// Only the explicitly selected presentation varies.
+// Only the chosen structure varies.
 export default function AvailabilityDesignPage() {
-  const [dayAppearance, setDayAppearance] = useState(savedDayAppearance);
-  const [frame, setFrame] = useState(savedFrame);
-  const chooseFrame = (value) => {
-    setFrame(value);
-    try { localStorage.setItem(FRAME_STORAGE_KEY, value); } catch { /* The current visit still keeps the choice. */ }
-  };
-  const chooseDays = (value) => {
-    setDayAppearance(value);
-    try { localStorage.setItem(DAY_STORAGE_KEY, value); } catch { /* The current visit still keeps the choice. */ }
+  const [layout, setLayout] = useState(savedLayout);
+  const chooseLayout = (value) => {
+    setLayout(value);
+    try { localStorage.setItem(LAYOUT_STORAGE_KEY, value); } catch { /* The current visit still keeps the choice. */ }
   };
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -59,7 +42,7 @@ export default function AvailabilityDesignPage() {
   }, [settingsOpen]);
 
   return (
-    <div className="availability-design-page" data-day-style={dayAppearance} data-frame={frame} dir="rtl">
+    <div className="availability-design-page" dir="rtl">
       <button ref={settingsButtonRef} type="button" className="availability-design-fab" aria-expanded={settingsOpen} aria-controls="availability-design-settings" onClick={() => setSettingsOpen(!settingsOpen)}>
         <SlidersHorizontal size={18} /> הגדרות עיצוב
       </button>
@@ -68,17 +51,13 @@ export default function AvailabilityDesignPage() {
           <div><h2 id="availability-design-heading">עיצוב לוח הזמינות</h2><p>שינויים לתצוגה בלבד · נתוני המערכת</p></div>
           <button type="button" aria-label="סגירת הגדרות העיצוב" onClick={closeSettings}><X size={18} /></button>
         </div>
-        <div className="availability-design-options" role="group" aria-label="צורת תאי הימים">
-          <span>שלב 1 · תאי הימים בלוח</span>
-          {DAY_APPEARANCES.map((option) => <button key={option.value} type="button" aria-pressed={dayAppearance === option.value} onClick={() => chooseDays(option.value)}>{option.label}</button>)}
+        <div className="availability-design-options" role="group" aria-label="מבנה הלוח">
+          <span>מבנה הלוח</span>
+          {LAYOUTS.map((option) => <button key={option.value} type="button" aria-pressed={layout === option.value} onClick={() => chooseLayout(option.value)}>{option.label}</button>)}
         </div>
-        <div className="availability-design-options" role="group" aria-label="מסגרת הלוח">
-          <span>שלב 2 · מסגרת הלוח</span>
-          {FRAME_APPEARANCES.map((option) => <button key={option.value} type="button" aria-pressed={frame === option.value} onClick={() => chooseFrame(option.value)}>{option.label}</button>)}
-        </div>
-        <p className="availability-design-settings-note">הבחירות נשמרות בעמוד העיצוב. סגור את הפאנל להשוואה על הלוח המלא.</p>
+        <p className="availability-design-settings-note">הבחירה נשמרת בעמוד העיצוב. סגור את הפאנל להשוואה על הלוח המלא.</p>
       </section>}
-      <AvailabilityPage />
+      <AvailabilityPage layout={layout} />
     </div>
   );
 }

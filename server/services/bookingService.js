@@ -496,11 +496,11 @@ export async function listReservations({ propertyId, q }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(pages, Math.max(1, Number(q.page) || 1));
   const rows = await Reservation.find(filter).sort({ [sortKey]: dir, _id: 1 }).skip((page - 1) * pageSize).limit(pageSize)
-    .select('confirmationNumber status arrivalDate departureDate nights roomsCount adults children source totalAmount currency primaryGuest roomType assignedRoom company isVip createdAt quote.validUntil quote.sentAt externalId')
-    .populate('primaryGuest', 'firstName lastName vipLevel').populate('roomType', 'name code').populate('assignedRoom', 'number').populate('company', 'name').lean();
+    .select('confirmationNumber status arrivalDate departureDate nights roomsCount adults children source totalAmount currency primaryGuest roomType assignedRoom company isVip createdAt quote.validUntil quote.sentAt externalId eta board paymentStatus depositAmount depositPaid guaranteeType specialRequests guestNotes internalNotes checkedInAt isOverbooking groupName group travelAgent')
+    .populate('primaryGuest', 'firstName lastName vipLevel phone email').populate('roomType', 'name code').populate('assignedRoom', 'number cleanStatus').populate('company', 'name').populate('travelAgent', 'name').lean();
   const ids = rows.map((r) => r._id);
   const [units, folios] = await Promise.all([
-    ReservationRoom.find({ reservation: { $in: ids } }).select('reservation assignedRoom status').populate('assignedRoom', 'number').lean(),
+    ReservationRoom.find({ reservation: { $in: ids } }).select('reservation assignedRoom status').populate('assignedRoom', 'number cleanStatus').lean(),
     Folio.find({ reservation: { $in: ids } }).select('reservation lines.amount lines.taxAmount lines.status').lean(),
   ]);
   const unitsBy = new Map();
@@ -510,11 +510,24 @@ export async function listReservations({ propertyId, q }) {
   // aggregate() does not cast ids like find() does.
   const aggMatch = { ...filter, property: new mongoose.Types.ObjectId(propertyId), ...(filter.company ? { company: new mongoose.Types.ObjectId(String(filter.company)) } : {}) };
   const unitTotal = await Reservation.aggregate([{ $match: aggMatch }, { $group: { _id: null, units: { $sum: { $ifNull: ['$roomsCount', 1] } } } }]);
+  // Per-status-group counts under the same filters except status, for the tiles.
+  const { status: _s, ...baseFilter } = aggMatch;
+  const byStatus = await Reservation.aggregate([{ $match: baseFilter }, { $group: { _id: '$status', n: { $sum: 1 } } }]);
+  const countOf = (list) => byStatus.filter((b) => list.includes(b._id)).reduce((s, b) => s + b.n, 0);
+  const counts = { all: byStatus.reduce((s, b) => s + b.n, 0), ...Object.fromEntries(Object.entries(STATUS_GROUPS).map(([k, list]) => [k, countOf(list)])) };
   return {
-    total, units: unitTotal[0]?.units || 0, page, pages, pageSize,
+    total, units: unitTotal[0]?.units || 0, page, pages, pageSize, counts,
     rows: rows.map((r) => {
       const us = unitsBy.get(String(r._id)) || [];
+      const unassigned = Math.max(0, (r.roomsCount || 1) - (us.length ? us.filter((u) => u.assignedRoom).length : (r.assignedRoom ? 1 : 0)));
       return {
+        phone: r.primaryGuest?.phone || null, email: r.primaryGuest?.email || null, adults: r.adults || 0, children: r.children || 0, eta: r.eta || null, board: r.board || null,
+        paymentStatus: r.paymentStatus, depositAmount: r.depositAmount || 0, depositPaid: r.depositPaid || 0, guarantee: r.guaranteeType || 'none',
+        notes: { requests: !!(r.specialRequests || r.guestNotes), internal: !!r.internalNotes },
+        noteText: { requests: [r.specialRequests, r.guestNotes].filter(Boolean).join('\n').slice(0, 400), internal: (r.internalNotes || '').slice(0, 400) },
+        checkedInAt: r.checkedInAt || null,
+        overbooking: !!r.isOverbooking, group: r.groupName || r.group || null, travelAgent: r.travelAgent?.name || null, unassigned,
+        dirtyRooms: (us.length ? us : [{ assignedRoom: r.assignedRoom }]).filter((u) => u.assignedRoom && u.assignedRoom.cleanStatus && u.assignedRoom.cleanStatus !== 'clean' && u.assignedRoom.cleanStatus !== 'inspected').length,
         id: String(r._id), confirmationNumber: r.confirmationNumber, externalId: r.externalId || null, status: r.status,
         guest: r.primaryGuest ? `${r.primaryGuest.firstName || ''} ${r.primaryGuest.lastName || ''}`.trim() : '—', vip: !!(r.isVip || r.primaryGuest?.vipLevel > 0),
         arrivalDate: r.arrivalDate, departureDate: r.departureDate, nights: r.nights, rooms: r.roomsCount || 1,

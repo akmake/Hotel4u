@@ -146,7 +146,7 @@ function MergeModal({ guest, propertyId, onClose, onMerged }) {
   );
 }
 
-function GuestDrawer({ guestId, propertyId, onClose, onUpdated }) {
+export function GuestDrawer({ guestId, propertyId, onClose, onUpdated }) {
   const [section,    setSection]   = useState('overview');
   const [editMode,   setEditMode]  = useState(false);
   const [form,       setForm]      = useState(null);
@@ -462,7 +462,7 @@ function GuestDrawer({ guestId, propertyId, onClose, onUpdated }) {
                 return (
                   <button key={k} disabled={!E} onClick={()=>E&&set('vipLevel',Number(k))}
                     className="px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all"
-                    style={active?{background:`${color}18`,color,borderColor:color}:{background:'white',color:'#6b7280',borderColor:'#e5e7eb'}}>
+                    style={active?{background:`${color}18`,color,borderColor:color}:{background:'white',color:'#6b7280',borderColor:'#e2e8f0'}}>
                     {Number(k)>0 && <Crown size={10} className="inline ml-1"/>}{v}
                   </button>
                 );
@@ -785,7 +785,7 @@ function GuestDrawer({ guestId, propertyId, onClose, onUpdated }) {
   );
 }
 
-function NewGuestModal({ propertyId, onClose, onCreated }) {
+export function NewGuestModal({ propertyId, onClose, onCreated }) {
   const [form, setForm] = useState({ firstName:'', lastName:'', title:'', email:'', phone:'', country:'ישראל', language:'he', vipLevel:0, gender:'unknown' });
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');

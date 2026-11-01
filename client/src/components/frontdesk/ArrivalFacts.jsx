@@ -38,6 +38,9 @@ export function ArrivalPreparationInfo({ row, onCribs }) {
   return <div style={{ minWidth: 150, maxWidth: 260, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
     <div className="ui-sub">{row.cribs?.requested === null || row.cribs?.requested === undefined ? 'לולים: לא מתועד' : `לולים: התבקשו ${row.cribs.requested} · נמסרו וטרם הוחזרו ${row.cribs.delivered}`}</div>
     {row.cribs?.status === 'collection_required' && <Tag tone="warn">נדרש איסוף / בירור</Tag>}
+    {row.prep?.length > 0 && <div className="flex flex-wrap gap-1" style={{ margin: '4px 0' }} title="זוהה מהבקשות — נפתחת משימת הכנה למשק הבית כשיש חדר">
+      {row.prep.map((p) => <Tag key={p.code} tone={p.urgent ? 'warn' : undefined}>{p.label}</Tag>)}
+    </div>}
     {onCribs && <button type="button" className="ui-link" onClick={onCribs} disabled={!row.unitId} title={!row.unitId ? 'תחילה השלימו שיבוץ יחידה' : undefined}>ניהול לולים</button>}
     {notes.length ? <details><summary className="ui-link">הערות מיוחדות ({notes.length})</summary>
       {notes.map(([label, text]) => <div key={label} style={{ marginTop: 6 }}><strong>{label}: </strong><span style={{ whiteSpace: 'pre-wrap' }}>{text}</span></div>)}

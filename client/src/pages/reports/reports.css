@@ -1,0 +1,57 @@
+/* Reports home and report view (Cloudbeds Reporting layout) on the app kit. */
+.rp-tabs { display: flex; width: fit-content; gap: 4px; padding: 4px; margin-bottom: 14px; border-radius: 999px; background: rgb(var(--bg-hover, 241 245 249)); }
+.rp-tab { padding: 6px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 500; color: rgb(var(--fg-secondary, 71 85 105)); text-decoration: none; }
+.rp-tab:hover { color: rgb(var(--fg, 15 23 42)); }
+.rp-tab.is-on { background: #fff; color: rgb(var(--fg, 15 23 42)); box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+
+.rp-search { display: inline-flex; align-items: center; gap: 8px; width: 320px; max-width: 100%; height: 36px; padding: 0 12px; margin-bottom: 18px; border: 1px solid rgb(var(--border, 226 232 240)); border-radius: 999px; background: #fff; }
+.rp-search input { border: 0; outline: none; background: transparent; width: 100%; font-size: 14px; }
+.rp-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 40px; }
+.rp-group-title { font-size: 15px; font-weight: 700; margin: 0 0 10px; color: rgb(var(--fg, 15 23 42)); }
+.rp-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.rp-group a { display: block; padding: 4px 0; font-size: 14px; color: rgb(var(--accent, 15 118 110)); text-decoration: none; }
+.rp-group a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.rp-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.rp-desc { margin: -4px 0 12px; font-size: 14px; color: rgb(var(--fg-secondary, 71 85 105)); }
+.rp-period { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; }
+.rp-chip { height: 32px; padding: 0 12px; border: 1px solid rgb(var(--border, 226 232 240)); border-radius: 999px; background: #fff; font-size: 13px; cursor: pointer; }
+.rp-chip:hover { border-color: rgb(var(--fg-muted, 100 116 139)); }
+.rp-chip.is-on { background: rgb(var(--fg, 15 23 42)); border-color: rgb(var(--fg, 15 23 42)); color: #fff; }
+.rp-custom { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 8px; }
+.rp-custom .input { height: 32px; padding: 0 8px; font-size: 13px; }
+
+/* One white panel: summary strip, then the table with row rules (no floating row cards). */
+.rp-panel { background: #fff; border: 1px solid rgb(var(--border, 226 232 240)); border-radius: 12px; overflow: hidden; }
+.rp-table-wrap { overflow-x: auto; }
+.rp-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.rp-table th { position: sticky; top: 0; z-index: 1; background: #fff; text-align: start; font-size: 12.5px; font-weight: 500; color: rgb(var(--fg-secondary, 71 85 105)); padding: 10px 14px; border-bottom: 1px solid rgb(var(--border, 226 232 240)); white-space: nowrap; }
+.rp-table td { padding: 10px 14px; border-bottom: 1px solid rgb(var(--border-subtle, 241 245 249)); color: rgb(var(--fg, 15 23 42)); vertical-align: top; }
+.rp-table tbody tr:hover td { background: rgb(var(--bg-hover, 248 250 252)); }
+.rp-sort { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.rp-sort:hover { color: rgb(var(--fg, 15 23 42)); }
+.rp-table td.is-num { white-space: nowrap; }
+.rp-summary { display: flex; flex-wrap: wrap; border-bottom: 1px solid rgb(var(--border, 226 232 240)); }
+.rp-kpi { flex: 1 1 140px; padding: 14px 18px; display: grid; gap: 2px; }
+.rp-kpi + .rp-kpi { border-inline-start: 1px solid rgb(var(--border, 226 232 240)); }
+.rp-kpi span { font-size: 12.5px; color: rgb(var(--fg-secondary, 71 85 105)); }
+.rp-kpi b { font-size: 20px; font-weight: 600; color: rgb(var(--fg, 15 23 42)); }
+
+.rp-table th.is-num, .rp-table td.is-num { text-align: end; }
+.rp-table td.is-first { font-weight: 500; }
+.rp-table tfoot td { font-weight: 700; border-top: 2px solid rgb(var(--border-strong, 203 213 225)); background: rgb(var(--bg-hover, 248 250 252)); }
+.rp-note { margin: 0; padding: 12px 18px; font-size: 12.5px; color: rgb(var(--fg-secondary, 71 85 105)); border-top: 1px solid rgb(var(--border, 226 232 240)); }
+
+@media (max-width: 1000px) { .rp-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .rp-columns { grid-template-columns: 1fr; }
+  .rp-kpi { flex-basis: 45%; }
+  .rp-kpi:nth-child(odd) { border-inline-start: 0; }
+  .rp-custom { margin-inline-start: 0; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .rp-custom .input { width: 100%; min-width: 0; }
+  .rp-custom .btn { grid-column: 1 / -1; }
+}
+@media print {
+  .rp-actions, .rp-period, .rp-tabs, .ui-pagebar-back { display: none !important; }
+  .rp-table-wrap { overflow: visible !important; }
+}

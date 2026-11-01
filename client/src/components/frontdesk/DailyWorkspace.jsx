@@ -122,11 +122,32 @@ function RoomsCard({ arrivals, tickets, onPick }) {
   );
 }
 
-function Tile({ on, onClick, Icon, label, value, badge, tone, appearance, details = [] }) {
+// The day's progress for a queue: parts that add up to the day's total, drawn as one track at their
+// true share (done first), with a legend whose swatches are the track's own marks.
+function DayMeter({ parts, caption }) {
+  const total = parts.reduce((s, p) => s + p.value, 0);
+  return (
+    <span className="reception-meter">
+      <span className="reception-meter-track" role="img" aria-label={`${caption}: ${parts.map((p) => `${p.value} ${p.label}`).join(', ')}`}>
+        {total > 0 && parts.filter((p) => p.value > 0).map((p) => <i key={p.label} className={`is-${p.tone}`} style={{ flexGrow: p.value }} />)}
+      </span>
+      <span className="reception-meter-legend">
+        {parts.map((p) => <span key={p.label} className={p.value ? '' : 'is-zero'}><i className={`is-${p.tone}`} aria-hidden="true" /><b>{p.value}</b>{p.label}</span>)}
+      </span>
+    </span>
+  );
+}
+
+function Tile({ on, onClick, Icon, label, value, badge, tone, appearance, details = [], meter, sub }) {
   if (appearance) return (
-    <button type="button" className={`reception-summary is-${appearance} ${on ? 'is-on' : ''}`} onClick={onClick} aria-pressed={on}>
-      <span className="reception-summary-face"><span className="reception-summary-heading"><span>{label}</span><Icon size={17} aria-hidden="true" /></span><strong>{value}</strong></span>
-      {details.length > 0 && <span className="reception-summary-details">{details.map((detail) => <span key={detail.label} className={detail.tone || ''}><b>{detail.value}</b><span>{detail.label}</span></span>)}</span>}
+    <button type="button" className={`reception-summary is-${appearance} ${on ? 'is-on' : ''} ${meter ? 'has-meter' : ''}`} onClick={onClick} aria-pressed={on}>
+      <span className="reception-summary-face">
+        <span className="reception-summary-heading"><span>{label}</span><Icon size={17} aria-hidden="true" /></span>
+        <strong>{value}</strong>
+        {sub && <small className="reception-summary-sub">{sub}</small>}
+      </span>
+      {meter ? <DayMeter parts={meter} caption={label} />
+        : details.length > 0 && <span className="reception-summary-details">{details.map((detail) => <span key={detail.label} className={detail.tone || ''}><b>{detail.value}</b><span>{detail.label}</span></span>)}</span>}
     </button>
   );
   return (
@@ -693,8 +714,14 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
       <div className="dk-body">
         <section className="dk-activity">
           <div className="dk-tiles" role="tablist" aria-label="פעילות היום">
-            <Tile on={tab === 'arrivals'} onClick={() => pick('arrivals')} Icon={LogIn} label="הגעות" value={arrivals.data ? aOpen.length : '—'} badge={aIssues.length} tone="warn" appearance={summaryAppearance} details={arrivals.data ? [{ value: aOpen.length - aIssues.length, label: 'מוכנים לקבלה', tone: 'is-ready' }, { value: aIssues.length, label: 'דורשים טיפול' }] : []} />
-            <Tile on={tab === 'departures'} onClick={() => pick('departures')} Icon={LogOut} label="עזיבות" value={departures.data ? dOpen.length : '—'} badge={dIssues.length} tone="warn" appearance={summaryAppearance} details={departures.data ? [{ value: dOpen.length - dIssues.length, label: 'תקינים', tone: 'is-ready' }, { value: dIssues.length, label: 'דורשים טיפול' }] : []} />
+            <Tile on={tab === 'arrivals'} onClick={() => pick('arrivals')} Icon={LogIn} label="הגעות" value={arrivals.data ? aOpen.length : '—'} badge={aIssues.length} tone="warn" appearance={summaryAppearance}
+              sub={arrivals.data && aAll.length ? `נשארו לקבלה מתוך ${aAll.length}` : null}
+              meter={arrivals.data && aAll.length ? [{ value: aDone.length, label: 'נכנסו', tone: 'done' }, { value: aReady.length, label: 'מוכנים', tone: 'ready' }, { value: aIssues.length, label: 'דורשים טיפול', tone: 'warn' }] : null}
+              details={arrivals.data ? [{ value: aOpen.length - aIssues.length, label: 'מוכנים לקבלה', tone: 'is-ready' }, { value: aIssues.length, label: 'דורשים טיפול' }] : []} />
+            <Tile on={tab === 'departures'} onClick={() => pick('departures')} Icon={LogOut} label="עזיבות" value={departures.data ? dOpen.length : '—'} badge={dIssues.length} tone="warn" appearance={summaryAppearance}
+              sub={departures.data && dAll.length ? `נשארו ליציאה מתוך ${dAll.length}` : null}
+              meter={departures.data && dAll.length ? [{ value: dDone.length, label: 'יצאו', tone: 'done' }, { value: dFine.length, label: 'תקינים', tone: 'ready' }, { value: dIssues.length, label: 'דורשים טיפול', tone: 'warn' }] : null}
+              details={departures.data ? [{ value: dOpen.length - dIssues.length, label: 'תקינים', tone: 'is-ready' }, { value: dIssues.length, label: 'דורשים טיפול' }] : []} />
             <Tile on={tab === 'inhouse'} onClick={() => pick('inhouse')} Icon={Users} label="שוהים" value={inhouse.data ? (inhouse.data.rows || []).length : (stats.data?.inHouse ?? '—')} appearance={summaryAppearance} details={stats.data ? [{ value: `${stats.data.occupancy}%`, label: 'תפוסה' }, { value: stats.data.totalRooms, label: 'חדרים במלון' }] : []} />
             <Tile on={tab === 'alerts'} onClick={() => pick('alerts')} Icon={Bell} label="התראות" value={alerts.data ? extra : '—'} appearance={summaryAppearance} details={alerts.data && work.data ? [{ value: alerts.data.length, label: 'התראות' }, { value: notes.length, label: 'העברת משמרת' }] : []} />
           </div>

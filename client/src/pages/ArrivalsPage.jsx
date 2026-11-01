@@ -13,10 +13,12 @@ import { frontdesk, properties as propApi } from '../utils/api';
 import { addDays, formatLong, formatShort } from '../utils/date';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/ui/Toast';
-import { PageBar, Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, guestInitials } from '../components/kit';
+import { PageBar, Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, Tag, guestInitials } from '../components/kit';
 import CheckInWizard from '../components/frontdesk/CheckInWizard';
 import AssignRoomDialog from '../components/frontdesk/AssignRoomDialog';
 import QueueDialog from '../components/frontdesk/QueueDialog';
+import RoomPlanDialog from '../components/frontdesk/RoomPlanDialog';
+import OnlineCheckInDialog from '../components/frontdesk/OnlineCheckInDialog';
 import WalkInDialog from '../components/frontdesk/WalkInDialog';
 import { ArrivalPartyInfo, ArrivalPaymentInfo, ArrivalPreparationInfo } from '../components/frontdesk/ArrivalFacts';
 import CribDialog from '../components/frontdesk/CribDialog';
@@ -59,6 +61,8 @@ export default function ArrivalsPage() {
   const [etaRow, setEtaRow] = useState(null);
   const [noShowRow, setNoShowRow] = useState(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [onlineRow, setOnlineRow] = useState(null);
   const [cribDialog, setCribDialog] = useState(null);
   // When a dialog is opened from inside the wizard, refresh the wizard afterwards.
   const [wizardReload, setWizardReload] = useState(null);
@@ -157,6 +161,7 @@ export default function ArrivalsPage() {
           {viewDate && <span className="ui-date-label">{formatLong(viewDate)}{!isToday && businessDate && <span className="ui-tag is-warn">לא היום העסקי</span>}</span>}
         </div>
         <div className="flex items-center gap-2">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPlanOpen(true)} disabled={!propertyId || !viewDate}>שיבוץ אוטומטי</button>
           <Link to="/pms/arrival-queue" className="btn btn-secondary btn-sm">תור המתנה{counts.queued ? ` · ${counts.queued}` : ''}</Link>
           {canWorkCribs && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCribDialog({})} disabled={!propertyId}>לולים ואיסוף ציוד</button>}
         </div>
@@ -256,6 +261,7 @@ export default function ArrivalsPage() {
                   onQueue={() => setQueueRow(row)}
                   onEta={() => setEtaRow(row)}
                   onNoShow={() => setNoShowRow(row)}
+                  onOnline={() => setOnlineRow(row)}
                 />
               ))}
             </tbody>
@@ -305,6 +311,18 @@ export default function ArrivalsPage() {
         onClose={() => { setAssignRow(null); setWizardReload(null); }}
         onAssigned={(out) => { setAssignRow(null); success(`שובץ חדר ${out.room.number}`); load(); wizardReload?.(); setWizardReload(null); }}
       />
+      {onlineRow && <OnlineCheckInDialog row={onlineRow} propertyId={propertyId} onClose={() => setOnlineRow(null)} onChanged={load} />}
+      <RoomPlanDialog
+        open={planOpen}
+        propertyId={propertyId}
+        date={viewDate}
+        onClose={() => setPlanOpen(false)}
+        onApplied={(out) => {
+          load();
+          if (!out.failed.length) { setPlanOpen(false); success(`שובצו ${out.applied.length} חדרים`); }
+          else toastError(`${out.applied.length} שובצו, ${out.failed.length} לא — ראו בטבלה`);
+        }}
+      />
       <QueueDialog
         open={!!queueRow}
         propertyId={propertyId}
@@ -329,7 +347,7 @@ export default function ArrivalsPage() {
   );
 }
 
-function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, onEta, onNoShow, onCribs }) {
+function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, onEta, onNoShow, onCribs, onOnline }) {
   const st = row.readiness.state;
   const done = st === 'checked_in';
   const future = row.arrivalDate > businessDate;
@@ -352,6 +370,13 @@ function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, o
               {row.company && <span> · {row.company.name}</span>}
             </div>
             {row.guest.isBookerName && <div className="ui-sub">שם המזמין; שם אורח היחידה לא הוזן</div>}
+            {row.online && (
+              <button type="button" className="ui-link" onClick={onOnline} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                {row.online.status === 'submitted' ? <Tag tone="good">צ׳ק-אין מקוון ✓</Tag> : <Tag>{row.online.status === 'opened' ? 'קישור נפתח' : 'קישור נשלח'}</Tag>}
+                {row.online.pendingUpsells > 0 && <Tag tone="warn">{row.online.pendingUpsells} תוספות לאישור</Tag>}
+                {row.online.approvedUpsells?.map((l) => <Tag key={l}>{l}</Tag>)}
+              </button>
+            )}
           </div>
         </div>
       </td>
@@ -404,6 +429,7 @@ function ArrivalRow({ row, businessDate, onCheckIn, onOpen, onAssign, onQueue, o
               {!done && <Menu.Item className="ui-menu-item" onSelect={onAssign}>{row.room ? 'החלפת חדר' : 'שיבוץ חדר'}</Menu.Item>}
               {!done && !row.queue && !future && <Menu.Item className="ui-menu-item" onSelect={onQueue}>הוספה לתור המתנה</Menu.Item>}
               {!done && <Menu.Item className="ui-menu-item" onSelect={onEta}>עדכון שעת הגעה צפויה</Menu.Item>}
+              {!done && <Menu.Item className="ui-menu-item" onSelect={onOnline}>צ׳ק-אין מקוון ותוספות</Menu.Item>}
               {!done && (
                 <>
                   <Menu.Separator className="ui-menu-sep" />

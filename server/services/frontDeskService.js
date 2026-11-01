@@ -26,6 +26,8 @@ import { arrivalParty, arrivalPayment } from './arrivalPresentation.js';
 import CribRequest from '../models/CribRequest.js';
 import { cribFacts } from './cribPresentation.js';
 import { runStayTransaction } from './stayTransaction.js';
+import { detectPrep } from './prepTaskService.js';
+import OnlineCheckIn from '../models/OnlineCheckIn.js';
 
 export const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 
@@ -233,7 +235,7 @@ function computeReadiness({ res, unit, room, guest, policy, businessDate, occupi
 
 // Who physically occupies each room right now: room id → [{ resId, label }]. Unit records are the
 // truth for stays that have them; the reservation-level pointer only counts for stays without units.
-async function occupancyMap(propertyId, roomIds, session = null) {
+export async function occupancyMap(propertyId, roomIds, session = null) {
   const map = new Map();
   if (!roomIds.length) return map;
   const stays = await Reservation.find({
@@ -288,7 +290,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   const filter = { property: propertyId, $or: [{ arrivalDate: day }, { _id: { $in: arrivingUnitReservations } }], status: { $in: [...new Set(statuses)] } };
 
   let reservations = await Reservation.find(filter)
-    .populate({ path: 'primaryGuest', match: { property: propertyId }, select: 'firstName lastName vipLevel isBlacklisted' })
+    .populate({ path: 'primaryGuest', match: { property: propertyId }, select: 'firstName lastName vipLevel isBlacklisted specialRequests preferences allergies' })
     .populate({ path: 'roomType', match: { property: propertyId }, select: 'name code' })
     .populate({ path: 'company', match: { property: propertyId }, select: 'name' })
     .lean();
@@ -296,6 +298,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
   const term = String(q || '').trim().toLowerCase();
 
   const resIds = reservations.map((r) => r._id);
+  const onlineByRes = new Map((await OnlineCheckIn.find({ property: propertyId, reservation: { $in: resIds } }).select('reservation status submittedAt upsells').lean()).map((o) => [String(o.reservation), o]));
   const [units, folios, queue, cribRequests] = await Promise.all([
     ReservationRoom.find({ property: propertyId, reservation: { $in: resIds } }).populate({ path: 'roomTypeBooked', match: { property: propertyId }, select: 'name code' }).sort({ createdAt: 1, _id: 1 }).lean(),
     Folio.find({ property: propertyId, reservation: { $in: resIds } }).select('reservation ownerType ownerRef lines status currency').lean(),
@@ -367,9 +370,16 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
       sharedPayment: payment.scope === 'unit' ? arrivalPayment(r, u, list, bookingFolios, { shared: true }) : null,
       cribs: cribFacts(cribsByUnit.get(String(u._id)), u, r),
       eta: r.eta || null,
+      // Online check-in: link state and extras waiting for the desk's decision.
+      online: onlineByRes.has(String(r._id)) ? (({ status, submittedAt, upsells }) => ({
+        status, submittedAt: submittedAt || null,
+        pendingUpsells: (upsells || []).filter((x) => x.status === 'requested').length,
+        approvedUpsells: (upsells || []).filter((x) => ['approved', 'posted'].includes(x.status)).map((x) => x.label),
+      }))(onlineByRes.get(String(r._id))) : null,
       source: r.source,
       specialRequests: r.specialRequests || null,
       unitNotes: u.notes || null,
+      prep: detectPrep(r.specialRequests, r.guestNotes, u.notes, g.specialRequests, g.preferences, g.allergies ? `אלרגיה ${g.allergies}` : null).map(({ code, label, urgent }) => ({ code, label, urgent })),
       guarantee,
       billing: unitBilling(u),
       readiness: readinessResult,
@@ -496,10 +506,11 @@ export async function getCheckInContext({ propertyId, reservationId }) {
     });
   }
   const folio = await Folio.findOne({ reservation: res._id, ownerType: { $ne: 'room' } }).select('lines status').lean();
-  const card = await GuestRegistrationCard.findOne({ reservation: res._id, guest: res.primaryGuest?._id })
+  const card = await GuestRegistrationCard.findOne({ reservation: res._id, guest: res.primaryGuest?._id, idVerified: true })
     .sort({ createdAt: -1 })
     .select('status signedAt idVerified termsVersion idDocType nationality createdAt')
     .lean();
+  const online = await OnlineCheckIn.findOne({ reservation: res._id }).lean();
   const g = res.primaryGuest || {};
   const known = await knownDocFor(g._id, businessDateOf(property));
   const digits = known ? String(known.number).replace(/\s+/g, '') : '';
@@ -542,6 +553,7 @@ export async function getCheckInContext({ propertyId, reservationId }) {
       id: String(card._id), status: card.status, signedAt: card.signedAt, idVerified: !!card.idVerified,
       termsVersion: card.termsVersion || null, idDocType: card.idDocType, nationality: card.nationality,
     } : null,
+    online: online?.status === 'submitted' ? { submittedAt: online.submittedAt, eta: online.eta || null, requests: online.requests || null } : null,
     units: out,
   };
 }
@@ -585,6 +597,12 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
     if (!bytes || bytes.length < 8 || bytes.readUInt32BE(0) !== 0x89504e47) errors.signature = 'קובץ החתימה אינו תקין';
     else if (input.signature.length > 400_000) errors.signature = 'קובץ החתימה גדול מדי';
     else signature = input.signature;
+  }
+  // The guest may already have signed in the online check-in; that signature carries to the desk card.
+  if (!signature && !errors.signature) {
+    const online = await GuestRegistrationCard.findOne({ reservation: res._id, guest: res.primaryGuest._id, idVerified: false, signatureUrl: { $exists: true, $ne: '' } })
+      .sort({ createdAt: -1 }).select('signatureUrl').lean();
+    if (online?.signatureUrl) signature = online.signatureUrl;
   }
   if (policy.requireSignature && !signature && !errors.signature) errors.signature = 'נדרשת חתימת האורח';
   if (Object.keys(errors).length) throw httpError('יש לתקן את שדות הרישום', 422, { fields: errors });
@@ -759,7 +777,8 @@ async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guar
   }
   // The guest register is a legal record: no override skips it.
   if (policy.requireRegistration) {
-    const card = await GuestRegistrationCard.exists({ reservation: res._id, guest: res.primaryGuest._id }).session(session);
+    // Only a card the desk verified counts — one the guest filled in online still needs the document seen.
+    const card = await GuestRegistrationCard.exists({ reservation: res._id, guest: res.primaryGuest._id, idVerified: true }).session(session);
     if (!card) failures.push({ unitId: null, reasons: [reason('registration', 'לא נשמר רישום אורח', 'blocked', 'registration')] });
   }
   if (failures.length) {
@@ -996,6 +1015,8 @@ async function assignRoomLocked({ propertyId, reservationId, unitId, roomId, rea
     entityType: 'Reservation', entityId: res._id, before, after: { room: String(room._id), number: room.number, unitId: String(unit._id) },
     reason: why || undefined, ip,
   });
+  // Requests in the booking become a housekeeping prep task for the room (best effort, never blocks the assignment).
+  import('./prepTaskService.js').then((m) => m.syncPrepTasks({ propertyId, date: unit.arrivalDate, reservationId: res._id })).catch(() => null);
   return { reservationId: String(res._id), unitId: String(unit._id), room: { id: String(room._id), number: room.number } };
 }
 

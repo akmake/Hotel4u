@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeftRight, BarChart3, ChevronDown, LayoutDashboard, LogOut, Menu, Search, ShoppingCart, Wrench, X } from 'lucide-react';
+import { BarChart3, ChevronDown, LayoutDashboard, LogOut, Menu, Search, ShoppingCart, SquarePen, Wrench, X } from 'lucide-react';
 import { NAV_STYLES, useNavStyle } from '../../stores/navStyleStore';
 import './NavVariants.css';
 
 // Alternative looks for the same navigation (same items, same permissions, same routes).
-const GROUP_ICONS = { 'ראשי': LayoutDashboard, 'קבלה': LayoutDashboard, 'מכירות': ShoppingCart, 'תפעול': Wrench, 'ניהול': BarChart3 };
+const GROUP_ICONS = { 'ראשי': LayoutDashboard, 'קבלה': LayoutDashboard, 'מכירות': ShoppingCart, 'תפעול': Wrench, 'ניהול': BarChart3, 'עיצוב': SquarePen };
 const groupIcon = (name) => GROUP_ICONS[name] || LayoutDashboard;
 
 function useDismiss(ref, onDismiss, active) {
@@ -26,7 +26,6 @@ function AccountMenu({ account, placement, inline, onDone }) {
   const actions = (
     <>
       {account.onProfile && <button type="button" role="menuitem" className="nv-act" onClick={run(account.onProfile)}>הפרופיל שלי</button>}
-      <button type="button" role="menuitem" className="nv-act" onClick={run(account.onSwitch)}><ArrowLeftRight size={15} />{account.switchLabel}</button>
       <button type="button" role="menuitem" className="nv-act" onClick={run(account.onLogout)}><LogOut size={15} />יציאה מהמערכת</button>
     </>
   );

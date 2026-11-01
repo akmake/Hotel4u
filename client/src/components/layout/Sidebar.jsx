@@ -7,7 +7,7 @@ import {
   BadgeDollarSign, Search, TrendingUp, Building2, Star, PackagePlus,
   LogOut, Calendar, Sparkles, Tag, BookOpen, Funnel, CreditCard,
   LogIn, Hourglass, BedSingle, Moon, ReceiptText, ListChecks, Printer, Zap, Radio,
-  ChevronDown, SquarePen, ArrowLeftRight,
+  ChevronDown, SquarePen,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { roleLabel } from '../../lib/labels';
@@ -76,10 +76,7 @@ const PMS_NAV = [
     group: 'קבלה',
     items: [
       { path: '/pms',              icon: LayoutDashboard, label: 'היום בקבלה' },
-      { path: '/pms/design',       icon: SquarePen,       label: 'עמוד העיצוב' },
-      { path: '/pms/design/availability', icon: SquarePen, label: 'עיצוב זמינות' },
-      { path: '/pms/design/room-calendar', icon: SquarePen, label: 'עיצוב לוח חדרים' },
-      { path: '/pms/work',         icon: ListChecks,      label: 'מרכז משימות' },
+      { path: '/pms/work',        icon: ListChecks,      label: 'מרכז משימות' },
       { path: '/pms/availability', icon: CalendarDays,    label: 'זמינות' },
       { path: '/pms/tape-chart-classic', icon: CalendarDays, label: 'לוח חדרים הקודם' },
       { path: '/pms/reservations', icon: ClipboardList,   label: 'הזמנות' },
@@ -125,6 +122,14 @@ const PMS_NAV = [
       { path: '/pms/admin/tax',        icon: FileText,   label: 'מס ומזומן — מחו״ל' },
       { path: '/pms/admin/fiscal',     icon: ReceiptText, label: 'מסמכים ורשות המסים' },
       { path: '/pms/settings',         icon: Settings,   label: 'הגדרות' },
+    ],
+  },
+  {
+    group: 'עיצוב',
+    items: [
+      { path: '/pms/design',       icon: SquarePen, label: 'עמוד העיצוב' },
+      { path: '/pms/design/availability', icon: SquarePen, label: 'עיצוב זמינות' },
+      { path: '/pms/design/room-calendar', icon: SquarePen, label: 'עיצוב לוח חדרים' },
     ],
   },
 ];
@@ -199,7 +204,6 @@ export default function Sidebar({ open, onClose }) {
     const account = {
       name: user?.name || workspace, role: roleLabel(user?.role), initial: wsInitial,
       onProfile: isPMS ? () => go('/pms/me') : null,
-      switchLabel: isPMS ? 'מעבר לאזור מכירות' : 'מעבר לאזור קבלה', onSwitch: () => go(isPMS ? '/' : '/pms'),
       onLogout: logout,
     };
     return (
@@ -226,7 +230,6 @@ export default function Sidebar({ open, onClose }) {
           {menuOpen && <div role="menu" className="menu">
             <div className="px-2 py-1.5">{user?.name}<div className="text-ink-muted text-xs">{roleLabel(user?.role)}</div></div>
             {isPMS && <button type="button" role="menuitem" className="menu-item" onClick={() => go('/pms/me')}>הפרופיל שלי</button>}
-            <button type="button" role="menuitem" className="menu-item" onClick={() => go(isPMS ? '/' : '/pms')}><ArrowLeftRight size={14}/>{isPMS ? 'מעבר לאזור מכירות' : 'מעבר לאזור קבלה'}</button>
             <button type="button" role="menuitem" className="menu-item" onClick={logout}><LogOut size={14}/>יציאה מהמערכת</button>
           </div>}
         </div>

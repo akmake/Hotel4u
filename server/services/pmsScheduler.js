@@ -13,6 +13,8 @@ import Reservation       from '../models/Reservation.js';
 import GuestProfile      from '../models/GuestProfile.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import { fireEvent }     from './automationEngine.js';
+import OnlineCheckIn     from '../models/OnlineCheckIn.js';
+import { issueLink }     from './onlineCheckInService.js';
 import { sendEmail, buildCheckInReminderEmail } from './emailService.js';
 import { processFiscalOutbox } from './fiscalOutboxService.js';
 
@@ -61,7 +63,7 @@ async function sendCheckInReminders() {
   const propertiesMap = {};
   try {
     const props = await Property.find({ _id: { $in: propIds } })
-      .select('name address checkInTime')
+      .select('name address checkInTime onlineCheckIn.enabled onlineCheckIn.autoSend')
       .lean();
     for (const p of props) propertiesMap[String(p._id)] = p;
   } catch (err) {
@@ -81,7 +83,17 @@ async function sendCheckInReminders() {
       if (!toEmail) { skipped++; continue; }
 
       const property = propertiesMap[String(reservation.property)];
+      // Online check-in link inside the reminder, unless the hotel turned it off or the guest already did it.
+      let checkInUrl = null;
+      if (property?.onlineCheckIn?.enabled !== false && property?.onlineCheckIn?.autoSend !== false) {
+        const done = await OnlineCheckIn.exists({ reservation: reservation._id, status: 'submitted' });
+        if (!done) {
+          checkInUrl = await issueLink({ propertyId: String(reservation.property), reservationId: String(reservation._id), via: 'reminder_link', actor: null })
+            .then((x) => x.url).catch(() => null);
+        }
+      }
       const { subject, html, text } = buildCheckInReminderEmail({
+        checkInUrl,
         guestName:       `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
         confirmationNumber: reservation.confirmationNumber,
         arrivalDate:     reservation.arrivalDate,
@@ -156,6 +168,13 @@ export function initPmsScheduler() {
     await checkMaintenanceSla().catch(err =>
       console.error('[pmsScheduler] checkMaintenanceSla crashed:', err.message)
     );
+    // Booking requests → housekeeping prep tasks for today's and tomorrow's assigned arrivals.
+    try {
+      const { syncPrepTasksAllProperties } = await import('./prepTaskService.js');
+      await syncPrepTasksAllProperties();
+    } catch (err) {
+      console.error('[pmsScheduler] prep tasks failed:', err.message);
+    }
   });
 
   // Daily — fires at 00:05 every day (after midnight audit window)
@@ -194,6 +213,16 @@ export function initPmsScheduler() {
       await autoDayCloseTick();
     } catch (err) {
       console.error('[pmsScheduler] autoDayClose failed:', err.message);
+    }
+  });
+
+  // Scheduled report e-mails (report subscriptions) — checked every 5 minutes, sent at hotel time.
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const { runDueSubscriptions } = await import('./reportSubscriptionService.js');
+      await runDueSubscriptions();
+    } catch (err) {
+      console.error('[pmsScheduler] report subscriptions failed:', err.message);
     }
   });
 

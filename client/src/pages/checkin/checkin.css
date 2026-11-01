@@ -1,0 +1,120 @@
+/* Guest online check-in (/checkin/:token) — copied from the Mews Guest Portal online check-in
+   (help.mews.com, "The online check-in journey in the Guest Portal"): grey ground, square white
+   back/close buttons, a short progress bar, the hotel's name over a bold title, the form on a white
+   sheet with large top corners, 54px fields, selectable tiles, a dark full-width button pinned to
+   the bottom. Heebo stands in for Inter in Hebrew. On desktop the same column is centred. */
+
+.ci {
+  --ci-ground: #f2f2f2; --ci-sheet: #ffffff; --ci-ink: #262626; --ci-muted: #6e6e73; --ci-field: #c9c9d3;
+  --ci-line: #e6e6ea; --ci-fill: #f2f2f2; --ci-bar: #e2e2e6; --ci-accent: #0f1c1d; --ci-bad: #c4242a;
+  font-family: 'Heebo', system-ui, sans-serif; color: var(--ci-ink); background: var(--ci-ground);
+  min-height: 100vh; width: 100%; flex: 1 0 100%; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+.ci *, .ci *::before, .ci *::after { box-sizing: border-box; }
+.ci button, .ci input, .ci select, .ci textarea { font-family: inherit; }
+.ci :focus-visible { outline: 2px solid var(--ci-ink); outline-offset: 2px; }
+
+.ci-col { width: min(560px, 100%); margin-inline: auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* Top: back · progress · close, then the hotel and the title. */
+.ci-top { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; gap: 12px; padding: 16px 16px 0; }
+.ci-sq { width: 48px; height: 48px; border: 0; border-radius: 10px; background: #fff; color: var(--ci-ink); display: grid; place-items: center; cursor: pointer; }
+.ci-sq:hover { background: #fafafa; }
+.ci-sq[hidden] { visibility: hidden; display: grid; }
+.ci-progress { justify-self: center; width: 108px; height: 4px; border-radius: 4px; background: var(--ci-bar); overflow: hidden; }
+.ci-progress span { display: block; height: 100%; border-radius: 4px; background: var(--ci-accent); transition: width .25s ease; }
+.ci-head { text-align: center; padding: 18px 20px 26px; }
+.ci-hotel { font-size: 15px; color: var(--ci-muted); }
+.ci-head h1 { margin: 4px 0 0; font-size: 26px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+.ci-head h1:focus { outline: none; }
+
+/* The sheet. */
+.ci-sheet { flex: 1; background: var(--ci-sheet); border-radius: 28px 28px 0 0; padding: 24px 16px 0; display: flex; flex-direction: column; }
+.ci-body { flex: 1; display: grid; align-content: start; gap: 22px; padding-bottom: 24px; }
+.ci-lead { margin: 0; font-size: 16px; color: var(--ci-muted); text-align: center; }
+
+/* Fields. */
+.ci-f { display: grid; gap: 8px; }
+.ci-label { font-size: 16px; font-weight: 500; }
+.ci-label .req { margin-inline-start: 2px; }
+.ci-label .opt { color: var(--ci-muted); font-weight: 400; font-size: 14px; }
+.ci-input { width: 100%; height: 54px; border: 1.5px solid var(--ci-field); border-radius: 10px; background: #fff; padding: 0 16px; font-size: 16px; color: var(--ci-ink); }
+.ci-input::placeholder { color: #8e8e93; }
+textarea.ci-input { height: auto; min-height: 96px; padding: 14px 16px; resize: vertical; line-height: 1.5; }
+select.ci-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23262626' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: left 16px center; padding-inline-end: 44px; }
+.ci-input:focus { outline: none; border-color: var(--ci-ink); }
+.ci-input.is-bad { border-color: var(--ci-bad); }
+.ci-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ci-hint { font-size: 14px; color: var(--ci-muted); }
+.ci-err { font-size: 14px; color: var(--ci-bad); }
+
+/* Tiles: icon over a label, the chosen one grey-filled with a dark edge. */
+.ci-tiles { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 12px; }
+.ci-tile { min-height: 96px; border: 1.5px solid var(--ci-field); border-radius: 14px; background: #fff; display: grid; place-items: center; align-content: center; gap: 8px; padding: 12px 6px; font-size: 16px; color: var(--ci-ink); cursor: pointer; }
+.ci-tile.is-small { min-height: 54px; gap: 0; }
+.ci-tile svg { width: 26px; height: 26px; stroke-width: 1.5; }
+.ci-tile[aria-checked="true"], .ci-tile[aria-pressed="true"] { background: var(--ci-fill); border: 2px solid var(--ci-ink); }
+
+/* Extras: bordered card, details beside an outlined Add button. */
+.ci-card { border: 1.5px solid var(--ci-line); border-radius: 16px; padding: 16px; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; }
+.ci-card-name { font-size: 18px; font-weight: 500; grid-column: 1 / -1; }
+.ci-card-desc { font-size: 15px; color: var(--ci-muted); grid-column: 1 / -1; }
+.ci-card-price { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.ci-card-unit { font-size: 15px; color: var(--ci-muted); }
+.ci-add { grid-row: span 2; align-self: end; min-width: 132px; height: 48px; border: 1.5px solid var(--ci-ink); border-radius: 10px; background: #fff; color: var(--ci-ink); font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.ci-add.is-on { background: var(--ci-ink); color: #fff; }
+.ci-add[disabled] { border-color: var(--ci-line); color: var(--ci-muted); background: var(--ci-fill); cursor: default; }
+
+/* Review rows and the signature box. */
+.ci-rows { border: 1.5px solid var(--ci-line); border-radius: 16px; overflow: hidden; }
+.ci-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 14px 16px; }
+.ci-row + .ci-row { border-top: 1px solid var(--ci-line); }
+.ci-row dt { font-size: 14px; color: var(--ci-muted); }
+.ci-row dd { margin: 0; font-size: 16px; grid-column: 1; overflow-wrap: anywhere; }
+.ci-row .ci-edit { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.ci-link { background: none; border: 0; padding: 0; color: var(--ci-ink); font-size: 15px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.ci-sign canvas { display: block; width: 100%; height: 160px; border: 1.5px solid var(--ci-field); border-radius: 10px; background: #fff; touch-action: none; cursor: crosshair; }
+.ci-sign.is-bad canvas { border-color: var(--ci-bad); }
+.ci-sign-row { display: flex; justify-content: space-between; margin-top: 6px; font-size: 14px; color: var(--ci-muted); }
+.ci-check { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; }
+.ci-check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--ci-ink); flex: none; }
+.ci-terms { font-size: 14px; color: var(--ci-muted); white-space: pre-line; margin-top: 8px; }
+.ci-alert { border-radius: 10px; background: #ffedea; color: #831c1e; padding: 12px 14px; font-size: 15px; }
+
+/* Footer: pinned, white, the total over the button when there is one. */
+.ci-foot { position: sticky; bottom: 0; background: #fff; margin: 0 -16px; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -1px 0 var(--ci-line); display: grid; gap: 12px; }
+.ci-total { display: flex; justify-content: space-between; align-items: end; padding: 0 2px; }
+.ci-total small { display: block; font-size: 15px; color: var(--ci-muted); }
+.ci-total b { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ci-btn { height: 56px; width: 100%; border: 0; border-radius: 10px; background: #2a2a2a; color: #fff; font-size: 18px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+.ci-btn:hover { background: #111; }
+.ci-btn[disabled] { opacity: .5; cursor: default; }
+.ci-btn.is-outline { background: #fff; color: var(--ci-ink); border: 1.5px solid var(--ci-ink); }
+.ci-btn.is-outline:hover { background: var(--ci-fill); }
+
+/* Welcome: the picture fills the top, the sheet rises over it. */
+.ci-welcome { min-height: 100vh; display: flex; flex-direction: column; }
+.ci-hero { height: 46vh; min-height: 260px; overflow: hidden; background: #d9d4cb; }
+.ci-hero img, .ci-hero svg { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ci-welcome .ci-sheet { margin-top: -28px; position: relative; text-align: center; padding-top: 32px; }
+.ci-welcome-to { font-size: 18px; }
+.ci-welcome h1 { margin: 6px 0 0; font-size: 26px; font-weight: 700; }
+.ci-welcome h1:focus { outline: none; }
+.ci-stayline { margin: 18px 0 0; font-size: 17px; color: var(--ci-muted); }
+.ci-small { font-size: 14px; color: var(--ci-muted); }
+
+/* Done: one drawing, the heading, then what matters on the day. */
+.ci-done-art { display: grid; place-items: center; padding: 8px 0 4px; }
+.ci-done-art svg { width: 84px; height: 84px; stroke-width: 1.25; }
+.ci-done-title { font-size: 20px; font-weight: 700; text-align: center; margin: 0; }
+
+.ci-ghost { background: #e7e7ea; border-radius: 10px; }
+
+@media (min-width: 600px) {
+  .ci-col { padding: 24px 0 40px; min-height: 0; }
+  .ci-sheet { border-radius: 28px; padding: 28px 28px 0; }
+  .ci-foot { margin: 0 -28px; padding: 16px 28px 24px; border-radius: 0 0 28px 28px; }
+  .ci-welcome { min-height: 0; border-radius: 28px; overflow: hidden; margin-top: 24px; }
+  .ci-hero { height: 320px; }
+  .ci-welcome .ci-sheet { border-radius: 28px 28px 0 0; }
+}

@@ -10,7 +10,7 @@ import { useChargeCodes } from '../../hooks/useChargeCodes';
 import { GUARANTEE_LABELS, ID_DOC_LABELS, cleanLabel, opsLabel } from '../../lib/labels';
 import { countryOptions } from '../../lib/countries';
 import { formatShort } from '../../utils/date';
-import { Modal, Field, Spinner, ErrorBanner, ReadinessBadge, ReasonList, newOpKey } from '../kit';
+import { Modal, Field, Spinner, ErrorBanner, Banner, ReadinessBadge, ReasonList, newOpKey } from '../kit';
 import PaymentMethodFields, { emptyDetails, detailsMissing, detailsPayload } from '../fin/PaymentMethodFields';
 import SignaturePad from './SignaturePad';
 import './CheckInWizard.css';
@@ -26,12 +26,12 @@ const roomCovered = (u, g) => !!u?.guarantee?.ok || roomGuaranteeValid(g);
 // Design-page layouts of the same wizard (approved /pms look). Steps, checks and saving are shared.
 const VARIANTS = ['accordion', 'stepper', 'split', 'sheet'];
 
-function CheckInFrame({ variant, open, onClose, title, subtitle, footer, children }) {
+export function CheckInFrame({ variant, open, onClose, title, subtitle, footer, children, className = '' }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className={variant === 'sheet' ? 'ui-overlay is-light' : 'ui-overlay'} />
-        <DialogPrimitive.Content className={`ci ci-${variant}`} dir="rtl" aria-describedby={undefined}>
+        <DialogPrimitive.Content className={`ci ci-${variant} ${className}`} dir="rtl" aria-describedby={undefined}>
           <header className="ci-head">
             <div><DialogPrimitive.Title className="ci-title">{title}</DialogPrimitive.Title>{subtitle && <p>{subtitle}</p>}</div>
             <DialogPrimitive.Close className="ci-close" aria-label="סגירה"><X size={20} /></DialogPrimitive.Close>
@@ -459,6 +459,7 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
     <div>
       <h3 className="ui-h3">רישום אורח</h3>
       <ErrorBanner error={error} />
+      {ctx.online && <Banner tone="info">האורח השלים צ׳ק-אין מקוון — הפרטים והחתימה כבר כאן. נשאר לראות את מסמך הזיהוי ולסמן שנבדק.</Banner>}
       {hasKnown && (
         <div className="ui-summary">
           {!showName && <div className="ui-sum-row"><span>שם</span><strong>{g.firstName} {g.lastName}</strong></div>}

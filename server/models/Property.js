@@ -236,6 +236,24 @@ const PropertySchema = new Schema({
   pricingMode: { type: String, enum: ['rates', 'board'], default: 'rates' },
   // Public booking site (/book). Off until a manager turns it on; payment is taken at booking time
   // through the payment provider (services/paymentGateway.js) — full amount or a deposit.
+  // Pre-arrival online check-in link and the paid extras offered in it (prices set by the hotel).
+  onlineCheckIn: {
+    enabled:        { type: Boolean, default: true },
+    autoSend:       { type: Boolean, default: true },      // link inside the day-before reminder e-mail
+    offers: [{
+      key:         { type: String, required: true },
+      kind:        { type: String, enum: ['early_checkin', 'late_checkout', 'extra'], required: true },
+      label:       { type: String, required: true, maxlength: 80 },
+      description: { type: String, maxlength: 300 },
+      price:       { type: Number, min: 0, required: true },
+      chargeCode:  { type: String, required: true },
+      time:        String,
+      active:      { type: Boolean, default: true },
+    }],
+    configured:     { type: Boolean, default: false },
+    updatedByName: String,
+    updatedAt:    Date,
+  },
   onlineBooking: {
     enabled:      { type: Boolean, default: false },
     payment:      { type: String, enum: ['full', 'deposit'], default: 'full' },

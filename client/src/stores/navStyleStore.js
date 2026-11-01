@@ -4,17 +4,15 @@ import { create } from 'zustand';
 const KEY = 'hotel4u:nav-style:v1';
 
 export const NAV_STYLES = [
-  { value: 'current', label: 'הנוכחי' },
   { value: 'rail', label: 'מסילה' },
-  { value: 'top', label: 'עליון' },
   { value: 'launcher', label: 'משגר' },
 ];
 
 const read = () => {
   try {
     const saved = localStorage.getItem(KEY);
-    return NAV_STYLES.some((o) => o.value === saved) ? saved : 'current';
-  } catch { return 'current'; }
+    return NAV_STYLES.some((o) => o.value === saved) ? saved : 'rail';
+  } catch { return 'rail'; }
 };
 
 export const useNavStyle = create((set) => ({

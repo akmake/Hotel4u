@@ -10,6 +10,7 @@ import { ToastContainer } from '../../components/ui/Toast';
 import { Page, Card, Field, ErrorBanner, Banner, Spinner, Modal, Segmented, Tag, DataTable, Empty, useLoader, useAction, useUrlState, money } from '../../components/kit';
 import AdminNav from '../../components/sys/AdminNav';
 import OnlineBookingCard from '../../components/sys/OnlineBookingCard';
+import OnlineCheckInCard from '../../components/sys/OnlineCheckInCard';
 
 const SETUP_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager'];
 const BED_LABELS = { king: 'קינג', queen: 'קווין', twin: 'שתי מיטות נפרדות', double: 'זוגית', single: 'יחיד', bunk: 'קומתיים', mixed: 'משולב', other: 'אחר' };
@@ -49,11 +50,13 @@ export default function HotelSetupPage() {
               { value: 'types', label: `סוגי חדרים (${data.roomTypes.filter((t) => t.active).length})` },
               { value: 'rooms', label: `חדרים (${data.rooms.filter((r) => r.active).length})` },
               { value: 'web', label: 'אתר ההזמנות' },
+              { value: 'checkin', label: 'צ׳ק-אין מקוון' },
             ]} />
           </div>
           {tab === 'property' && <PropertyForm data={data} canEdit={canEdit} propertyId={propertyId} onSaved={() => { success('פרטי המלון נשמרו'); reload(); }} />}
           {tab === 'types' && <RoomTypes data={data} canEdit={canEdit} propertyId={propertyId} onSaved={(m) => { success(m); reload(); }} />}
           {tab === 'web' && <OnlineBookingCard propertyId={propertyId} role={role} onSaved={(m) => success(m)} />}
+          {tab === 'checkin' && <OnlineCheckInCard propertyId={propertyId} role={role} onSaved={(m) => success(m)} />}
           {tab === 'rooms' && <Rooms data={data} canEdit={canEdit} propertyId={propertyId} onSaved={(m) => { success(m); reload(); }} />}
         </>
       )}

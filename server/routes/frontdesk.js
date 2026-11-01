@@ -13,6 +13,8 @@ import {
   listQueue, addToQueue, takeQueueOwnership, updateQueueEntry, removeFromQueue, prioritizeHousekeeping,
 } from '../services/frontDeskService.js';
 import { setRoomBilling, setGroupBilling } from '../services/groupBillingService.js';
+import { proposeRoomPlan, applyRoomPlan } from '../services/roomPlanService.js';
+import { issueLink, deskView, decideUpsell, postApprovedUpsells } from '../services/onlineCheckInService.js';
 import { cribDesk, getCribContext, setCribStock, changeCribs } from '../services/cribService.js';
 
 const router = Router();
@@ -135,6 +137,8 @@ router.post('/reservations/:id/check-in', handle(async (req) => {
     ip: req.ip,
   });
   emit(propertyId, 'guest.checked_in', { reservationId: result.reservationId, confirmationNumber: result.confirmationNumber, checkedInAt: new Date() }).catch(() => null);
+  // Extras the desk approved from the online check-in are charged now that the stay is in house.
+  await postApprovedUpsells({ propertyId, reservationId: req.params.id, actor: actorOf(req), ip: req.ip }).catch((err) => console.error('[frontdesk] upsell posting', err.message));
   return result;
 }));
 
@@ -164,6 +168,33 @@ router.post('/reservations/:id/assign-room', handle(async (req) => {
   requireRoles(req, FRONT_ROLES);
   const b = req.body || {};
   return assignRoom({ propertyId: scope(req), reservationId: req.params.id, unitId: b.unitId, roomId: b.roomId, reason: b.reason, actor: actorOf(req), ip: req.ip });
+}));
+
+// Online check-in: issue/send the guest link, see what the guest sent, decide on requested extras.
+router.get('/reservations/:id/online-checkin', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return deskView({ propertyId: scope(req), reservationId: req.params.id });
+}));
+
+router.post('/reservations/:id/online-checkin/link', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return issueLink({ propertyId: scope(req), reservationId: req.params.id, via: req.body?.via === 'email' ? 'email' : 'link', actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/reservations/:id/online-checkin/upsells/:upsellId', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return decideUpsell({ propertyId: scope(req), reservationId: req.params.id, upsellId: req.params.upsellId, decision: req.body?.decision, reason: req.body?.reason, actor: actorOf(req), ip: req.ip });
+}));
+
+// Automatic assignment plan for the day's arrivals without a room: a proposal, then the approved rows.
+router.get('/room-plan', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return proposeRoomPlan({ propertyId: scope(req), date: req.query.date });
+}));
+
+router.post('/room-plan/apply', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES);
+  return applyRoomPlan({ propertyId: scope(req), items: req.body?.items, actor: actorOf(req), ip: req.ip });
 }));
 
 // ── FD-04 ───────────────────────────────────────────────────────────────────

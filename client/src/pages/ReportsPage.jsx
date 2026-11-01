@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
   CartesianGrid, Cell, LineChart, Line, Legend,
 } from 'recharts';
+import { Link } from 'react-router-dom';
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { reports as reportsApi, legalReports } from '../utils/api';
@@ -340,7 +341,7 @@ export default function ReportsPage() {
   const { propertyId } = useProperty();
   const skip = !propertyId;
 
-  const [mainTab,   setMainTab]   = useState('kpi'); // kpi | vat | registry
+  const [mainTab,   setMainTab]   = useState(() => (['vat', 'registry'].includes(new URLSearchParams(window.location.search).get('tab')) ? new URLSearchParams(window.location.search).get('tab') : 'kpi')); // kpi | vat | registry
   const [rangeIdx,  setRangeIdx]  = useState(1);
   const [customFrom,setCustomFrom]= useState('');
   const [customTo,  setCustomTo]  = useState('');
@@ -419,6 +420,7 @@ export default function ReportsPage() {
               {t.label}
             </button>
           ))}
+          <Link to="/pms/reports" className="btn btn-sm btn-secondary">כל הדוחות</Link>
           {mainTab === 'kpi' && (
             <>
               {RANGES.map((r, i) => (

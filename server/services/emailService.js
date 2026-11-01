@@ -144,7 +144,7 @@ export function buildReservationConfirmationEmail({ guestName, confirmationNumbe
   };
 }
 
-export function buildCheckInReminderEmail({ guestName, confirmationNumber, arrivalDate, propertyName, propertyAddress, checkInTime }) {
+export function buildCheckInReminderEmail({ guestName, confirmationNumber, arrivalDate, propertyName, propertyAddress, checkInTime, checkInUrl }) {
   const body = `
     <p style="font-size:16px;color:#1e293b;margin:0 0 20px;">שלום ${guestName || 'אורח יקר'},</p>
     <p style="color:#475569;margin:0 0 24px;">מחכים לך ב<strong>${propertyName || 'המלון'}</strong> מחר!</p>
@@ -154,6 +154,8 @@ export function buildCheckInReminderEmail({ guestName, confirmationNumber, arriv
       ${checkInTime ? row('שעת צ׳ק-אין', checkInTime) : ''}
       ${propertyAddress ? row('כתובת', propertyAddress) : ''}
     </table>
+    ${checkInUrl ? `<p style="color:#475569;margin:0 0 12px;">חוסכים המתנה בקבלה — ממלאים את פרטי הצ׳ק-אין מראש:</p>
+    <p style="text-align:center;margin:0 0 24px;"><a href="${checkInUrl}" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;">לצ׳ק-אין מקוון</a></p>` : ''}
   `;
   const html = baseTemplate({
     title:    `נתראה מחר! — ${propertyName || 'המלון'}`,
@@ -166,6 +168,41 @@ export function buildCheckInReminderEmail({ guestName, confirmationNumber, arriv
     subject: `תזכורת הגעה מחר — ${propertyName || 'המלון'}`,
     html,
     text: `תזכורת: הגעתך מחר ${arrivalDate} ל${propertyName}`,
+  };
+}
+
+export function buildReportSubscriptionEmail({ propertyName, subject, number, reports, periodLabel, sendDayLabel, format }) {
+  const body = `
+    <p style="color:#475569;margin:0 0 20px;">מצורפים הדוחות של <strong>${propertyName || 'המלון'}</strong> (${format === 'csv' ? 'קובץ CSV לכל דוח' : 'קובץ Excel, גיליון לכל דוח'}).</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+      ${reports.map((r) => row(r.name, `${r.count} שורות`)).join('')}
+      ${row('תקופה (כספים וביצועים)', periodLabel)}
+      ${row('נשלח ביום', sendDayLabel)}
+    </table>
+    <p style="color:#94a3b8;font-size:12px;margin:0;">מנוי מספר ${number}. אפשר לשנות או לבטל בדוחות ← מנויים.</p>
+  `;
+  return {
+    subject,
+    html: baseTemplate({ title: subject, preheader: `${reports.length} דוחות · ${sendDayLabel}`, body, footer: propertyName || 'Hotel4U' }),
+    text: `${subject}\n${reports.map((r) => `${r.name}: ${r.count} שורות`).join('\n')}\nתקופה: ${periodLabel}`,
+  };
+}
+
+export function buildOnlineCheckInEmail({ guestName, confirmationNumber, arrivalDate, propertyName, url }) {
+  const body = `
+    <p style="font-size:16px;color:#1e293b;margin:0 0 20px;">שלום ${guestName || 'אורח יקר'},</p>
+    <p style="color:#475569;margin:0 0 20px;">כדי לחסוך המתנה בקבלה, אפשר למלא כבר עכשיו את פרטי הצ׳ק-אין לשהייה ב<strong>${propertyName || 'המלון'}</strong> — זה לוקח כשתי דקות.</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+      ${row('מספר אישור', confirmationNumber)}
+      ${row('תאריך הגעה', arrivalDate)}
+    </table>
+    <p style="text-align:center;margin:0 0 24px;"><a href="${url}" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;">לצ׳ק-אין מקוון</a></p>
+    <p style="color:#94a3b8;font-size:12px;margin:0;">הקישור אישי ומיועד לך בלבד.</p>
+  `;
+  return {
+    subject: `צ׳ק-אין מקוון — ${propertyName || 'המלון'} #${confirmationNumber}`,
+    html: baseTemplate({ title: 'צ׳ק-אין מקוון', preheader: `הגעה ${arrivalDate} — מלאו פרטים מראש`, body, footer: propertyName || 'Hotel4U' }),
+    text: `צ'ק-אין מקוון להזמנה ${confirmationNumber} (הגעה ${arrivalDate}): ${url}`,
   };
 }
 

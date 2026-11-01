@@ -179,9 +179,9 @@ export default function AdminDashboardPage() {
                             axisLine={false}
                             tickLine={false}
                           />
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
                           <Tooltip
-                            contentStyle={{ backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e5e7eb', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
+                            contentStyle={{ backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
                             labelStyle={{ color: '#6b7280', fontSize: '12px' }}
                           />
                           <Area
@@ -219,7 +219,7 @@ export default function AdminDashboardPage() {
                                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="none" />
                                   ))}
                               </Pie>
-                              <Tooltip contentStyle={{borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '12px'}} />
+                              <Tooltip contentStyle={{borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px'}} />
                               <Legend verticalAlign="bottom" height={36} iconType="circle" formatter={(value) => <span className="text-xs text-gray-600">{value}</span>}/>
                           </PieChart>
                       </ResponsiveContainer>
@@ -242,7 +242,7 @@ export default function AdminDashboardPage() {
                       <CardContent className="flex flex-col items-center justify-center p-6 text-center space-y-3">
                           <div
                               className="p-3 rounded-full transition-colors group-hover:bg-[#f9f7f0]"
-                              style={{ backgroundColor: '#fdfcf8', color: BRAND_GOLD }}
+                              style={{ backgroundColor: '#f8fafc', color: BRAND_GOLD }}
                           >
                               <link.icon size={24} />
                           </div>

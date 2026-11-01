@@ -9,6 +9,9 @@ import dns from 'dns';
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 import express from 'express';
 import publicBookingRoutes from './routes/publicBooking.js';
+import publicCheckInRoutes from './routes/publicCheckIn.js';
+import reportSubscriptionsRouter from './routes/reportSubscriptions.js';
+import reportCenterRouter from './routes/reportCenter.js';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -256,6 +259,8 @@ pmsRouter.use('/booking',        pmsBookingRouter);
 pmsRouter.use('/stay',           pmsStayRouter);
 pmsRouter.use('/identity',       pmsIdentityRouter);
 pmsRouter.use('/platform',       pmsPlatformRouter);
+pmsRouter.use('/report-subscriptions', reportSubscriptionsRouter);
+pmsRouter.use('/report-center', reportCenterRouter);
 
 // =========================================================================
 // ✨ הפתרון הכפול: חיבור ה-Router לשני הנתיבים
@@ -263,6 +268,7 @@ pmsRouter.use('/platform',       pmsPlatformRouter);
 
 // Public booking site API — no login / cookies, so outside CSRF; rate-limited inside the router.
 app.use('/api/public/booking', publicBookingRoutes);
+app.use('/api/public/checkin', publicCheckInRoutes);
 
 // 1. PMS routes (לפני apiRouter — עוקפים CSRF)
 app.use('/api/pms', pmsRouter);

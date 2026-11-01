@@ -101,6 +101,101 @@
 .ci .ck-sec-title { font-size: 15px; }
 .ci .ck-sec-body { padding: 16px; border-top: 1px solid var(--ci-line); }
 
+/* Check-out — "achromatic ledger" (design-taste-frontend app sheet, seed 1062650084), brand kept:
+   Heebo and the approved teal primary. Ink on white panels over a blue-grey ledger ground, 1px edges,
+   no shadows at rest, tight radii (8 panels / 6 controls), tabular figures; colour only on the amount
+   still due, on status, and on the one primary action. Grid: bill 1fr + action 300px + 1px seam. */
+.ci.co {
+  --ci-canvas: #f8fafc; --co-ink: #111111; --co-muted: #5f6368; --co-border: #e2e8f0; --co-rule: #f8fafc;
+  --co-control: #d1d5db; --co-due: #92400e; --co-pos: #247b50;
+  max-width: 940px; color: var(--co-ink);
+}
+.ci.co .ci-head, .ci.co .ci-foot { border-color: var(--co-border); }
+.ci.co .ci-body { gap: 16px; }
+.ci.co .btn-secondary { border: 0; background: #e2e8f0; color: var(--co-ink); }
+.ci.co .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+.ci.co :is(.input, .select) { min-height: 40px; border-color: var(--co-control); border-radius: 6px; }
+.ci.co .ui-label, .ci.co label.ui-label { font-size: 14px; font-weight: 500; color: var(--co-ink); }
+
+.co-h { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
+.co-h4 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; }
+.co-note { margin: 0; font-size: 13px; line-height: 20px; color: var(--co-muted); }
+.co-flag { margin: 0; padding: 10px 14px; border: 1px solid #fde68a; border-radius: 8px; background: #fffbeb; color: #92400e; font-size: 13px; }
+.co-ok { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--co-pos); }
+.co-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--ci-teal); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: start; }
+.co-link:hover { text-decoration: underline; }
+.co-link:focus-visible { outline: 2px solid var(--ci-teal); outline-offset: 2px; border-radius: 2px; }
+.co-link:disabled { color: var(--co-muted); cursor: default; }
+.co-num { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: end; }
+
+.co-panel { display: grid; gap: 12px; padding: 20px; border: 1px solid var(--co-border); border-radius: 8px; background: #fff; }
+
+/* One account: the bill and its action share one white panel, split by a 1px seam. */
+.co-folio { display: grid; grid-template-columns: minmax(0, 1fr) 300px; border: 1px solid var(--co-border); border-radius: 8px; background: #fff; }
+.co-bill { display: grid; align-content: start; gap: 12px; padding: 20px; }
+.co-act { display: grid; align-content: start; gap: 14px; padding: 20px; border-inline-start: 1px solid var(--co-border); }
+.co-bill-head { display: flex; align-items: center; gap: 8px; }
+
+.co-lines { width: 100%; border-collapse: collapse; font-size: 14px; }
+.co-lines td { padding: 7px 0; border-bottom: 1px solid var(--co-rule); vertical-align: top; }
+.co-lines .co-date { width: 64px; color: var(--co-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.co-lines .co-desc { padding-inline-end: 16px; }
+.co-lines .co-num { width: 1%; }
+.co-lines .is-pay { color: var(--co-muted); }
+
+/* The sum that gives the balance; the last row is the screen's answer. */
+.co-sum { display: grid; gap: 6px; margin: 4px 0 0; font-size: 14px; }
+.co-sum > div { display: flex; justify-content: space-between; gap: 16px; }
+.co-sum dt { color: var(--co-muted); }
+.co-sum dd { margin: 0; }
+.co-sum .is-total { align-items: baseline; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--co-ink); }
+.co-sum .is-total dt { color: var(--co-ink); font-size: 16px; font-weight: 600; }
+.co-sum .is-total dd { font-size: 32px; line-height: 40px; font-weight: 700; }
+.co-sum .is-due { color: var(--co-due); }
+.co-sum .is-credit { color: var(--co-ink); }
+.co-sum .is-zero { color: var(--co-muted); }
+
+.co-pay { display: grid; gap: 12px; }
+.co-fields { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
+.co-fields .input, .co-fields .select { width: 100%; }
+.ci.co .btn.co-wide { width: 100%; }
+.co-paid { display: flex; align-items: flex-start; gap: 10px; color: var(--co-pos); }
+.co-paid div { display: grid; gap: 2px; }
+.co-paid strong { font-size: 16px; font-weight: 600; }
+.co-paid span { font-size: 13px; color: var(--co-muted); }
+.co-doc { padding-top: 14px; border-top: 1px solid var(--co-rule); }
+
+.co-settle { display: grid; gap: 8px; margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--co-rule); }
+.co-settle legend { float: inline-start; width: 100%; margin: 0 0 4px; padding: 0; font-size: 14px; font-weight: 600; }
+.co-radio { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 10px 12px; border: 1px solid var(--co-border); border-radius: 6px; cursor: pointer; }
+.co-radio:has(input:checked) { border-color: var(--co-ink); box-shadow: inset 0 0 0 1px var(--co-ink); }
+.co-radio input { margin-top: 3px; }
+.co-radio span { display: grid; gap: 2px; font-size: 14px; }
+.co-radio small { font-size: 12px; color: var(--co-muted); }
+.co-radio.is-disabled { cursor: default; color: var(--co-muted); }
+
+.co-units { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.co-unit { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 10px; padding: 10px 12px; border: 1px solid var(--co-border); border-radius: 6px; cursor: pointer; }
+.co-unit.is-on { border-color: var(--co-ink); box-shadow: inset 0 0 0 1px var(--co-ink); }
+.co-unit.is-gone { color: var(--co-muted); cursor: default; }
+.co-unit small { grid-column: 2; font-size: 12px; color: var(--co-muted); }
+
+.co-docs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--co-muted); }
+
+.co-foot { display: grid; gap: 10px; }
+.co-foot-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.co-foot-msg { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; line-height: 20px; }
+.co-foot-msg.is-todo { color: var(--co-due); }
+.co-foot-msg.is-ready { color: var(--co-pos); }
+.co-foot .btn { flex: none; }
+
+@media (max-width: 720px) {
+  .co-folio { grid-template-columns: minmax(0, 1fr); }
+  /* The block that carries the action moves up; its button already names the amount due. */
+  .co-act { order: -1; border-inline-start: 0; border-bottom: 1px solid var(--co-border); }
+  .co-foot-row { flex-direction: column; align-items: stretch; }
+}
+
 @media (max-width: 1000px) {
   .ci-grid { grid-template-columns: minmax(0, 1fr); }
   .ci-nav { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }

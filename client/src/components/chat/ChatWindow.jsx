@@ -181,7 +181,7 @@ export default function ChatWindow({ currentUser, selectedContact, onBack }) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 bg-[#f0f2f5] border-t border-slate-200">
+      <div className="p-3 bg-[#f8fafc] border-t border-slate-200">
         
         {selectedFile && (
             <div className="flex items-center justify-between bg-white p-2 rounded-lg mb-2 border border-blue-200">

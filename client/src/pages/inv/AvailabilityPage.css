@@ -184,64 +184,93 @@
   .ac-workspace .ac-day, .ac-workspace .ac-navbtn, .ac-workspace .ac-btn { transition: none; }
 }
 
-/* ── Approved /pms look (2026-10-28): one header row closed by a divider, white cards on the grey canvas,
-   Material 3 controls, Heebo throughout, teal only for today, selection and the primary action. ── */
-.page-content:has(> .avl-page) { background: color-mix(in srgb, #808080 12%, white); }
-.ac-workspace.avl-page { --avl-teal: #006a61; --avl-outline: #6f7977; --avl-line: rgb(var(--fg) / .08); --ac-display: 'Heebo', sans-serif; display: flex; flex-direction: column; gap: 14px; color: rgb(var(--fg)); }
+/* ── Month availability (redesign 2026-11-01). The screen answers one question: which nights can still be sold,
+   and where is the pressure? Each day is a plain white card (no colour fills — user, 2026-11-01); a hatch only when
+   closed for sale. Free rooms are the largest figure; the date leads, occupancy and the day's
+   arrivals/departures close the card. The header carries the month in numbers and its finding: the fullest night ahead. ── */
+.page-content:has(> .avl-page) { background: #f8fafc; }
+.ac-workspace.avl-page {
+  --avl-teal: #006a61; --avl-outline: #6f7977; --avl-line: rgb(var(--fg) / .08);
+  --avl-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06);
+  --fill-closed: repeating-linear-gradient(135deg, rgb(185 28 28 / .11) 0 6px, transparent 6px 12px);
+  --ac-display: 'Heebo', sans-serif;
+  display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 560px; color: rgb(var(--fg));
+}
 
-.avl-head { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid rgb(var(--fg) / .14); }
+/* Header card: where am I (title, the month between its arrows) → what needs me (alert) → how is the month (summary). */
+.avl-head { display: flex; align-items: center; gap: 20px; padding: 12px 20px; border-radius: 12px; background: #fff; box-shadow: var(--avl-shadow); }
 .avl-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; color: rgb(var(--fg)); }
 .avl-icon:hover { background: rgb(63 73 71 / .08); }
-.avl-title { display: flex; align-items: baseline; gap: 10px; margin-inline-end: 8px; }
 .avl-title h1 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
-.avl-title span { font-size: 14px; color: rgb(var(--fg-muted)); white-space: nowrap; }
-.avl-nav { display: flex; align-items: center; gap: 4px; }
+.avl-nav { display: flex; align-items: center; gap: 2px; padding-inline-start: 20px; border-inline-start: 1px solid rgb(var(--fg) / .1); }
+.avl-month { min-width: 128px; text-align: center; font-size: 17px; font-weight: 600; white-space: nowrap; }
 .avl-btn { display: inline-flex; align-items: center; height: 40px; margin-inline-start: 4px; padding: 0 20px; border: 1px solid var(--avl-outline); border-radius: 9999px; color: var(--avl-teal); font-size: 14px; font-weight: 500; letter-spacing: .1px; transition: background-color .2s cubic-bezier(.2, 0, 0, 1); }
 .avl-btn:hover { background: rgb(0 106 97 / .08); }
-.avl-alert { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 9999px; background: #ffddb8; color: #653e00; font-size: 13px; font-weight: 500; }
+.avl-alert { display: inline-flex; align-items: center; gap: 8px; height: 36px; margin-inline-start: auto; padding: 0 14px; border-radius: 9999px; background: #ffddb8; color: #653e00; font-size: 13px; font-weight: 500; }
 .avl-alert:hover { background: color-mix(in srgb, #653e00 8%, #ffddb8); }
-.avl-sum { display: flex; align-items: center; gap: 20px; margin: 0; margin-inline-start: auto; }
-.avl-sum > div { display: grid; gap: 0; }
-.avl-sum dt { font-size: 12px; color: rgb(var(--fg-muted)); }
-.avl-sum dd { margin: 0; font-size: 16px; line-height: 22px; font-weight: 600; }
-.avl-icon:focus-visible, .avl-btn:focus-visible, .avl-alert:focus-visible { outline: 3px solid var(--avl-teal); outline-offset: 2px; }
+.avl-sum { display: flex; align-items: center; margin: 0; margin-inline-start: auto; }
+.avl-alert + .avl-sum { margin-inline-start: 0; }
+.avl-sum > div { display: grid; gap: 2px; min-width: 104px; padding-inline: 20px; border-inline-start: 1px solid rgb(var(--fg) / .1); }
+.avl-sum > div:first-child { border-inline-start: 0; }
+.avl-sum > div:last-child { padding-inline-end: 0; }
+.avl-sum dt { font-size: 12px; color: rgb(var(--fg-secondary)); white-space: nowrap; }
+.avl-sum dd { margin: 0; font-size: 20px; line-height: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.avl-peak { all: unset; display: inline-flex; align-items: baseline; gap: 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.avl-peak small { font-size: 13px; font-weight: 500; color: rgb(var(--fg-secondary)); }
+.avl-peak:hover, .avl-peak:hover small { color: var(--avl-teal); }
+.avl-icon:focus-visible, .avl-btn:focus-visible, .avl-alert:focus-visible, .avl-peak:focus-visible { outline: 3px solid var(--avl-teal); outline-offset: 2px; }
 
-/* Calendar and panel: white cards, no frame, no resting shadow. */
-.ac-workspace.avl-page .ac-layout { gap: 14px; margin-bottom: 0; }
-.ac-workspace.avl-page .ac-cal, .ac-workspace.avl-page .ac-panel { border: 0; border-radius: 12px; background: #fff; box-shadow: none; }
-.ac-workspace.avl-page .ac-dows div { padding: 12px 14px 10px; border-block: 0; border-bottom: 1px solid rgb(var(--fg) / .1); background: #fff; color: rgb(var(--fg-secondary)); font-size: 12.5px; font-weight: 600; }
-.ac-workspace.avl-page .ac-dows .is-wk { background: #fafafa; }
-.ac-workspace.avl-page .ac-day { border-color: var(--avl-line); }
-.ac-workspace.avl-page .ac-day.is-wk { background: #fafafa; }
-.ac-workspace.avl-page .ac-day:hover:not(.is-out) { background: rgb(0 106 97 / .05); }
-.ac-workspace.avl-page .ac-day.is-out { background: rgb(var(--fg) / .02); }
-.ac-workspace.avl-page .ac-day.is-sel { background: rgb(0 106 97 / .07); }
-.ac-workspace.avl-page .ac-d-num { font-size: 13px; font-weight: 600; color: rgb(var(--fg)); }
-.ac-workspace.avl-page .ac-day.is-today .ac-d-num { background: var(--avl-teal); }
-.ac-workspace.avl-page .ac-today { color: var(--avl-teal); font-weight: 600; }
-.ac-workspace.avl-page .ac-d-free b { font-family: inherit; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
-.ac-workspace.avl-page .ac-d-free span, .ac-workspace.avl-page .ac-d-occ, .ac-workspace.avl-page .ac-chip, .ac-workspace.avl-page .ac-chip em, .ac-workspace.avl-page .ac-d-opt { font-size: 12px; }
-.ac-workspace.avl-page .ac-bar { height: 4px; border-radius: 9999px; }
-.ac-workspace.avl-page .ac-bar i { background: var(--avl-teal); border-radius: 9999px; }
-.ac-workspace.avl-page .ac-bar i.is-hi { background: rgb(var(--warning)); }
-.ac-workspace.avl-page .ac-bar i.is-max { background: rgb(var(--danger)); }
-.ac-workspace.avl-page .ac-chip.is-in { color: var(--avl-teal); }
+/* The month fills the height left under the header; the details panel slides in beside it only while a day is picked. */
+.ac-workspace.avl-page .ac-layout { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 14px; margin: 0; }
+.ac-workspace.avl-page .ac-layout.has-panel { grid-template-columns: minmax(0, 1fr) 360px; }
+.ac-workspace.avl-page .ac-cal { display: flex; flex-direction: column; min-height: 0; border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+.ac-workspace.avl-page .ac-dows { gap: 8px; margin-bottom: 8px; }
+.ac-workspace.avl-page .ac-dows div { padding: 0 14px; border: 0; background: none; color: rgb(var(--fg)); font-size: 13px; font-weight: 700; }
+.ac-workspace.avl-page .ac-dows .is-wk { background: none; color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-grid { flex: 1; min-height: 0; gap: 12px; grid-auto-rows: minmax(140px, 1fr); }
 
-.avl-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; padding: 12px 18px; border-top: 1px solid rgb(var(--fg) / .1); font-size: 12.5px; color: rgb(var(--fg-muted)); }
-.avl-legend { display: inline-flex; gap: 12px; }
-.avl-legend > span { display: inline-flex; align-items: center; gap: 6px; }
-.avl-legend i { width: 14px; height: 4px; border-radius: 9999px; background: var(--avl-teal); }
-.avl-legend i.is-hi { background: rgb(var(--warning)); }
-.avl-legend i.is-max { background: rgb(var(--danger)); }
-.avl-keys { margin-inline-start: auto; }
+/* Day card */
+.ac-workspace.avl-page .ac-day { position: relative; isolation: isolate; display: flex; flex-direction: column; gap: 0; min-height: 0; padding: 12px 14px 11px; border: 0; border-radius: 14px; background: #fff; box-shadow: var(--avl-shadow); overflow: hidden; transition: box-shadow .15s ease-out, transform .15s ease-out; }
+.ac-workspace.avl-page .ac-day.is-out { background: transparent; box-shadow: none; pointer-events: none; }
+.ac-workspace.avl-page .ac-day:hover:not(.is-out) { box-shadow: 0 1px 2px rgb(16 24 40 / .06), 0 10px 24px rgb(16 24 40 / .1); transform: translateY(-1px); }
+.ac-workspace.avl-page .ac-day.is-today { box-shadow: inset 0 0 0 1.5px rgb(0 106 97 / .5), var(--avl-shadow); }
+.ac-workspace.avl-page .ac-day.is-sel { box-shadow: inset 0 0 0 2px var(--avl-teal), var(--avl-shadow); }
+.ac-workspace.avl-page .ac-day:focus-visible { outline: 3px solid var(--avl-teal); outline-offset: 2px; }
+
+/* closed for sale: the whole card hatched */
+.ac-workspace.avl-page .ac-fill { position: absolute; inset-inline: 0; bottom: 0; z-index: -1; top: 0; }
+.ac-workspace.avl-page .ac-day.is-closed .ac-fill { background: var(--fill-closed); }
+
+/* Inside the day card (2026-11-01): a small sheet. Header — the date in words ("3 בנובמבר"; today in a teal pill),
+   options and occupancy on the far end — over a hairline; then one label/value row per figure, labels on the start
+   side, tabular values on the end side: free rooms first and strongest, then arrivals and departures. */
+.ac-workspace.avl-page .ac-day:not(.is-out) { gap: 0; padding: 12px 18px 12px; }
+.ac-workspace.avl-page .ac-d-top { display: flex; align-items: center; gap: 8px; min-height: 28px; padding-bottom: 8px; border-bottom: 1px solid rgb(var(--fg) / .08); }
+.ac-workspace.avl-page .ac-d-num { display: inline; min-width: 0; height: auto; padding: 0; border-radius: 0; background: none; color: rgb(var(--fg)); font-size: 15px; line-height: 28px; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
+.ac-workspace.avl-page .ac-day.is-today .ac-d-num { display: inline-flex; align-items: center; height: 26px; padding-inline: 10px; border-radius: 999px; background: var(--avl-teal); color: #fff; font-size: 13.5px; line-height: 1; }
+.ac-workspace.avl-page .ac-today { display: none; }
+.ac-workspace.avl-page .ac-d-opt { display: inline; margin: 0; margin-inline-start: auto; padding: 0; background: none; color: #8a5300; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ac-workspace.avl-page .ac-d-pct { margin-inline-start: auto; color: rgb(var(--fg-muted)); font-size: 12px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ac-workspace.avl-page .ac-d-opt + .ac-d-pct { margin-inline-start: 0; }
+
+.ac-workspace.avl-page .ac-d-rows { display: grid; align-content: center; gap: 5px; flex: 1; padding-top: 8px; }
+.ac-workspace.avl-page .ac-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ac-workspace.avl-page .ac-row em { font-style: normal; color: rgb(var(--fg-secondary)); font-size: 13px; font-weight: 400; white-space: nowrap; }
+.ac-workspace.avl-page .ac-row b { color: rgb(var(--fg)); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ac-workspace.avl-page .ac-row.is-free em { color: rgb(var(--fg)); font-weight: 600; }
+.ac-workspace.avl-page .ac-row.is-free b { font-size: 20px; line-height: 1; font-weight: 700; }
+.ac-workspace.avl-page .ac-row.is-low em, .ac-workspace.avl-page .ac-row.is-low b { color: #8a5300; }
+.ac-workspace.avl-page .ac-row.is-full em, .ac-workspace.avl-page .ac-row.is-full b { color: rgb(185 28 28); }
+@container availability-day (max-width: 125px) { .ac-workspace.avl-page .ac-d-opt { display: none; } }
+
+/* past nights: what happened, quieter */
+.ac-workspace.avl-page .ac-day.is-past .ac-d-num, .ac-workspace.avl-page .ac-day.is-past .ac-row em, .ac-workspace.avl-page .ac-day.is-past .ac-row b { color: rgb(var(--fg-muted)); }
+
+.avl-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; padding: 10px 4px 0; font-size: 12.5px; color: rgb(var(--fg-secondary)); }
+.avl-keys { margin-inline-start: auto; color: rgb(var(--fg-muted)); }
 
 /* Side panel: plain heading, Material buttons, calm numbers. */
-.ac-workspace.avl-page .ac-empty { padding: 20px 22px 22px; color: rgb(var(--fg-muted)); }
-.ac-workspace.avl-page .ac-empty h2 { margin: 0 0 6px; color: rgb(var(--fg)); font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: 0; }
-.ac-workspace.avl-page .ac-empty p { margin: 0; font-size: 13.5px; line-height: 20px; }
-.ac-workspace.avl-page .ac-empty h3 { margin: 22px 0 4px; padding-top: 16px; border-top: 1px solid var(--avl-line); color: rgb(var(--fg)); font-size: 13px; font-weight: 600; }
-.ac-workspace.avl-page .ac-empty-types { margin: 0; padding: 0; border: 0; }
-.ac-workspace.avl-page .ac-empty-types > div { padding: 8px 0 0; font-size: 13.5px; color: rgb(var(--fg)); }
+.ac-workspace.avl-page .ac-panel { position: sticky; top: 0; align-self: start; max-height: 100%; overflow-y: auto; border: 0; border-radius: 12px; background: #fff; box-shadow: var(--avl-shadow); }
 .ac-workspace.avl-page .ac-p-head { padding: 16px 20px 20px; border-bottom: 1px solid var(--avl-line); }
 .ac-workspace.avl-page .ac-p-top { margin-bottom: 2px; }
 .ac-workspace.avl-page .ac-p-top h2 { margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; letter-spacing: 0; }
@@ -252,7 +281,6 @@
 .ac-workspace.avl-page .ac-availability > span { font-size: 13px; }
 .ac-workspace.avl-page .ac-p-acts { gap: 8px; margin-top: 16px; }
 .ac-workspace.avl-page .ac-p-acts .btn { height: 40px; padding: 0 20px; border-radius: 9999px; font-size: 14px; font-weight: 500; letter-spacing: .1px; }
-.ac-workspace.avl-page .ac-p-acts .btn:first-child { height: 40px; border-radius: 9999px; font-size: 14px; }
 .ac-workspace.avl-page .ac-p-acts .btn:not(:first-child) { font-size: 13.5px; }
 .ac-workspace.avl-page .ac-p-acts .btn-primary { border-color: transparent; background: var(--avl-teal); color: #fff; }
 .ac-workspace.avl-page .ac-p-acts .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, #fff 8%, var(--avl-teal)); box-shadow: 0 1px 2px 0 rgb(0 0 0 / .3), 0 1px 3px 1px rgb(0 0 0 / .15); }
@@ -268,169 +296,131 @@
 .ac-workspace.avl-page .ac-go, .ac-workspace.avl-page .ac-link { color: var(--avl-teal); font-size: 13px; font-weight: 500; }
 .ac-workspace.avl-page > .ui-card { margin-top: 0; border: 0; border-radius: 12px; }
 
-@media (max-width: 1100px) { .avl-head { flex-wrap: wrap; } .avl-sum { width: 100%; margin-inline-start: 0; } }
-@media (prefers-reduced-motion: reduce) { .avl-btn { transition: none; } }
-
-/* ── Calendar as day tiles (2026-10-28). No grid lines: each day is a white 12px tile on the grey canvas,
-   the month fills the screen height, and the details panel slides in only while a day is picked.
-   Inside a tile: date on top, free rooms as the one large figure, a short meta line (occupancy,
-   arrivals, departures) and the occupancy as a flush strip along the bottom edge. ── */
-.ac-workspace.avl-page { height: 100%; min-height: 560px; }
-.ac-workspace.avl-page .ac-layout { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr); align-items: stretch; }
-.ac-workspace.avl-page .ac-layout.has-panel { grid-template-columns: minmax(0, 1fr) 360px; }
-.ac-workspace.avl-page .ac-cal { display: flex; flex-direction: column; min-height: 0; border-radius: 0; background: none; overflow: visible; }
-.ac-workspace.avl-page .ac-dows { gap: 6px; margin-bottom: 6px; }
-.ac-workspace.avl-page .ac-dows div, .ac-workspace.avl-page .ac-dows .is-wk { padding: 0 12px 2px; border: 0; background: none; color: rgb(var(--fg-secondary)); font-size: 12.5px; font-weight: 600; }
-.ac-workspace.avl-page .ac-dows .is-wk { color: rgb(var(--fg-muted)); }
-.ac-workspace.avl-page .ac-grid { flex: 1; min-height: 0; gap: 6px; grid-auto-rows: minmax(92px, 1fr); }
-
-.ac-workspace.avl-page .ac-day { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: 'top top' 'free free' 'occ move'; align-items: end; column-gap: 10px; row-gap: 2px; min-height: 0; padding: 10px 12px 12px; border: 0; border-radius: 12px; background: #fff; overflow: hidden; transition: box-shadow .15s ease-out, background-color .15s ease-out; }
-.ac-workspace.avl-page .ac-day.is-wk { background: #fcfcfc; }
-.ac-workspace.avl-page .ac-day.is-out { background: transparent; pointer-events: none; }
-.ac-workspace.avl-page .ac-day:hover:not(.is-out):not(.is-sel) { background: #fff; box-shadow: 0 2px 8px rgb(var(--fg) / .1); }
-.ac-workspace.avl-page .ac-day.is-past { background: rgb(255 255 255 / .55); }
-.ac-workspace.avl-page .ac-day.is-past > * { opacity: .55; }
-.ac-workspace.avl-page .ac-day.is-today { box-shadow: inset 0 0 0 1.5px rgb(0 106 97 / .45); }
-.ac-workspace.avl-page .ac-day.is-sel,
-.ac-workspace.avl-page .ac-day.is-range-start,
-.ac-workspace.avl-page .ac-day.is-range-end,
-.ac-workspace.avl-page .ac-day.is-range-start.is-range-end { border-radius: 12px; background: #e9f4f2; box-shadow: inset 0 0 0 2px var(--avl-teal); }
-.ac-workspace.avl-page .ac-day.is-closed:not(.is-sel) { background: repeating-linear-gradient(135deg, rgb(var(--danger) / .07) 0 6px, #fff 6px 12px); }
-.ac-workspace.avl-page .ac-day:focus-visible { outline: 3px solid var(--avl-teal); outline-offset: 2px; }
-
-.ac-workspace.avl-page .ac-d-top { grid-area: top; align-self: start; display: flex; align-items: center; gap: 6px; min-height: 24px; }
-.ac-workspace.avl-page .ac-d-num { font-size: 13px; font-weight: 600; }
-.ac-workspace.avl-page .ac-day.is-today .ac-d-num { min-width: 24px; height: 24px; background: var(--avl-teal); color: #fff; }
-.ac-workspace.avl-page .ac-today { font-size: 12px; font-weight: 600; color: var(--avl-teal); }
-.ac-workspace.avl-page .ac-d-opt { margin-inline-start: auto; font-size: 11.5px; color: rgb(var(--fg-muted)); }
-.ac-workspace.avl-page .ac-d-free { grid-area: free; align-self: center; flex-direction: column; align-items: flex-start; gap: 0; }
-.ac-workspace.avl-page .ac-d-free b { font-size: clamp(22px, 2.2vw, 32px); line-height: 1.05; font-weight: 600; letter-spacing: -.02em; }
-.ac-workspace.avl-page .ac-d-free span { font-size: 12px; color: rgb(var(--fg-muted)); }
-.ac-workspace.avl-page .ac-d-free.is-low b { color: rgb(180 83 9); }
-.ac-workspace.avl-page .ac-d-free.is-full b, .ac-workspace.avl-page .ac-d-free.is-full span { color: rgb(185 28 28); }
-.ac-workspace.avl-page .ac-d-occ { grid-area: occ; display: inline-flex; gap: 0; font-size: 12px; font-weight: 500; color: rgb(var(--fg-secondary)); }
-.ac-workspace.avl-page .ac-bar { position: absolute; inset-inline: 0; bottom: 0; flex: none; height: 4px; border-radius: 0; background: rgb(var(--fg) / .06); }
-.ac-workspace.avl-page .ac-bar i { border-radius: 0; }
-.ac-workspace.avl-page .ac-d-move { grid-area: move; justify-self: end; justify-content: flex-end; gap: 10px; margin: 0; }
-.ac-workspace.avl-page .ac-chip { gap: 2px; font-size: 12px; color: rgb(var(--fg-muted)); }
-.ac-workspace.avl-page .ac-chip.is-in { color: var(--avl-teal); }
-
-.ac-workspace.avl-page .avl-foot { padding: 10px 4px 0; border-top: 0; }
-.ac-workspace.avl-page .ac-panel { position: sticky; top: 0; align-self: start; max-height: 100%; overflow-y: auto; }
-
+@media (max-width: 1100px) {
+  .avl-head { flex-wrap: wrap; }
+  .avl-nav { padding-inline-start: 0; border-inline-start: 0; }
+  .avl-alert { margin-inline-start: 0; }
+  .avl-sum { width: 100%; margin-inline-start: 0; }
+  .avl-sum > div:first-child { padding-inline-start: 0; }
+}
 @container availability (max-width: 1050px) {
-  .ac-workspace.avl-page .ac-layout.has-panel { grid-template-columns: minmax(0, 1fr); }
   .ac-workspace.avl-page { height: auto; }
+  .ac-workspace.avl-page .ac-layout.has-panel { grid-template-columns: minmax(0, 1fr); }
 }
 @container availability (max-width: 650px) {
+  .ac-workspace.avl-page .ac-dows { gap: 4px; }
+  .ac-workspace.avl-page .ac-dows div { padding: 0; text-align: center; font-size: 12px; }
   .ac-workspace.avl-page .ac-grid { gap: 4px; grid-auto-rows: minmax(76px, auto); }
-  .ac-workspace.avl-page .ac-day { grid-template-areas: 'top top' 'free free' 'occ occ'; padding: 8px 8px 10px; }
-  .ac-workspace.avl-page .ac-d-move { display: none; }
+  .ac-workspace.avl-page .ac-day:not(.is-out) { align-items: center; padding: 7px 6px 8px; border-radius: 10px; }
+  .ac-workspace.avl-page .ac-row:not(.is-free), .ac-workspace.avl-page .ac-row em { display: none; }
+  .ac-workspace.avl-page .ac-d-num { font-size: 12px; white-space: normal; text-align: center; line-height: 1.2; }
+  .ac-workspace.avl-page .ac-d-pct, .ac-workspace.avl-page .ac-d-opt, .ac-workspace.avl-page .avl-keys { display: none; }
+  .ac-workspace.avl-page .ac-d-top { padding-bottom: 4px; }
+  .avl-sum { flex-wrap: wrap; row-gap: 10px; }
 }
-@media (prefers-reduced-motion: reduce) { .ac-workspace.avl-page .ac-day { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .avl-btn, .ac-workspace.avl-page .ac-day { transition: none; }
+  .ac-workspace.avl-page .ac-day:hover:not(.is-out) { transform: none; }
+}
 
-/* 2026-10-28 — less grey: lighter canvas, every day is a solid white card with the soft shadow; past days are quieter
-   by their text, not by a grey wash */
-.page-content:has(> .avl-page) { background: #f6f6f6; }
-.ac-workspace.avl-page .ac-day, .ac-workspace.avl-page .ac-day.is-wk, .ac-workspace.avl-page .ac-day.is-past { background: #fff; box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06); }
-.ac-workspace.avl-page .ac-day.is-past > * { opacity: .72; }
-.ac-workspace.avl-page .ac-day.is-sel { background: #e9f4f2; }
-.ac-workspace.avl-page .ac-day.is-out { background: transparent; box-shadow: none; }
-.ac-workspace.avl-page .ac-day.is-past .ac-d-free b { color: rgb(var(--fg-secondary)); }
+/* ── Layouts for comparison on /pms/design/availability (2026-11-01). Same data, selection and panel; only the structure changes. ── */
+/* Curve: a strip with one column per night (height = free rooms of the house) over a quiet calendar of date + free rooms. */
+.ac-workspace.avl-page .ac-curve { margin-bottom: 12px; padding: 14px 18px 10px; border-radius: 12px; background: #fff; box-shadow: var(--avl-shadow); }
+.ac-workspace.avl-page .ac-curve-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+.ac-workspace.avl-page .ac-curve-head span { color: rgb(var(--fg-muted)); font-size: 12px; }
+.ac-workspace.avl-page .ac-curve-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; height: 84px; }
+.ac-workspace.avl-page .ac-cbar { all: unset; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; height: 100%; cursor: pointer; }
+.ac-workspace.avl-page .ac-cbar i { display: block; width: 100%; min-height: 2px; border-radius: 4px 4px 0 0; background: #cfe3e0; transition: background-color .15s ease-out; }
+.ac-workspace.avl-page .ac-cbar em { font-style: normal; font-size: 11px; color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-cbar small { font-size: 11px; color: rgb(var(--fg-muted)); }
+.ac-workspace.avl-page .ac-cbar.is-wk small { color: rgb(var(--fg)); font-weight: 600; }
+.ac-workspace.avl-page .ac-cbar:hover i { background: #a9cfca; }
+.ac-workspace.avl-page .ac-cbar.is-past i { background: rgb(var(--fg) / .08); }
+.ac-workspace.avl-page .ac-cbar.is-today small { padding: 0 5px; border-radius: 999px; background: var(--avl-teal); color: #fff; }
+.ac-workspace.avl-page .ac-cbar.is-sel i { background: var(--avl-teal); }
+.ac-workspace.avl-page .ac-cbar.is-sel em, .ac-workspace.avl-page .ac-cbar.is-sel small { color: var(--avl-teal); font-weight: 700; }
+.ac-workspace.avl-page .ac-cbar:focus-visible { outline: 2px solid var(--avl-teal); outline-offset: 2px; border-radius: 4px; }
 
-/* the header and the weekday row are cards too */
-.avl-head { padding: 10px 16px; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06); }
-.ac-workspace.avl-page .ac-dows { margin-bottom: 8px; padding: 12px 0 10px; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06); }
+/* Curve and two-months: each day shows its date and free rooms only; the rest is one click away in the panel. */
+.ac-workspace.avl-page:is([data-layout="curve"], [data-layout="two-months"]) .ac-d-pct,
+.ac-workspace.avl-page:is([data-layout="curve"], [data-layout="two-months"]) .ac-row:not(.is-free) { display: none; }
+.ac-workspace.avl-page:is([data-layout="curve"], [data-layout="two-months"]) .ac-d-top { border-bottom: 0; padding-bottom: 0; }
+.ac-workspace.avl-page:is([data-layout="curve"], [data-layout="two-months"]) .ac-d-rows { align-content: end; }
+.ac-workspace.avl-page:is([data-layout="curve"], [data-layout="two-months"]) .ac-row.is-free { flex-direction: column-reverse; align-items: flex-start; gap: 4px; }
+.ac-workspace.avl-page:is([data-layout="curve"], [data-layout="two-months"]) .ac-row.is-free b { font-size: 30px; font-weight: 600; letter-spacing: -.02em; }
+.ac-workspace.avl-page:is([data-layout="curve"], [data-layout="two-months"]) .ac-row.is-free em { font-size: 12px; font-weight: 400; color: rgb(var(--fg-muted)); }
+.ac-workspace.avl-page[data-layout="curve"] .ac-grid { grid-auto-rows: minmax(92px, 1fr); }
 
-/* Header card — one reading path: where am I (title, month with its own arrows) → what needs me (alert) → how is the month (summary).
-   Month label sits between its arrows so the control reads as one unit; the alert and the summary share the far end. */
-.avl-head { gap: 20px; padding: 12px 20px; }
-.avl-title { margin-inline-end: 0; }
-.avl-title h1 { font-size: 20px; }
-.avl-nav { gap: 2px; padding-inline-start: 20px; border-inline-start: 1px solid rgb(var(--fg) / .1); }
-.avl-month { min-width: 128px; text-align: center; font-size: 17px; font-weight: 600; color: rgb(var(--fg)); white-space: nowrap; }
-.avl-alert { margin-inline-start: auto; }
-.avl-alert + .avl-sum { margin-inline-start: 0; }
-.avl-sum { gap: 0; padding-inline-start: 4px; }
-.avl-sum > div { gap: 2px; min-width: 104px; padding-inline: 20px; border-inline-start: 1px solid rgb(var(--fg) / .1); }
-.avl-sum > div:first-child { border-inline-start: 0; }
-.avl-sum dt { font-size: 12px; color: rgb(var(--fg-secondary)); }
-.avl-sum dd { font-size: 20px; line-height: 26px; font-variant-numeric: tabular-nums; }
-@media (max-width: 1100px) { .avl-nav { padding-inline-start: 0; border-inline-start: 0; } .avl-alert { margin-inline-start: 0; } .avl-sum > div:first-child { padding-inline-start: 0; } }
+/* Weeks: seven days plus a week card that sums the row. */
+.ac-workspace.avl-page[data-layout="weeks"] .ac-dows, .ac-workspace.avl-page[data-layout="weeks"] .ac-grid { grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 1.1fr); }
+.ac-workspace.avl-page .ac-week { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 12px 16px; border-radius: 14px; background: #e2e8f0; }
+.ac-workspace.avl-page .ac-week-dates { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.ac-workspace.avl-page .ac-week-free { margin-top: auto; font-size: 13px; color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page .ac-week-free b { margin-inline-end: 4px; color: var(--avl-teal); font-size: 28px; font-weight: 600; letter-spacing: -.02em; }
+.ac-workspace.avl-page .ac-week-moves { font-size: 12.5px; color: rgb(var(--fg-muted)); }
 
-/* Day card — the date leads (large), then free rooms, occupancy bar, arrivals/departures: four rows, no side-by-side crowding */
-.ac-workspace.avl-page .ac-day { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; grid-template-areas: 'top' 'free' 'occ' 'move'; align-content: space-between; align-items: center; row-gap: 6px; padding: 10px 12px 10px; }
-.ac-workspace.avl-page .ac-d-top { align-self: start; min-height: 30px; gap: 8px; }
-.ac-workspace.avl-page .ac-d-num { font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -.02em; color: rgb(var(--fg)); }
-.ac-workspace.avl-page .ac-day.is-today .ac-d-num { min-width: 30px; height: 30px; padding-inline: 4px; border-radius: 50%; font-size: 17px; line-height: 30px; }
-.ac-workspace.avl-page .ac-today { font-size: 12px; font-weight: 600; }
-.ac-workspace.avl-page .ac-d-free { grid-area: free; align-self: center; flex-direction: row; align-items: baseline; gap: 5px; }
-.ac-workspace.avl-page .ac-d-free b { font-size: 16px; line-height: 1.2; font-weight: 600; letter-spacing: 0; }
-.ac-workspace.avl-page .ac-d-free b svg { width: 15px; height: 15px; }
-.ac-workspace.avl-page .ac-d-free span { font-size: 12.5px; }
-.ac-workspace.avl-page .ac-d-occ { grid-area: occ; gap: 8px; font-size: 12px; }
-.ac-workspace.avl-page .ac-d-move { grid-area: move; margin-top: 0; gap: 10px; justify-content: flex-start; }
-.ac-workspace.avl-page .ac-chip { gap: 3px; }
-@container availability-day (max-width: 130px) { .ac-workspace.avl-page .ac-chip em { display: none; } }
-.ac-workspace.avl-page .ac-day.is-past > * { opacity: .6; }
-.ac-workspace.avl-page .ac-day.is-past > .ac-d-top { opacity: .85; }
-.ac-workspace.avl-page .ac-day.is-past .ac-d-num { color: rgb(var(--fg-secondary)); }
+/* Two months: this month and the next side by side, each a white sheet; the panel joins as a third column. */
+.ac-workspace.avl-page[data-layout="two-months"] .ac-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-layout.has-panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-cal { padding: 14px; border-radius: 14px; background: #fff; box-shadow: var(--avl-shadow); }
+.ac-workspace.avl-page .ac-cal-title { margin: 2px 4px 12px; font-size: 17px; font-weight: 600; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-grid { gap: 6px; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-day:not(.is-out) { padding: 8px 10px; background: #f8fafc; box-shadow: none; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-day.is-sel { background: #e6f2f0; box-shadow: inset 0 0 0 2px var(--avl-teal); }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-day .ac-d-num { font-size: 13px; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-row.is-free b { font-size: 22px; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-row.is-free em { display: none; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-dows div { padding-inline: 10px; font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .ac-workspace.avl-page .ac-cbar i { transition: none; } }
+/* weeks: day cards are narrower — the date takes the whole header; occupancy is in the panel */
+.ac-workspace.avl-page[data-layout="weeks"] .ac-d-pct { display: none; }
+.ac-workspace.avl-page[data-layout="weeks"] .ac-day:not(.is-out) { padding-inline: 14px; }
+/* two months: compact fixed-height days so both months sit in one screen */
+.ac-workspace.avl-page[data-layout="two-months"] .ac-layout { align-items: start; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-grid { flex: none; grid-auto-rows: 74px; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-day:not(.is-out) { gap: 2px; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-day .ac-d-top { min-height: 22px; }
+.ac-workspace.avl-page[data-layout="two-months"] .ac-day.is-today .ac-d-num { height: 22px; padding-inline: 8px; font-size: 12px; }
 
-/* ===== Day card (accent ladder): white card, pale tints for area, the full teal only on small marks =====
-   Question the card answers: "is there room on this day?" Rows, top to bottom:
-   date (leads) · free rooms · occupancy bar + % · arrivals / departures. No tinted fills, no pills. */
-.ac-workspace.avl-page .ac-day, .ac-workspace.avl-page .ac-day.is-wk { grid-template-columns: 1fr auto; grid-template-rows: auto auto auto auto; grid-template-areas: 'top opt' 'free free' 'occ occ' 'move move'; align-content: space-between; align-items: center; row-gap: 5px; column-gap: 8px; padding: 12px 14px 12px; background: #fff; }
-.ac-workspace.avl-page .ac-day.is-sel, .ac-workspace.avl-page .ac-day.is-range-start, .ac-workspace.avl-page .ac-day.is-range-end { background: #eef7f6; }
-.ac-workspace.avl-page .ac-day.is-closed:not(.is-sel) { background: repeating-linear-gradient(135deg, rgb(185 28 28 / .07) 0 6px, #fff 6px 12px); }
-.ac-workspace.avl-page .ac-d-top { grid-area: top; align-self: start; min-height: 28px; }
-.ac-workspace.avl-page .ac-d-num { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -.01em; }
-.ac-workspace.avl-page .ac-day.is-today .ac-d-num { min-width: 28px; height: 28px; padding-inline: 3px; font-size: 16px; line-height: 28px; }
-.ac-workspace.avl-page .ac-d-opt { grid-area: opt; align-self: start; margin: 0; padding: 2px 8px; border-radius: 999px; background: #ffddb8; color: #653e00; font-size: 11.5px; font-weight: 500; }
-.ac-workspace.avl-page .ac-d-top .ac-d-opt { display: none; }
-.ac-workspace.avl-page .ac-d-free { grid-area: free; align-self: center; flex-direction: row; align-items: baseline; gap: 5px; padding: 0; background: none; }
-.ac-workspace.avl-page .ac-d-free b { font-size: 18px; line-height: 1.2; font-weight: 600; color: rgb(var(--fg)); }
-.ac-workspace.avl-page .ac-d-free b svg { width: 16px; height: 16px; }
-.ac-workspace.avl-page .ac-d-free span { font-size: 12.5px; color: rgb(var(--fg-secondary)); }
-.ac-workspace.avl-page .ac-d-free.is-low b, .ac-workspace.avl-page .ac-d-free.is-low span { color: #8a5300; }
-.ac-workspace.avl-page .ac-d-free.is-full b, .ac-workspace.avl-page .ac-d-free.is-full span { color: rgb(185 28 28); }
-.ac-workspace.avl-page .ac-d-occ { grid-area: occ; display: flex; align-items: center; gap: 8px; padding: 0; font-size: 12px; font-weight: 500; color: rgb(var(--fg-secondary)); }
-.ac-workspace.avl-page .ac-d-occ .ac-bar { display: block; position: static; flex: 1; height: 4px; border-radius: 999px; background: #e1efed; }
-.ac-workspace.avl-page .ac-d-occ .ac-bar i { background: #006a61; }
-.ac-workspace.avl-page .ac-d-occ .ac-bar i.is-hi { background: #c27803; }
-.ac-workspace.avl-page .ac-d-occ .ac-bar i.is-max { background: rgb(185 28 28); }
-.ac-workspace.avl-page .ac-d-move { grid-area: move; margin-top: 0; gap: 12px; justify-content: flex-start; font-size: 12px; }
-.ac-workspace.avl-page .ac-chip.is-in, .ac-workspace.avl-page .ac-chip.is-out { color: rgb(var(--fg-secondary)); }
-.ac-workspace.avl-page .ac-day.is-past, .ac-workspace.avl-page .ac-day.is-past.is-wk { background: #fff; }
-.ac-workspace.avl-page .ac-day.is-past > * { opacity: .55; }
-.ac-workspace.avl-page .ac-day.is-past > .ac-d-top { opacity: .8; }
-.ac-workspace.avl-page .ac-day.is-past .ac-d-num { color: rgb(var(--fg-secondary)); }
-.ac-workspace.avl-page .ac-day.is-past .ac-bar i { background: rgb(var(--fg-faint)); }
-
-/* ===== Day card v3 — three distinct displays: date badge · free-rooms figure · arrivals/departures footer =====
-   Kept: occupancy bar + %. */
-.ac-workspace.avl-page .ac-day, .ac-workspace.avl-page .ac-day.is-wk { grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; grid-template-areas: 'top free' 'occ occ' 'move move'; align-content: space-between; align-items: start; row-gap: 8px; column-gap: 10px; padding: 12px 14px 0; }
-/* 1) the date: a calendar badge */
-.ac-workspace.avl-page .ac-d-top { grid-area: top; align-self: start; min-height: 0; gap: 8px; }
-.ac-workspace.avl-page .ac-d-num { display: inline-grid; place-items: center; min-width: 38px; height: 38px; padding-inline: 4px; border-radius: 10px; background: #eef7f6; color: #00463f; font-size: 20px; line-height: 1; font-weight: 600; letter-spacing: 0; }
-.ac-workspace.avl-page .ac-day.is-today .ac-d-num { min-width: 38px; height: 38px; border-radius: 10px; background: #006a61; color: #fff; font-size: 20px; line-height: 1; }
-.ac-workspace.avl-page .ac-day.is-past .ac-d-num { background: rgb(var(--fg) / .06); color: rgb(var(--fg-secondary)); }
-.ac-workspace.avl-page .ac-d-top .ac-d-opt { display: inline; margin: 0; padding: 0; background: none; color: #8a5300; font-size: 11.5px; font-weight: 600; }
-.ac-workspace.avl-page .ac-today { font-size: 11.5px; font-weight: 600; color: #006a61; }
-/* 2) free rooms: a figure with its caption under it, on the far side of the date */
-.ac-workspace.avl-page .ac-d-free { grid-area: free; align-self: start; justify-self: end; flex-direction: column; align-items: flex-end; gap: 1px; text-align: end; }
-.ac-workspace.avl-page .ac-d-free b { font-size: 28px; line-height: 1; font-weight: 600; letter-spacing: -.02em; }
-.ac-workspace.avl-page .ac-d-free b svg { width: 22px; height: 22px; }
-.ac-workspace.avl-page .ac-d-free span { font-size: 12px; }
-/* occupancy: unchanged (bar + %) */
-.ac-workspace.avl-page .ac-d-occ { grid-area: occ; align-self: end; }
-/* 3) arrivals / departures: two equal cells in a footer, each with its own coloured glyph */
-.ac-workspace.avl-page .ac-d-move { grid-area: move; display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0 -14px; border-top: 1px solid rgb(var(--fg) / .08); }
-.ac-workspace.avl-page .ac-d-move .ac-chip { justify-content: center; gap: 6px; padding: 7px 4px; font-size: 13px; font-weight: 600; color: rgb(var(--fg)); }
-.ac-workspace.avl-page .ac-d-move .ac-chip + .ac-chip { border-inline-start: 1px solid rgb(var(--fg) / .08); }
-.ac-workspace.avl-page .ac-d-move .ac-chip svg { box-sizing: content-box; width: 12px; height: 12px; padding: 3px; border-radius: 50%; }
-.ac-workspace.avl-page .ac-d-move .ac-chip.is-in svg { background: rgb(0 106 97 / .12); color: #006a61; }
-.ac-workspace.avl-page .ac-d-move .ac-chip.is-out svg { background: rgb(var(--fg) / .08); color: rgb(var(--fg-secondary)); }
-.ac-workspace.avl-page .ac-d-move .ac-chip em { font-style: normal; font-weight: 400; font-size: 12px; color: rgb(var(--fg-secondary)); }
-@container availability-day (max-width: 150px) { .ac-workspace.avl-page .ac-d-move .ac-chip em { display: none; } }
-.ac-workspace.avl-page .ac-day.is-past > .ac-d-top { opacity: 1; }
-.ac-workspace.avl-page .ac-day.is-past .ac-d-move .ac-chip.is-in svg { background: rgb(var(--fg) / .08); color: rgb(var(--fg-secondary)); }
+/* Original: the day card exactly as it was at the start of the 2026-11-01 session (date badge · free rooms ·
+   occupancy bar · arrivals/departures footer), shown under the month strip. Scoped to this option only. */
+.ac-workspace.avl-page[data-layout="original"] .ac-grid { gap: 6px; grid-auto-rows: minmax(92px, 1fr); }
+.ac-workspace.avl-page[data-layout="original"] .ac-dows { gap: 6px; }
+.ac-workspace.avl-page[data-layout="original"] .ac-day:not(.is-out) { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; grid-template-areas: 'top free' 'occ occ' 'move move'; align-content: space-between; align-items: start; row-gap: 8px; column-gap: 10px; padding: 12px 14px 0; border-radius: 12px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 14px rgb(16 24 40 / .06); }
+.ac-workspace.avl-page[data-layout="original"] .ac-day:hover:not(.is-out) { transform: none; box-shadow: 0 2px 8px rgb(var(--fg) / .1); }
+.ac-workspace.avl-page[data-layout="original"] .ac-day.is-today { box-shadow: inset 0 0 0 1.5px rgb(0 106 97 / .45); }
+.ac-workspace.avl-page[data-layout="original"] .ac-day.is-sel { background: #eef7f6; box-shadow: inset 0 0 0 2px var(--avl-teal); }
+.ac-workspace.avl-page[data-layout="original"] .ac-day.is-past > * { opacity: .55; }
+.ac-workspace.avl-page[data-layout="original"] .ac-day.is-past > .ac-d-top { opacity: 1; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-top { grid-area: top; align-self: start; display: flex; align-items: center; gap: 8px; min-height: 0; padding: 0; border: 0; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-num { display: inline-grid; place-items: center; min-width: 38px; height: 38px; padding-inline: 4px; border-radius: 10px; background: #eef7f6; color: #00463f; font-size: 20px; line-height: 1; font-weight: 600; white-space: nowrap; }
+.ac-workspace.avl-page[data-layout="original"] .ac-day.is-today .ac-d-num { background: #006a61; color: #fff; }
+.ac-workspace.avl-page[data-layout="original"] .ac-day.is-past .ac-d-num { background: rgb(var(--fg) / .06); color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page[data-layout="original"] .ac-today { display: inline; color: #006a61; font-size: 11.5px; font-weight: 600; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-opt { margin: 0; color: #8a5300; font-size: 11.5px; font-weight: 600; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-free { grid-area: free; align-self: start; justify-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; text-align: end; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-free b { display: inline-flex; align-items: center; color: rgb(var(--fg)); font-size: 28px; line-height: 1; font-weight: 600; letter-spacing: -.02em; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-free b svg { width: 22px; height: 22px; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-free span { display: inline; color: rgb(var(--fg-secondary)); font-size: 12px; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-free.is-low b, .ac-workspace.avl-page[data-layout="original"] .ac-d-free.is-low span { color: #8a5300; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-free.is-full b, .ac-workspace.avl-page[data-layout="original"] .ac-d-free.is-full span { color: rgb(185 28 28); }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-occ { grid-area: occ; align-self: end; display: flex; align-items: center; gap: 8px; color: rgb(var(--fg-secondary)); font-size: 12px; font-weight: 500; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-occ .ac-bar { position: static; display: block; flex: 1; height: 4px; border-radius: 999px; background: #e1efed; overflow: hidden; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-occ .ac-bar i { display: block; height: 100%; border-radius: 999px; background: #006a61; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-occ .ac-bar i.is-hi { background: #c27803; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-occ .ac-bar i.is-max { background: rgb(185 28 28); }
+.ac-workspace.avl-page[data-layout="original"] .ac-day.is-past .ac-d-occ .ac-bar i { background: rgb(var(--fg-faint)); }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-move { grid-area: move; display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0 -14px; border-top: 1px solid rgb(var(--fg) / .08); }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-move .ac-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 4px; color: rgb(var(--fg)); font-size: 13px; font-weight: 600; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-move .ac-chip + .ac-chip { border-inline-start: 1px solid rgb(var(--fg) / .08); }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-move .ac-chip svg { box-sizing: content-box; width: 12px; height: 12px; padding: 3px; border-radius: 50%; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-move .ac-chip.is-in svg { background: rgb(0 106 97 / .12); color: #006a61; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-move .ac-chip.is-out svg { background: rgb(var(--fg) / .08); color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page[data-layout="original"] .ac-day.is-past .ac-d-move .ac-chip.is-in svg { background: rgb(var(--fg) / .08); color: rgb(var(--fg-secondary)); }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-move .ac-chip em { display: inline; font-style: normal; font-weight: 400; font-size: 12px; color: rgb(var(--fg-secondary)); }
+@container availability-day (max-width: 150px) { .ac-workspace.avl-page[data-layout="original"] .ac-d-move .ac-chip em { display: none; } }
+/* original + strip must fit one 1440x900 screen: a lower strip and a tighter card */
+.ac-workspace.avl-page[data-layout="original"] .ac-curve { padding: 10px 18px 8px; margin-bottom: 10px; }
+.ac-workspace.avl-page[data-layout="original"] .ac-curve-bars { height: 64px; }
+.ac-workspace.avl-page[data-layout="original"] .ac-day:not(.is-out) { row-gap: 4px; padding-top: 10px; }
+.ac-workspace.avl-page[data-layout="original"] .ac-d-move .ac-chip { padding-block: 5px; }

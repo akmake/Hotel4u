@@ -34,7 +34,7 @@ const STATUS_CFG = {
   confirmed: { bg:'#536578', surface:'#edf1f5', text:'#33465a', border:'#d2dbe4', label:'מאושר' },
   in_house: { bg:'#496f9d', surface:'#e7eff8', text:'#305477', border:'#c6d7e9', label:'שוהה במלון' },
   due_out: { bg:'#ae7d36', surface:'#faf1df', text:'#785523', border:'#e8d6b4', label:'יציאה היום' },
-  checked_out: { bg:'#929aa4', surface:'#f0f1f3', text:'#68717d', border:'#dddfe3', label:'עזב' },
+  checked_out: { bg:'#929aa4', surface:'#f8fafc', text:'#68717d', border:'#cbd5e1', label:'עזב' },
   cancelled: { bg:'#ad6464', surface:'#f9eded', text:'#8e4d4d', border:'#edcece', label:'בוטל' },
   no_show: { bg:'#ad6464', surface:'#f9eded', text:'#8e4d4d', border:'#edcece', label:'לא הגיע' },
   pending_payment: { bg:'#ae7d36', surface:'#faf1df', text:'#785523', border:'#e8d6b4', label:'ממתין לתשלום' },
@@ -333,7 +333,7 @@ function ResTooltip({ res, x, y }) {
       left: flipX ? x - 264 : x + 14,
       top:  y - 8,
       background: '#fff',
-      border: '1px solid #e8e8ea',
+      border: '1px solid #e2e8f0',
       borderRadius: 14,
       boxShadow: '0 16px 48px rgba(15,23,42,0.18)',
       minWidth: 248,
@@ -360,7 +360,7 @@ function ResTooltip({ res, x, y }) {
           { label:'מחיר ללילה',  value: res.ratePerNight ? `₪${res.ratePerNight.toLocaleString('he-IL')}` : '—' },
           { label:'סה"כ',        value: res.totalAmount   ? `₪${res.totalAmount.toLocaleString('he-IL')}` : '—' },
         ].map(({ label, value }) => (
-          <div key={label} style={{ display:'flex', justifyContent:'space-between', borderBottom:'1px solid #ededf0', paddingBottom:3 }}>
+          <div key={label} style={{ display:'flex', justifyContent:'space-between', borderBottom:'1px solid #e2e8f0', paddingBottom:3 }}>
             <span style={{ color:'#67676f' }}>{label}</span>
             <span style={{ fontWeight:600, color:'#252525', fontFamily:'monospace' }}>{value}</span>
           </div>
@@ -1124,7 +1124,7 @@ export default function TapeChartPage({ designMode = false }) {
           overflowY: 'auto',
           minHeight: 0,
           borderRadius: 0,
-          border: '1px solid #d8d9dc',
+          border: '1px solid #cbd5e1',
           background: '#ffffff',
           position: 'relative',
         }}
@@ -1135,7 +1135,7 @@ export default function TapeChartPage({ designMode = false }) {
           <div className="calendar-date-header" style={{
             position: 'sticky', top: 0, zIndex: 30,
             background: '#ffffff',
-            borderBottom: '1px solid #e8e8ea',
+            borderBottom: '1px solid #e2e8f0',
             display: 'flex',
             height: dateHeaderHeight,
           }}>
@@ -1145,7 +1145,7 @@ export default function TapeChartPage({ designMode = false }) {
               position: 'sticky', insetInlineStart: 0, zIndex: 40,
               background: '#ffffff',
               display: 'flex', alignItems: 'center', paddingInline: 14,
-              borderBottom: '1px solid #e8e8ea',
+              borderBottom: '1px solid #e2e8f0',
             }}>
               {designMode && cornerVariant === 'month' ? (
                 <div className="calendar-corner is-month">
@@ -1216,7 +1216,7 @@ export default function TapeChartPage({ designMode = false }) {
                 </div>
               ) : <>
               {/* Month labels row */}
-              <div className="calendar-month-row" style={{ display: monthRowH ? 'flex' : 'none', height: monthRowH, borderBottom:'1px solid #ececef' }}>
+              <div className="calendar-month-row" style={{ display: monthRowH ? 'flex' : 'none', height: monthRowH, borderBottom:'1px solid #e2e8f0' }}>
                 {designMode ? (monthVariant === 'nav' ? (
                   <div className="calendar-month-nav">
                     <button type="button" aria-label="חודש קודם" onClick={() => setStartDate(firstOfMonth(days[0].date, -1))}><ChevronRight size={14} /></button>
@@ -1234,7 +1234,7 @@ export default function TapeChartPage({ designMode = false }) {
                     display: 'flex', alignItems: 'center',
                     paddingInline: 8,
                     fontSize: 11, fontWeight: 700, color: '#6b6b70',
-                    borderLeft: i > 0 ? '1px solid #ececef' : 'none',
+                    borderLeft: i > 0 ? '1px solid #e2e8f0' : 'none',
                   }}>
                     {HE_MONTHS[m.month]} {m.year}
                   </div>
@@ -1253,11 +1253,11 @@ export default function TapeChartPage({ designMode = false }) {
                       display: 'flex', flexDirection: 'column',
                       alignItems: 'center', justifyContent: 'center',
                       gap: 1,
-                      borderLeft: '1px solid #ececef',
+                      borderLeft: '1px solid #e2e8f0',
                       background: d.isToday
                         ? 'rgba(89,60,251,0.06)'
                         : d.isWeekend
-                          ? '#fafafb'
+                          ? '#f8fafc'
                           : 'transparent',
                       position: 'relative',
                     }}
@@ -1307,9 +1307,9 @@ export default function TapeChartPage({ designMode = false }) {
                 alignItems: 'center',
                 zIndex: 20,
                 minWidth: totalWidth,
-                background: '#f7f7f8',
-                borderTop: '1px solid #e8e8ea',
-                borderBottom: '1px solid #e8e8ea',
+                background: '#f8fafc',
+                borderTop: '1px solid #e2e8f0',
+                borderBottom: '1px solid #e2e8f0',
               }}>
                 <div style={{
                   position: 'sticky', insetInlineStart: 0,
@@ -1349,7 +1349,7 @@ export default function TapeChartPage({ designMode = false }) {
                     style={{
                       display: 'flex',
                       height: ROW_H,
-                      borderBottom: '1px solid #ededf0',
+                      borderBottom: '1px solid #e2e8f0',
                       background: isDrop ? 'rgba(89,60,251,0.06)' : 'inherit',
                       outline: isDrop ? '2px solid #593cfb' : 'none',
                       outlineOffset: -2,
@@ -1363,8 +1363,8 @@ export default function TapeChartPage({ designMode = false }) {
                       display: 'flex', alignItems: 'center', gap: 10,
                       paddingInline: '14px 10px',
                       background: isOOO ? '#FEF2F2' : isHold ? '#FAF5FF' : ri % 2 === 0 ? '#ffffff' : '#ffffff',
-                      borderLeft: '1px solid #e8e8ea',
-                      borderRight: '1px solid #e8e8ea',
+                      borderLeft: '1px solid #e2e8f0',
+                      borderRight: '1px solid #e2e8f0',
                     }}>
                       {/* Room number — large */}
                       <div style={{
@@ -1377,7 +1377,7 @@ export default function TapeChartPage({ designMode = false }) {
                       <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:3 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                           {room.roomType?.code && (
-                            <span style={{ fontSize:9, fontWeight:800, color:'#6550b8', background:'#f3f3f5', padding:'1px 5px', borderRadius:4, letterSpacing:'0.05em', flexShrink:0 }}>
+                            <span style={{ fontSize:9, fontWeight:800, color:'#6550b8', background:'#f8fafc', padding:'1px 5px', borderRadius:4, letterSpacing:'0.05em', flexShrink:0 }}>
                               {room.roomType.code}
                             </span>
                           )}
@@ -1385,7 +1385,7 @@ export default function TapeChartPage({ designMode = false }) {
                           {isHold && <span style={{ fontSize:9, fontWeight:800, color:'#7c3aed', background:'#ede9fe', padding:'1px 5px', borderRadius:4 }}>Hold</span>}
                         </div>
                         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-                          <div style={{ width:5, height:5, borderRadius:'50%', background: CLEAN_DOT[room.cleanStatus] || '#d8d9dc', flexShrink:0 }} />
+                          <div style={{ width:5, height:5, borderRadius:'50%', background: CLEAN_DOT[room.cleanStatus] || '#cbd5e1', flexShrink:0 }} />
                           <span style={{ fontSize:9.5, color:'#8a8a91', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {room.roomType?.name || '—'}
                           </span>
@@ -1396,7 +1396,7 @@ export default function TapeChartPage({ designMode = false }) {
                       <button
                         onClick={e => { e.stopPropagation(); setBlockRoom(room); }}
                         title={isOOO || isHold ? 'שחרר חדר' : 'חסום חדר'}
-                        style={{ background:'transparent', border:'none', cursor:'pointer', padding:'2px 3px', color: isOOO ? '#dc2626' : isHold ? '#7c3aed' : '#d8d9dc', flexShrink:0 }}
+                        style={{ background:'transparent', border:'none', cursor:'pointer', padding:'2px 3px', color: isOOO ? '#dc2626' : isHold ? '#7c3aed' : '#cbd5e1', flexShrink:0 }}
                       >
                         {(isOOO || isHold) ? <Unlock size={11} /> : <Lock size={11} />}
                       </button>
@@ -1406,12 +1406,12 @@ export default function TapeChartPage({ designMode = false }) {
                       position: 'sticky', insetInlineStart: 0, zIndex: 10,
                       width: LABEL_W, flexShrink: 0,
                       background: isOOO ? '#FEF2F2' : isHold ? '#FAF5FF' : '#ffffff',
-                      borderLeft: '1px solid #e8e8ea', borderRight: '1px solid #e8e8ea',
+                      borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0',
                     }}>
                       <span className="rl-num" style={isOOO ? { color: '#dc2626' } : undefined}>{room.number}</span>
                       <span className="rl-name">{room.roomType?.name || '—'}</span>
                       {room.roomType?.code && <span className="rl-code">{room.roomType.code}</span>}
-                      <span className="rl-state"><i className="rl-dot" style={{ background: CLEAN_DOT[room.cleanStatus] || '#d8d9dc' }} /><span className="rl-state-txt">{CLEAN_LABEL[room.cleanStatus] || '—'}</span></span>
+                      <span className="rl-state"><i className="rl-dot" style={{ background: CLEAN_DOT[room.cleanStatus] || '#cbd5e1' }} /><span className="rl-state-txt">{CLEAN_LABEL[room.cleanStatus] || '—'}</span></span>
                       {(isOOO || isHold) && <span className="rl-tags">{isOOO ? 'OOO' : 'Hold'}</span>}
                       <button type="button" className="rl-lock" title={isOOO || isHold ? 'שחרר חדר' : 'חסום חדר'} onClick={e => { e.stopPropagation(); setBlockRoom(room); }}>
                         {(isOOO || isHold) ? <Unlock size={13} /> : <Lock size={13} />}
@@ -1431,11 +1431,11 @@ export default function TapeChartPage({ designMode = false }) {
                             position: 'absolute',
                             insetInlineStart: i * COL_W, top: 0,
                             width: COL_W, height: ROW_H,
-                            borderLeft: '1px solid #ededf0',
+                            borderLeft: '1px solid #e2e8f0',
                             background: d.isToday
                               ? 'rgba(89,60,251,0.025)'
                               : d.isWeekend
-                                ? '#fafafb'
+                                ? '#f8fafc'
                                 : 'transparent',
                             cursor: isOOO ? 'default' : 'cell',
                             zIndex: 1,
@@ -1506,11 +1506,11 @@ export default function TapeChartPage({ designMode = false }) {
                   </span>
                 </div>
               </div>
-              <div style={{ display:'flex', height: ROW_H * unassignedRes.length, borderBottom:'1px solid #e8e8ea' }}>
+              <div style={{ display:'flex', height: ROW_H * unassignedRes.length, borderBottom:'1px solid #e2e8f0' }}>
                 <div style={{
                   position:'sticky', insetInlineStart:0, zIndex:10, width: LABEL_W, flexShrink:0,
                   display:'flex', alignItems:'center', gap:8, paddingInline:12,
-                  background:'rgba(247,239,224,0.5)', borderLeft:'3px solid #593cfb', borderRight:'1px solid #ececef',
+                  background:'rgba(247,239,224,0.5)', borderLeft:'3px solid #593cfb', borderRight:'1px solid #e2e8f0',
                 }}>
                   <span style={{ fontSize:12, color:'#67676f', fontWeight:700 }}>לא שויך</span>
                 </div>
@@ -1518,7 +1518,7 @@ export default function TapeChartPage({ designMode = false }) {
                   {days.map((d,i) => (
                     <div key={d.date} style={{
                       position:'absolute', insetInlineStart:i*COL_W, top:0, width:COL_W, height:ROW_H,
-                      borderLeft:'1px solid #e8e8ea',
+                      borderLeft:'1px solid #e2e8f0',
                       background: d.isToday ? 'rgba(89,60,251,0.025)' : 'transparent',
                     }} />
                   ))}

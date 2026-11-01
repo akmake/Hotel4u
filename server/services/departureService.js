@@ -464,7 +464,8 @@ export async function completeCheckOut(args) {
   const res = await loadReservationInScope(args.reservationId, args.propertyId);
   const units = await ReservationRoom.find({ reservation: res._id }).select('assignedRoom roomTypeBooked').lean();
   const roomIds = [...new Set([res.assignedRoom, ...units.map((u) => u.assignedRoom)].filter(Boolean).map(String))];
-  const typeIds = [...new Set([res.roomType, ...units.map((u) => u.roomTypeBooked)].filter(Boolean).map(String))];
+  // res.roomType arrives populated; lock and compare by its id, not by the document.
+  const typeIds = [...new Set([res.roomType?._id || res.roomType, ...units.map((u) => u.roomTypeBooked)].filter(Boolean).map(String))];
   const keys = [`dayclose:${args.propertyId}`, `res:${args.reservationId}`, ...roomIds.map((r) => `room:${r}`), ...typeIds.map((t) => `inv:${args.propertyId}:${t}`)];
   return withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => {
     session.financialDayCloseLease = lease;
@@ -495,7 +496,7 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
   const remaining = units.filter((u) => ['reserved', 'tentative', 'in_house', 'checked_in'].includes(u.status)).length - wanted.length;
   const finalDeparture = remaining === 0;
   for (const unit of wanted) {
-    if (!unit.assignedRoom || !lockedRooms.includes(String(unit.assignedRoom)) || !lockedTypes.includes(String(unit.roomTypeBooked || res.roomType))) throw httpError('שיבוץ החדר השתנה או חסר — יש לרענן', 409);
+    if (!unit.assignedRoom || !lockedRooms.includes(String(unit.assignedRoom)) || !lockedTypes.includes(String(unit.roomTypeBooked || res.roomType?._id || res.roomType))) throw httpError('שיבוץ החדר השתנה או חסר — יש לרענן', 409);
   }
   const selectedRooms = wanted.map((u) => String(u.assignedRoom));
   if (await Room.countDocuments({ _id: { $in: selectedRooms }, property: propertyId }).session(session) !== selectedRooms.length) throw httpError('חדר משויך חסר או שייך לנכס אחר — נדרש תיקון', 409);

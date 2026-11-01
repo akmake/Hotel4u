@@ -162,6 +162,11 @@ export const frontdesk = {
   checkIn:         (propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/check-in`, { ...body, propertyId }),
   roomCandidates:  (propertyId, resId, params = {}) => api.get(`/frontdesk/reservations/${resId}/room-candidates?propertyId=${propertyId}${qs(params)}`),
   assignRoom:      (propertyId, resId, body) => api.post(`/frontdesk/reservations/${resId}/assign-room`, { ...body, propertyId }),
+  roomPlan:        (propertyId, date)        => api.get(`/frontdesk/room-plan?propertyId=${propertyId}${qs({ date })}`),
+  onlineCheckIn:   (propertyId, resId)       => api.get(`/frontdesk/reservations/${resId}/online-checkin?propertyId=${propertyId}`),
+  onlineCheckInLink: (propertyId, resId, via) => api.post(`/frontdesk/reservations/${resId}/online-checkin/link`, { propertyId, via }),
+  decideUpsell:    (propertyId, resId, upsellId, decision, reason) => api.post(`/frontdesk/reservations/${resId}/online-checkin/upsells/${upsellId}`, { propertyId, decision, reason }),
+  applyRoomPlan:   (propertyId, items)       => api.post('/frontdesk/room-plan/apply', { propertyId, items }),
   staff:           (propertyId)              => api.get(`/frontdesk/staff?propertyId=${propertyId}`),
   queue:           (propertyId, status)      => api.get(`/frontdesk/queue?propertyId=${propertyId}${qs({ status })}`),
   addToQueue:      (propertyId, body)        => api.post('/frontdesk/queue', { ...body, propertyId }),
@@ -195,6 +200,8 @@ export const setup = {
   typePhotos:     (propertyId, id, images)  => api.put(`/setup/room-types/${id}/photos`, withP(propertyId, { images })),
   online:         (propertyId)              => api.get(`/setup/online-booking?propertyId=${propertyId}`),
   saveOnline:     (propertyId, body)        => api.put('/setup/online-booking', withP(propertyId, body)),
+  checkin:        (propertyId)              => api.get(`/setup/online-checkin?propertyId=${propertyId}`),
+  saveCheckin:    (propertyId, body)        => api.put('/setup/online-checkin', withP(propertyId, body)),
 };
 
 export const ops = {
@@ -584,6 +591,27 @@ export const maintenance = {
   addPhoto:     (id, url, caption)           => api.post(`/maintenance/${id}/photos`, { url, caption }),
   updateParts:  (id, parts)                  => api.patch(`/maintenance/${id}/parts`, { parts }),
   setVendor:    (id, name, phone, email)     => api.patch(`/maintenance/${id}/vendor`, { name, phone, email }),
+};
+
+// ── Report centre (every hotel report: catalogue, data, Excel/CSV) ────────────
+export const reportCenter = {
+  catalog: (propertyId)               => api.get(`/report-center/catalog?propertyId=${propertyId}`),
+  run:     (propertyId, code, params) => api.get(`/report-center/${code}?propertyId=${propertyId}${qs(params || {})}`),
+  download: async (propertyId, code, params = {}, format = 'xlsx') => {
+    const token = getToken();
+    const res = await fetch(`${PMS_BASE}/report-center/${code}/export?propertyId=${propertyId}${qs({ ...params, format })}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) { let msg = 'שגיאה בהפקת הקובץ'; try { msg = (await res.json()).error || msg; } catch { /* binary */ } throw new Error(msg); }
+    saveBlob(await res.blob(), (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || `${code}.${format}`);
+  },
+};
+
+// ── Report subscriptions (scheduled e-mails) ──────────────────────────────────
+export const reportSubscriptions = {
+  list:   (propertyId)           => api.get(`/report-subscriptions?propertyId=${propertyId}`),
+  create: (propertyId, body)     => api.post('/report-subscriptions', { ...body, propertyId }),
+  update: (propertyId, id, body) => api.put(`/report-subscriptions/${id}`, { ...body, propertyId }),
+  remove: (propertyId, id)       => api.delete(`/report-subscriptions/${id}?propertyId=${propertyId}`),
+  send:   (propertyId, id)       => api.post(`/report-subscriptions/${id}/send`, { propertyId }),
 };
 
 // ── Reports ───────────────────────────────────────────────────────────────────

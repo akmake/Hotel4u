@@ -81,17 +81,21 @@ const BookSearchPage       = lazy(() => import('./pages/book/BookSearchPage'));
 const BookCheckoutPage     = lazy(() => import('./pages/book/BookCheckoutPage'));
 const BookPayPage          = lazy(() => import('./pages/book/BookPayPage'));
 const BookDonePage         = lazy(() => import('./pages/book/BookDonePage'));
+const OnlineCheckInPage    = lazy(() => import('./pages/checkin/OnlineCheckInPage'));
 const PreventivePage       = lazy(() => import('./pages/ops/PreventivePage'));
 const ReceivablesPage      = lazy(() => import('./pages/fin/ReceivablesPage'));
 const HotelSetupPage       = lazy(() => import('./pages/sys/HotelSetupPage'));
 const LostFoundPage        = lazy(() => import('./pages/ops/LostFoundPage'));
 const MaintenancePage      = lazy(() => import('./pages/ops/MaintenancePage'));
-const GuestsPage           = lazy(() => import('./pages/GuestsPage'));
+const GuestsPage           = lazy(() => import('./pages/guests/GuestDirectory'));
 const FolioPage            = lazy(() => import('./pages/fin/FolioPage'));
 const CompaniesPage        = lazy(() => import('./pages/CompaniesPage'));
 const LeadInboxPage        = lazy(() => import('./pages/LeadInboxPage'));
 const OpportunityBoardPage = lazy(() => import('./pages/OpportunityBoardPage'));
 const ReportsPage          = lazy(() => import('./pages/ReportsPage'));
+const ReportSubscriptionsPage = lazy(() => import('./pages/ReportSubscriptionsPage'));
+const ReportsHomePage      = lazy(() => import('./pages/reports/ReportsHomePage'));
+const ReportViewPage       = lazy(() => import('./pages/reports/ReportViewPage'));
 const InvoicesPage         = lazy(() => import('./pages/InvoicesPage'));
 const DayClosePage         = lazy(() => import('./pages/fin/DayClosePage'));
 const DayReportPage        = lazy(() => import('./pages/fin/DayReportPage'));
@@ -188,6 +192,8 @@ export default function App() {
             <Route path="pay/:token" element={<BookPayPage />} />
             <Route path="done/:token" element={<BookDonePage />} />
           </Route>
+          {/* Guest online check-in (link from the hotel) */}
+          <Route path="/checkin/:token" element={<OnlineCheckInPage />} />
 
           {/* Protected — all inside AppShell */}
           <Route element={<AuthGate><AppShell /></AuthGate>}>
@@ -269,7 +275,10 @@ export default function App() {
               <Route path="companies"         element={<CompaniesPage />} />
               <Route path="leads"             element={<LeadInboxPage />} />
               <Route path="opportunities"     element={<OpportunityBoardPage />} />
-              <Route path="reports"           element={<ReportsPage />} />
+              <Route path="reports"           element={<ReportsHomePage />} />
+              <Route path="reports/r/:code"   element={<ReportViewPage />} />
+              <Route path="reports/performance" element={<ReportsPage />} />
+              <Route path="reports/subscriptions" element={<ReportSubscriptionsPage />} />
               <Route path="night-audit"       element={<DayClosePage />} />
               <Route path="night-audit/report" element={<DayReportPage />} />
               <Route path="bulk-jobs"         element={<BulkJobsPage />} />
