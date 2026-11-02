@@ -119,6 +119,7 @@ const ReservationSchema = new Schema({
     visaType:        String,                             // entry visa / permit type as recorded
     entryDate:       String,                             // YYYY-MM-DD last entry to Israel
     docLast4:        String,                             // last 4 of the document — never the full number
+    permanentAddress: String,                            // permanent address abroad — required for the 0% VAT evidence
     recordedAt:      Date,
     recordedBy:      { type: Schema.Types.ObjectId, ref: 'User' },
     recordedByName:  String,

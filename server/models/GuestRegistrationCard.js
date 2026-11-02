@@ -29,6 +29,7 @@ const GuestRegistrationCardSchema = new Schema({
   lastName:     { type: String, required: true },
   dateOfBirth:  { type: Date,   required: true },
   nationality:  { type: String, required: true },       // אזרחות (קוד ISO-3166)
+  address:      { type: String, trim: true, maxlength: 300 }, // מען קבוע — ספר אורחים (הוראות ניהול פנקסים) ופטור מע״מ לתייר
   idDocType:    { type: String, enum: ID_DOC_TYPES, required: true },
   idDocNumber:  { type: String, required: true },       // מס' ת.ז / דרכון
   idDocExpiry:  { type: Date },                         // תוקף מסמך (חובה לדרכון)

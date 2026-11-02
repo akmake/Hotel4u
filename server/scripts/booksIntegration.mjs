@@ -214,7 +214,8 @@ async function main() {
     check('G4 …it opens the next day: opening = stored close, charge 59', r.status === 200 && near(r.data.ledger.trial.opening, closedClosing) && near(r.data.ledger.trial.charges, 59) && r.data.checks.find((c) => c.key === 'opening')?.ok === true, JSON.stringify(r.data?.ledger?.trial || r).slice(0, 200));
     check('G4 manager flash has day / month / year figures', r.data?.flash?.mtd && typeof r.data.flash.ytd.occupancyPct === 'number');
     // Editing a line of the closed day afterwards is detected.
-    await Folio.updateOne({ _id: inh.folio._id, 'lines.department': 'f_and_b' }, { $inc: { 'lines.$.amount': -50 } });
+    // Tampering is simulated at the driver level: the model's financial guard (rightly) refuses it.
+    await Folio.collection.updateOne({ _id: inh.folio._id, 'lines.department': 'f_and_b' }, { $inc: { 'lines.$.amount': -50 } });
     r = await call('GET', `/finance/day-close/report?propertyId=${B.P}&date=${today}`, BM);
     const r2 = await call('GET', `/finance/day-close/report?propertyId=${B.P}&date=${addDays(today, 1)}`, BM);
     check('G4 changing history of a closed day is caught (closed day + next opening)', r.data.checks.find((c) => c.key === 'closed_changed')?.ok === false && r2.data.checks.find((c) => c.key === 'opening')?.ok === false, JSON.stringify(r2.data?.checks).slice(0, 220));
@@ -277,7 +278,7 @@ async function main() {
     r = await call('POST', `/stay/${ciOld.r._id}/reverse-check-in`, DM, { propertyId: D.P, reason: 'מאוחר מדי' });
     check('G6 a check-in from an earlier business day is not reversed (early departure instead)', r.status === 409, r.status);
     const ciNight = await mkStay(D, { arrival: today, departure: addDays(today, 2), room: D.rooms[1] });
-    await Folio.updateOne({ _id: ciNight.folio._id }, { $push: { lines: { type: 'charge', description: 'לינה', amount: 423.73, taxAmount: 76.27, department: 'rooms', serviceDate: today, source: 'night_audit', status: 'posted', reference: `night:x:${today}` } } });
+    await Folio.collection.updateOne({ _id: ciNight.folio._id }, { $push: { lines: { _id: new mongoose.Types.ObjectId(), type: 'charge', description: 'לינה', amount: 423.73, taxAmount: 76.27, department: 'rooms', serviceDate: today, accountingDate: today, postedAt: new Date(), source: 'night_audit', status: 'posted', reference: `night:x:${today}` } } });
     r = await call('POST', `/stay/${ciNight.r._id}/reverse-check-in`, DM, { propertyId: D.P, reason: 'טעות' });
     check('G6 a check-in with a posted room night is not reversed', r.status === 409, r.status);
 
@@ -318,10 +319,10 @@ async function main() {
     const EM = E.t.property_admin; const ER = E.t.receptionist; const EF = E.t.finance_manager;
     const tour = await mkStay(E, { arrival: addDays(today, -1), departure: addDays(today, 2), rate: 590 });
     r = await call('POST', `/stay/${tour.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true });
-    check('EXT-04 a non-resident record needs passport country, visa type and entry date', r.status === 422 && r.fields?.passportCountry && r.fields?.visaType && r.fields?.entryDate, r.status);
+    check('EXT-04 a non-resident record needs passport country, visa type, entry date and permanent address', r.status === 422 && r.fields?.passportCountry && r.fields?.visaType && r.fields?.entryDate && r.fields?.permanentAddress, r.status);
     r = await call('POST', `/stay/${tour.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'IL', visaType: 'B2', entryDate: addDays(today, -1) });
     check('EXT-04 an Israeli passport is not a tourist', r.status === 422 && r.fields?.passportCountry, r.status);
-    r = await call('POST', `/stay/${tour.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'us', visaType: 'B2', entryDate: addDays(today, -1), docLast4: '1234' });
+    r = await call('POST', `/stay/${tour.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'us', visaType: 'B2', entryDate: addDays(today, -1), docLast4: '1234', permanentAddress: '12 Main St, Boston, USA' });
     check('EXT-04 evidence recorded; without an approved property rule the decision is "pending rule" (regular VAT)', r.status === 200 && r.data.decision === 'pending_rule' && r.data.evidence.passportCountry === 'US', JSON.stringify(r.data || r).slice(0, 200));
     await postNightsUntil({ reservation: await Reservation.findById(tour.r._id), until: today, source: 'night_audit' });
     let tf = await Folio.findById(tour.folio._id).lean();
@@ -348,7 +349,7 @@ async function main() {
     const ivMb = inv.lines.find((l) => String(l.folioLineId) === String(mb._id));
     check('Invoice: each line keeps its posted VAT rate (zero-rated night 0%, minibar 18%)', ivNight?.vatRate === 0 && ivNight?.vatAmount === 0 && ivMb?.vatRate === 18 && Math.abs(ivMb.vatAmount - 18) < 0.01, JSON.stringify(inv.lines.map((l) => [l.vatRate, l.vatAmount])));
     const tour2 = await mkStay(E, { arrival: addDays(today, -1), departure: addDays(today, 2), room: E.rooms[1], rate: 590 });
-    await call('POST', `/stay/${tour2.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'FR', visaType: 'A1', entryDate: addDays(today, -2) });
+    await call('POST', `/stay/${tour2.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'FR', visaType: 'A1', entryDate: addDays(today, -2), permanentAddress: '3 Rue de Rivoli, Paris' });
     r = await call('GET', `/stay/${tour2.r._id}/tourist?propertyId=${E.P}`, ER);
     await postNightsUntil({ reservation: await Reservation.findById(tour2.r._id), until: today, source: 'night_audit' });
     const t2 = (await Folio.findById(tour2.folio._id).lean()).lines[0];
@@ -369,7 +370,7 @@ async function main() {
     r = await call('POST', `/finance/folios/${big.folio._id}/payments`, ER, { propertyId: E.P, kind: 'deposit', amount: 900, method: 'cash', idempotencyKey: key() });
     const ok800 = await call('POST', `/finance/folios/${big.folio._id}/payments`, ER, { propertyId: E.P, kind: 'deposit', amount: 800, method: 'cash', idempotencyKey: key() });
     check('IL11 resident, 8,000 transaction: cash up to the lower of 10% and 6,000 (800) — 900 refused, 800 accepted', r.status === 422 && r.code === 'cash_law' && ok800.status === 200, `${r.status} ${r.error || ''} / ${ok800.status}`);
-    await call('POST', `/stay/${big.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'DE', visaType: 'B/2', entryDate: addDays(today, -1) });
+    await call('POST', `/stay/${big.r._id}/tourist`, ER, { propertyId: E.P, nonResident: true, passportCountry: 'DE', visaType: 'B/2', entryDate: addDays(today, -1), permanentAddress: 'Hauptstr. 5, Berlin' });
     r = await call('POST', `/finance/folios/${big.folio._id}/payments`, ER, { propertyId: E.P, kind: 'deposit', amount: 5000, method: 'cash', idempotencyKey: key() });
     check('IL11 verified tourist: the 40,000 threshold applies (8,000 in cash allowed)', r.status === 200, `${r.status} ${r.error || ''}`);
     check('EXT-04 tourist record and rule changes are audited', await AuditLog.countDocuments({ property: E.P, action: { $in: ['reservation.tourist_recorded', 'tax_policy.tourist_updated'] } }) >= 5);
@@ -377,7 +378,7 @@ async function main() {
     const resIds = (await Reservation.find({ property: { $in: props } }).select('_id').lean()).map((x) => x._id);
     await AuditLog.deleteMany({ $or: [{ property: { $in: props } }, { entityId: { $in: [...props, ...resIds] } }] });
     await removeFiscalTestFixtures(props, TAG);
-    await Folio.deleteMany({ property: { $in: props } });
+    await Folio.collection.deleteMany({ property: { $in: props } }); // test fixtures only — bypasses the financial guard
     await ReservationRoom.deleteMany({ property: { $in: props } });
     await Reservation.deleteMany({ property: { $in: props } });
     await DayCloseRun.deleteMany({ property: { $in: props } });

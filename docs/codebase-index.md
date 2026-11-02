@@ -609,6 +609,22 @@ Service: `services/frontDeskService.js`. Model: `models/ArrivalQueueEntry.js`. P
   `roles` = managers/audit only, viewing/export audited as `report.viewed|exported`, never e-mailed) and `evacuation` (in-house
   people per floor/room, help-needed flag from requests). CBS report groups by continent + country of residence; the CBS
   questionnaire itself was not found online — fields not checked against the form.
+- Legal compliance batch (2026-11-02):
+  · Guest book (income-tax bookkeeping): `GuestRegistrationCard.address` is required in `saveRegistration` (falls back to
+    the profile address via `addressLine`, writes it back to an empty profile) and in the online check-in; the wizard shows
+    it. `guest_register` has address + issued invoice/receipt reference columns.
+  · Tourist 0% VAT: `Reservation.tourist.permanentAddress` required for nonResident (falls back to the stay's card address);
+    `decide()` → ineligible without it. TouristFields gets the field (`hideAddress` in the wizard, which sends form.address).
+  · Consumer cancellation: rest days = Saturdays + Israeli festivals from the Hebrew calendar (`utils/israeliHolidays.js`)
+    + `Property.restDays`.
+  · Public statements: `Property.accessibility` / `privacyNotice`, `services/legalPagesService.js`, `GET|PUT
+    /setup/public-statements` (setup tab "נגישות ופרטיות"), public `GET /api/public/booking/statements?p=` (works with
+    booking off) → `/book/accessibility`, `/book/privacy` (standalone pages); linked from the booking footer, the closed-site
+    message and the online check-in (privacy notice under the details step).
+  · Staff register (police spec): `User.staffRecord {idNumber, phone, address, employedFrom}` — admin-only in
+    `listUsers`/`updateUser` (audit records only that it changed); report `staff_register` (managers/audit only).
+  · QA fixes: books suite simulates tampering via `Folio.collection` (the financial guard blocks the model) and cleans up
+    the same way; remaining books failures (G4 broken opening, G6 reinstate stock, in-app invoice issuing) predate this.
 QA: `npm run qa:frontdesk` (live server + same DB; cleans up after itself).
 
 #### Availability + room blocks (INV-01 / INV-04, 2026-10-19)

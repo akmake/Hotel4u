@@ -33,7 +33,7 @@ const ETA_CHOICES = ['12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
 const QUICK = ['מיטה נוספת', 'לול לתינוק', 'כריות נוספות', 'חדר שקט', 'חוגגים אירוע', 'אלרגיה'];
 const UPSELL_STATE = { requested: 'ממתין לאישור המלון', approved: 'אושר', posted: 'אושר', declined: 'לא זמין בתאריכים שלכם' };
 const STEP_TITLE = { details: 'פרטים אישיים', document: 'מסמך זיהוי', arrival: 'פרטי ההגעה', extras: 'לשדרג את השהייה', review: 'אישור וחתימה' };
-const FIELD_STEP = { firstName: 'details', lastName: 'details', email: 'details', phone: 'details', dateOfBirth: 'details', nationality: 'details', idDocType: 'document', idDocNumber: 'document', idDocExpiry: 'document', eta: 'arrival', upsells: 'extras', signature: 'review', acceptTerms: 'review' };
+const FIELD_STEP = { firstName: 'details', lastName: 'details', email: 'details', phone: 'details', dateOfBirth: 'details', nationality: 'details', address: 'details', idDocType: 'document', idDocNumber: 'document', idDocExpiry: 'document', eta: 'arrival', upsells: 'extras', signature: 'review', acceptTerms: 'review' };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const store = {
@@ -112,7 +112,7 @@ export default function OnlineCheckInPage() {
   const fill = (d, draft = null) => {
     const base = {
       firstName: d.guest.firstName, lastName: d.guest.lastName, email: d.guest.email, phone: d.guest.phone,
-      dateOfBirth: d.guest.dateOfBirth, nationality: d.guest.nationality || 'IL', idDocType: d.guest.idDocType || 'id_card',
+      dateOfBirth: d.guest.dateOfBirth, nationality: d.guest.nationality || 'IL', address: d.guest.address || '', idDocType: d.guest.idDocType || 'id_card',
       idDocNumber: '', keepDoc: !!d.guest.idDocLast4, idDocExpiry: d.guest.idDocExpiry, eta: d.eta, requests: d.requests,
       upsells: d.upsells.filter((u) => u.status === 'requested').map((u) => u.key),
       signature: null, acceptTerms: false, marketingConsent: false,
@@ -166,6 +166,7 @@ export default function OnlineCheckInPage() {
       if (!f.firstName?.trim()) e.firstName = 'נא למלא שם פרטי';
       if (!f.lastName?.trim()) e.lastName = 'נא למלא שם משפחה';
       if (!f.dateOfBirth) e.dateOfBirth = 'נא למלא תאריך לידה';
+      if (String(f.address || '').trim().length < 4) e.address = 'נא למלא כתובת מגורים (רחוב, עיר, מדינה)';
       if (f.email && !EMAIL.test(f.email)) e.email = 'כתובת הדוא״ל לא נראית תקינה';
     }
     if (id === 'document') {
@@ -303,7 +304,11 @@ export default function OnlineCheckInPage() {
                   <p className="ci-stayline">{f.firstName ? `${f.firstName}, ` : ''}{d.stay.roomType ? `${d.stay.roomType} · ` : ''}{stayRange(d.stay)} · {d.stay.nights} לילות</p>
                 </div>
                 <p className="ci-lead">ממלאים את הצ׳ק-אין עכשיו, כשתי דקות, ובהגעה רק מציגים תעודה ומקבלים מפתח.</p>
-                <p className="ci-small" style={{ margin: 0 }}>הפרטים נשמרים במלון לצורך רישום האורחים בלבד.{telHref && <> צריכים עזרה? <a className="ci-link" href={telHref}><bdi>{d.hotel.phone}</bdi></a></>}</p>
+                <p className="ci-small" style={{ margin: 0 }}>
+                  {d.hotel.privacyUrl && <><a className="ci-link" href={d.hotel.privacyUrl} target="_blank" rel="noreferrer">מדיניות פרטיות</a> · </>}
+                  {d.hotel.accessibilityUrl && <><a className="ci-link" href={d.hotel.accessibilityUrl} target="_blank" rel="noreferrer">הצהרת נגישות</a></>}
+                  {telHref && <> · צריכים עזרה? <a className="ci-link" href={telHref}><bdi>{d.hotel.phone}</bdi></a></>}
+                </p>
               </div>
               <div className="ci-foot"><button type="button" className="ci-btn" onClick={() => setStep(0)}>מתחילים</button></div>
             </div>
@@ -328,7 +333,12 @@ export default function OnlineCheckInPage() {
         <F id="ci-lastName" label="שם משפחה" req error={errors.lastName}><input {...input('lastName', { autoComplete: 'family-name', maxLength: 60 })} /></F>
         <F id="ci-phone" label="טלפון" error={errors.phone}><input {...input('phone', { type: 'tel', dir: 'ltr', autoComplete: 'tel', maxLength: 20, placeholder: '050-0000000' })} /></F>
         <F id="ci-dateOfBirth" label="תאריך לידה" req error={errors.dateOfBirth}><input {...input('dateOfBirth', { type: 'date', autoComplete: 'bday', max: new Date().toISOString().slice(0, 10) })} /></F>
+        <F id="ci-address" label="כתובת מגורים קבועה" req error={errors.address} hint="רחוב ומספר, עיר ומדינה — נדרש לרישום האורחים במלון"><input {...input('address', { autoComplete: 'street-address', maxLength: 300 })} /></F>
         <F id="ci-email" label="דוא״ל" error={errors.email}><input {...input('email', { type: 'email', dir: 'ltr', autoComplete: 'email', maxLength: 120 })} /></F>
+        <p className="ci-small" style={{ margin: 0 }}>
+          שם, תאריך לידה, אזרחות, מען ומסמך זיהוי נדרשים לפי דין לרישום אורחים במלון ולניהול ספרים, ובלעדיהם לא ניתן להשלים את הכניסה. טלפון ודוא״ל — לבחירתכם, לעדכונים על השהייה.
+          {d.hotel.privacyUrl && <> <a className="ci-link" href={d.hotel.privacyUrl} target="_blank" rel="noreferrer">מדיניות הפרטיות המלאה</a></>}
+        </p>
       </>
     );
   } else if (current === 'document') {
@@ -403,6 +413,7 @@ export default function OnlineCheckInPage() {
         <dl className="ci-rows">
           {row('שם', `${f.firstName} ${f.lastName}`, 'details')}
           {row('תאריך לידה ואזרחות', `${dmy(f.dateOfBirth)} · ${countryName(f.nationality)}`, 'details')}
+          {row('כתובת', f.address || '—', 'details')}
           {row(DOC_LABEL[f.idDocType], <bdi>{docShown}</bdi>, 'document')}
           {row('הגעה', `${f.eta || 'שעה לא צוינה'}${f.requests ? ` · ${f.requests}` : ''}`, 'arrival')}
           {steps.includes('extras') && row('תוספות', chosenOffers.length ? `${chosenOffers.map((o) => o.label).join(', ')} · ${money(chosenTotal)}` : 'בלי תוספות', 'extras')}

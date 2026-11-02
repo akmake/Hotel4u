@@ -37,18 +37,21 @@ function UserDialog({ open, onClose, propertyId, user, roles, onSaved }) {
   const [f, setF] = useState({});
   useEffect(() => {
     if (!open) return;
-    setF({ firstName: user?.firstName || '', lastName: user?.lastName || '', email: user?.email || '', role: user?.role || '', accessUntil: user?.accessUntil ? String(user.accessUntil).slice(0, 10) : '' });
+    setF({ firstName: user?.firstName || '', lastName: user?.lastName || '', email: user?.email || '', role: user?.role || '', accessUntil: user?.accessUntil ? String(user.accessUntil).slice(0, 10) : '', staff: { idNumber: '', phone: '', address: '', employedFrom: '', ...(user?.staffRecord || {}) } });
     action.reset();
   }, [open, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
   const e = action.fields;
   const why = !f.firstName?.trim() || !f.lastName?.trim() ? 'שם מלא נדרש' : !f.email?.trim() ? 'דוא״ל נדרש' : !f.role ? 'יש לבחור תפקיד' : null;
   const submit = () => action.run(async () => {
-    const body = { firstName: f.firstName, lastName: f.lastName, email: f.email, role: f.role, accessUntil: f.accessUntil || null };
+    const body = { firstName: f.firstName, lastName: f.lastName, email: f.email, role: f.role, accessUntil: f.accessUntil || null, ...(showStaff ? { staffRecord: f.staff } : {}) };
     const out = editing ? await identity.update(propertyId, user.id, body) : await identity.create(propertyId, body);
     onSaved?.(out);
   });
   const roleOptions = editing && user && !roles.some((r) => r.role === user.role) ? [{ role: user.role }, ...roles] : roles;
+  // Staff-register details come back only to property admins; others never see the section.
+  const showStaff = !editing || user?.staffRecord !== undefined;
+  const setS = (k) => (ev) => setF((p) => ({ ...p, staff: { ...(p.staff || {}), [k]: ev.target.value } }));
   return (
     <Modal open={open} onClose={onClose} busy={action.busy} width={520} title={editing ? `עריכת ${user.name}` : 'הזמנת משתמש'} subtitle={editing ? user.email : 'חשבון אישי לכל עובד — לא חשבון משותף'} footer={(
       <>
@@ -70,6 +73,18 @@ function UserDialog({ open, onClose, propertyId, user, roles, onSaved }) {
         </Field>
         <Field id="u-a" label="גישה עד" optional hint="לעובד זמני או ספק — ריק = ללא הגבלה" error={e.accessUntil}><input id="u-a" type="date" className="input w-full" value={f.accessUntil || ''} onChange={(ev) => set('accessUntil')(ev.target.value)} /></Field>
       </div>
+      {showStaff && f.staff && (
+        <>
+          <div className="ui-section-title">רשומת מועסקים</div>
+          <div className="ui-sub">פרטי זיהוי של העובד — נדרשים לפי מפרט הרישוי של המשטרה לבתי מלון. גלויים להנהלה בלבד.</div>
+          <div className="ui-grid-2">
+            <Field id="u-id" label="ת.ז / דרכון" optional error={e['staffRecord.idNumber']}><input id="u-id" className="input w-full" dir="ltr" maxLength={20} autoComplete="off" value={f.staff.idNumber} onChange={setS('idNumber')} /></Field>
+            <Field id="u-ph" label="טלפון" optional><input id="u-ph" className="input w-full" dir="ltr" maxLength={40} value={f.staff.phone} onChange={setS('phone')} /></Field>
+            <Field id="u-ad" label="כתובת" optional><input id="u-ad" className="input w-full" maxLength={300} value={f.staff.address} onChange={setS('address')} /></Field>
+            <Field id="u-from" label="תחילת העסקה" optional error={e['staffRecord.employedFrom']}><input id="u-from" type="date" className="input w-full" value={f.staff.employedFrom} onChange={setS('employedFrom')} /></Field>
+          </div>
+        </>
+      )}
       {!editing && <div className="ui-sub">אחרי ההזמנה יוצג קישור חד־פעמי להגדרת סיסמה. אין סיסמה ראשונית שנקבעת על ידי מנהל.</div>}
     </Modal>
   );

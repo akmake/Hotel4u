@@ -81,6 +81,7 @@ const BookSearchPage       = lazy(() => import('./pages/book/BookSearchPage'));
 const BookCheckoutPage     = lazy(() => import('./pages/book/BookCheckoutPage'));
 const BookPayPage          = lazy(() => import('./pages/book/BookPayPage'));
 const BookDonePage         = lazy(() => import('./pages/book/BookDonePage'));
+const BookStatementPage    = lazy(() => import('./pages/book/BookStatementPage'));
 const OnlineCheckInPage    = lazy(() => import('./pages/checkin/OnlineCheckInPage'));
 const PreventivePage       = lazy(() => import('./pages/ops/PreventivePage'));
 const ReceivablesPage      = lazy(() => import('./pages/fin/ReceivablesPage'));
@@ -186,6 +187,9 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/quote/:orderId" element={<QuotePage />} />
           {/* Public booking site */}
+          {/* Hotel statements — outside the booking layout so they load even when booking is off */}
+          <Route path="/book/accessibility" element={<BookStatementPage kind="accessibility" />} />
+          <Route path="/book/privacy" element={<BookStatementPage kind="privacy" />} />
           <Route path="/book" element={<BookLayout />}>
             <Route index element={<BookSearchPage />} />
             <Route path="checkout" element={<BookCheckoutPage />} />

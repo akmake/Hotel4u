@@ -5,6 +5,7 @@ import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/
 import { roomPhotoUpload, addRoomTypePhoto, setRoomTypePhotos } from '../services/roomTypePhotoService.js';
 import { ONLINE_ADMIN_ROLES, getOnlineSettings, saveOnlineSettings } from '../services/publicBookingService.js';
 import { getCheckInSettings, saveCheckInSettings } from '../services/onlineCheckInService.js';
+import { getLegalSettings, saveLegalSettings } from '../services/legalPagesService.js';
 import { SETUP_ROLES, setupOverview, updateProperty, createRoomType, updateRoomType, addRooms, updateRoom } from '../services/setupService.js';
 
 const router = Router();
@@ -41,6 +42,9 @@ router.put('/online-booking', handle(async (req) => { requireRoles(req, ONLINE_A
 // Online check-in: on/off, link in the reminder e-mail, paid extras offered to the guest.
 router.get('/online-checkin', handle(async (req) => { requireRoles(req, ONLINE_ADMIN_ROLES, 'אין הרשאה'); return getCheckInSettings({ propertyId: scope(req) }); }));
 router.put('/online-checkin', handle(async (req) => { requireRoles(req, ONLINE_ADMIN_ROLES, 'אין הרשאה לשנות את הצ\'ק-אין המקוון'); return saveCheckInSettings({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip }); }));
+// Public statements: accessibility arrangements and the privacy notice.
+router.get('/public-statements', handle(async (req) => { requireRoles(req, ONLINE_ADMIN_ROLES, 'אין הרשאה'); return getLegalSettings({ propertyId: scope(req) }); }));
+router.put('/public-statements', handle(async (req) => { requireRoles(req, ONLINE_ADMIN_ROLES, 'אין הרשאה לשנות את ההצהרות'); return saveLegalSettings({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip }); }));
 router.patch('/rooms/:id', handle(async (req) => updateRoom({ propertyId: scope(req), roomId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip })));
 
 export default router;

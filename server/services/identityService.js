@@ -56,7 +56,24 @@ function safeUser(u) {
     locked: !!(u.lockUntil && new Date(u.lockUntil) > new Date()),
   };
 }
-const SAFE_FIELDS = 'firstName lastName displayName email role active accessUntil lastLoginAt twoFactorEnabled language createdAt deactivatedAt deactivatedBy lockUntil property tokenVersion';
+const SAFE_FIELDS = 'firstName lastName displayName email role active accessUntil lastLoginAt twoFactorEnabled language createdAt deactivatedAt deactivatedBy lockUntil property tokenVersion staffRecord';
+
+// Staff-register details (identity number, phone, address, start date) — seen and edited by
+// property admins only; the audit trail records that they changed, never the values.
+function staffOut(u) {
+  const s = u.staffRecord || {};
+  return { idNumber: s.idNumber || '', phone: s.phone || '', address: s.address || '', employedFrom: s.employedFrom || '' };
+}
+function staffIn(input, fields) {
+  if (!input || typeof input !== 'object') return null;
+  const idNumber = String(input.idNumber || '').replace(/\s+/g, '').slice(0, 20);
+  const phone = String(input.phone || '').trim().slice(0, 40);
+  const address = String(input.address || '').trim().slice(0, 300);
+  const employedFrom = String(input.employedFrom || '').trim();
+  if (idNumber && !/^[A-Za-z0-9-]{4,20}$/.test(idNumber)) fields['staffRecord.idNumber'] = 'מספר זהות או דרכון — ספרות ואותיות בלבד';
+  if (employedFrom && !/^\d{4}-\d{2}-\d{2}$/.test(employedFrom)) fields['staffRecord.employedFrom'] = 'תאריך לא תקין';
+  return { idNumber: idNumber || undefined, phone: phone || undefined, address: address || undefined, employedFrom: employedFrom || undefined };
+}
 
 async function newToken(userId, kind, hours, createdBy) {
   const raw = crypto.randomBytes(32).toString('base64url');
@@ -85,7 +102,7 @@ export async function listUsers({ propertyId, q, status, actor }) {
   }
   const users = await User.find(filter).select(SAFE_FIELDS).sort({ active: -1, firstName: 1 }).lean();
   return {
-    rows: users.map((u) => ({ ...safeUser(u), manageable: String(u._id) !== String(actor.id) && canGrant(actor.role, u.role) })),
+    rows: users.map((u) => ({ ...safeUser(u), manageable: String(u._id) !== String(actor.id) && canGrant(actor.role, u.role), ...(ADMIN_ROLES.includes(actor.role) ? { staffRecord: staffOut(u) } : {}) })),
     counts: { active: users.filter((u) => u.active !== false).length, inactive: users.filter((u) => u.active === false).length },
   };
 }
@@ -107,11 +124,12 @@ export async function createUser({ propertyId, input, actor, ip }) {
   else if (!canGrant(actor.role, input.role)) fields.role = 'אינך רשאי להעניק תפקיד זה';
   const accessUntil = input.accessUntil ? new Date(input.accessUntil) : null;
   if (accessUntil && (Number.isNaN(accessUntil.getTime()) || accessUntil <= new Date())) fields.accessUntil = 'תאריך בעתיד';
+  const staffRecord = staffIn(input.staffRecord, fields);
   if (Object.keys(fields).length) throw httpError('יש לתקן את פרטי המשתמש', 422, { fields });
   if (await User.exists({ email })) throw httpError('כתובת הדוא״ל כבר בשימוש', 409, { fields: { email: 'בשימוש' } });
   // No password is chosen by the admin; the account is unusable until the person sets one.
   const passwordHash = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 12);
-  const user = await User.create({ property: propertyId, firstName, lastName, email, passwordHash, role: input.role, active: true, accessUntil: accessUntil || null });
+  const user = await User.create({ property: propertyId, firstName, lastName, email, passwordHash, role: input.role, active: true, accessUntil: accessUntil || null, ...(staffRecord ? { staffRecord } : {}) });
   const token = await newToken(user._id, 'setup', SETUP_TTL_H, actor.name);
   await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'user.invited', entityType: 'User', entityId: user._id, after: { email, role: input.role, accessUntil }, ip });
   return { user: safeUser(user.toObject()), setupPath: `/reset-password?token=${token}&setup=1`, expiresInHours: SETUP_TTL_H };
@@ -150,12 +168,17 @@ export async function updateUser({ propertyId, id, input, actor, ip }) {
       else u.accessUntil = d;
     }
   }
+  let staffChanged = false;
+  if (input.staffRecord !== undefined && ADMIN_ROLES.includes(actor.role)) {
+    const next = staffIn(input.staffRecord, fields);
+    if (next) { staffChanged = JSON.stringify(staffOut(u)) !== JSON.stringify(staffOut({ staffRecord: next })); u.staffRecord = next; }
+  }
   if (Object.keys(fields).length) throw httpError('יש לתקן את השינוי', 422, { fields });
   const roleChanged = before.role !== u.role;
   if (roleChanged) u.tokenVersion = Number(u.tokenVersion || 0) + 1; // new permissions → new session
   await u.save();
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: roleChanged ? 'user.role_changed' : 'user.updated', entityType: 'User', entityId: u._id, before: { role: before.role, email: before.email, accessUntil: before.accessUntil }, after: { role: u.role, email: u.email, accessUntil: u.accessUntil }, ip });
-  return safeUser(u.toObject());
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: roleChanged ? 'user.role_changed' : 'user.updated', entityType: 'User', entityId: u._id, before: { role: before.role, email: before.email, accessUntil: before.accessUntil }, after: { role: u.role, email: u.email, accessUntil: u.accessUntil, staffRecordChanged: staffChanged }, ip });
+  return { ...safeUser(u.toObject()), ...(ADMIN_ROLES.includes(actor.role) ? { staffRecord: staffOut(u) } : {}) };
 }
 
 export async function deactivateUser({ propertyId, id, reason, actor, ip }) {

@@ -94,7 +94,7 @@ async function main() {
     // ── Arrival: routing and per-room guarantee ─────────────────────────────
     const g = await mkGroup({ status: 'confirmed', arrival: today, departure: addDays(today, 2) });
     const reg = await call('POST', `/frontdesk/reservations/${g.r._id}/registration`, R, {
-      propertyId: P, firstName: 'מזמין', lastName: TAG, dateOfBirth: '1980-01-01', nationality: 'IL', idDocType: 'id_card', idDocNumber: '000000018', idVerified: true,
+      propertyId: P, firstName: 'מזמין', lastName: TAG, dateOfBirth: '1980-01-01', nationality: 'IL', address: 'הרצל 10, חיפה', idDocType: 'id_card', idDocNumber: '000000018', idVerified: true,
     });
     check('Setup: registration saved', reg.status === 200, JSON.stringify(reg).slice(0, 160));
 

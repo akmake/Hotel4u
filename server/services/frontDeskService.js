@@ -434,7 +434,7 @@ export async function listArrivals({ propertyId, date, q, roomTypeId, assignment
 export async function loadReservationInScope(reservationId, propertyId, session = null) {
   if (!isId(String(reservationId || ''))) throw httpError('מזהה הזמנה לא תקין', 400);
   const res = await Reservation.findById(reservationId).session(session)
-    .populate('primaryGuest', 'firstName lastName isBlacklisted blacklistReason dateOfBirth citizenship country email phone marketingConsent')
+    .populate('primaryGuest', 'firstName lastName isBlacklisted blacklistReason dateOfBirth citizenship country email phone marketingConsent address')
     .populate('roomType', 'name code')
     .populate('company', 'name');
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
@@ -478,6 +478,13 @@ async function knownDocFor(guestId, today) {
     return { idDocType: g.idDocType || 'passport', number: g.passportNumber, expiry: g.passportExpiry || null, dateOfBirth: null, nationality: null, source: 'profile' };
   }
   return null;
+}
+
+// One-line permanent address from a guest profile (street, city, country) — the guest book needs it.
+export function addressLine(g) {
+  const a = g?.address || {};
+  const country = /^[A-Za-z]{2}$/.test(a.country || '') && a.country.toUpperCase() !== 'IL' ? a.country.toUpperCase() : '';
+  return [a.line1, a.city, a.zip, country].map((x) => String(x || '').trim()).filter(Boolean).join(', ') || null;
 }
 
 // ── FD-03 check-in context ──────────────────────────────────────────────────
@@ -545,6 +552,7 @@ export async function getCheckInContext({ propertyId, reservationId }) {
       nationality: /^[A-Za-z]{2}$/.test(g.citizenship || '') ? g.citizenship.toUpperCase()
         : /^[A-Za-z]{2}$/.test(g.country || '') ? g.country.toUpperCase() : (known?.nationality || null),
       knownDoc: known ? { idDocType: known.idDocType, last4: digits.slice(-4), expiry: known.expiry, source: known.source } : null,
+      address: addressLine(g) || (await GuestRegistrationCard.findOne({ guest: g._id, address: { $exists: true, $ne: '' } }).sort({ createdAt: -1 }).select('address').lean())?.address || null,
       blacklisted: !!g.isBlacklisted,
       marketingConsent: !!g.marketingConsent,
     },
@@ -588,6 +596,9 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
     if (known) { idDocNumber = String(known.number).trim().slice(0, 40); idDocType = known.idDocType; idDocExpiry = known.expiry; }
   }
   if (!idDocNumber) errors.idDocNumber = 'מספר מסמך נדרש';
+  // The guest book records every guest's permanent address (income-tax bookkeeping rules).
+  const address = String(input.address || '').trim().slice(0, 300) || addressLine(res.primaryGuest);
+  if (!address || address.length < 4) errors.address = 'כתובת קבועה נדרשת (רחוב, עיר, מדינה)';
   if (input.idVerified !== true) errors.idVerified = 'יש לאשר שמסמך הזיהוי נבדק';
   // Only a real PNG data URL is accepted; anything else is an error, never silently dropped.
   let signature = null;
@@ -624,6 +635,7 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
     lastName,
     dateOfBirth: new Date(input.dateOfBirth),
     nationality: String(input.nationality).toUpperCase(),
+    address,
     idDocType,
     idDocNumber,
     idDocExpiry: idDocExpiry && !Number.isNaN(Date.parse(idDocExpiry)) ? new Date(idDocExpiry) : undefined,
@@ -650,6 +662,9 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
       { $set: { supersededBy: card._id, supersededAt: new Date() } },
     );
   }
+
+  // The profile keeps the address for the next stay when it has none yet.
+  if (!addressLine(res.primaryGuest)) await GuestProfile.updateOne({ _id: res.primaryGuest._id }, { $set: { 'address.line1': address } });
 
   // Marketing consent is its own decision, never pre-checked and never implied by registration.
   if (input.marketingConsent === true && !res.primaryGuest.marketingConsent) {

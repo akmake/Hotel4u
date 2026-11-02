@@ -5,6 +5,7 @@
   --serif: 'Frank Ruhl Libre', 'David Libre', Georgia, serif; --sans: 'Assistant', 'Heebo', system-ui, sans-serif;
   font-family: var(--sans); color: var(--text); background: var(--ivory); min-height: 100vh; font-size: 16px; line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  width: 100%; flex: 1 0 100%; /* #root is a flex row: take the whole width */
 }
 .bk *, .bk *::before, .bk *::after { box-sizing: border-box; }
 .bk a { color: inherit; }
@@ -217,3 +218,12 @@
   .bk-field { padding: 14px 16px; }
   .bk-field input[type="date"], .bk-field-v { font-size: 18px; }
 }
+
+/* Hotel statements (accessibility, privacy): a readable column. */
+.bk-statement { max-width: 820px; padding-top: 48px; padding-bottom: 96px; }
+.bk-statement h1 { font-size: clamp(32px, 4vw, 44px); margin-bottom: 14px; }
+.bk-statement .bk-panel h2 { font-size: 22px; margin: 30px 0 8px; }
+.bk-statement p, .bk-statement li { font-size: 16.5px; line-height: 1.75; }
+.bk-statement ul { padding-inline-start: 22px; margin: 8px 0 0; display: grid; gap: 4px; }
+.bk-statement a { color: var(--ink); text-underline-offset: 3px; }
+.bk-footer-base a { color: inherit; text-underline-offset: 3px; }

@@ -369,6 +369,7 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
     lastName: ctx.guest.lastName || '',
     dateOfBirth: ctx.guest.dateOfBirth ? String(ctx.guest.dateOfBirth).slice(0, 10) : '',
     nationality: ctx.guest.nationality || 'IL',
+    address: ctx.guest.address || '',
     idDocType: ctx.guest.knownDoc?.idDocType || 'id_card',
     idDocNumber: '',
     idDocExpiry: '',
@@ -399,7 +400,8 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
   const showDob = editAll || !g.dateOfBirth;
   const showNat = editAll || !g.nationality;
   const showDoc = editAll || !known;
-  const hasKnown = !showName || !showDob || !showNat || !showDoc;
+  const showAddress = editAll || !g.address;
+  const hasKnown = !showName || !showDob || !showNat || !showDoc || !showAddress;
   const natName = countries.find((c) => c.code === form.nationality)?.name || form.nationality;
   const last4 = form.idDocType === 'passport'
     ? (showDoc ? String(form.idDocNumber || '').replace(/\D/g, '') : known?.last4 || '').slice(-4)
@@ -407,6 +409,11 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
 
   async function save() {
     setError(null); setFields({});
+    if (String(form.address || '').trim().length < 4) {
+      setFields({ address: 'כתובת קבועה נדרשת (רחוב, עיר, מדינה)' });
+      setError('ספר האורחים מחייב מען קבוע לכל אורח');
+      return;
+    }
     if (abroad && tourist.nonResident && (!tourist.visaType?.trim() || !tourist.entryDate)) {
       setFields({ visaType: !tourist.visaType?.trim() ? 'סוג אשרת הכניסה' : undefined, entryDate: !tourist.entryDate ? 'תאריך הכניסה לישראל' : undefined });
       setError('אורח מחו״ל: יש להשלים סוג אשרה ותאריך כניסה, או לסמן שהוא תושב ישראל');
@@ -421,7 +428,7 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
       await frontdesk.saveRegistration(propertyId, ctx.reservation.id, { ...regBody, ...docPart });
       if (abroad) {
         setTouristInfo(await stayApi.recordTourist(propertyId, ctx.reservation.id, tourist.nonResident
-          ? { nonResident: true, passportCountry: form.nationality, visaType: tourist.visaType.trim(), entryDate: tourist.entryDate, docLast4: last4.length === 4 ? last4 : undefined }
+          ? { nonResident: true, passportCountry: form.nationality, visaType: tourist.visaType.trim(), entryDate: tourist.entryDate, docLast4: last4.length === 4 ? last4 : undefined, permanentAddress: String(form.address || '').trim() }
           : { nonResident: false }));
       }
       await reload();
@@ -465,6 +472,7 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
           {!showName && <div className="ui-sum-row"><span>שם</span><strong>{g.firstName} {g.lastName}</strong></div>}
           {!showDob && <div className="ui-sum-row"><span>תאריך לידה</span><strong>{formatShort(String(g.dateOfBirth).slice(0, 10))}</strong></div>}
           {!showNat && <div className="ui-sum-row"><span>אזרחות</span><strong>{natName}</strong></div>}
+          {!showAddress && <div className="ui-sum-row"><span>מען קבוע</span><strong>{g.address}</strong></div>}
           {!showDoc && <div className="ui-sum-row"><span>מסמך מזהה</span><strong>{ID_DOC_LABELS[known.idDocType] || known.idDocType} · ···{known.last4}{known.source === 'previous_stay' ? ' · משהייה קודמת' : ''}</strong></div>}
           <div className="ui-sum-row"><span/><button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditAll(true)}>פרטים שגויים? עריכה</button></div>
         </div>
@@ -490,6 +498,11 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
             <select id="r-nat" className="select w-full" value={form.nationality} onChange={set('nationality')}>
               {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
             </select>
+          </Field>
+        )}
+        {showAddress && (
+          <Field id="r-addr" label="מען קבוע" required error={fields.address} hint={abroad ? 'הכתובת בחו״ל — נדרשת גם לפטור ממע״מ' : 'רחוב ומספר, עיר'}>
+            <input id="r-addr" className="input w-full" value={form.address} maxLength={300} autoComplete="street-address" onChange={set('address')} aria-invalid={!!fields.address} />
           </Field>
         )}
         {showDoc && (
@@ -521,6 +534,7 @@ function RegistrationStep({ ctx, propertyId, reload, draft, setDraft, onNext }) 
             errors={fields}
             countryLocked
             hideDoc
+            hideAddress
           />
           {tourist.nonResident && <div className="ui-sub">מדינת הדרכון לפי האזרחות{last4.length === 4 ? ` · 4 ספרות אחרונות (${last4}) לפי מספר הדרכון` : ''}. מעמד המס נקבע לפי כלל הנכס — לא לפי הדרכון לבדו.</div>}
         </div>

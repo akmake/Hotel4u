@@ -9,7 +9,7 @@ import { Modal, Field, ErrorBanner, Banner, Spinner, KeyValues, Pill, useAction,
 export const DECISION_TONE = { none: 'muted', resident: 'muted', pending_rule: 'warn', ineligible: 'warn', eligible: 'ok' };
 
 // Shared fields — used in the dialog and inline in the check-in registration step.
-export function TouristFields({ value, onChange, errors = {}, countryLocked = false, hideDoc = false, idPrefix = 'tr' }) {
+export function TouristFields({ value, onChange, errors = {}, countryLocked = false, hideDoc = false, hideAddress = false, idPrefix = 'tr' }) {
   const set = (k) => (e) => onChange({ ...value, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   const countries = countryOptions();
   return (
@@ -29,6 +29,11 @@ export function TouristFields({ value, onChange, errors = {}, countryLocked = fa
           <Field id={`${idPrefix}-e`} label="תאריך הכניסה לישראל" required error={errors.entryDate}>
             <input id={`${idPrefix}-e`} type="date" className="input w-full" max={todayYmd()} value={value.entryDate || ''} onChange={set('entryDate')} />
           </Field>
+          {!hideAddress && (
+            <Field id={`${idPrefix}-a`} label="כתובת קבועה בחו״ל" required error={errors.permanentAddress} hint="נדרשת לפטור ממע״מ לתייר">
+              <input id={`${idPrefix}-a`} className="input w-full" maxLength={300} autoComplete="street-address" value={value.permanentAddress || ''} onChange={set('permanentAddress')} />
+            </Field>
+          )}
           {!hideDoc && (
             <Field id={`${idPrefix}-d`} label="4 ספרות אחרונות של הדרכון" optional error={errors.docLast4} hint="לא את המספר המלא">
               <input id={`${idPrefix}-d`} className="input w-full" dir="ltr" inputMode="numeric" maxLength={4} value={value.docLast4 || ''} onChange={(e) => onChange({ ...value, docLast4: e.target.value.replace(/\D/g, '').slice(0, 4) })} />
@@ -47,7 +52,7 @@ export function TouristSummary({ data }) {
     <div className="ui-stack" style={{ gap: 6 }}>
       <div className="ui-row" style={{ gap: 6 }}><Pill tone={DECISION_TONE[data.decision]}>{data.decisionLabel}</Pill></div>
       {data.reason && <div className="ui-sub">{data.reason}</div>}
-      {e.nonResident && <KeyValues rows={[['דרכון', e.passportCountry], ['אשרה', e.visaType], ['כניסה לישראל', e.entryDate], e.docLast4 ? ['4 ספרות אחרונות', e.docLast4] : null, ['נרשם', data.recordedBy || '—']]} />}
+      {e.nonResident && <KeyValues rows={[['דרכון', e.passportCountry], ['אשרה', e.visaType], ['כניסה לישראל', e.entryDate], ['כתובת קבועה', e.permanentAddress || 'חסרה — נדרשת לפטור'], e.docLast4 ? ['4 ספרות אחרונות', e.docLast4] : null, ['נרשם', data.recordedBy || '—']]} />}
       {data.decision === 'eligible' && data.postedWithVat > 0 && <Banner tone="warn">{data.postedWithVat} חיובי לינה כבר נרשמו עם מע״מ לפני הרישום. לתיקון: היפוך החיוב במסך החשבון ורישום מחדש ייעשה ללא מע״מ.</Banner>}
       {data.decision === 'pending_rule' && <div className="ui-sub">כשמנהל/כספים יאשר בנכס כלל פטור (בהתאם לרו״ח) — החיובים הבאים יחושבו לפיו אוטומטית.</div>}
     </div>
@@ -61,11 +66,11 @@ export default function TouristDialog({ open, onClose, propertyId, reservationId
   useEffect(() => {
     if (!open || !data) return;
     const e = data.evidence;
-    setF(data.recorded ? { nonResident: e.nonResident, passportCountry: e.passportCountry || '', visaType: e.visaType || '', entryDate: e.entryDate || '', docLast4: e.docLast4 || '' }
-      : { nonResident: !!(data.prefill?.passportCountry && data.prefill.passportCountry !== 'IL'), passportCountry: data.prefill?.passportCountry && data.prefill.passportCountry !== 'IL' ? data.prefill.passportCountry : '', visaType: '', entryDate: '', docLast4: '' });
+    setF(data.recorded ? { nonResident: e.nonResident, passportCountry: e.passportCountry || '', visaType: e.visaType || '', entryDate: e.entryDate || '', docLast4: e.docLast4 || '', permanentAddress: e.permanentAddress || data.prefill?.address || '' }
+      : { nonResident: !!(data.prefill?.passportCountry && data.prefill.passportCountry !== 'IL'), passportCountry: data.prefill?.passportCountry && data.prefill.passportCountry !== 'IL' ? data.prefill.passportCountry : '', visaType: '', entryDate: '', docLast4: '', permanentAddress: data.prefill?.address || '' });
     action.reset();
   }, [open, data]); // eslint-disable-line react-hooks/exhaustive-deps
-  const why = f.nonResident && (!f.passportCountry ? 'מדינת דרכון' : !f.visaType?.trim() ? 'סוג אשרה' : !f.entryDate ? 'תאריך כניסה' : null);
+  const why = f.nonResident && (!f.passportCountry ? 'מדינת דרכון' : !f.visaType?.trim() ? 'סוג אשרה' : !f.entryDate ? 'תאריך כניסה' : String(f.permanentAddress || '').trim().length < 4 ? 'כתובת קבועה' : null);
   const submit = () => action.run(async () => { const out = await stay.recordTourist(propertyId, reservationId, f); await reload(); onDone?.(out); });
   return (
     <Modal open={open} onClose={onClose} busy={action.busy} width={560} title="תושבות ומעמד מס"

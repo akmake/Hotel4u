@@ -17,7 +17,7 @@ import ChargeCode from '../models/ChargeCode.js';
 import { audit } from './auditService.js';
 import { seal, open as openSealed } from '../utils/secretBox.js';
 import { sendEmail, buildOnlineCheckInEmail } from './emailService.js';
-import { httpError, policyOf, businessDateOf, loadReservationInScope, IN_HOUSE_STATUSES } from './frontDeskService.js';
+import { httpError, policyOf, businessDateOf, loadReservationInScope, IN_HOUSE_STATUSES, addressLine } from './frontDeskService.js';
 
 const ARRIVING_STATUSES = ['confirmed', 'modified', 'pending_payment', 'partially_checked_in'];
 const OPEN_STATUSES = [...ARRIVING_STATUSES, ...IN_HOUSE_STATUSES];
@@ -129,7 +129,7 @@ async function loadByToken(token) {
   if (!doc) throw httpError('הקישור אינו תקף — ייתכן שנשלח קישור חדש יותר', 404, { code: 'bad_link' });
   if (doc.expiresAt < new Date()) throw httpError('תוקף הקישור פג', 410, { code: 'expired' });
   const res = await Reservation.findOne({ _id: doc.reservation, property: doc.property })
-    .populate({ path: 'primaryGuest', select: 'firstName lastName email phone citizenship country dateOfBirth marketingConsent' })
+    .populate({ path: 'primaryGuest', select: 'firstName lastName email phone citizenship country dateOfBirth marketingConsent address' })
     .populate({ path: 'roomType', select: 'name images view' });
   if (!res) throw httpError('ההזמנה לא נמצאה', 404, { code: 'bad_link' });
   const property = await Property.findById(doc.property).select('name phone email address city checkInTime checkOutTime timezone dayClose checkInPolicy onlineCheckIn').lean();
@@ -153,10 +153,10 @@ export async function guestView({ token }) {
   if (!doc.openedAt) { doc.openedAt = new Date(); if (doc.status === 'sent') doc.status = 'opened'; await doc.save(); }
   const g = res.primaryGuest || {};
   const policy = policyOf(property);
-  const card = doc.registrationCard ? await GuestRegistrationCard.findById(doc.registrationCard).select('dateOfBirth nationality idDocType idDocNumber idDocExpiry').lean() : null;
+  const card = doc.registrationCard ? await GuestRegistrationCard.findById(doc.registrationCard).select('dateOfBirth nationality idDocType idDocNumber idDocExpiry address').lean() : null;
   const nat = /^[A-Za-z]{2}$/.test(g.citizenship || '') ? g.citizenship.toUpperCase() : /^[A-Za-z]{2}$/.test(g.country || '') ? g.country.toUpperCase() : null;
   return {
-    hotel: { name: property.name, phone: property.phone || null, email: property.email || null, address: [property.address, property.city].filter(Boolean).join(', ') || null, checkInTime: property.checkInTime || null, checkOutTime: property.checkOutTime || null },
+    hotel: { name: property.name, privacyUrl: `/book/privacy?p=${doc.property}`, accessibilityUrl: `/book/accessibility?p=${doc.property}`, phone: property.phone || null, email: property.email || null, address: [property.address, property.city].filter(Boolean).join(', ') || null, checkInTime: property.checkInTime || null, checkOutTime: property.checkOutTime || null },
     stay: {
       confirmationNumber: res.confirmationNumber, arrivalDate: res.arrivalDate, departureDate: res.departureDate, nights: res.nights,
       roomType: res.roomType?.name || null, adults: res.adults, children: res.children, open: OPEN_STATUSES.includes(res.status),
@@ -170,6 +170,7 @@ export async function guestView({ token }) {
     guest: {
       firstName: g.firstName || '', lastName: g.lastName || '', email: g.email || '', phone: g.phone || '',
       nationality: card?.nationality || nat || '',
+      address: card?.address || addressLine(g) || '',
       dateOfBirth: (card?.dateOfBirth || g.dateOfBirth) ? new Date(card?.dateOfBirth || g.dateOfBirth).toISOString().slice(0, 10) : '',
       idDocType: card?.idDocType || 'id_card',
       idDocLast4: card?.idDocNumber ? String(card.idDocNumber).replace(/\s+/g, '').slice(-4) : null,
@@ -206,6 +207,8 @@ export async function guestSubmit({ token, input, ip }) {
   let idDocNumber = clip(input.idDocNumber, 40).replace(/\s+/g, '');
   if (!idDocNumber && input.keepDoc === true && previous?.idDocNumber) idDocNumber = previous.idDocNumber;
   if (!idDocNumber) errors.idDocNumber = 'מספר מסמך נדרש';
+  const address = clip(input.address, 300);
+  if (address.length < 4) errors.address = 'כתובת מגורים קבועה נדרשת (רחוב, עיר, מדינה)';
   else if (!/^[A-Za-z0-9-]{4,40}$/.test(idDocNumber)) errors.idDocNumber = 'מספר מסמך לא תקין';
   let idDocExpiry = input.idDocExpiry || (input.keepDoc === true && previous?.idDocExpiry ? new Date(previous.idDocExpiry).toISOString().slice(0, 10) : '');
   if (idDocExpiry) {
@@ -237,7 +240,7 @@ export async function guestSubmit({ token, input, ip }) {
   if (!deskVerified) {
     const card = await GuestRegistrationCard.create({
       property: res.property, reservation: res._id, guest: guestId,
-      firstName, lastName, dateOfBirth: new Date(input.dateOfBirth), nationality: String(input.nationality).toUpperCase(),
+      firstName, lastName, dateOfBirth: new Date(input.dateOfBirth), nationality: String(input.nationality).toUpperCase(), address,
       idDocType: input.idDocType, idDocNumber, idDocExpiry: idDocExpiry ? new Date(idDocExpiry) : undefined,
       arrivalDate: res.arrivalDate, departureDate: res.departureDate,
       status: signature && policy.termsText ? 'signed' : 'pending',
@@ -260,6 +263,7 @@ export async function guestSubmit({ token, input, ip }) {
     if (phone && !g.phone) g.phone = phone;
     if (!g.dateOfBirth) g.dateOfBirth = new Date(input.dateOfBirth);
     if (!g.citizenship) g.citizenship = String(input.nationality).toUpperCase();
+    if (!addressLine(g)) g.set('address.line1', address);
     if (input.marketingConsent === true && !g.marketingConsent) {
       g.marketingConsent = true; g.marketingConsentAt = new Date(); g.marketingConsentIp = ip; g.marketingConsentFormVer = 'online_checkin_marketing:v1';
     }

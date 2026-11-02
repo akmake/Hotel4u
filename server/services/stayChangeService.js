@@ -34,6 +34,7 @@ import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import RoomMoveOperation from '../models/RoomMoveOperation.js';
 import { runStayTransaction } from './stayTransaction.js';
 import { payloadHash } from '../domain/accounting.js';
+import { israeliHolidaysBetween } from '../utils/israeliHolidays.js';
 import {
   httpError, loadProperty, businessDateOf, ensureUnits, conflictingRoomIds, policyOf, MANAGER_ROLES, IN_HOUSE_STATUSES,
 } from './frontDeskService.js';
@@ -662,7 +663,9 @@ export function cancellationProposal({ res, input, paid, property }) {
   } else if (remote && input.track !== 'contractual') {
     const start = disclosureAt > transactionAt ? disclosureAt : transactionAt;
     const days14 = (receivedAt - start) / 86400000 <= 14;
-    const rest = new Set(property?.restDays || []);
+    // Rest days = Saturdays + Israeli festivals (Hebrew calendar) + any extra days the property set.
+    const holidays = israeliHolidaysBetween(receivedAt.toISOString().slice(0, 10), service.toISOString().slice(0, 10));
+    const rest = new Set([...(property?.restDays || []), ...holidays]);
     const workdays = workingDaysBetween(receivedAt, service, rest);
     const enough = workdays > 7;
     const protectedTrack = input.track === 'protected';
@@ -672,7 +675,7 @@ export function cancellationProposal({ res, input, paid, property }) {
       sources.push('IL14 — מדריך רשות הגנת הצרכן');
     } else {
       lines.push(days14 ? 'ההודעה התקבלה בתוך 14 יום מהעסקה/הגילוי (המאוחר).' : 'ההודעה התקבלה אחרי 14 יום מהעסקה/הגילוי.');
-      lines.push(enough ? `נותרו ${workdays} ימים שאינם שבת עד השירות (יותר מ־7).` : `נותרו ${workdays} ימים שאינם שבת עד השירות (7 או פחות).`);
+      lines.push(enough ? `נותרו ${workdays} ימים שאינם ימי מנוחה עד השירות (יותר מ־7).` : `נותרו ${workdays} ימים שאינם ימי מנוחה עד השירות (7 או פחות).`);
       sources.push('IL13 — מדריך רשות הגנת הצרכן (מכר מרחוק)');
     }
     if (statutory.eligible) {
@@ -680,7 +683,7 @@ export function cancellationProposal({ res, input, paid, property }) {
       lines.push(`דמי ביטול לכל היותר: הנמוך מ־5% ומ־100 ₪ = ${proposedFee.toFixed(2)} ₪.`);
       sources.push('IL15 — מדריך רשות הגנת הצרכן');
     }
-    lines.push((property?.restDays || []).length ? `מניין הימים מדלג על שבתות ועל ${(property.restDays || []).length} ימי מנוחה שהוגדרו במדיניות הנכס.` : 'מניין הימים מדלג על שבתות בלבד — לוח חגים לא הוגדר במדיניות הנכס (ADM-05).');
+    lines.push(`מניין הימים מדלג על שבתות ועל חגי ישראל (לוח עברי)${holidays.length ? ` — בתקופה: ${holidays.map((d) => d.split('-').reverse().join('.')).join(', ')}` : ''}${(property?.restDays || []).length === 1 ? ', ועל יום נוסף אחד שהוגדר במדיניות הנכס' : (property?.restDays || []).length ? `, ועל ${(property.restDays || []).length} ימים נוספים שהוגדרו במדיניות הנכס` : ''}.`);
   } else {
     // Front-desk/company sale or contractual track: the terms frozen on the booking govern.
     lines.push(remote ? 'נבחר מסלול חוזי.' : 'מכירה פרונטלית או לחברה — כלל המכר מרחוק לא חל אוטומטית; התנאים שנשמרו בהזמנה קובעים.');

@@ -20,6 +20,7 @@ const qs = (o) => Object.entries(o).filter(([, v]) => v !== undefined && v !== n
 
 export const bookApi = {
   site: (p) => call('GET', `/site?${qs({ p })}`),
+  statements: (p) => call('GET', `/statements?${qs({ p })}`),
   search: (p, q) => call('GET', `/search?${qs({ p, ...q })}`),
   start: (p, body) => call('POST', `/start?${qs({ p })}`, body),
   session: (token) => call('GET', `/session/${encodeURIComponent(token)}`),

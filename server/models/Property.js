@@ -236,6 +236,26 @@ const PropertySchema = new Schema({
   pricingMode: { type: String, enum: ['rates', 'board'], default: 'rates' },
   // Public booking site (/book). Off until a manager turns it on; payment is taken at booking time
   // through the payment provider (services/paymentGateway.js) — full amount or a deposit.
+  // Public statements the hotel must publish: accessibility arrangements (Equal Rights regulations,
+  // service accessibility 2013) and the privacy notice (Privacy Protection Law — duty to inform).
+  accessibility: {
+    features:        { type: [String], default: [] },          // codes from services/legalPagesService.js
+    details:         { type: String, maxlength: 3000 },         // free text: door widths, bed height, routes…
+    coordinatorName: { type: String, maxlength: 120 },
+    coordinatorPhone:{ type: String, maxlength: 40 },
+    coordinatorEmail:{ type: String, maxlength: 120 },
+    reviewedAt:      String,                                    // YYYY-MM-DD of the last accessibility review
+    updatedByName:   String,
+    updatedAt:       Date,
+  },
+  privacyNotice: {
+    controller:      { type: String, maxlength: 200 },          // the legal entity that holds the data
+    contactEmail:    { type: String, maxlength: 120 },
+    retention:       { type: String, maxlength: 600 },
+    extra:           { type: String, maxlength: 3000 },
+    updatedByName:   String,
+    updatedAt:       Date,
+  },
   // Pre-arrival online check-in link and the paid extras offered in it (prices set by the hotel).
   onlineCheckIn: {
     enabled:        { type: Boolean, default: true },

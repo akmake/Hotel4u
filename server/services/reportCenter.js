@@ -22,6 +22,7 @@ import HousekeepingTask from '../models/HousekeepingTask.js';
 import MaintenanceTicket from '../models/MaintenanceTicket.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import GuestRegistrationCard from '../models/GuestRegistrationCard.js';
+import Invoice from '../models/Invoice.js';
 import User from '../models/User.js';
 import Property from '../models/Property.js';
 import { folioBalance } from './departureService.js';
@@ -644,8 +645,16 @@ export const REPORTS = [
     description: 'רישום כל אורח שנכנס בתקופה — ישראלים ותיירים — עם פרטי מסמך הזיהוי, להצגה בביקורת. שהיות בלי רישום מאומת מסומנות.',
     async build({ propertyId, from, to }) {
       const res = await Reservation.find({ property: propertyId, status: { $in: ['in_house', 'checked_in', 'checked_out', 'partially_checked_in', 'partially_checked_out'] }, arrivalDate: { $gte: from, $lte: to } })
-        .populate('primaryGuest', 'firstName lastName').populate('assignedRoom', 'number').select('confirmationNumber arrivalDate departureDate checkedInAt checkedOutAt primaryGuest assignedRoom adults children').sort({ arrivalDate: 1 }).lean();
+        .populate('primaryGuest', 'firstName lastName address').populate('assignedRoom', 'number').select('confirmationNumber arrivalDate departureDate checkedInAt checkedOutAt primaryGuest assignedRoom adults children tourist').sort({ arrivalDate: 1 }).lean();
       const cards = await GuestRegistrationCard.find({ reservation: { $in: res.map((r) => r._id) }, supersededBy: { $exists: false } }).sort({ createdAt: 1 }).lean();
+      // Reference to the invoice / receipt of each stay (guest book: "a reference for locating the invoice").
+      const DOC_T = { tax_invoice: 'חשבונית מס', tax_invoice_receipt: 'חשבונית מס קבלה', receipt: 'קבלה', credit_note: 'זיכוי', proforma: 'עסקה' };
+      const docsByRes = new Map();
+      for (const d of await Invoice.find({ reservation: { $in: res.map((r) => r._id) }, status: 'issued' }).select('reservation type invoiceNumber').sort({ issuedAt: 1 }).lean()) {
+        const k = String(d.reservation);
+        if (!docsByRes.has(k)) docsByRes.set(k, []);
+        docsByRes.get(k).push(`${DOC_T[d.type] || d.type} ${d.invoiceNumber || ''}`.trim());
+      }
       const byRes = new Map();
       for (const c of cards) { const k = String(c.reservation); if (!byRes.has(k)) byRes.set(k, []); byRes.get(k).push(c); }
       const DOC = { passport: 'דרכון', id_card: 'תעודת זהות', drivers_license: 'רישיון נהיגה', other: 'אחר' };
@@ -656,28 +665,59 @@ export const REPORTS = [
         const list = byRes.get(String(r._id)) || [];
         const verified = list.filter((c) => c.idVerified);
         const use = verified.length ? verified : list;
+        const docs = (docsByRes.get(String(r._id)) || []).join(', ') || 'טרם הופק';
+        const profileAddress = [r.primaryGuest?.address?.line1, r.primaryGuest?.address?.city].filter(Boolean).join(', ');
         if (!use.length) {
-          rows.push({ arrival: r.arrivalDate, departure: r.departureDate, room: r.assignedRoom?.number || '—', confirmation: r.confirmationNumber, name: nameOf(r.primaryGuest), birth: null, nationality: '—', docType: '—', docNumber: '—', verified: 'אין רישום', signed: '—' });
+          rows.push({ arrival: r.arrivalDate, departure: r.departureDate, room: r.assignedRoom?.number || '—', confirmation: r.confirmationNumber, name: nameOf(r.primaryGuest), address: profileAddress || r.tourist?.permanentAddress || '—', birth: null, nationality: '—', docType: '—', docNumber: '—', verified: 'אין רישום', signed: '—', documents: docs });
           continue;
         }
         for (const c of use) {
           rows.push({
             arrival: c.arrivalDate || r.arrivalDate, departure: c.departureDate || r.departureDate, room: c.assignedRoom || r.assignedRoom?.number || '—', confirmation: r.confirmationNumber,
-            name: `${c.firstName} ${c.lastName}`.trim(), birth: c.dateOfBirth ? new Date(c.dateOfBirth).toISOString().slice(0, 10) : null, nationality: cn(c.nationality),
+            name: `${c.firstName} ${c.lastName}`.trim(), address: c.address || profileAddress || r.tourist?.permanentAddress || '—', documents: docs, birth: c.dateOfBirth ? new Date(c.dateOfBirth).toISOString().slice(0, 10) : null, nationality: cn(c.nationality),
             docType: DOC[c.idDocType] || c.idDocType, docNumber: c.idDocNumber || '—', verified: c.idVerified ? 'נבדק בקבלה' : 'לא נבדק (מקוון)', signed: c.signedAt ? 'כן' : 'לא',
           });
         }
       }
       const missing = rows.filter((r) => r.verified !== 'נבדק בקבלה').length;
+      const noAddress = rows.filter((r) => r.address === '—').length;
       return {
-        summary: [{ label: 'שהיות', value: res.length, type: 'int' }, { label: 'רשומות בפנקס', value: rows.filter((r) => r.verified !== 'אין רישום').length, type: 'int' }, { label: 'בלי רישום מאומת', value: missing, type: 'int' }],
+        summary: [{ label: 'שהיות', value: res.length, type: 'int' }, { label: 'רשומות בפנקס', value: rows.filter((r) => r.verified !== 'אין רישום').length, type: 'int' }, { label: 'בלי רישום מאומת', value: missing, type: 'int' }, { label: 'בלי מען', value: noAddress, type: 'int' }],
         columns: [
           { key: 'arrival', label: 'הגעה', type: 'date' }, { key: 'departure', label: 'עזיבה', type: 'date' }, { key: 'room', label: 'חדר', type: 'text' }, { key: 'confirmation', label: 'הזמנה', type: 'text' },
-          { key: 'name', label: 'שם', type: 'text' }, { key: 'birth', label: 'תאריך לידה', type: 'date' }, { key: 'nationality', label: 'אזרחות', type: 'text' },
-          { key: 'docType', label: 'מסמך', type: 'text' }, { key: 'docNumber', label: 'מספר מסמך', type: 'ltr' }, { key: 'verified', label: 'אימות', type: 'text' }, { key: 'signed', label: 'חתם', type: 'text' },
+          { key: 'name', label: 'שם', type: 'text' }, { key: 'address', label: 'מען קבוע', type: 'text' }, { key: 'birth', label: 'תאריך לידה', type: 'date' }, { key: 'nationality', label: 'אזרחות', type: 'text' },
+          { key: 'docType', label: 'מסמך', type: 'text' }, { key: 'docNumber', label: 'מספר מסמך', type: 'ltr' }, { key: 'verified', label: 'אימות', type: 'text' }, { key: 'signed', label: 'חתם', type: 'text' }, { key: 'documents', label: 'חשבונית / קבלה', type: 'text' },
         ],
         rows,
-        note: 'כולל רק שהיות שנכנסו בפועל. "בלי רישום מאומת" — שהייה שאין לה כרטיס רישום שנבדק בקבלה; יש להשלים.',
+        note: 'ספר אורחים: שם, מען, תאריכי שהייה והפניה לחשבונית/קבלה (הוראות ניהול פנקסים), ופרטי מסמך הזיהוי. כולל רק שהיות שנכנסו בפועל; "בלי רישום מאומת" ו"בלי מען" — יש להשלים.',
+      };
+    },
+  },
+  {
+    code: 'staff_register', name: 'רשומת מועסקים', group: 'חוקי ובטיחות', period: 'none',
+    roles: ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'auditor'],
+    description: 'כל העובדים במלון עם פרטי זיהוי, תפקיד ותקופת העסקה — להעברה למשטרה לפי דרישה (מפרט רישוי בתי מלון).',
+    async build({ propertyId }) {
+      const users = await User.find({ property: propertyId }).select('firstName lastName role active staffRecord deactivatedAt createdAt').sort({ active: -1, firstName: 1 }).lean();
+      const ROLE = { super_admin: 'מנהל מערכת', chain_admin: 'מנהל רשת', property_admin: 'מנהל נכס', general_manager: 'מנהל כללי', front_desk_manager: 'מנהל קבלה', receptionist: 'פקיד/ת קבלה', cashier: 'קופאי/ת', finance_manager: 'מנהל כספים', revenue_manager: 'מנהל הכנסות', housekeeping_manager: 'מנהל משק בית', housekeeper: 'חדרן/ית', maintenance_manager: 'מנהל אחזקה', technician: 'טכנאי', auditor: 'מבקר', owner_readonly: 'בעלים (צפייה)' };
+      const rows = users.map((u) => {
+        const s = u.staffRecord || {};
+        return {
+          name: nameOf(u), role: ROLE[u.role] || u.role, idNumber: s.idNumber || '—', phone: s.phone || '—', address: s.address || '—',
+          from: s.employedFrom || (u.createdAt ? new Date(u.createdAt).toISOString().slice(0, 10) : null),
+          until: u.active === false && u.deactivatedAt ? new Date(u.deactivatedAt).toISOString().slice(0, 10) : null,
+          status: u.active === false ? 'לא פעיל' : 'פעיל',
+        };
+      });
+      const missing = rows.filter((r) => r.status === 'פעיל' && r.idNumber === '—').length;
+      return {
+        summary: [{ label: 'עובדים פעילים', value: rows.filter((r) => r.status === 'פעיל').length, type: 'int' }, { label: 'בלי מספר זהות', value: missing, type: 'int' }, { label: 'עזבו', value: rows.filter((r) => r.status !== 'פעיל').length, type: 'int' }],
+        columns: [
+          { key: 'name', label: 'שם', type: 'text' }, { key: 'role', label: 'תפקיד', type: 'text' }, { key: 'idNumber', label: 'ת.ז / דרכון', type: 'ltr' }, { key: 'phone', label: 'טלפון', type: 'ltr' },
+          { key: 'address', label: 'כתובת', type: 'text' }, { key: 'from', label: 'מתחילת העסקה', type: 'date' }, { key: 'until', label: 'עד', type: 'date' }, { key: 'status', label: 'מצב', type: 'text' },
+        ],
+        rows,
+        note: 'פרטי הזיהוי מוזנים בניהול משתמשים ← עריכת עובד. "מתחילת העסקה" — לפי מה שהוזן, אחרת מועד פתיחת המשתמש.',
       };
     },
   },

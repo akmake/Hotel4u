@@ -49,16 +49,17 @@ export default function BookLayout() {
   const prop = state.site?.property;
   return (
     <div className="bk" dir="rtl" lang="he">
-      <header className={`bk-header ${home ? (solid ? 'is-solid' : '') : 'is-page'}`}>
+      {/* Over the hero only when the site loaded; otherwise (closed, error) a solid bar so it stays readable. */}
+      <header className={`bk-header ${home && state.site ? (solid ? 'is-solid' : '') : 'is-page'}`}>
         <div className="bk-wrap bk-header-in">
           <Link to={withP('/book', p)} className="bk-logo">
             {prop?.name || ' '}
             <small>{prop?.city ? `${prop.city.toUpperCase()} · HOTEL` : 'HOTEL'}</small>
           </Link>
           <nav className="bk-nav" aria-label="ניווט">
-            {home && <a href="#rooms">החדרים</a>}
-            {home && <a href="#hotel">המלון</a>}
-            <a href="#contact">יצירת קשר</a>
+            {home && state.site && <a href="#rooms">החדרים</a>}
+            {home && state.site && <a href="#hotel">המלון</a>}
+            {state.site && <a href="#contact">יצירת קשר</a>}
             {prop?.phone && <a className="bk-phone" href={`tel:${prop.phone.replace(/[^\d+]/g, '')}`}>{prop.phone}</a>}
           </nav>
         </div>
@@ -71,6 +72,7 @@ export default function BookLayout() {
             <div className="bk-empty">
               <h3>{state.error.code === 'site_off' ? 'ההזמנה המקוונת סגורה כרגע' : 'לא הצלחנו לטעון את האתר'}</h3>
               <p className="bk-lead" style={{ marginInline: 'auto' }}>{state.error.code === 'site_off' ? 'אפשר להזמין בטלפון או בדוא״ל, נשמח לעזור.' : state.error.message}</p>
+              {p && <p className="bk-note" style={{ marginTop: 18 }}><Link to={`/book/accessibility?p=${encodeURIComponent(p)}`}>הצהרת נגישות</Link> · <Link to={`/book/privacy?p=${encodeURIComponent(p)}`}>מדיניות פרטיות</Link></p>}
             </div>
           </div>
         )}
@@ -98,7 +100,7 @@ export default function BookLayout() {
               </div>
             </div>
             <div className="bk-footer-base">
-              <span>© {new Date().getFullYear()} {prop.name}</span>
+              <span>© {new Date().getFullYear()} {prop.name} · <Link to={`/book/accessibility?p=${encodeURIComponent(p)}`}>הצהרת נגישות</Link> · <Link to={`/book/privacy?p=${encodeURIComponent(p)}`}>מדיניות פרטיות</Link></span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShieldCheck size={14} /> הזמנה ותשלום מאובטחים · המחירים כוללים מע״מ</span>
             </div>
           </div>

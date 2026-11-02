@@ -74,7 +74,7 @@ async function main() {
     await ReservationRoom.create({ reservation: res._id, property: P, roomTypeBooked: rt._id, arrivalDate: res.arrivalDate, departureDate: res.departureDate, nightlyRate: 400, status: 'reserved' });
     await Folio.create({ property: P, reservation: res._id, ownerType: 'guest', lines: [] });
     r = await call('POST', q(`/stay/${res._id}/cancellation/preview`), t.receptionist, { channel: 'phone', track: 'regular', reason: 'regret' });
-    check('RSV-06 counts the property\'s rest days (not only Saturdays)', r.status === 200 && r.data.lines.some((l) => l.includes('ימי מנוחה שהוגדרו')), JSON.stringify(r.data?.lines || r).slice(0, 200));
+    check('RSV-06 counts the property\'s rest days (not only Saturdays)', r.status === 200 && r.data.lines.some((l) => /שהוגדר(ו)? במדיניות הנכס/.test(l) && l.includes('חגי ישראל')), JSON.stringify(r.data?.lines || r).slice(0, 200));
 
     // ── SYS-05 ──────────────────────────────────────────────────────────────
     r = await call('GET', q(`/platform/search?q=${encodeURIComponent(`חיפוש${TAG}`)}`), t.receptionist);

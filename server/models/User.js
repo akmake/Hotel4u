@@ -79,6 +79,13 @@ const UserSchema = new Schema({
   accessUntil:         { type: Date, default: null },     // ADM-06-F07: end of access for temps and vendors
   language:            { type: String, enum: ['he', 'en'], default: 'he' },
   displayName:         { type: String, maxlength: 100 },
+  // Staff register (police licensing spec for hotels: employees with identity details, handed over on request).
+  staffRecord: {
+    idNumber:     { type: String, trim: true, maxlength: 20 },
+    phone:        { type: String, trim: true, maxlength: 40 },
+    address:      { type: String, trim: true, maxlength: 300 },
+    employedFrom: String,                                  // YYYY-MM-DD
+  },
   deactivatedAt:       Date,
   deactivatedBy:       String,
 }, { timestamps: true, versionKey: false });

@@ -179,9 +179,10 @@ async function main() {
     check('FD-03 missing guarantee and registration block entry', ci.status === 409 && codes.includes('guarantee') && codes.includes('registration'), JSON.stringify(codes));
     let reg = await call('POST', `/frontdesk/reservations/${A._id}/registration`, R, { firstName: 'בודק', lastName: TAG });
     check('FD-05 invalid registration returns field errors', reg.status === 422 && reg.fields?.dateOfBirth && reg.fields?.idVerified, reg.status);
+    check('FD-05 guest book: a permanent address is required', reg.status === 422 && !!reg.fields?.address, JSON.stringify(reg.fields || {}));
     const secretNumber = `99${Date.now() % 10000000}`;
     reg = await call('POST', `/frontdesk/reservations/${A._id}/registration`, R, {
-      firstName: 'בודק', lastName: TAG, dateOfBirth: '1990-05-01', nationality: 'IL', idDocType: 'id_card', idDocNumber: secretNumber, idVerified: true,
+      firstName: 'בודק', lastName: TAG, dateOfBirth: '1990-05-01', nationality: 'IL', address: 'הרצל 10, חיפה', idDocType: 'id_card', idDocNumber: secretNumber, idVerified: true,
     });
     check('FD-05 registration saved', reg.status === 200 && reg.data?.idVerified === true, JSON.stringify(reg).slice(0, 200));
     const leaked = await AuditLog.countDocuments({ $or: [{ after: { $regex: secretNumber } }, { 'after.idDocNumber': { $exists: true } }] }).catch(() => 0);
@@ -235,7 +236,7 @@ async function main() {
     check('INV-02 the same room cannot be given to two units', as.status === 409, as.status);
 
     await call('POST', `/frontdesk/reservations/${B._id}/registration`, R, {
-      firstName: 'בודק', lastName: TAG, dateOfBirth: '1990-05-01', nationality: 'IL', idDocType: 'passport', idDocNumber: 'P1234567', idVerified: true,
+      firstName: 'בודק', lastName: TAG, dateOfBirth: '1990-05-01', nationality: 'IL', address: 'הרצל 10, חיפה', idDocType: 'passport', idDocNumber: 'P1234567', idVerified: true,
     });
     list = await call('GET', `/frontdesk/arrivals?propertyId=${P}&q=${encodeURIComponent(B.confirmationNumber)}`, R);
     const bRows = list.data?.rows || [];

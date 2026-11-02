@@ -201,6 +201,8 @@ export const setup = {
   online:         (propertyId)              => api.get(`/setup/online-booking?propertyId=${propertyId}`),
   saveOnline:     (propertyId, body)        => api.put('/setup/online-booking', withP(propertyId, body)),
   checkin:        (propertyId)              => api.get(`/setup/online-checkin?propertyId=${propertyId}`),
+  statements:     (propertyId)              => api.get(`/setup/public-statements?propertyId=${propertyId}`),
+  saveStatements: (propertyId, body)        => api.put('/setup/public-statements', withP(propertyId, body)),
   saveCheckin:    (propertyId, body)        => api.put('/setup/online-checkin', withP(propertyId, body)),
 };
 

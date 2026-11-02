@@ -15,6 +15,7 @@ import Reservation from '../models/Reservation.js';
 import Property from '../models/Property.js';
 import GuestProfile from '../models/GuestProfile.js';
 import Folio from '../models/Folio.js';
+import GuestRegistrationCard from '../models/GuestRegistrationCard.js';
 import { audit } from './auditService.js';
 import { httpError, businessDateOf, MANAGER_ROLES } from './frontDeskService.js';
 
@@ -37,6 +38,8 @@ export function decide(tourist, rule) {
   const allowed = (rule.visaTypes || []).map(normVisa).filter(Boolean);
   if (allowed.length && !allowed.includes(normVisa(tourist.visaType))) return { decision: 'ineligible', reason: `סוג האשרה ${tourist.visaType || '—'} אינו ברשימה המאושרת` };
   if (!tourist.passportCountry || !tourist.entryDate) return { decision: 'ineligible', reason: 'חסרות ראיות (מדינת דרכון / תאריך כניסה)' };
+  // VAT regulations: the provider keeps the tourist's name, permanent address and passport number.
+  if (!String(tourist.permanentAddress || '').trim()) return { decision: 'ineligible', reason: 'חסרה כתובת קבועה של התייר (נדרשת לפטור)' };
   return { decision: 'eligible', reason: null };
 }
 
@@ -64,7 +67,7 @@ function dto(res, rule, postedWithVat) {
   return {
     reservationId: String(res._id),
     recorded: !!t.recordedAt,
-    evidence: { nonResident: !!t.nonResident, passportCountry: t.passportCountry || null, visaType: t.visaType || null, entryDate: t.entryDate || null, docLast4: t.docLast4 || null, note: t.note || null },
+    evidence: { nonResident: !!t.nonResident, passportCountry: t.passportCountry || null, visaType: t.visaType || null, entryDate: t.entryDate || null, docLast4: t.docLast4 || null, permanentAddress: t.permanentAddress || null, note: t.note || null },
     recordedBy: t.recordedByName || null, recordedAt: t.recordedAt || null,
     decision, decisionLabel: DECISION_LABELS[decision], reason,
     rule: { enabled: !!rule.enabled, visaTypes: rule.visaTypes || [], chargeCodes: rule.chargeCodes || ['rooms'], approvedBy: rule.approvedBy || null, version: rule.version || 0, pricing: rule.pricing || 'net_of_vat' },
@@ -87,6 +90,11 @@ export async function getTourist({ propertyId, reservationId }) {
     const g = await GuestProfile.findById(res.primaryGuest).select('citizenship residency').lean();
     if (g?.citizenship || g?.residency) prefill = { passportCountry: g.citizenship || null, residency: g.residency || null };
   }
+  // The permanent address is usually already on this stay's registration card.
+  if (!res.tourist?.permanentAddress) {
+    const card = await GuestRegistrationCard.findOne({ reservation: res._id, address: { $exists: true, $ne: '' } }).sort({ createdAt: -1 }).select('address').lean();
+    if (card?.address) prefill = { ...(prefill || {}), address: card.address };
+  }
   return { ...dto(res, rule, postedWithVat), prefill };
 }
 
@@ -102,6 +110,11 @@ export async function recordTourist({ propertyId, reservationId, input, actor, i
   const visa = String(input.visaType || '').trim().slice(0, 20);
   const entry = String(input.entryDate || '').trim();
   const last4 = String(input.docLast4 || '').replace(/\D/g, '').slice(-4);
+  let permanentAddress = String(input.permanentAddress || '').trim().slice(0, 300);
+  if (nonResident && !permanentAddress) {
+    const card = await GuestRegistrationCard.findOne({ reservation: res._id, address: { $exists: true, $ne: '' } }).sort({ createdAt: -1 }).select('address').lean();
+    permanentAddress = card?.address || '';
+  }
   const fields = {};
   if (nonResident) {
     if (!/^[A-Z]{2}$/.test(country)) fields.passportCountry = 'מדינת הדרכון (קוד בן 2 אותיות)';
@@ -110,18 +123,19 @@ export async function recordTourist({ propertyId, reservationId, input, actor, i
     if (!YMD.test(entry)) fields.entryDate = 'תאריך הכניסה לישראל';
     else if (entry > today) fields.entryDate = 'תאריך כניסה עתידי';
     if (last4 && last4.length !== 4) fields.docLast4 = '4 ספרות אחרונות';
+    if (permanentAddress.length < 4) fields.permanentAddress = 'כתובת קבועה בחו״ל (נדרשת לפטור ממע״מ)';
   }
   if (Object.keys(fields).length) throw httpError('יש להשלים את ראיות המעמד', 422, { fields });
   const before = res.tourist ? { nonResident: !!res.tourist.nonResident, passportCountry: res.tourist.passportCountry, visaType: res.tourist.visaType } : null;
   res.tourist = nonResident
-    ? { nonResident: true, passportCountry: country, visaType: visa, entryDate: entry, docLast4: last4 || undefined, note: input.note ? String(input.note).slice(0, 300) : undefined, recordedAt: new Date(), recordedBy: actor.id || undefined, recordedByName: actor.name }
+    ? { nonResident: true, passportCountry: country, visaType: visa, entryDate: entry, docLast4: last4 || undefined, permanentAddress, note: input.note ? String(input.note).slice(0, 300) : undefined, recordedAt: new Date(), recordedBy: actor.id || undefined, recordedByName: actor.name }
     : { nonResident: false, recordedAt: new Date(), recordedBy: actor.id || undefined, recordedByName: actor.name };
   await res.save();
   // The guest profile keeps citizenship / residency for next time (residency ≠ tax status).
   if (res.primaryGuest && nonResident) await GuestProfile.updateOne({ _id: res.primaryGuest }, { $set: { citizenship: country, residency: 'non_resident' } });
   const { rule } = await ruleOf(propertyId);
   const out = await getTourist({ propertyId, reservationId });
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.tourist_recorded', entityType: 'Reservation', entityId: res._id, before, after: { nonResident, passportCountry: country || null, visaType: visa || null, entryDate: entry || null, hasDocLast4: !!last4, decision: decide(res.tourist, rule).decision }, ip });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.tourist_recorded', entityType: 'Reservation', entityId: res._id, before, after: { nonResident, passportCountry: country || null, visaType: visa || null, entryDate: entry || null, hasDocLast4: !!last4, hasAddress: !!permanentAddress, decision: decide(res.tourist, rule).decision }, ip });
   return out;
 }
 
