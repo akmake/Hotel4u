@@ -1,0 +1,104 @@
+/* ═══ 2026-11-04 — Quicken UI language on the desk screen (UI only; layout and behaviour unchanged) ═══
+   Source: "Quicken web Jul 2026" references. Inter 14/600, indigo #4a1ee6 primary, 8px buttons,
+   grey-filled inputs, 16px white panels with a hairline, underline tabs, header-only table rules,
+   green / cyan / coral for status. Loaded after TodayPage.css, so it wins by order. */
+.today-page {
+  --q-primary: #4a1ee6; --q-primary-hover: #3b14c7; --q-primary-soft: #f0ecff; --q-primary-disabled: #a995f5;
+  --q-ink: #14161f; --q-muted: #5f6573; --q-line: #e6e8ee; --q-field: #f3f5f6; --q-field-line: #e3e6ea;
+  --q-green: #12924a; --q-cyan: #6fdcf7; --q-coral: #ff7a59;
+  --accent-50: 240 236 255; --accent-100: 228 221 255; --accent-200: 205 193 253; --accent-300: 170 148 250;
+  --accent-400: 130 98 244; --accent-500: 98 58 236; --accent-600: 74 30 230; --accent-700: 59 20 199;
+  --reception-active: var(--q-primary); --reception-ink: var(--q-ink);
+  --reception-display: 'Inter', 'Heebo', sans-serif;
+  --today-canvas: #f4f5f8; --card-shadow: 0 1px 2px rgb(20 22 31 / .04);
+  --meter-done: var(--q-primary); --meter-ready: var(--q-cyan); --meter-warn: var(--q-coral);
+  --mb-primary: var(--q-primary); --mb-outline: #cfd3da;
+  font-family: 'Inter', 'Heebo', sans-serif; color: var(--q-ink);
+}
+.page-content:has(> .today-page) { background: #f4f5f8; }
+.today-page .dk-head.is-today h1 { font-size: 24px; font-weight: 600; letter-spacing: -.2px; }
+
+/* buttons: 8px, 600, primary indigo, secondary white with a grey border */
+.today-page .dk .dk-btn { height: 40px; padding: 0 18px; border: 1px solid #cfd3da; border-radius: 8px; background: #fff; color: var(--q-ink); font-weight: 600; letter-spacing: 0; }
+.today-page .dk .dk-btn:hover { background: #f6f7f9; }
+.today-page .dk .dk-btn:active { background: #eef0f3; }
+.today-page .dk .dk-btn.is-primary { border-color: transparent; background: var(--q-primary); color: #fff; }
+.today-page .dk .dk-btn.is-primary:hover { background: var(--q-primary-hover); box-shadow: none; }
+.today-page .dk .dk-btn.is-primary:active { background: #3010a8; }
+.today-page .dk .dk-btn.is-ghost { border-color: transparent; background: transparent; color: var(--q-primary); }
+.today-page .dk .dk-btn.is-ghost:hover { background: var(--q-primary-soft); }
+.today-page .dk .dk-btn.is-icon { border: 0; border-radius: 10px; background: #f1f2f6; color: var(--q-ink); }
+.today-page .dk .dk-btn.is-icon:hover { background: #e7e9ef; }
+.today-page .dk .dk-btn:disabled { border-color: transparent; background: #f1f2f6; color: #a2a7b3; }
+.today-page .dk .dk-btn.is-primary:disabled { background: var(--q-primary-disabled); color: #fff; }
+.today-page .dk .dk-btn:focus-visible, .today-page .dk-split button:focus-visible { outline: 3px solid rgb(74 30 230 / .35); outline-offset: 2px; }
+
+/* split action: filled indigo = the one thing that can happen now; assign = outlined indigo */
+.today-page .dk-split, .today-page .dk-split.is-assign, .today-page .dk-split.is-primary { --split-bg: 74 30 230; --split-hover: 59 20 199; gap: 1px; border-radius: 8px; }
+.today-page .dk-split button { font-weight: 600; letter-spacing: 0; }
+.today-page .dk-split-main { border-radius: 8px; }
+.today-page .dk-split:has(.dk-split-arrow) .dk-split-main { border-start-end-radius: 2px; border-end-end-radius: 2px; }
+.today-page .dk-split .dk-split-arrow { border-radius: 8px; border-start-start-radius: 2px; border-end-start-radius: 2px; }
+.today-page .dk-split.is-primary .dk-split-main { border-start-start-radius: 8px; border-end-start-radius: 8px; }
+.today-page .dk-split.is-primary .dk-split-arrow { border-start-end-radius: 8px; border-end-end-radius: 8px; }
+.today-page .dk-split button:hover, .today-page .dk-split button[aria-expanded="true"] { background-color: rgb(59 20 199); background-image: none; box-shadow: none; }
+.today-page .dk:has(.dk-head.is-today) .dk-table .dk-split.is-assign button { border: 1px solid var(--q-primary); background-color: #fff; color: var(--q-primary); }
+.today-page .dk:has(.dk-head.is-today) .dk-table .dk-split.is-assign button:hover { background-color: var(--q-primary-soft); background-image: none; }
+.today-page .dk-split-menu { border: 1px solid var(--q-line); border-radius: 12px; box-shadow: 0 8px 24px rgb(20 22 31 / .12); font-family: inherit; }
+.today-page .dk-split-menu button { font-weight: 500; border-radius: 8px; }
+.today-page .dk-split-menu button:hover, .today-page .dk-split-menu button:focus-visible { background: var(--q-primary-soft); }
+
+/* fields: grey fill, thin border, radius 10; focus = indigo */
+.today-page .dk-search { height: 40px; border: 1px solid var(--q-field-line); border-radius: 10px; background: var(--q-field); }
+.today-page .dk-search:hover { border-color: #c9cdd4; }
+.today-page .dk-search:focus-within, .today-page .dk-head-search:focus-within { border-color: var(--q-primary); background: #fff; box-shadow: 0 0 0 3px rgb(74 30 230 / .12); }
+.today-page .dk-head-search { height: 44px; background: var(--q-field); border-color: var(--q-field-line); }
+.today-page .dk-search input { font-size: 15px; }
+.today-page .dk-search button:focus-visible { outline-color: var(--q-primary); }
+
+/* panels: white, 16px, hairline, almost no shadow */
+.today-page .dk-head.is-today, .today-page .dk-tiles:has(> .reception-summary.is-glass), .today-page .dk:has(.dk-head.is-today) .dk-rooms { border: 1px solid var(--q-line); border-radius: 16px; box-shadow: var(--card-shadow); }
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar.is-slim { border: 1px solid var(--q-line); border-radius: 16px 16px 0 0; box-shadow: none; }
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-scroll,
+.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-scroll:has(> .dk-table) { border: 1px solid var(--q-line); border-top: 0; border-radius: 0 0 16px 16px; box-shadow: var(--card-shadow); }
+.today-page .dk:has(.dk-head.is-today) .dk-rooms-head, .today-page .reception-summary.is-glass + .reception-summary.is-glass { border-color: var(--q-line); }
+.today-page .dk-head.is-today { padding: 16px 24px; }
+.today-page .dk:has(.dk-head.is-today) .dk-rooms .dk-rcard { border-top-color: var(--q-line); }
+.today-page .dk-rooms-unassigned { border-top-color: var(--q-line); }
+.today-page .dk-rooms-head h2 { font-size: 16px; font-weight: 600; }
+
+/* summary strip: working numbers, bold; selected = indigo underline */
+.today-page .reception-summary.is-glass:hover { background: #fafafd; }
+.today-page .reception-summary.is-glass.is-on { background: var(--q-primary-soft); box-shadow: inset 0 -3px 0 var(--q-primary); }
+.reception-summary.is-glass .reception-summary-face > strong { font-size: 30px; font-weight: 700; letter-spacing: -.5px; color: var(--q-ink); }
+.today-page .reception-summary.is-glass.is-on .reception-summary-face > strong { color: var(--q-primary); }
+.reception-summary.is-glass .reception-summary-heading { font-weight: 500; color: var(--q-muted); }
+.today-page .reception-meter-track { height: 6px; border-radius: 3px; background: #eceef3; }
+.today-page .reception-meter-track > i { border-radius: 3px; }
+
+/* tabs above the list: indigo underline, 600 when active */
+.today-page .dk-modes button { color: var(--q-muted); font-weight: 500; }
+.today-page .dk-modes button:hover { color: var(--q-ink); }
+.today-page .dk-modes button.is-on, .today-page .dk-modes button.is-on .dk-mode-n { color: var(--q-primary); font-weight: 600; }
+.today-page .dk-modes button.is-on::after { height: 3px; background: var(--q-primary); }
+.today-page .dk-mode-n.warn { background: #ffe3da; color: #b23a16; }
+.today-page .dk-bar.is-slim .reception-activity-caption { font-size: 18px; }
+
+/* table: bold column labels on white, hairline rows, no row cards */
+.today-page .dk:has(.dk-head.is-today) .dk-table thead th { padding: 12px 16px; color: var(--q-ink); font-size: 13px; font-weight: 600; border-bottom-color: var(--q-line); }
+.today-page .dk:has(.dk-head.is-today) .dk-table tbody tr > td { border-top-color: var(--q-line); }
+.today-page .dk:has(.dk-head.is-today) .dk-table tbody tr:not(.dk-detail, .dk-group):hover > td { background: #fafafd; }
+.today-page .dk:has(.dk-head.is-today) .dk-table tbody tr.is-open > td,
+.today-page .dk:has(.dk-head.is-today) .dk-table tbody tr.is-open:hover > td,
+.today-page .dk:has(.dk-head.is-today) .dk-table tbody tr.dk-detail > td { background: var(--q-primary-soft); }
+.today-page .dk-table .dk-guest b, .today-page .dk-table .dk-room b { font-weight: 600; }
+.today-page .dk:has(.dk-head.is-today) .dk-table .dk-av, .today-page .dk-table .dk-av { background: var(--q-primary-soft); color: var(--q-primary); font-weight: 600; }
+.today-page .dk-table .dk-facts { border-top-color: var(--q-line); }
+.today-page .dk-table .dk-facts .dk-req { background: #fff1ec; color: #b23a16; border-radius: 6px; }
+
+/* status pills */
+.today-page .dk-bday { border-radius: 6px; background: #e6f6ed; color: var(--q-green); font-weight: 600; }
+.today-page .dk-bday.is-late { background: #ffe3da; color: #b23a16; }
+.today-page .dk-bday.is-late:hover { background: #ffd5c8; }
+.today-page .dk-live i { background: var(--q-green); box-shadow: 0 0 0 3px rgb(18 146 74 / .15); }
+.reception-status-heading b { border-radius: 6px; background: var(--q-primary-soft); color: var(--q-primary); font-weight: 600; }

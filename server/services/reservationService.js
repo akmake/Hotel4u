@@ -545,6 +545,8 @@ export async function cancelReservation({ reservationId, reason, actorId, actorN
     reservation: res.toObject(),
     actor:       { id: actorId, name: actorName },
   }).catch(() => null));
+  // A cancelled pickup returns its room to the group block's hold.
+  if (res.group) afterCommit.push(() => import('./groupBlockService.js').then((m) => m.resyncBlockOf(res.property, res.group)).catch(() => null));
 
   return res;
 }

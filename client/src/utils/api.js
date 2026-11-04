@@ -271,6 +271,10 @@ export const finance = {
   receivePayment: (propertyId, companyId, body) => api.post(`/finance/receivables/${companyId}/payments`, { ...body, propertyId }),
   dayReport:   (propertyId, date)        => api.get(`/finance/day-close/report?propertyId=${propertyId}${qs({ date })}`),
   closeFolio:  (propertyId, folioId)     => api.post(`/finance/folios/${folioId}/close`, { propertyId }),
+  // NR folio — passer-by / house accounts (no reservation)
+  houseAccounts: (propertyId, params = {}) => api.get(`/finance/house-accounts?propertyId=${propertyId}${qs(params)}`),
+  houseAccount:  (propertyId, id)          => api.get(`/finance/house-accounts/${id}?propertyId=${propertyId}`),
+  openHouseAccount: (propertyId, body)     => api.post('/finance/house-accounts', { ...body, propertyId }),
   // FIN-06 / FIN-10 documents from a folio and the allocation centre
   docContext:  (propertyId, folioId)     => api.get(`/finance/folios/${folioId}/documents/context?propertyId=${propertyId}`),
   issueDoc:    (propertyId, folioId, body) => api.post(`/finance/folios/${folioId}/documents`, { ...body, propertyId }),
@@ -351,10 +355,11 @@ export const stay = {
   swapOptions:    (propertyId, reservationId, q) => api.get(`/stay/room-swap/options?propertyId=${propertyId}${qs({ reservationId, q })}`),
   swapPreview:    (propertyId, body)       => api.post('/stay/room-swap/preview', { ...body, propertyId }),
   swap:           (propertyId, body)       => api.post('/stay/room-swap', { ...body, propertyId }),
-  moveCandidates: (propertyId, id, unitId, fromRoomId) => api.get(`/stay/${id}/move-candidates?propertyId=${propertyId}${qs({ unitId, fromRoomId })}`),
+  moveCandidates: (propertyId, id, unitId, fromRoomId, until) => api.get(`/stay/${id}/move-candidates?propertyId=${propertyId}${qs({ unitId, fromRoomId, until })}`),
   move:           (propertyId, id, body)   => api.post(`/stay/${id}/move`, { ...body, propertyId }),
   extension:      (propertyId, id, newDeparture) => api.get(`/stay/${id}/extension?propertyId=${propertyId}${qs({ newDeparture })}`),
   extend:         (propertyId, id, body)   => api.post(`/stay/${id}/extend`, { ...body, propertyId }),
+  extendWithMove: (propertyId, id, body)   => api.post(`/stay/${id}/extend-with-move`, { ...body, propertyId }),
   early:          (propertyId, id)         => api.get(`/stay/${id}/early-departure?propertyId=${propertyId}`),
   modifyPreview:  (propertyId, id, changes) => api.post(`/stay/${id}/modification/preview`, { propertyId, changes }),
   modify:         (propertyId, id, body)   => api.post(`/stay/${id}/modify`, { ...body, propertyId }),
@@ -689,6 +694,73 @@ export const companies = {
   create:       (data)                    => api.post('/companies', data),
   update:       (id, data)                => api.patch(`/companies/${id}`, data),
   remove:       (id)                      => api.delete(`/companies/${id}`),
+};
+
+// ── Group blocks (allotments that hold inventory) ───────────────────────────
+export const groupBlocks = {
+  list:    (propertyId, params = {}) => api.get(`/group-blocks?propertyId=${propertyId}${qs(params)}`),
+  get:     (propertyId, id)          => api.get(`/group-blocks/${id}?propertyId=${propertyId}`),
+  create:  (propertyId, body)        => api.post('/group-blocks', { ...body, propertyId }),
+  update:  (propertyId, id, body)    => api.patch(`/group-blocks/${id}`, { ...body, propertyId }),
+  act:     (propertyId, id, action, body = {}) => api.post(`/group-blocks/${id}/${action}`, { ...body, propertyId }),
+  pickup:  (propertyId, id, body)    => api.post(`/group-blocks/${id}/pickup`, { ...body, propertyId }),
+  roster:  (propertyId, id, entries) => api.put(`/group-blocks/${id}/rooming-list`, { entries, propertyId }),
+};
+
+// ── Multi-option quotations ─────────────────────────────────────────────────
+export const proposals = {
+  list:    (propertyId, params = {}) => api.get(`/proposals?propertyId=${propertyId}${qs(params)}`),
+  get:     (propertyId, id)          => api.get(`/proposals/${id}?propertyId=${propertyId}`),
+  create:  (propertyId, body)        => api.post('/proposals', { ...body, propertyId }),
+  sent:    (propertyId, id)          => api.post(`/proposals/${id}/sent`, { propertyId }),
+  lost:    (propertyId, id, reason)  => api.post(`/proposals/${id}/lost`, { reason, propertyId }),
+  accept:  (propertyId, id, body)    => api.post(`/proposals/${id}/accept`, { ...body, propertyId }),
+  print: async (propertyId, id) => {
+    const token = getToken();
+    const res = await fetch(`${PMS_BASE}/proposals/${id}/print?propertyId=${propertyId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const html = await res.text();
+    if (!res.ok) throw new Error(html || `HTTP ${res.status}`);
+    return html;
+  },
+};
+
+// ── Events & function spaces ────────────────────────────────────────────────
+export const events = {
+  spaces:     (propertyId, all)          => api.get(`/events/spaces?propertyId=${propertyId}${all ? '&all=1' : ''}`),
+  saveSpace:  (propertyId, id, body)     => (id ? api.patch(`/events/spaces/${id}`, { ...body, propertyId }) : api.post('/events/spaces', { ...body, propertyId })),
+  chart:      (propertyId, params = {})  => api.get(`/events/chart?propertyId=${propertyId}${qs(params)}`),
+  search:     (propertyId, params = {})  => api.get(`/events?propertyId=${propertyId}${qs(params)}`),
+  get:        (propertyId, id)           => api.get(`/events/${id}?propertyId=${propertyId}`),
+  create:     (propertyId, body)         => api.post('/events', { ...body, propertyId }),
+  update:     (propertyId, id, body)     => api.patch(`/events/${id}`, { ...body, propertyId }),
+  status:     (propertyId, id, status, reason) => api.post(`/events/${id}/status`, { status, reason, propertyId }),
+  openFolio:  (propertyId, id)           => api.post(`/events/${id}/folio`, { propertyId }),
+};
+
+// ── Demand system (forecast + price advice) ─────────────────────────────────
+export const demand = {
+  calendar: (propertyId, params = {}) => api.get(`/demand?propertyId=${propertyId}${qs(params)}`),
+  apply:    (propertyId, body)        => api.post('/demand/apply', { ...body, propertyId }),
+};
+
+// ── Promotions (promo codes) ─────────────────────────────────────────────────
+export const promotions = {
+  list:   (propertyId)           => api.get(`/promotions?propertyId=${propertyId}`),
+  create: (propertyId, body)     => api.post('/promotions', { ...body, propertyId }),
+  update: (propertyId, id, body) => api.patch(`/promotions/${id}`, { ...body, propertyId }),
+};
+
+// ── Cashier shifts + currency exchange ───────────────────────────────────────
+export const cashier = {
+  shifts:       (propertyId, params = {}) => api.get(`/cashier/shifts?propertyId=${propertyId}${qs(params)}`),
+  shift:        (propertyId, id)          => api.get(`/cashier/shifts/${id}?propertyId=${propertyId}`),
+  open:         (propertyId, body)        => api.post('/cashier/shifts', { ...body, propertyId }),
+  close:        (propertyId, id, body)    => api.post(`/cashier/shifts/${id}/close`, { ...body, propertyId }),
+  rates:        (propertyId)              => api.get(`/cashier/fx/rates?propertyId=${propertyId}`),
+  setRate:      (propertyId, cur, body)   => api.put(`/cashier/fx/rates/${cur}`, { ...body, propertyId }),
+  exchanges:    (propertyId, params = {}) => api.get(`/cashier/fx?propertyId=${propertyId}${qs(params)}`),
+  exchange:     (propertyId, body)        => api.post('/cashier/fx', { ...body, propertyId }),
+  voidExchange: (propertyId, id, reason)  => api.post(`/cashier/fx/${id}/void`, { reason, propertyId }),
 };
 
 // ── Groups ────────────────────────────────────────────────────────────────────

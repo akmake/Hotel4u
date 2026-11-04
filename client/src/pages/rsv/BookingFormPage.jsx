@@ -22,27 +22,34 @@ const PRICE_OVERRIDE_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'g
 const HOLD_OPTIONS = [['30', '30 דקות'], ['60', 'שעה'], ['240', '4 שעות'], ['1440', '24 שעות'], ['4320', '3 ימים']];
 const nightsOf = (a, d) => (a && d ? Math.max(0, Math.round((Date.parse(d) - Date.parse(a)) / 86400000)) : 0);
 const rowKey = () => Math.random().toString(36).slice(2, 10);
-const newRow = (p = {}) => ({ key: rowKey(), roomTypeId: '', ratePlanId: '', board: 'room_only', adults: 2, children: 0, childAges: [], roomId: '', override: null, ...p });
+const newRow = (p = {}) => ({ key: rowKey(), roomTypeId: '', ratePlanId: '', board: 'room_only', adults: 2, children: 0, childAges: [], roomId: '', override: null, arr: '', dep: '', ...p });
+// RSV-02-A03: a room may have its own dates (arr/dep); empty = the booking's dates.
+const ownDates = (r) => !!(r.arr && r.dep);
+const datesOf = (r, stay) => (ownDates(r) ? { a: r.arr, d: r.dep } : { a: stay.arrival, d: stay.departure });
+const nightsOfRow = (r, stay) => { const { a, d } = datesOf(r, stay); return nightsOf(a, d); };
 // A plan that includes a board fixes it ("by rate"); otherwise the row's own choice ("by board").
 const effBoardOf = (r, types) => {
   const pl = types?.find((x) => x.id === r.roomTypeId)?.plans.find((p) => p.id === r.ratePlanId);
   return pl?.board && pl.board !== 'room_only' ? pl.board : (r.board || 'room_only');
 };
 // The offer depends on the board and (for a supplement) on the children's ages.
-const offerKey = (r, types) => {
+const offerKey = (r, types, stay) => {
   const b = effBoardOf(r, types);
-  return `${r.roomTypeId}|${r.adults}|${r.children}|${b}|${b !== 'room_only' ? r.childAges.join(',') : ''}`;
+  const { a, d } = datesOf(r, stay);
+  return `${r.roomTypeId}|${r.adults}|${r.children}|${b}|${b !== 'room_only' ? r.childAges.join(',') : ''}|${a}|${d}`;
 };
+const roomsKey = (r, stay) => { const { a, d } = datesOf(r, stay); return `${r.roomTypeId}|${a}|${d}`; };
 const localDateTime = (d) => { const z = (x) => String(x).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
 
 // ── data: offers per (type, adults, children) and free rooms per type, cached per stay ──
-function useStayData(propertyId, arrival, departure, rows) {
+function useStayData(propertyId, arrival, departure, rows, promoCode = '') {
   const [types, setTypes] = useState(null); // [{ id, name, capacityMax, available, plans: [{id,name,refundable,breakfast}] }]
   const [offers, setOffers] = useState({}); // key → { byPlan: { planId: offer } } | { error }
   const [rooms, setRooms] = useState({}); // typeId → [{id, number, floor}]
   const [error, setError] = useState(null);
-  const stayKey = `${arrival}|${departure}`;
+  const stayKey = `${arrival}|${departure}|${promoCode}`;
   const valid = nightsOf(arrival, departure) > 0;
+  const [promo, setPromo] = useState(null);
   useEffect(() => { setOffers({}); setRooms({}); setTypes(null); setError(null); }, [stayKey]);
   useEffect(() => {
     if (!propertyId || !valid) return undefined;
@@ -58,7 +65,8 @@ function useStayData(propertyId, arrival, departure, rows) {
     }).catch((e) => alive && setError(e));
     return () => { alive = false; };
   }, [propertyId, stayKey, valid]); // eslint-disable-line react-hooks/exhaustive-deps
-  const need = useMemo(() => (types ? [...new Set(rows.filter((r) => r.roomTypeId && r.ratePlanId && (effBoardOf(r, types) === 'room_only' || !r.childAges.some((a) => a === '' || a === undefined))).map((r) => offerKey(r, types)))] : []), [rows, types]);
+  const stay = { arrival, departure };
+  const need = useMemo(() => (types ? [...new Set(rows.filter((r) => r.roomTypeId && r.ratePlanId && nightsOfRow(r, stay) > 0 && (effBoardOf(r, types) === 'room_only' || !r.childAges.some((a) => a === '' || a === undefined))).map((r) => offerKey(r, types, stay)))] : []), [rows, types]); // eslint-disable-line react-hooks/exhaustive-deps
   const inflight = useRef(new Set());
   useEffect(() => {
     if (!propertyId || !valid) return;
@@ -66,24 +74,25 @@ function useStayData(propertyId, arrival, departure, rows) {
       const full = `${stayKey}|${k}`;
       if (offers[k] || inflight.current.has(full)) continue;
       inflight.current.add(full);
-      const [roomTypeId, adults, children, board, ages] = k.split('|');
-      booking.availability(propertyId, { arrival, departure, adults, children, rooms: 1, roomTypeId, board, childAges: ages || undefined })
-        .then((r) => setOffers((o) => ({ ...o, [k]: { byPlan: Object.fromEntries((r.offers || []).map((x) => [x.ratePlan.id, x])) } })))
+      const [roomTypeId, adults, children, board, ages, a, d] = k.split('|');
+      booking.availability(propertyId, { arrival: a, departure: d, adults, children, rooms: 1, roomTypeId, board, childAges: ages || undefined, promoCode: promoCode || undefined })
+        .then((r) => { if (promoCode) setPromo(r.promo || null); setOffers((o) => ({ ...o, [k]: { byPlan: Object.fromEntries((r.offers || []).map((x) => [x.ratePlan.id, x])) } })); })
         .catch((e) => setOffers((o) => ({ ...o, [k]: { error: e.message } })))
         .finally(() => inflight.current.delete(full));
     }
   }, [need, stayKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const typeIds = useMemo(() => [...new Set(rows.map((r) => r.roomTypeId).filter(Boolean))], [rows]);
+  const roomKeys = useMemo(() => [...new Set(rows.filter((r) => r.roomTypeId && nightsOfRow(r, stay) > 0).map((r) => roomsKey(r, stay)))], [rows, stayKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!propertyId || !valid) return;
-    for (const t of typeIds) {
-      if (rooms[t]) continue;
-      setRooms((x) => ({ ...x, [t]: [] }));
-      booking.freeRooms(propertyId, { roomTypeId: t, arrival, departure }).then((list) => setRooms((x) => ({ ...x, [t]: list }))).catch(() => null);
+    for (const k of roomKeys) {
+      if (rooms[k]) continue;
+      const [t, a, d] = k.split('|');
+      setRooms((x) => ({ ...x, [k]: [] }));
+      booking.freeRooms(propertyId, { roomTypeId: t, arrival: a, departure: d }).then((list) => setRooms((x) => ({ ...x, [k]: list }))).catch(() => null);
     }
-  }, [typeIds, stayKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [roomKeys, stayKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const refresh = () => setOffers({});
-  return { types, offers, rooms, error, refresh };
+  return { types, offers, rooms, error, refresh, promo: promoCode ? promo : null };
 }
 
 // The one price choice of a room. By board: plans grouped under the board they represent; a board
@@ -210,12 +219,17 @@ export default function BookingFormPage() {
   const touristOf = (r) => {
     const o = offerOf(r); if (!o) return null;
     const vat = 1 + Number(o.vatRate ?? 18) / 100; const codes = taxRule?.chargeCodes || ['rooms'];
-    const room = r.override?.rate > 0 ? r.override.rate * nights : o.roomPerRoom;
+    const room = r.override?.rate > 0 ? r.override.rate * rowNights(r) : o.roomPerRoom;
     const board = Number(o.board?.total || 0);
     return Math.round(((codes.includes('rooms') ? room / vat : room) + (codes.includes('board') ? board / vat : board)) * 100) / 100;
   };
   const nights = nightsOf(arrival, departure);
-  const data = useStayData(propertyId, arrival, departure, rows);
+  const stay = { arrival, departure };
+  const rowNights = (r) => nightsOfRow(r, stay);
+  const [promoDraft, setPromoDraft] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const data = useStayData(propertyId, arrival, departure, rows, promoCode);
+  const promoOk = !!(promoCode && data.promo?.ok);
   useEffect(() => { if (form.payerType === 'company' && propertyId) booking.companies(propertyId).then(setCompanies).catch(() => setCompanies([])); }, [form.payerType, propertyId]);
 
   // Defaults once the types are known: first plan, first type for empty rows.
@@ -232,10 +246,10 @@ export default function BookingFormPage() {
   }, [data.types]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setRow = (key, patch) => { setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r))); setLineErrors({}); };
-  const rowOffer = (r) => data.offers[offerKey(r, data.types)];
+  const rowOffer = (r) => data.offers[offerKey(r, data.types, stay)];
   const offerOf = (r) => rowOffer(r)?.byPlan?.[r.ratePlanId] || null;
-  const usedByType = rows.reduce((m, r) => (r.roomTypeId ? m.set(r.roomTypeId, (m.get(r.roomTypeId) || 0) + 1) : m), new Map());
-  const rowTotal = (r) => { const o = offerOf(r); if (!o) return null; return r.override?.rate > 0 ? Math.round((r.override.rate * nights + Number(o.board?.total || 0)) * 100) / 100 : o.perRoom; };
+  const usedByType = rows.reduce((m, r) => (r.roomTypeId && !ownDates(r) ? m.set(r.roomTypeId, (m.get(r.roomTypeId) || 0) + 1) : m), new Map());
+  const rowTotal = (r) => { const o = offerOf(r); if (!o) return null; return r.override?.rate > 0 ? Math.round((r.override.rate * rowNights(r) + Number(o.board?.total || 0)) * 100) / 100 : o.perRoom; };
   const grand = rows.reduce((s, r) => s + (rowTotal(r) || 0), 0);
   const grandTourist = touristPrice ? rows.reduce((s, r) => s + (touristOf(r) || 0), 0) : null;
   const guests = rows.reduce((s, r) => ({ a: s.a + Number(r.adults || 0), c: s.c + Number(r.children || 0) }), { a: 0, c: 0 });
@@ -246,11 +260,12 @@ export default function BookingFormPage() {
     const o = offerOf(r);
     if (!r.roomTypeId) return 'בחרו סוג חדר';
     if (!r.ratePlanId) return 'בחרו תעריף';
+    if (ownDates(r) && rowNights(r) < 1) return 'תאריכי החדר: עזיבה אחרי הגעה';
     if (Number(r.children) > 0 && r.childAges.some((a) => a === '' || a === undefined || Number(a) < 0 || Number(a) > 17)) return effBoardOf(r, data.types) !== 'room_only' ? 'גיל לכל ילד (נדרש למחיר האירוח)' : 'גיל לכל ילד';
     if (rowOffer(r)?.error) return rowOffer(r).error;
     if (!o) return null; // still loading
     if (!o.bookable) return o.reasons[0]?.label || 'לא ניתן למכור';
-    if (t && (usedByType.get(r.roomTypeId) || 0) > t.available) return `נבחרו ${usedByType.get(r.roomTypeId)} חדרים מסוג זה — פנויים ${t.available}`;
+    if (t && !ownDates(r) && (usedByType.get(r.roomTypeId) || 0) > t.available) return `נבחרו ${usedByType.get(r.roomTypeId)} חדרים מסוג זה — פנויים ${t.available}`;
     if (r.override && (!(Number(r.override.rate) > 0) || (r.override.reason || '').trim().length < 3)) return 'מחיר ידני: מחיר וסיבה';
     return lineErrors[i] || null;
   };
@@ -269,10 +284,12 @@ export default function BookingFormPage() {
   const common = {
     arrival, departure, source: form.source, payerType: form.payerType, companyId: form.payerType === 'company' ? form.companyId : undefined,
     booker: form.bookerDiffers ? form.booker : undefined, specialRequests: form.specialRequests || undefined, internalNotes: form.internalNotes || undefined, ...guestPart, residency,
+    ...(promoOk ? { promoCode } : {}),
   };
   const lineBody = (r) => ({
     roomTypeId: r.roomTypeId, ratePlanId: r.ratePlanId, board: effBoardOf(r, data.types), adults: Number(r.adults), children: Number(r.children || 0),
     childAges: Number(r.children) > 0 ? r.childAges.map(Number) : [], priceSignature: offerOf(r)?.priceSignature, roomId: r.roomId || undefined,
+    ...(ownDates(r) ? { arrival: r.arr, departure: r.dep } : {}),
     ...(r.override ? { override: { ratePerNight: Number(r.override.rate), reason: r.override.reason } } : {}),
   });
 
@@ -363,7 +380,7 @@ export default function BookingFormPage() {
                     const o = offerOf(r);
                     const w = rowWhy(r, i);
                     const taken = new Set(rows.filter((x) => x.key !== r.key && x.roomId).map((x) => x.roomId));
-                    const free = (data.rooms[r.roomTypeId] || []).filter((x) => !taken.has(x.id));
+                    const free = (data.rooms[roomsKey(r, stay)] || []).filter((x) => !taken.has(x.id));
                     return (
                       <tr key={r.key}>
                         <td className="ui-num">{i + 1}</td>
@@ -373,6 +390,15 @@ export default function BookingFormPage() {
                             {(data.types || []).map((x) => <option key={x.id} value={x.id}>{typeLabel(x)}</option>)}
                           </select>
                           {t && <div className="ui-sub">עד {t.capacityMax} אורחים</div>}
+                          {ownDates(r) ? (
+                            <div className="ui-stack" style={{ gap: 4, marginTop: 4 }}>
+                              <input type="date" className="input w-full" min={todayYmd()} aria-label={`הגעה חדר ${i + 1}`} value={r.arr} onChange={(e) => setRow(r.key, { arr: e.target.value, dep: r.dep <= e.target.value ? addDays(e.target.value, 1) : r.dep, roomId: '' })} />
+                              <input type="date" className="input w-full" min={addDays(r.arr, 1)} aria-label={`עזיבה חדר ${i + 1}`} value={r.dep} onChange={(e) => setRow(r.key, { dep: e.target.value, roomId: '' })} />
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRow(r.key, { arr: '', dep: '', roomId: '' })}>כמו ההזמנה</button>
+                            </div>
+                          ) : (
+                            nights > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRow(r.key, { arr: arrival, dep: departure })}>תאריכים אחרים</button>
+                          )}
                           {w && <div className="ui-error">{w}</div>}
                         </td>
                         <td><input type="number" min="1" max="10" className="input" style={{ width: 60 }} aria-label={`מבוגרים בחדר ${i + 1}`} value={r.adults} onChange={(e) => setRow(r.key, { adults: Math.max(1, Number(e.target.value) || 1) })} /></td>
@@ -399,7 +425,9 @@ export default function BookingFormPage() {
                             <div>
                               <div className="ui-amount font-medium">{money(rowTotal(r))}</div>
                               <div className="ui-sub">{r.override?.rate > 0 ? `${money(r.override.rate)} ללילה · ידני` : `${money(o.averageNight)} ללילה`}</div>
-                              {Number(o.board?.total) > 0 && <div className="ui-sub">לינה {money(r.override?.rate > 0 ? r.override.rate * nights : o.roomPerRoom)} · אירוח {money(o.board.total)}</div>}
+                              {ownDates(r) && <div className="ui-sub">{formatShort(r.arr)} – {formatShort(r.dep)} · {rowNights(r)} לילות</div>}
+                              {o.promotion && !r.override && <div className="ui-sub" style={{ color: 'rgb(21 128 61)' }}>{o.promotion.label} · חיסכון {money(o.promotion.saving)}</div>}
+                              {Number(o.board?.total) > 0 && <div className="ui-sub">לינה {money(r.override?.rate > 0 ? r.override.rate * rowNights(r) : o.roomPerRoom)} · אירוח {money(o.board.total)}</div>}
                               {touristPrice && <div className="ui-sub">לתייר: {money(touristOf(r))}</div>}
                               {canOverride && !r.override && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRow(r.key, { override: { rate: '', reason: '' } })}>מחיר ידני</button>}
                             </div>
@@ -460,6 +488,13 @@ export default function BookingFormPage() {
             <Field id="bf-int" label="הערה פנימית" optional><input id="bf-int" className="input w-full" maxLength={1000} value={form.internalNotes} onChange={(e) => setForm((p) => ({ ...p, internalNotes: e.target.value }))} /></Field>
           </Card>
           <Card title="סיכום">
+            <form className="ui-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 10 }} onSubmit={(e) => { e.preventDefault(); setPromoCode(promoDraft.trim().toUpperCase()); }}>
+              <Field id="bf-promo" label="קוד מבצע" optional error={promoCode && data.promo && !data.promo.ok ? data.promo.why : undefined} hint={promoOk ? `${data.promo.name} — הוחל על המחירים` : undefined}>
+                <input id="bf-promo" dir="ltr" className="input" maxLength={30} value={promoDraft} onChange={(e) => setPromoDraft(e.target.value.toUpperCase())} />
+              </Field>
+              <button type="submit" className="btn btn-secondary btn-sm" disabled={!promoDraft.trim() || promoDraft.trim() === promoCode}>החלה</button>
+              {promoCode && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setPromoCode(''); setPromoDraft(''); }}>הסרה</button>}
+            </form>
             <KeyValues rows={[
               ...rows.map((r, i) => {
                 const t = data.types?.find((x) => x.id === r.roomTypeId);

@@ -71,6 +71,7 @@ const ReservationSchema = new Schema({
     refundable:   Boolean,
     computedAt:   Date,
     override:     { by: String, reason: String },      // manual price, manager only
+    promotion:    { code: String, name: String, saving: Number }, // promo code applied at booking
     // G2: board on top of the room price. source=plan → included in the rate (nothing extra);
     // source=supplement → per-night meal price for this room, posted as code 'board'.
     board: {

@@ -77,7 +77,7 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
 }
 
 // ── FIN-03 ──────────────────────────────────────────────────────────────────
-export function PaymentDialog({ open, onClose, propertyId, folio, onSaved }) {
+export function PaymentDialog({ open, onClose, propertyId, folio, onSaved, noDeposit = false }) {
   const action = useAction();
   const [f, setF] = useState({});
   const [details, setDetails] = useState({});
@@ -85,7 +85,7 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved }) {
   const balance = folio?.balance || 0;
   useEffect(() => {
     if (open) {
-      setF({ kind: balance > 0.005 ? 'payment' : 'deposit', amount: balance > 0.005 ? balance.toFixed(2) : '', method: 'cash', methodRef: '', note: '' });
+      setF({ kind: balance > 0.005 || noDeposit ? 'payment' : 'deposit', amount: balance > 0.005 ? balance.toFixed(2) : '', method: 'cash', methodRef: '', note: '' });
       setDetails(emptyDetails('cash'));
       setOpKey(newOpKey()); action.reset();
     }
@@ -112,11 +112,11 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved }) {
     <Modal open={open} onClose={onClose} busy={action.busy} width={560} title="רישום תשלום" subtitle={folio ? `חשבון ${folio.owner} · יתרה ${money(balance)}` : ''} footer={<Footer action={action} onClose={onClose} label={f.kind === 'deposit' ? 'רישום מקדמה' : 'רישום תשלום'} blockedWhy={why} />}>
       <form id="fin-form" className="ui-stack" onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }} noValidate>
         <ErrorBanner error={action.error} />
-        <fieldset className="ui-fieldset" style={{ marginTop: 0 }}>
+        {!noDeposit && <fieldset className="ui-fieldset" style={{ marginTop: 0 }}>
           <legend className="ui-label">סוג</legend>
           <label className="ui-radio"><input type="radio" name="kind" checked={f.kind === 'payment'} onChange={() => set('kind')('payment')} /><span>תשלום על חשבון<span className="ui-sub" style={{ display: 'block' }}>עד גובה היתרה</span></span></label>
           <label className="ui-radio"><input type="radio" name="kind" checked={f.kind === 'deposit'} onChange={() => set('kind')('deposit')} /><span>מקדמה<span className="ui-sub" style={{ display: 'block' }}>תשלום מראש, עד עלות השהייה</span></span></label>
-        </fieldset>
+        </fieldset>}
         <div className="ui-grid-2">
           <Field id="pm-amt" label="סכום" required error={e.amount}>
             <input id="pm-amt" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" value={f.amount || ''} onChange={(ev) => set('amount')(ev.target.value)} />

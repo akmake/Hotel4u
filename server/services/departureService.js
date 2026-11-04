@@ -344,6 +344,7 @@ export async function getCheckOutContext({ propertyId, reservationId }) {
         department: l.department || null, serviceDate: l.serviceDate, source: l.source,
       })),
       todayCharges: posted.filter((l) => l.type === 'charge' && l.serviceDate === businessDate).length,
+      refundable: refundablePayments(f),
       settlement: f.settlement?.mode ? { mode: f.settlement.mode, reason: f.settlement.reason || null, by: f.settlement.approvedByName || null, at: f.settlement.at } : null,
       company,
     };
@@ -390,6 +391,15 @@ export async function recordPayment({ propertyId, folioId, input, actor, ip }) {
   return recordFolioPayment({ propertyId, folioId, input: { ...input, kind: 'payment' }, actor, ip });
 }
 
+// Posted payments/deposits with what is still left to return on each (refunds linked by refundOf).
+function refundablePayments(folio) {
+  const lines = (folio?.lines || []).filter((l) => l.status === 'posted');
+  return lines.filter((l) => ['payment', 'deposit'].includes(l.type) && Number(l.amount) < 0).map((p) => {
+    const back = lines.filter((l) => l.type === 'refund' && String(l.refundOf || '') === String(p._id)).reduce((s, l) => s + Number(l.amount || 0), 0);
+    return { id: String(p._id), method: p.method || null, last4: p.payDetails?.last4 || null, date: p.serviceDate, amount: round2(-Number(p.amount)), refundable: round2(-Number(p.amount) - back) };
+  }).filter((p) => p.refundable > 0.005).reverse();
+}
+
 export async function refundCredit({ propertyId, folioId, input, actor, ip, session = null, afterCommit = null }) {
   if (!session) return financialWrite(`folio:${folioId}`, (session, afterCommit) => refundCredit({ propertyId, folioId, input, actor, ip, session, afterCommit }), propertyId);
   if (!REFUND_ROLES.includes(actor.role)) throw httpError('החזר כספי מותר למנהל או לכספים בלבד', 403);
@@ -400,11 +410,19 @@ export async function refundCredit({ propertyId, folioId, input, actor, ip, sess
   const amount = round2(input.amount);
   const reasonText = String(input.reason || '').trim().slice(0, 300);
   if (!(amount > 0)) throw httpError('סכום חייב להיות חיובי', 422, { fields: { amount: 'סכום לא תקין' } });
-  if (!PAY_METHODS.includes(input.method)) throw httpError('אמצעי החזר לא מוכר', 422, { fields: { method: 'יש לבחור אמצעי' } });
+  if (!input.paymentLineId && !PAY_METHODS.includes(input.method)) throw httpError('אמצעי החזר לא מוכר', 422, { fields: { method: 'יש לבחור אמצעי' } });
   if (reasonText.length < 3) throw httpError('החזר מחייב סיבה', 422, { fields: { reason: 'יש לפרט סיבה' } });
   const credit = -folioBalance(folio);
   // Cumulative cap (T16): only the credit that actually exists can be returned.
   if (amount - credit > 0.005) throw httpError(credit > 0 ? `ניתן להחזיר עד ${credit.toFixed(2)}` : 'אין יתרת זכות להחזר', 422, { fields: { amount: 'מעל יתרת הזכות' } });
+  // FIN-04: a refund names the payment it returns — same method, capped by what is left of it.
+  let pay = null;
+  if (input.paymentLineId) {
+    pay = folio.lines.id(input.paymentLineId);
+    if (!pay || !['payment', 'deposit'].includes(pay.type) || pay.status !== 'posted') throw httpError('תשלום המקור לא נמצא או אינו בר החזר', 404);
+    const left = refundablePayments(folio).find((p) => p.id === String(pay._id))?.refundable || 0;
+    if (amount - left > 0.005) throw httpError(left > 0.005 ? `מתשלום זה ניתן להחזיר עד ${left.toFixed(2)}` : 'התשלום הוחזר במלואו', 422, { fields: { amount: 'מעל יתרת התשלום' } });
+  }
   // A refund pays money out, so it is a positive line that brings the credit back toward zero.
   folio.lines.push({
     type: 'refund',
@@ -415,11 +433,14 @@ export async function refundCredit({ propertyId, folioId, input, actor, ip, sess
     source: 'manual',
     status: 'posted',
     reference,
+    refundOf: pay?._id,
+    method: pay ? pay.method || undefined : input.method,
+    reason: reasonText,
     createdBy: actor.id || undefined,
   });
   await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
-  await audit({ property: folio.property, actor: actor.id, actorName: actor.name, action: 'folio.refund', entityType: 'Folio', entityId: folio._id, reason: reasonText, after: { amount, method: input.method, lineId: String(line._id) }, ip, session, afterCommit });
+  await audit({ property: folio.property, actor: actor.id, actorName: actor.name, action: 'folio.refund', entityType: 'Folio', entityId: folio._id, reason: reasonText, after: { amount, method: line.method, refundOf: pay ? String(pay._id) : null, lineId: String(line._id) }, ip, session, afterCommit });
   return { folioId: String(folio._id), lineId: String(line._id), balance: folioBalance(folio), duplicate: false };
 }
 

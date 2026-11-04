@@ -77,7 +77,7 @@ export async function computeLedger(propertyId, date) {
     Folio.find({ property: propertyId }).select('reservation ownerType status settlement lines.type lines.amount lines.taxAmount lines.status lines.postedAt lines.accountingDate lines.source lines.department lines.method lines.reversalOf').lean(),
     codeMap(propertyId),
   ]);
-  const resIds = [...new Set(folios.map((f) => String(f.reservation)))];
+  const resIds = [...new Set(folios.filter((f) => f.reservation).map((f) => String(f.reservation)))];
   const reservations = await Reservation.find({ _id: { $in: resIds } }).select('status').lean();
   const statusOf = new Map(reservations.map((r) => [String(r._id), r.status]));
 

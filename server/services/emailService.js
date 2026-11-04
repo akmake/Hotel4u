@@ -144,6 +144,34 @@ export function buildReservationConfirmationEmail({ guestName, confirmationNumbe
   };
 }
 
+export function buildCancellationEmail({ guestName, confirmationNumber, arrivalDate, departureDate, propertyName, propertyPhone, propertyEmail }) {
+  const body = `
+    <p style="font-size:16px;color:#1e293b;margin:0 0 20px;">שלום ${guestName || 'אורח יקר'},</p>
+    <p style="color:#475569;margin:0 0 24px;">ביטול הזמנתך ב<strong>${propertyName || 'המלון'}</strong> נרשם.</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+      ${row('מספר אישור',  confirmationNumber)}
+      ${row('תאריך הגעה',   arrivalDate)}
+      ${row('תאריך עזיבה',  departureDate)}
+    </table>
+    <p style="color:#475569;margin:0 0 16px;">אם חלים דמי ביטול או מגיע לך החזר, נעדכן אותך בנפרד לפי תנאי ההזמנה.</p>
+    ${propertyPhone || propertyEmail ? `
+    <p style="color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:0;">
+      לשאלות:
+      ${propertyPhone ? `<a href="tel:${propertyPhone}" style="color:#2563eb;">${propertyPhone}</a>` : ''}
+      ${propertyPhone && propertyEmail ? ' &bull; ' : ''}
+      ${propertyEmail ? `<a href="mailto:${propertyEmail}" style="color:#2563eb;">${propertyEmail}</a>` : ''}
+    </p>` : ''}
+  `;
+  return {
+    subject: `ביטול הזמנה #${confirmationNumber} — ${propertyName || 'המלון'}`,
+    html: baseTemplate({ title: `ביטול הזמנה #${confirmationNumber}`, preheader: `${arrivalDate} — ${departureDate}`, body, footer: propertyName || 'Hotel4U' }),
+    text: `ביטול הזמנה #${confirmationNumber}
+הגעה: ${arrivalDate}
+עזיבה: ${departureDate}
+אם חלים דמי ביטול או מגיע החזר, נעדכן בנפרד.`,
+  };
+}
+
 export function buildCheckInReminderEmail({ guestName, confirmationNumber, arrivalDate, propertyName, propertyAddress, checkInTime, checkInUrl }) {
   const body = `
     <p style="font-size:16px;color:#1e293b;margin:0 0 20px;">שלום ${guestName || 'אורח יקר'},</p>

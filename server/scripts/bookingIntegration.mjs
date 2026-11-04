@@ -238,6 +238,13 @@ async function main() {
     r = await call('POST', '/booking/party', R, { propertyId: P, arrival: addDays(today, 27), departure: addDays(today, 28), mode: 'confirm', guestId: String(existing._id), idempotencyKey: key(), lines: [stdLine, { ...stdLine, children: 1 }] });
     check('Party: all or nothing — room 2 fails (child age missing), room 1 is rolled back', r.status === 422 && r.fields?.lines?.[1] && (await resCount()) === n0 && (await booked(addDays(today, 27))) === std24b, `${r.status} ${r.error || ''} count=${await resCount()} n0=${n0}`);
 
+    const dk = key();
+    r = await call('POST', '/booking/party', R, { propertyId: P, arrival: addDays(today, 27), departure: addDays(today, 28), mode: 'confirm', guestId: String(existing._id), idempotencyKey: dk, lines: [stdLine, { ...stdLine, arrival: addDays(today, 27), departure: addDays(today, 29) }] });
+    const dm = await Reservation.find({ property: P, 'party.id': dk }).sort({ 'party.index': 1 }).lean();
+    check('RSV-02-A03 party: a room with its own dates is booked for those dates', r.status === 200 && dm.length === 2 && dm[0].departureDate === addDays(today, 28) && dm[1].departureDate === addDays(today, 29) && dm[1].nights === 2, `${r.status} ${r.error || ''} ${JSON.stringify(dm.map((m) => [m.arrivalDate, m.departureDate]))}`);
+    r = await call('POST', '/booking/party', R, { propertyId: P, arrival: addDays(today, 27), departure: addDays(today, 28), mode: 'confirm', guestId: String(existing._id), idempotencyKey: key(), lines: [{ ...stdLine, arrival: addDays(today, 29), departure: addDays(today, 28) }] });
+    check('RSV-02-A03 party: room dates out of order are refused', r.status === 422 && r.fields?.lines?.[0], r.status);
+
     // ── G2 board: "by board" (supplement) and "by rate" (plan includes the board) ──
     const bb = await RatePlan.create({ property: P, code: 'BB', name: 'לינה וארוחת בוקר', type: 'public', isRefundable: true, includesBreakfast: true });
     await RateDate.insertMany(days.map((date) => ({ ratePlan: bb._id, roomType: rt._id, date, price: 650 })));

@@ -5,9 +5,10 @@ import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import {
   moveCandidates, moveRoom, extensionPreview, extendStay, earlyDeparturePreview,
-  modificationPreview, modifyBooking, cancellationPreview, cancelWithNotice,
+  modificationPreview, modifyBooking, cancellationPreview, cancelWithNotice, extendWithMove,
 } from '../services/stayChangeService.js';
 import { getTourist, recordTourist } from '../services/touristService.js';
+import { autoSendCancellation } from '../services/confirmationService.js';
 import { reinstatePreview, reinstateReservation, reverseCheckInPreview, reverseCheckIn, postStayCharge } from '../services/reversalService.js';
 import { roomSwapOptions, previewRoomSwap, swapRooms } from '../services/roomSwapService.js';
 
@@ -67,7 +68,7 @@ router.post('/room-swap', handle(async (req) => {
 // ── FD-09 ───────────────────────────────────────────────────────────────────
 router.get('/:id/move-candidates', handle(async (req) => {
   requireRoles(req, FRONT_ROLES, 'מעבר חדר מתבצע בקבלה');
-  return moveCandidates({ propertyId: scope(req), reservationId: req.params.id, unitId: req.query.unitId, fromRoomId: req.query.fromRoomId });
+  return moveCandidates({ propertyId: scope(req), reservationId: req.params.id, unitId: req.query.unitId, fromRoomId: req.query.fromRoomId, until: req.query.until });
 }));
 
 router.post('/:id/move', handle(async (req) => {
@@ -84,6 +85,11 @@ router.get('/:id/extension', handle(async (req) => {
 router.post('/:id/extend', handle(async (req) => {
   requireRoles(req, FRONT_ROLES, 'הארכה מתבצעת בקבלה');
   return extendStay({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/:id/extend-with-move', handle(async (req) => {
+  requireRoles(req, FRONT_ROLES, 'הארכה מתבצעת בקבלה');
+  return extendWithMove({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
 }));
 
 // ── FD-11 ───────────────────────────────────────────────────────────────────
@@ -111,7 +117,9 @@ router.post('/:id/cancellation/preview', handle(async (req) => {
 
 router.post('/:id/cancel', handle(async (req) => {
   requireRoles(req, CANCEL_ROLES, 'אין הרשאה לביטול');
-  return cancelWithNotice({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+  const out = await cancelWithNotice({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+  if (out?.status === 'cancelled') autoSendCancellation({ propertyId: scope(req), reservationId: req.params.id, actor: actorOf(req), ip: req.ip });
+  return out;
 }));
 
 // ── Gap G6: walking a stay back ─────────────────────────────────────────────

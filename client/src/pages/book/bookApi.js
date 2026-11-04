@@ -44,8 +44,9 @@ export function readSearch(sp) {
   return {
     arrival: sp.get('arrival') || '', departure: sp.get('departure') || '',
     adults: Math.max(1, Number(sp.get('adults')) || 2), children: Math.max(0, Number(sp.get('children')) || 0), ages,
+    promo: (sp.get('promo') || '').toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 30),
   };
 }
 export function searchQuery(s, extra = {}) {
-  return qs({ arrival: s.arrival, departure: s.departure, adults: s.adults, children: s.children || undefined, ages: s.children ? s.ages.slice(0, s.children).join(',') : undefined, ...extra });
+  return qs({ arrival: s.arrival, departure: s.departure, adults: s.adults, children: s.children || undefined, ages: s.children ? s.ages.slice(0, s.children).join(',') : undefined, promo: s.promo || undefined, ...extra });
 }

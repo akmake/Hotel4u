@@ -6,7 +6,7 @@ import Reservation from '../models/Reservation.js';
 import GuestProfile from '../models/GuestProfile.js';
 import Property from '../models/Property.js';
 import RoomType from '../models/RoomType.js';
-import { sendEmail, buildReservationConfirmationEmail } from './emailService.js';
+import { sendEmail, buildReservationConfirmationEmail, buildCancellationEmail } from './emailService.js';
 import { audit } from './auditService.js';
 import { httpError } from './frontDeskService.js';
 
@@ -44,4 +44,31 @@ export function autoSendConfirmation({ propertyId, reservationId, actor, ip }) {
   sendConfirmation({ propertyId, reservationId, actor, ip, automatic: true }).catch((err) => {
     if (err.code !== 'email_not_configured' && err.status !== 422) console.error('[confirmation]', err.message);
   });
+}
+
+// GST-04: cancellation notice to the guest, sent after the cancellation is recorded. Best effort:
+// no address or no mail server → nothing is sent and nothing is claimed.
+export async function sendCancellationNotice({ propertyId, reservationId, actor, ip }) {
+  const r = await Reservation.findOne({ _id: reservationId, property: propertyId }).lean();
+  if (!r || r.status !== 'cancelled') return { sent: false };
+  const [guest, property] = await Promise.all([
+    GuestProfile.findById(r.primaryGuest).select('firstName lastName email emails').lean(),
+    Property.findById(propertyId).select('name phone email').lean(),
+  ]);
+  const address = String(guest?.email || guest?.emails?.[0]?.address || '').trim().toLowerCase();
+  if (!EMAIL_RX.test(address)) return { sent: false };
+  const mail = buildCancellationEmail({
+    guestName: `${guest?.firstName || ''} ${guest?.lastName || ''}`.trim(),
+    confirmationNumber: r.confirmationNumber, arrivalDate: r.arrivalDate, departureDate: r.departureDate,
+    propertyName: property?.name, propertyPhone: property?.phone, propertyEmail: property?.email,
+  });
+  const info = await sendEmail({ to: address, subject: mail.subject, html: mail.html, text: mail.text, replyTo: property?.email || undefined });
+  if (!info) return { sent: false };
+  await audit({ property: propertyId, actor: actor?.id || null, actorName: actor?.name || 'system', action: 'reservation.cancellation_notice_sent', entityType: 'Reservation', entityId: r._id,
+    after: { to: address.replace(/(^.).*(@.*$)/, '$1***$2') }, ip }).catch(() => null);
+  return { sent: true, to: address };
+}
+
+export function autoSendCancellation({ propertyId, reservationId, actor, ip }) {
+  sendCancellationNotice({ propertyId, reservationId, actor, ip }).catch((err) => console.error('[cancellation notice]', err.message));
 }

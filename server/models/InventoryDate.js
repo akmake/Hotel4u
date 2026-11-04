@@ -17,6 +17,7 @@ const InventoryDateSchema = new Schema({
   lockedCount:      { type: Number, default: 0 },
   allotmentCount:   { type: Number, default: 0 },
   releasedAllotmentCount: { type: Number, default: 0 },
+  groupAllotmentCount: { type: Number, default: 0 },   // rooms held by group blocks and not yet picked up (groupBlockService)
   overbookingLimit: { type: Number, default: 0 },
   stopSell:         { type: Boolean, default: false },
   minLos:           { type: Number, default: 1 },

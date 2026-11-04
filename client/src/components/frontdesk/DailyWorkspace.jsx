@@ -87,14 +87,24 @@ function RoomsCard({ arrivals, tickets, onPick }) {
     return { r, tk, clean, occupied, blocked, tone: hard ? 'bad' : (!clean || tk.length) ? 'warn' : 'ok' };
   }).sort((x, y) => ORDER[x.tone] - ORDER[y.tone] || String(x.r.room?.number || '~').localeCompare(String(y.r.room?.number || '~'), 'he', { numeric: true }));
   const ready = items.filter((x) => x.tone === 'ok').length;
-  const noRoom = items.filter((x) => x.none).length;
-  const sub = arrivals.data ? `${ready} מוכנים · ${items.length - ready - noRoom} דורשים טיפול · ${noRoom} ללא חדר` : '';
+  // Arrivals without a room have nothing to inspect here — the list already says it; one line names them.
+  const unassigned = items.filter((x) => x.none);
+  const roomed = items.filter((x) => !x.none);
+  const noRoom = unassigned.length;
+  const sub = arrivals.data ? `${ready} מוכנים · ${roomed.length - ready} דורשים טיפול` : '';
   return (
     <aside className="dk-rooms" id="reception-design-rooms" aria-label="חדרים להגעות">
       <div className="dk-rooms-head"><h2>החדרים של המגיעים</h2><span>{sub}</span></div>
       <div className="dk-scroll dk-cardlist">
         {arrivals.data && !items.length && <div className="dk-state"><CheckCircle2 size={18} />אין הגעות פתוחות.</div>}
-        {items.map(({ r, tk, clean, occupied, blocked, tone, none }) => (
+        {noRoom > 0 && (
+          <div className="dk-rooms-unassigned">
+            <b>{noRoom === 1 ? 'הגעה אחת עוד בלי חדר' : `${noRoom} הגעות עוד בלי חדר`}</b>
+            <span>{unassigned.map((x) => x.r.guest.name).join(' · ')}</span>
+            <small>החדר יופיע כאן אחרי השיבוץ</small>
+          </div>
+        )}
+        {roomed.map(({ r, tk, clean, occupied, blocked, tone, none }) => (
           <button type="button" key={r.key} className={`dk-rcard is-${tone}`} onClick={() => onPick(r.key)}>
             <div className="dk-rc-top">
               <div className="dk-rc-room"><small>חדר</small><b className={none ? 'is-none' : ''}>{none ? '—' : r.room.number}</b></div>

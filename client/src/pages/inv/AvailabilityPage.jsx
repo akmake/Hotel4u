@@ -45,6 +45,7 @@ export default function AvailabilityPage({ layout = 'current' }) {
   const dragged = useRef(false);
   const downAt = useRef(null); // where the press started: a layout shift under a still pointer must not count as a drag
   const selectTodayOnLoad = useRef(false);
+  const panelRef = useRef(null);
 
   const { data, loading, error, reload } = useLoader(async () => (propertyId ? ops.availability(propertyId, { month }) : null), [propertyId, month]);
   useLiveRefresh(propertyId, ['Reservation', 'ReservationRoom', 'Room', 'RoomBlock'], reload);
@@ -64,6 +65,9 @@ export default function AvailabilityPage({ layout = 'current' }) {
   }, []);
 
   const today = data?.today || '';
+  // On a narrow screen the details open below the month: bring them into view so a click always shows something.
+  const hasSel = !!sel;
+  useEffect(() => { if (hasSel) panelRef.current?.scrollIntoView({ block: 'start' }); }, [hasSel, sel?.a, sel?.b]);
   const pick = (i, extend) => setSel((s) => (extend && s ? { a: s.a, b: i } : { a: i, b: i }));
   const range = sel ? [Math.min(sel.a, sel.b), Math.max(sel.a, sel.b)] : null;
   const book = (from, to, typeId) => navigate(`/pms/reservations/new?arrival=${from}&departure=${to}${typeId ? `&roomTypeId=${typeId}` : ''}`);
@@ -153,8 +157,8 @@ export default function AvailabilityPage({ layout = 'current' }) {
                           <span className="ac-bar"><i className={lvl(t.occupancyPct)} style={{ width: `${Math.min(100, t.occupancyPct)}%` }} /></span>{t.occupancyPct}%
                         </span>
                         <span className="ac-d-move ui-num">
-                          <span className="ac-chip is-in" title={`${t.arrivals} מגיעים`}><ArrowDown size={12} />{t.arrivals}<em> מגיעים</em></span>
-                          <span className="ac-chip is-out" title={`${t.departures} עוזבים`}><ArrowUp size={12} />{t.departures}<em> עוזבים</em></span>
+                          <span className="ac-chip is-in" title={`${t.arrivals} מגיעים`}><ArrowDown size={12} />{t.arrivals}<em> הגעות</em></span>
+                          <span className="ac-chip is-out" title={`${t.departures} עוזבים`}><ArrowUp size={12} />{t.departures}<em> יציאות</em></span>
                         </span>
                       </>
                     ) : (<>
@@ -198,7 +202,7 @@ export default function AvailabilityPage({ layout = 'current' }) {
         return (
           <div className={`ac-layout ${range ? 'has-panel' : ''}`}>
             <section className="ac-cal" aria-label={`לוח זמינות ${monthName(month)}`} aria-busy={loading}>
-              {(layout === 'curve' || layout === 'original') && (
+              {layout === 'curve' && (
                 <div className="ac-curve" role="group" aria-label="חדרים פנויים לכל לילה בחודש">
                   <div className="ac-curve-head"><b>חדרים פנויים לכל לילה</b><span>בחירה בעמודה בוחרת את היום</span></div>
                   <div className="ac-curve-bars">
@@ -220,7 +224,7 @@ export default function AvailabilityPage({ layout = 'current' }) {
               <div className="ac-dows">{DAYS.map((d, i) => <div key={d} className={i >= 5 ? 'is-wk' : ''}>{d}</div>)}{layout === 'weeks' && <div>השבוע</div>}</div>
               <div className="ac-grid">{layout === 'weeks' ? weekRows : cells}</div>
               <footer className="avl-foot">
-                <span>{layout === 'curve' || layout === 'two-months' ? 'בכל יום: חדרים פנויים · שאר הפרטים בלחיצה על היום' : 'בכל יום: חדרים פנויים · תפוסה · הגעות ועזיבות'}</span>
+                <span>{layout === 'curve' || layout === 'two-months' ? 'בכל יום: חדרים פנויים · שאר הפרטים בלחיצה על היום' : 'בכל יום: תאריך · חדרים פנויים · תפוסה % · ↓ הגעות · ↑ יציאות'}</span>
                 <span className="avl-keys">לחיצה על יום לפרטים · גרירה לטווח · Esc לניקוי</span>
               </footer>
             </section>
@@ -244,7 +248,7 @@ export default function AvailabilityPage({ layout = 'current' }) {
             )}
             {/* The details panel exists only while a day or range is picked; otherwise the calendar has the whole width. */}
             {range && (
-              <aside className="ac-panel" aria-live="polite">
+              <aside className="ac-panel" aria-live="polite" ref={panelRef}>
                 <Details key={`${range[0]}-${range[1]}`} data={data} range={range} today={today} canBlock={canBlock} onBook={book} onBlock={setBlockRange} navigate={navigate} onClear={() => setSel(null)} />
               </aside>
             )}

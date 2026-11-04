@@ -13,7 +13,6 @@ const QuotePage = lazy(() => import('./pages/QuotePage'));
 const OrderConfirmationPage = lazy(() => import('./pages/OrderConfirmationPage'));
 
 // ── ziporiclass — Sales ───────────────────────────────────────────────────────
-const HomePage          = lazy(() => import('./pages/HomePage'));
 const OrdersPage        = lazy(() => import('./pages/OrdersPage'));
 const OrderPage         = lazy(() => import('./pages/OrderPage'));
 const EditOrderPage     = lazy(() => import('./pages/EditOrderPage'));
@@ -90,6 +89,13 @@ const LostFoundPage        = lazy(() => import('./pages/ops/LostFoundPage'));
 const MaintenancePage      = lazy(() => import('./pages/ops/MaintenancePage'));
 const GuestsPage           = lazy(() => import('./pages/guests/GuestDirectory'));
 const FolioPage            = lazy(() => import('./pages/fin/FolioPage'));
+const HouseAccountsPage    = lazy(() => import('./pages/fin/HouseAccountsPage'));
+const CashierPage          = lazy(() => import('./pages/fin/CashierPage'));
+const PromotionsPage       = lazy(() => import('./pages/rsv/PromotionsPage'));
+const GroupBlocksPage      = lazy(() => import('./pages/rsv/GroupBlocksPage'));
+const QuotesPage           = lazy(() => import('./pages/rsv/QuotesPage'));
+const EventsPage           = lazy(() => import('./pages/ops/EventsPage'));
+const DemandPage           = lazy(() => import('./pages/inv/DemandPage'));
 const CompaniesPage        = lazy(() => import('./pages/CompaniesPage'));
 const LeadInboxPage        = lazy(() => import('./pages/LeadInboxPage'));
 const OpportunityBoardPage = lazy(() => import('./pages/OpportunityBoardPage'));
@@ -203,7 +209,7 @@ export default function App() {
           <Route element={<AuthGate><AppShell /></AuthGate>}>
 
             {/* ── ziporiclass — Main ── */}
-            <Route index element={<HomePage />} />
+            <Route index element={<Navigate to="/pms" replace />} />
             <Route path="new-order"                       element={<OrderPage />} />
             <Route path="orders-history"                  element={<OrdersPage />} />
             <Route path="edit-order/:orderId"             element={<EditOrderPage />} />
@@ -268,13 +274,21 @@ export default function App() {
               <Route path="housekeeping/my"   element={<MyTasksPage />} />
               <Route path="housekeeping/inspection" element={<InspectionPage />} />
               <Route path="housekeeping/rooms" element={<OpsRoomStatusPage />} />
-              <Route path="availability"      element={<AvailabilityPage />} />
+              <Route path="availability"      element={<AvailabilityPage layout="original" />} />
               <Route path="meals"             element={<MealsPage />} />
               <Route path="maintenance/preventive" element={<PreventivePage />} />
               <Route path="housekeeping/lost-found" element={<LostFoundPage />} />
               <Route path="maintenance"       element={<MaintenancePage />} />
               <Route path="guests"            element={<GuestsPage />} />
               <Route path="folio"             element={<FolioPage />} />
+              <Route path="house-accounts"    element={<HouseAccountsPage />} />
+              <Route path="cashier"           element={<CashierPage />} />
+              <Route path="currency"          element={<CashierPage initialTab="fx" />} />
+              <Route path="promotions"        element={<PromotionsPage />} />
+              <Route path="groups"            element={<GroupBlocksPage />} />
+              <Route path="quotes"            element={<QuotesPage />} />
+              <Route path="events"            element={<EventsPage />} />
+              <Route path="demand"            element={<DemandPage />} />
               <Route path="invoices"          element={<InvoicesPage />} />
               <Route path="companies"         element={<CompaniesPage />} />
               <Route path="leads"             element={<LeadInboxPage />} />

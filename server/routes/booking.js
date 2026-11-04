@@ -1,6 +1,6 @@
 // /api/pms/booking — availability & price (INV-03), create booking/quote (RSV-02/RSV-04),
 // reservation list (RSV-01) and stay file (RSV-03). Rules live in services/bookingService.js.
-import { sendConfirmation, autoSendConfirmation } from '../services/confirmationService.js';
+import { sendConfirmation, autoSendConfirmation, autoSendCancellation } from '../services/confirmationService.js';
 import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import GuestProfile from '../models/GuestProfile.js';
@@ -147,6 +147,7 @@ router.post('/reservations/:id/cancel', handle(async (req) => {
   }
   const a = actorOf(req);
   const out = await cancelWithNotice({ propertyId: scope(req), reservationId: req.params.id, input: { channel: req.body?.channel || 'other', track: 'review', reason: 'other', note: why }, actor: a, ip: req.ip });
+  if (out.status === 'cancelled') autoSendCancellation({ propertyId: scope(req), reservationId: req.params.id, actor: a, ip: req.ip });
   return { id: out.reservationId, status: out.status };
 }));
 

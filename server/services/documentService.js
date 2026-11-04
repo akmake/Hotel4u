@@ -224,8 +224,11 @@ export async function documentContext({ propertyId, folioId }) {
   const { charges, payments } = eligibleLines(folio, coverage, property?.vatRate ?? 18);
   const { types, recommended } = typeAvailability(charges, payments);
   const issueDate = businessDateOf(property);
-  const company = companyParty(payerCompany || res?.company);
-  const guest = guestParty(res?.primaryGuest);
+  // A passer-by account names its own payer (NR folio); a stay takes it from the reservation.
+  const acct = !folio.reservation ? folio.account || {} : null;
+  const acctCompany = acct?.company ? await Company.findById(acct.company).select('name taxId address email phone').lean() : null;
+  const company = companyParty(payerCompany || acctCompany || res?.company);
+  const guest = acct ? { kind: 'private', name: acct.name || '', idNumber: '', address: '', city: '', email: acct.email || '', phone: acct.phone || '' } : guestParty(res?.primaryGuest);
   const docs = await Invoice.find({ folio: folio._id }).sort({ createdAt: 1 }).lean();
   const external = documentIssuer() === 'invoicer' ? await invoicerReadiness(propertyId) : null;
   return {
@@ -237,7 +240,7 @@ export async function documentContext({ propertyId, folioId }) {
     issueDate,
     allocation: external ? null : allocationThreshold(issueDate),
     buyers: { guest, company },
-    buyerDefault: payerCompany ? company : guest,
+    buyerDefault: payerCompany || acctCompany ? company : guest,
     charges, payments,
     totals: {
       charges: { net: sum(charges, 'net'), vat: sum(charges, 'vat'), gross: sum(charges, 'gross') },

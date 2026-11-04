@@ -11,6 +11,7 @@
 //  - day close runs once per business day, in order, and resumes from the failed step without
 //    posting a night twice (T33).
 import mongoose from 'mongoose';
+import { cashDay } from './financeReportsService.js';
 import Folio from '../models/Folio.js';
 import Reservation from '../models/Reservation.js';
 import Invoice, { CHARGE_DOC_TYPES } from '../models/Invoice.js';
@@ -36,6 +37,7 @@ import { raiseWork } from './platformService.js';
 import { resolveChargeCode, resolvePaymentMethod, taxFor } from './chargeCodeService.js';
 import { computeLedger, ledgerChecks, storedFrom } from './ledgerService.js';
 import { vatForLine, cashAllowance } from './touristService.js';
+import { getNextSequenceValue } from '../models/Counter.js';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
@@ -181,7 +183,7 @@ function totalsOf(lines) {
 
 // ── FIN-01 index: folios with money on them ─────────────────────────────────
 export async function listFolios({ propertyId, view = 'open', q, page = 1, pageSize = 50 }) {
-  const filter = { property: propertyId };
+  const filter = { property: propertyId, reservation: { $exists: true, $ne: null } };
   if (view === 'closed') filter.status = 'closed';
   else filter.status = { $ne: 'closed' };
   let resFilter = null;
@@ -333,10 +335,11 @@ export async function postCharge({ propertyId, folioId, input, actor, ip, sessio
   const dup = folio.lines.find((l) => l.reference === reference);
   if (dup) return { folioId: String(folio._id), lineId: String(dup._id), duplicate: true, balance: folioBalance(folio) };
   if (folio.status === 'closed') throw httpError('החשבון סגור — חיוב נרשם בחשבון פתוח בלבד', 409);
-  const res = await Reservation.findById(folio.reservation).session(session).select('status arrivalDate departureDate tourist property').lean();
-  if (!res || !ACTIVE_STAY.includes(res.status)) throw httpError('לא ניתן לחייב הזמנה שבוטלה או לא הגיעה', 409);
+  // A house / passer-by account has no stay behind it: it is charged while it is open.
+  const res = folio.reservation ? await Reservation.findById(folio.reservation).session(session).select('status arrivalDate departureDate tourist property').lean() : null;
+  if (folio.reservation && (!res || !ACTIVE_STAY.includes(res.status))) throw httpError('לא ניתן לחייב הזמנה שבוטלה או לא הגיעה', 409);
   // G6: after departure a charge is a post-stay charge (manager, reason, own window) — not a regular one.
-  if (res.status === 'checked_out' && input.auditAction !== 'folio.post_stay_charge') throw httpError('האורח כבר יצא — חיוב מאוחר נרשם דרך "חיוב אחרי יציאה" בתיק ההזמנה', 409, { code: 'post_stay_required' });
+  if (res && res.status === 'checked_out' && input.auditAction !== 'folio.post_stay_charge') throw httpError('האורח כבר יצא — חיוב מאוחר נרשם דרך "חיוב אחרי יציאה" בתיק ההזמנה', 409, { code: 'post_stay_required' });
   const property = await Property.findById(propertyId).session(session).select('vatRate timezone dayClose').lean();
   const today = businessDateOf(property);
   const errors = {};
@@ -408,8 +411,12 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   const dup = folio.lines.find((l) => l.reference === reference);
   if (dup) return { folioId: String(folio._id), lineId: String(dup._id), duplicate: true, balance: folioBalance(folio) };
   if (folio.status === 'closed') throw httpError('החשבון סגור', 409);
-  const res = await Reservation.findById(folio.reservation).session(session).select('status totalAmount tourist').lean();
+  const house = !folio.reservation;
+  const res = house ? { status: 'house', totalAmount: 0 } : await Reservation.findById(folio.reservation).session(session).select('status totalAmount tourist').lean();
   if (!res || ['cancelled', 'no_show'].includes(res.status)) throw httpError('לא ניתן לרשום תשלום להזמנה שבוטלה', 409);
+  if (house && input.kind === 'deposit') throw httpError('בחשבון מזדמן אין מקדמה — רושמים חיוב ואז תשלום', 422, { fields: { kind: 'לא זמין' } });
+  // Every cumulative check below runs over the stay's folios; a house account is its own transaction.
+  const stayFolios = async () => (house ? [folio.toObject()] : Folio.find({ reservation: folio.reservation }).session(session).select('lines').lean());
   const property = await Property.findById(propertyId).session(session).select('timezone financePolicy dayClose').lean();
   const amount = round2(input.amount);
   const kind = input.kind === 'deposit' ? 'deposit' : 'payment';
@@ -425,7 +432,7 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   }
   if (kind === 'deposit') {
     // A deposit is capped by what the stay is expected to cost, minus what was already paid.
-    const all = await Folio.find({ reservation: folio.reservation }).session(session).select('lines').lean();
+    const all = await stayFolios();
     const paid = round2(all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && ['payment', 'deposit'].includes(l.type)).reduce((s, l) => s - Number(l.amount || 0), 0));
     const refunded = round2(all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && l.type === 'refund').reduce((s, l) => s + Number(l.amount || 0), 0));
     const expected = round2(Math.max(Number(res.totalAmount || 0), all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && !['payment', 'deposit', 'refund'].includes(l.type)).reduce((s, l) => s + Number(l.amount || 0) + Number(l.taxAmount || 0), 0)));
@@ -434,14 +441,14 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   }
   if (input.method === 'cash' && property?.financePolicy?.cashLimitPerStay) {
     // T25: cash is checked cumulatively per stay, not per receipt.
-    const all = await Folio.find({ reservation: folio.reservation }).session(session).select('lines').lean();
+    const all = await stayFolios();
     const cash = round2(all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && ['payment', 'deposit'].includes(l.type) && l.method === 'cash').reduce((s, l) => s - Number(l.amount || 0), 0));
     const limit = Number(property.financePolicy.cashLimitPerStay);
     if (cash + amount - limit > 0.005) throw httpError(`מזומן מצטבר לשהייה מוגבל ל־${limit.toFixed(2)} לפי מדיניות הנכס (כבר התקבלו ${cash.toFixed(2)})`, 422, { fields: { amount: 'מעל מגבלת מזומן' }, code: 'cash_limit' });
   }
   if (input.method === 'cash' && property?.financePolicy?.cashRule === 'il_2024') {
     // IL11: the legal cash limit on the whole stay (the transaction) — cumulative; tourist threshold when verified.
-    const all = await Folio.find({ reservation: folio.reservation }).session(session).select('lines').lean();
+    const all = await stayFolios();
     const flat = all.flatMap((f) => f.lines).filter((l) => l.status === 'posted');
     const charges = round2(flat.filter((l) => !['payment', 'deposit', 'refund'].includes(l.type)).reduce((s2, l) => s2 + Number(l.amount || 0) + Number(l.taxAmount || 0), 0));
     const price = Math.max(Number(res.totalAmount || 0), charges);
@@ -553,7 +560,12 @@ export async function readinessFor(propertyId, date) {
   const coFolios = checkedOut.length ? await Folio.find({ reservation: { $in: checkedOut.map((r) => r._id) }, status: { $ne: 'closed' } }).select('reservation lines settlement').lean() : [];
   const unsettled = coFolios.filter((f) => folioBalance(f) > 0.005 && !f.settlement?.mode);
   const name = (g) => (g ? `${g.firstName || ''} ${g.lastName || ''}`.trim() : '—');
+  // FIN-09: drawers with cash movement that day and no up-to-date close (not blocking — the
+  // close of a drawer stays a separate act of the cashier).
+  const cash = await cashDay({ propertyId, date });
+  const openDrawers = cash.rows.filter((x) => (Math.abs(x.expected) > 0.005 || x.lines) && (!x.close || x.close.stale)).map((x) => ({ userId: x.userId, name: x.name, expected: x.expected, stale: !!x.close?.stale }));
   return {
+    cash: { open: openDrawers, unattributed: cash.unattributed },
     arrivals: arrivals.map((r) => ({ id: String(r._id), confirmationNumber: r.confirmationNumber, guest: name(r.primaryGuest), arrivalDate: r.arrivalDate, rooms: r.roomsCount || 1 })),
     departures: departures.map((r) => ({ id: String(r._id), confirmationNumber: r.confirmationNumber, guest: name(r.primaryGuest), departureDate: r.departureDate, room: r.assignedRoom?.number || null })),
     queueOpen: queue,
@@ -797,6 +809,98 @@ async function runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip
     }, lease, { operation: 'סיום סגירת יום' });
   } catch (e) { return failStep('advance', e); }
   return runDto(await DayCloseRun.findById(run._id).lean());
+}
+
+// ── NR folio: house / passer-by accounts (no reservation) ───────────────────
+// A visitor who eats, uses the spa or buys something without staying gets a folio of their own.
+// Charges, payments, refunds, reversals and documents go through the same money core as a stay.
+export const HOUSE_OUTLETS = { restaurant: 'מסעדה', bar: 'בר', spa: 'ספא', events: 'אירועים', shop: 'חנות', other: 'אחר' };
+
+export async function createHouseAccount({ propertyId, input, actor, ip }) {
+  const name = String(input?.name || '').trim().slice(0, 120);
+  const errors = {};
+  if (name.length < 2) errors.name = 'שם הלקוח או החשבון';
+  const phone = String(input?.phone || '').trim().slice(0, 30);
+  const email = String(input?.email || '').trim().slice(0, 120);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'כתובת דוא״ל לא תקינה';
+  const outlet = HOUSE_OUTLETS[input?.outlet] ? input.outlet : 'other';
+  let company = null;
+  if (input?.companyId) {
+    if (!isId(String(input.companyId))) errors.companyId = 'חברה לא תקינה';
+    else company = await Company.findOne({ _id: input.companyId, property: propertyId }).select('_id').lean();
+    if (!company) errors.companyId = 'החברה לא נמצאה';
+  }
+  if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי החשבון', 422, { fields: errors });
+  const property = await Property.findById(propertyId).select('defaultCurrency').lean();
+  const seq = await getNextSequenceValue(`nr-folio:${propertyId}`);
+  const folio = await Folio.create({
+    property: propertyId, ownerType: 'house', ownerRef: 'passerby', currency: property?.defaultCurrency || 'ILS', lines: [],
+    account: {
+      number: `NR-${String(seq).padStart(5, '0')}`, name, phone: phone || undefined, email: email || undefined,
+      taxId: String(input?.taxId || '').replace(/\D/g, '').slice(0, 9) || undefined, company: company?._id, outlet,
+      note: String(input?.note || '').trim().slice(0, 300) || undefined, openedByName: actor.name,
+    },
+  });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.house_opened', entityType: 'Folio', entityId: folio._id, after: { number: folio.account.number, name, outlet }, ip });
+  return { id: String(folio._id), number: folio.account.number };
+}
+
+const escRx = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export async function listHouseAccounts({ propertyId, view = 'open', q }) {
+  const base = { property: propertyId, ownerType: 'house', reservation: null };
+  const filter = { ...base, status: view === 'closed' ? 'closed' : { $ne: 'closed' } };
+  if (q) {
+    const rx = new RegExp(escRx(String(q).trim().slice(0, 60)), 'i');
+    filter.$or = [{ 'account.name': rx }, { 'account.number': rx }, { 'account.phone': rx }];
+  }
+  const [folios, open, closed] = await Promise.all([
+    Folio.find(filter).select('account status currency lines.type lines.amount lines.taxAmount lines.status createdAt updatedAt closedAt').sort({ updatedAt: -1 }).limit(300).lean(),
+    Folio.countDocuments({ ...base, status: { $ne: 'closed' } }),
+    Folio.countDocuments({ ...base, status: 'closed' }),
+  ]);
+  const rows = folios.map((f) => ({
+    id: String(f._id), number: f.account?.number || '—', name: f.account?.name || '—', phone: f.account?.phone || null,
+    outlet: f.account?.outlet || 'other', outletLabel: HOUSE_OUTLETS[f.account?.outlet] || 'אחר',
+    status: f.status, balance: folioBalance(f), totals: totalsOf(f.lines || []), lines: (f.lines || []).filter((l) => l.status === 'posted').length,
+    openedAt: f.createdAt, updatedAt: f.updatedAt, closedAt: f.closedAt || null, currency: f.currency || 'ILS',
+  }));
+  const owedRows = rows.filter((r) => r.balance > 0.005);
+  return { rows, counts: { open, closed, owed: owedRows.length, openBalance: round2(owedRows.reduce((s2, r) => s2 + r.balance, 0)) } };
+}
+
+export async function getHouseAccount({ propertyId, folioId }) {
+  const f = await loadFolio(folioId, propertyId);
+  if (f.ownerType !== 'house' || f.reservation) throw httpError('זה אינו חשבון מזדמן', 422);
+  const property = await Property.findById(propertyId).select('vatRate timezone dayClose financePolicy').lean();
+  const coverage = await docCoverage(f._id);
+  const reversedIds = new Set(f.lines.filter((l) => l.reversalOf).map((l) => String(l.reversalOf)));
+  const refundedByPayment = new Map();
+  for (const l of f.lines) {
+    if (l.type === 'refund' && l.refundOf && l.status === 'posted') refundedByPayment.set(String(l.refundOf), round2((refundedByPayment.get(String(l.refundOf)) || 0) + Number(l.amount || 0)));
+  }
+  const lines = [...f.lines].sort((a, b) => String(a.serviceDate).localeCompare(String(b.serviceDate)) || new Date(a.postedAt) - new Date(b.postedAt))
+    .map((l) => lineDto(l, coverage.charges, reversedIds, refundedByPayment, coverage.payments));
+  const docs = await Invoice.find({ folio: f._id }).select('type invoiceNumber status issueDate totalNet totalVat totalGross amountPaid buyer relatedInvoiceId allocationNumber allocationStatus allocationReason printCount folio reservation').sort({ createdAt: 1 }).lean();
+  const creditedOf = new Map();
+  for (const d of docs.filter((x) => x.type === 'credit_note' && x.relatedInvoiceId)) creditedOf.set(String(d.relatedInvoiceId), round2((creditedOf.get(String(d.relatedInvoiceId)) || 0) + Math.abs(d.totalGross || 0)));
+  const company = f.account?.company ? await Company.findById(f.account.company).select('name').lean() : null;
+  return {
+    account: {
+      id: String(f._id), number: f.account?.number || '—', name: f.account?.name || '—', phone: f.account?.phone || null, email: f.account?.email || null,
+      taxId: f.account?.taxId || null, outlet: f.account?.outlet || 'other', outletLabel: HOUSE_OUTLETS[f.account?.outlet] || 'אחר', note: f.account?.note || null,
+      company: company ? { id: String(company._id), name: company.name } : null, openedAt: f.createdAt, openedBy: f.account?.openedByName || null, closedAt: f.closedAt || null,
+    },
+    folio: { id: String(f._id), ownerType: 'house', owner: f.account?.name || 'מזדמן', status: f.status, currency: f.currency || 'ILS', balance: folioBalance(f), totals: totalsOf(f.lines), lines, settlement: null },
+    documents: docs.map((d) => ({
+      ...docDto(d), credited: creditedOf.get(String(d._id)) || 0, allocationNumber: d.allocationNumber || null,
+      creditable: CHARGE_DOC_TYPES.includes(d.type) && d.status === 'issued' ? round2(Math.abs(d.totalGross || 0) - (creditedOf.get(String(d._id)) || 0)) : 0,
+    })),
+    vatRate: property?.vatRate ?? 18,
+    businessDate: businessDateOf(property),
+    canPost: f.status !== 'closed',
+    policy: { refundApprovalOver: property?.financePolicy?.refundApprovalOver ?? 0 },
+  };
 }
 
 export { addDays as addBusinessDays, loadProperty };

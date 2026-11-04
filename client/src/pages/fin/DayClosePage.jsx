@@ -143,6 +143,10 @@ export default function DayClosePage() {
                   {rd.unsettledDepartures ? <Link className="btn btn-secondary btn-sm" to="/pms/folio?view=balance">{rd.unsettledDepartures}</Link> : <Pill tone="ok">אין</Pill>}
                 </li>
                 <li>
+                  <div><div className="font-medium">קופות שלא נסגרו</div><div className="ui-sub">{rd.cash?.open?.length ? rd.cash.open.slice(0, 3).map((c) => `${c.name} ${money(c.expected)}${c.stale ? ' (השתנתה)' : ''}`).join(', ') : 'מזומן שנרשם היום נספר ונסגר'}</div></div>
+                  {rd.cash?.open?.length ? <Link className="btn btn-secondary btn-sm" to={`/pms/fin/reports?tab=cash`}>{rd.cash.open.length} לסגירה</Link> : <Pill tone="ok">תקין</Pill>}
+                </li>
+                <li>
                   <div><div className="font-medium">חיובי לינה שיירשמו</div><div className="ui-sub">{rd.nights.inHouse} שהיות בבית · כל לילה נרשם פעם אחת</div></div>
                   <span className="ui-num font-medium">{rd.nights.count} · {money(rd.nights.amount)}</span>
                 </li>

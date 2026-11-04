@@ -306,7 +306,7 @@ export async function assessAvailability({ propertyId, roomTypeId, arrivalDate, 
     const heldByOther = covering.filter((s) => s.type !== type && s.room && roomIds.has(s.room)).length;
     const sellable = rooms.filter((r) => !roomBlockedOn(r, date, blocksByRoom)).length;
     const inv = invByDate.get(date);
-    const allotment = inv ? Math.max(0, (inv.allotmentCount || 0) - (inv.releasedAllotmentCount || 0)) : 0;
+    const allotment = inv ? Math.max(0, (inv.allotmentCount || 0) - (inv.releasedAllotmentCount || 0)) + Math.max(0, inv.groupAllotmentCount || 0) : 0;
     const available = sellable - sold - heldByOther - (locks.get(date) || 0) - (inv?.blockedCount || 0) - allotment + (inv?.overbookingLimit || 0);
     return {
       date, available: Math.max(0, available), total: rooms.length, outOfSale: rooms.length - sellable, sold: sold + heldByOther,

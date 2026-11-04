@@ -9,6 +9,7 @@ import { guests as guestApi } from '../../utils/api';
 import { PageSpinner, ErrorState } from '../../components/ui/Spinner';
 import { NewGuestModal } from '../GuestsPage';
 import GuestRecord from './GuestRecord';
+import { designToolsOn } from '../../utils/designTools';
 import { TIER_LABELS, LOOKS, fullName, initials, hueOf, money, dateShort, since, portrait } from './guestFormat';
 import './guests.css';
 
@@ -180,10 +181,12 @@ export default function GuestDirectory() {
         </div>
       )}
 
-      <div className="gx-lookswitch" role="group" aria-label="מראה דף האורחים">
-        <span>מראה אורחים</span>
-        {LOOKS.map((l) => <button key={l.id} type="button" aria-pressed={look === l.id} onClick={() => setLook(l.id)}>{l.label}</button>)}
-      </div>
+      {designToolsOn() && (
+        <div className="gx-lookswitch" role="group" aria-label="מראה דף האורחים">
+          <span>מראה אורחים</span>
+          {LOOKS.map((l) => <button key={l.id} type="button" aria-pressed={look === l.id} onClick={() => setLook(l.id)}>{l.label}</button>)}
+        </div>
+      )}
 
       {openId && <GuestRecord guestId={openId} propertyId={propertyId} look={look} onClose={() => setOpenId(null)} onChanged={refetch} />}
       {showNew && <NewGuestModal propertyId={propertyId} onClose={() => setShowNew(false)} onCreated={() => refetch()} />}

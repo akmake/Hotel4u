@@ -1,5 +1,6 @@
 import DashboardPage from './DashboardPage';
 import './TodayPage.css';
+import './TodayQuicken.css';
 
 // "היום בקבלה" in the approved look (2026-10-28): glass summary cards, guest rows as cards under
 // one header, one split action per row, soft room cards, grey canvas, Material 3 buttons.

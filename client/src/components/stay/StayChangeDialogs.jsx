@@ -259,22 +259,39 @@ export function ExtendDialog({ open, onClose, propertyId, reservationId, departu
   const check = useAction();
   const [f, setF] = useState({});
   const [preview, setPreview] = useState(null);
-  useEffect(() => { if (open) { setF({ newDeparture: departureDate ? addDays(departureDate, 1) : '', paymentArrangement: '', guestConfirmation: '', manualRate: '', reason: '' }); setPreview(null); action.reset(); check.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setF({ newDeparture: departureDate ? addDays(departureDate, 1) : '', paymentArrangement: '', guestConfirmation: '', manualRate: '', reason: '', moveTo: '', moveKey: crypto.randomUUID() }); setPreview(null); setMoveData(null); action.reset(); check.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  const [moveData, setMoveData] = useState(null);
   useEffect(() => {
+    setMoveData(null); setF((p) => ({ ...p, moveTo: '' }));
     if (!open || !f.newDeparture || !departureDate || f.newDeparture <= departureDate) { setPreview(null); return; }
-    check.run(async () => setPreview(await stay.extension(propertyId, reservationId, f.newDeparture)));
+    check.run(async () => {
+      const pv = await stay.extension(propertyId, reservationId, f.newDeparture);
+      setPreview(pv);
+      // FD-10-A03: only the room itself is the problem → offer rooms of the same type free for all nights.
+      if (!pv.canExtend && pv.units === 1 && pv.blockers.every((b) => b.code === 'room_taken' || b.code === 'room_blocked')) {
+        setMoveData(await stay.moveCandidates(propertyId, reservationId, undefined, undefined, f.newDeparture).catch(() => null));
+      }
+    });
   }, [open, f.newDeparture]); // eslint-disable-line react-hooks/exhaustive-deps
+  const moveRooms = (moveData?.rooms || []).filter((r) => r.available && r.sameType);
+  const withMove = !!(preview && !preview.canExtend && f.moveTo);
   const manual = f.manualRate !== '' && Number(f.manualRate) > 0;
   let why = null;
   if (!preview) why = 'בחרו תאריך יציאה חדש';
-  else if (!preview.canExtend) why = preview.blockers[0]?.label;
+  else if (!preview.canExtend && !withMove) why = moveRooms.length ? 'בחרו חדר פנוי להמשך השהייה' : preview.blockers[0]?.label;
   else if (preview.needsManualPrice && !manual) why = 'אין מחיר בלוח — נדרש מחיר ידני של מנהל';
   else if (manual && f.reason.trim().length < 3) why = 'סיבת חריג מחיר';
   else if (f.paymentArrangement.trim().length < 2) why = 'הסדר תשלום / ערבות';
   else if (f.guestConfirmation.trim().length < 2) why = 'אסמכתה לאישור האורח';
   const total = preview ? (manual ? Number(f.manualRate) * preview.nights * preview.units : preview.total) : null;
-  const submit = () => action.run(async () => { const out = await stay.extend(propertyId, reservationId, { newDeparture: f.newDeparture, priceSignature: preview.priceSignature, paymentArrangement: f.paymentArrangement, guestConfirmation: f.guestConfirmation, ...(manual ? { manualRate: Number(f.manualRate), reason: f.reason } : {}) }); onDone?.(out); });
+  const submit = () => action.run(async () => {
+    const extend = { newDeparture: f.newDeparture, priceSignature: preview.priceSignature, paymentArrangement: f.paymentArrangement, guestConfirmation: f.guestConfirmation, ...(manual ? { manualRate: Number(f.manualRate), reason: f.reason } : {}) };
+    const out = withMove
+      ? await stay.extendWithMove(propertyId, reservationId, { extend, move: { requestKey: f.moveKey, fromRoomId: moveData.current, unitId: moveData.unitId, roomId: f.moveTo, reason: 'hotel_need', note: `הארכה עד ${f.newDeparture} — החדר הנוכחי תפוס`, keyRequested: true, priceMode: 'keep' } })
+      : await stay.extend(propertyId, reservationId, extend);
+    onDone?.(out);
+  });
   return (
     <Modal open={open} onClose={onClose} busy={action.busy} width={560} title="הארכת שהייה" subtitle={departureDate ? `יציאה נוכחית: ${formatLong(departureDate)}` : ''} footer={<Footer action={action} onClose={onClose} label="אישור הארכה" why={why} onSubmit={submit} />}>
       <ErrorBanner error={action.error} />
@@ -290,9 +307,17 @@ export function ExtendDialog({ open, onClose, propertyId, reservationId, departu
               <div className="ui-stack" style={{ gap: 4 }}>
                 {preview.blockers.map((b) => <span key={b.label}>{b.label}</span>)}
                 {preview.suggestion && <span className="ui-sub">{preview.suggestion}</span>}
-                {preview.suggestion && onMoveInstead && <button type="button" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={onMoveInstead}>מעבר לחדר פנוי</button>}
+                {preview.suggestion && onMoveInstead && !moveRooms.length && <button type="button" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={onMoveInstead}>מעבר לחדר פנוי</button>}
               </div>
             </Banner>
+          )}
+          {!preview.canExtend && moveRooms.length > 0 && (
+            <Field id="ex-mv" label="הארכה עם מעבר לחדר פנוי" hint="המעבר וההארכה נשמרים יחד — או שניהם או אף אחד. המחיר המוסכם לא משתנה.">
+              <select id="ex-mv" className="select w-full" value={f.moveTo} onChange={(e) => set('moveTo')(e.target.value)}>
+                <option value="">בחירת חדר…</option>
+                {moveRooms.map((r) => <option key={r.id} value={r.id}>{r.number} · קומה {r.floor} · {cleanLabel(r.cleanStatus)}</option>)}
+              </select>
+            </Field>
           )}
           <KeyValues rows={[
             ...preview.nightly.map((n) => [formatLong(n.date), money(manual ? Number(f.manualRate) : n.price)]),

@@ -48,6 +48,9 @@ const GroupBlockSchema = new Schema({
 
   cutoffDate:    { type: String },
 
+  ratePlan:      { type: Schema.Types.ObjectId, ref: 'RatePlan' },   // plan the pickups are booked on
+  pickupPending: { type: Map, of: Number, default: {} },             // roomTypeId → pickups in flight (released meanwhile)
+
   // Master folio — all group charges consolidated here
   masterFolioId: { type: Schema.Types.ObjectId, ref: 'Folio' },
 

@@ -7,6 +7,7 @@ import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/
 import {
   listFolios, getStayFolios, ensureGuestFolio, postCharge, reverseCharge, recordFolioPayment, refundPayment, creditNote,
   getDayClose, runDayClose, setAutoDayClose, NIGHT_ROLES,
+  createHouseAccount, listHouseAccounts, getHouseAccount,
 } from '../services/financeService.js';
 import { listCodes, createCode, updateCode, CATALOG_ROLES } from '../services/chargeCodeService.js';
 import { dayReport } from '../services/ledgerService.js';
@@ -75,6 +76,20 @@ router.get('/stays/:reservationId', handle(async (req) => {
 router.post('/stays/:reservationId/folio', handle(async (req) => {
   requireRoles(req, MONEY_WORK, 'אין הרשאה לרשום תשלום');
   return ensureGuestFolio({ propertyId: scope(req), reservationId: req.params.reservationId });
+}));
+
+// ── NR folio: passer-by / house accounts ────────────────────────────────────
+router.get('/house-accounts', handle(async (req) => {
+  requireRoles(req, MONEY_READ, 'אין הרשאה לחשבונות');
+  return listHouseAccounts({ propertyId: scope(req), view: req.query.view, q: req.query.q });
+}));
+router.post('/house-accounts', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה לפתוח חשבון');
+  return createHouseAccount({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+router.get('/house-accounts/:id', handle(async (req) => {
+  requireRoles(req, MONEY_READ, 'אין הרשאה לחשבונות');
+  return getHouseAccount({ propertyId: scope(req), folioId: req.params.id });
 }));
 
 // ── FIN-02 ──────────────────────────────────────────────────────────────────

@@ -54,13 +54,16 @@ export default function BookSearchPage() {
     if (!hasSearch) { setRes({ data: null, error: null, loading: false }); return undefined; }
     let live = true;
     setRes((r) => ({ ...r, loading: true, error: null }));
-    bookApi.search(p, { arrival: q.arrival, departure: q.departure, adults: q.adults, children: q.children, childAges: q.ages.join(',') })
+    bookApi.search(p, { arrival: q.arrival, departure: q.departure, adults: q.adults, children: q.children, childAges: q.ages.join(','), promoCode: q.promo || undefined })
       .then((data) => { if (live) { setRes({ data, error: null, loading: false }); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); } })
       .catch((error) => live && setRes({ data: null, error, loading: false }));
     return () => { live = false; };
-  }, [p, q.arrival, q.departure, q.adults, q.children, q.ages.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [p, q.arrival, q.departure, q.adults, q.children, q.ages.join(','), q.promo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const runSearch = (s) => nav(withP(`/book?${searchQuery(s)}`, p));
+  const runSearch = (s) => nav(withP(`/book?${searchQuery({ ...s, promo: q.promo })}`, p));
+  const [promoDraft, setPromoDraft] = useState(q.promo);
+  useEffect(() => { setPromoDraft(q.promo); }, [q.promo]);
+  const applyPromo = (code) => nav(withP(`/book?${searchQuery({ ...q, promo: code })}`, p));
   const choose = (room, offer) => nav(withP(`/book/checkout?${searchQuery(q, { room: room.roomType.id, plan: offer.ratePlanId, board: offer.board, sig: offer.priceSignature })}`, p));
   const available = res.data?.rooms.filter((r) => r.offers.length) || [];
   const off = res.data?.rooms.filter((r) => !r.offers.length) || [];
@@ -91,6 +94,15 @@ export default function BookSearchPage() {
                 {res.data ? `${res.data.nights} ${res.data.nights === 1 ? 'לילה' : 'לילות'} · ` : ''}{guestsLabel(q.adults, q.children)} · המחירים לכל השהייה וכוללים מע״מ
               </div>
             </div>
+            <form className="bk-promo" onSubmit={(e) => { e.preventDefault(); applyPromo(promoDraft.trim().toUpperCase()); }}>
+              <label htmlFor="bk-promo">קוד מבצע</label>
+              <input id="bk-promo" dir="ltr" value={promoDraft} maxLength={30} onChange={(e) => setPromoDraft(e.target.value.toUpperCase())} placeholder="SUMMER25" />
+              <button type="submit" className="bk-btn bk-btn-ghost bk-btn-sm" disabled={!promoDraft.trim() || promoDraft.trim() === q.promo}>החלה</button>
+              {q.promo && <button type="button" className="bk-link" onClick={() => applyPromo('')}>הסרה</button>}
+              {res.data?.promo && (res.data.promo.ok
+                ? <span className="bk-badge is-ok">{res.data.promo.name || res.data.promo.code} — הוחל{res.data.promo.description ? ` · ${res.data.promo.description}` : ''}</span>
+                : <span className="bk-badge is-bad">{res.data.promo.why}</span>)}
+            </form>
             {res.loading && [0, 1].map((i) => <div key={i} className="bk-skel" style={{ height: 300, marginBottom: 28 }} />)}
             {res.error && (
               <div className="bk-alert" role="alert">
@@ -136,7 +148,9 @@ export default function BookSearchPage() {
                           {o.payNow.kind === 'deposit' && <div className="bk-offer-terms">תשלום עכשיו: מקדמה {money(o.payNow.amount, res.data.currency)} ({o.payNow.pct}%)</div>}
                         </div>
                         <div className="bk-offer-price">
+                          {o.promotion && <s className="bk-was">{money(o.promotion.listTotal, res.data.currency)}</s>}
                           <b>{money(o.total, res.data.currency)}</b>
+                          {o.promotion && <span className="bk-badge is-ok">{o.promotion.label}</span>}
                           <small>{money(o.averageNight, res.data.currency)} ללילה בממוצע</small>
                           <button type="button" className="bk-btn bk-btn-primary bk-btn-sm" style={{ marginTop: 8 }} onClick={() => choose(r, o)}>להזמנה</button>
                         </div>

@@ -359,7 +359,10 @@ function PayPanel({ folio, ctx, propertyId, reload, pending }) {
 }
 
 function RefundPanel({ folio, propertyId, reload, canRefund }) {
-  const max = Math.abs(folio.balance);
+  const sources = folio.refundable || [];
+  const [source, setSource] = useState(sources[0]?.id || '');
+  const picked = sources.find((p) => p.id === source) || null;
+  const max = Math.min(Math.abs(folio.balance), picked ? picked.refundable : Infinity);
   const [amount, setAmount] = useState(null);
   const [method, setMethod] = useState('cash');
   const [reason, setReason] = useState('');
@@ -375,7 +378,7 @@ function RefundPanel({ folio, propertyId, reload, canRefund }) {
   async function refund() {
     setBusy(true); setError(null); setNotice(null);
     try {
-      await frontdesk.refundFolio(propertyId, folio.id, { amount: num, method, reason, idempotencyKey: key });
+      await frontdesk.refundFolio(propertyId, folio.id, picked ? { amount: num, paymentLineId: picked.id, reason, idempotencyKey: key } : { amount: num, method, reason, idempotencyKey: key });
       setNotice(`הוחזרו ${money(num)}`);
       setAmount(null); setReason(''); setKey(newOpKey());
       await reload();
@@ -391,11 +394,25 @@ function RefundPanel({ folio, propertyId, reload, canRefund }) {
         <Field id={`ref-${folio.id}`} label="סכום">
           <input id={`ref-${folio.id}`} type="number" inputMode="decimal" min={0.01} step={0.01} max={max} className="input" value={value} onChange={(e) => setAmount(e.target.value)} />
         </Field>
-        <Field id={`refm-${folio.id}`} label="אמצעי החזר">
-          <select id={`refm-${folio.id}`} className="select" value={method} onChange={(e) => setMethod(e.target.value)}>
-            {Object.entries(PAY_METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </Field>
+        {sources.length > 0 ? (
+          <Field id={`refs-${folio.id}`} label="מאיזה תשלום">
+            <select id={`refs-${folio.id}`} className="select" value={source} onChange={(e) => { setSource(e.target.value); setAmount(null); }}>
+              {sources.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {PAY_METHOD_LABELS[p.method] || 'תשלום'}{p.last4 ? ` ••${p.last4}` : ''} · {money(p.amount)}{p.refundable < p.amount ? ` (נותרו ${money(p.refundable)})` : ''}
+                </option>
+              ))}
+              <option value="">אחר — בלי תשלום מקור</option>
+            </select>
+          </Field>
+        ) : null}
+        {!picked && (
+          <Field id={`refm-${folio.id}`} label="אמצעי החזר">
+            <select id={`refm-${folio.id}`} className="select" value={method} onChange={(e) => setMethod(e.target.value)}>
+              {Object.entries(PAY_METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </Field>
+        )}
       </div>
       <Field id={`refr-${folio.id}`} label="סיבה">
         <input id={`refr-${folio.id}`} className="input w-full" maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} />

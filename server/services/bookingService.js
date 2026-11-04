@@ -36,6 +36,7 @@ import { httpError, businessDateOf, MANAGER_ROLES, IN_HOUSE_STATUSES } from './f
 import { folioBalance } from './departureService.js';
 import { partyMembers } from './partyBookingService.js';
 import { boardOfPlan, supplementPerNight, BOARD_LABELS, BOARDS } from './boardService.js';
+import { resolvePromotion, applyPromotion } from './promotionService.js';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
@@ -82,7 +83,7 @@ function validateStay({ arrival, departure, adults, children, rooms, today }) {
   return { nights, adults: a, children: c, rooms: r };
 }
 
-async function offersFor({ propertyId, property, roomType, plans, arrival, departure, adults, children, rooms, nights, board, childAges, session = null, excludeReservationId = null }) {
+async function offersFor({ propertyId, property, roomType, plans, arrival, departure, adults, children, rooms, nights, board, childAges, promo = null, promoCode, session = null, excludeReservationId = null }) {
   const dates = getStayDates(arrival, departure);
   const perRoomAdults = Math.ceil(adults / rooms);
   const perRoomChildren = Math.ceil(children / rooms);
@@ -126,7 +127,7 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
         if (rd?.stopSell) reasons.push({ code: 'rate_closed', label: `התעריף סגור ל־${d}` });
         const parentPlan = plan.derived?.from ? parents.get(String(plan.derived.from)) : null;
         const parent = parentPlan ? { plan: parentPlan, rd: byPlan.get(String(parentPlan._id))?.get(d) } : null;
-        const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: nights, today, parent });
+        const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: nights, today, parent, context: promoCode ? { promoCode } : {} });
         if (p.price === null) { missingRate.push(d); continue; }
         nightly.push({ date: d, price: p.price });
       }
@@ -148,6 +149,10 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
         if (supp === null) { reasons.push({ code: 'board_unpriced', label: `לא הוגדר מחיר ל${BOARD_LABELS[wanted]} (הגדרות ← סוגי אירוח)` }); supp = 0; }
       }
       const boardNightly = supp > 0 ? nightly.map((n) => ({ date: n.date, price: supp })) : [];
+      // Promotion code: discounts lodging only (never the board supplement).
+      const listPerRoom = round2(nightly.reduce((s, n) => s + n.price, 0));
+      const promoApplied = nightly.length === dates.length ? applyPromotion(promo, { roomTypeId: roomType._id, ratePlanId: plan._id, nightly }) : null;
+      if (promoApplied) nightly.splice(0, nightly.length, ...promoApplied.nightly);
       const roomPerRoom = round2(nightly.reduce((s, n) => s + n.price, 0));
       const perRoom = round2(roomPerRoom + supp * nightly.length);
       const total = round2(perRoom * rooms);
@@ -159,6 +164,7 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
         board: { type: wanted, source: planBoard !== 'room_only' ? 'plan' : (supp > 0 ? 'supplement' : 'none'), perNight: supp, total: round2(supp * nightly.length), nightly: boardNightly },
         roomPerRoom,
         nightly, perRoom, total, averageNight: nightly.length ? round2(perRoom / nightly.length) : 0,
+        promotion: promoApplied ? { code: promo.code, name: promo.name, label: promoApplied.label, saving: round2(promoApplied.saving * rooms), listTotal: round2((listPerRoom + supp * nightly.length) * rooms) } : null,
         available: Math.max(0, minAvail), availability: nightsAvail.map((n) => ({ date: n.date, available: n.missing ? null : n.available })),
         bookable: uniq.length === 0 && nightly.length === dates.length,
         reasons: uniq,
@@ -185,11 +191,13 @@ export async function searchAvailability({ propertyId, query, session = null, ex
   const plans = await RatePlan.find(planFilter).session(session).sort({ sortOrder: 1, code: 1 }).lean();
   const offers = [];
   const childAges = Array.isArray(query.childAges) ? query.childAges.map(Number) : String(query.childAges || '').split(',').filter((x) => x !== '').map(Number);
-  for (const rt of roomTypes) offers.push(...await offersFor({ propertyId, property, roomType: rt, plans, arrival: query.arrival, departure: query.departure, ...stay, board: query.board, childAges, session, excludeReservationId }));
+  const promo = query.promoCode ? await resolvePromotion({ propertyId, code: query.promoCode, arrival: query.arrival, nights: stay.nights, today, channel: query.channel === 'web' ? 'web' : 'desk', session }) : null;
+  for (const rt of roomTypes) offers.push(...await offersFor({ propertyId, property, roomType: rt, plans, arrival: query.arrival, departure: query.departure, ...stay, board: query.board, childAges, promo, promoCode: promo?.ok ? promo.code : undefined, session, excludeReservationId }));
   return {
     arrival: query.arrival, departure: query.departure, nights: stay.nights, adults: stay.adults, children: stay.children, rooms: stay.rooms,
     currency: property.defaultCurrency || 'ILS', businessDate: today,
     validUntil: new Date(Date.now() + OFFER_TTL_MIN * 60000).toISOString(),
+    promo: promo ? { code: promo.code, ok: promo.ok, why: promo.why || null, name: promo.name || null, description: promo.description || null } : null,
     offers,
   };
 }
@@ -199,6 +207,7 @@ export async function resolveOffer({ propertyId, input, session = null, excludeR
   const res = await searchAvailability({ propertyId, query: { ...input, arrival: input.arrival, departure: input.departure }, session, excludeReservationId });
   const offer = res.offers.find((o) => o.roomType.id === String(input.roomTypeId) && o.ratePlan.id === String(input.ratePlanId));
   if (!offer) throw httpError('התעריף אינו זמין לסוג החדר שנבחר', 422);
+  if (input.promoCode && !res.promo?.ok) throw httpError(res.promo?.why || 'קוד מבצע לא תקין', 422, { fields: { promoCode: res.promo?.why || 'לא תקין' }, code: 'promo_invalid' });
   return { search: res, offer };
 }
 
@@ -240,16 +249,17 @@ export async function resolveGuest({ propertyId, input, actor, ip, session = nul
 }
 
 // ── RSV-02 / RSV-04 create ──────────────────────────────────────────────────
-export async function createBooking({ propertyId, input, actor, ip, session = null, afterCommit = null, preferredRoomId = null, excludedRoomIds = [] }) {
+// groupRate: a block pickup's negotiated price per night (server-side only, never from the request body).
+export async function createBooking({ propertyId, input, actor, ip, session = null, afterCommit = null, preferredRoomId = null, excludedRoomIds = [], groupRate = null }) {
   const key = String(input.idempotencyKey || '').trim();
   if (!/^[A-Za-z0-9_-]{8,80}$/.test(key)) throw httpError('חסר מזהה פעולה (idempotency key)', 422);
   // A party owns the inventory locks and transaction for all its members.
-  if (session) return createBookingLocked({ propertyId, input, actor, ip, session, afterCommit, preferredRoomId, excludedRoomIds });
+  if (session) return createBookingLocked({ propertyId, input, actor, ip, session, afterCommit, preferredRoomId, excludedRoomIds, groupRate });
   return withLocks([`booking:${propertyId}:${key}`, `inv:${propertyId}:${input.roomTypeId}`],
-    (lease) => runStayTransaction((session, afterCommit) => createBookingLocked({ propertyId, input, actor, ip, session, afterCommit }), lease, { operation: 'יצירת הזמנה' }), { waitMs: 4000 });
+    (lease) => runStayTransaction((session, afterCommit) => createBookingLocked({ propertyId, input, actor, ip, session, afterCommit, groupRate }), lease, { operation: 'יצירת הזמנה' }), { waitMs: 4000 });
 }
 
-async function createBookingLocked({ propertyId, input, actor, ip, session, afterCommit, preferredRoomId = null, excludedRoomIds = [] }) {
+async function createBookingLocked({ propertyId, input, actor, ip, session, afterCommit, preferredRoomId = null, excludedRoomIds = [], groupRate = null }) {
   const mode = ['confirm', 'hold', 'draft', 'quote'].includes(input.mode) ? input.mode : 'confirm';
   const key = String(input.idempotencyKey || '').trim();
   if (!/^[A-Za-z0-9_-]{8,80}$/.test(key)) throw httpError('חסר מזהה פעולה (idempotency key)', 422);
@@ -295,7 +305,12 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
   // Price: the server's, unless a permitted manager overrides it with a reason.
   let nightly = offer.nightly; // lodging per night (room only); the board is kept apart
   let override = null;
-  if (input.override?.ratePerNight !== undefined && input.override?.ratePerNight !== null && input.override?.ratePerNight !== '') {
+  const groupPriced = Number(groupRate) > 0;
+  if (groupPriced) {
+    // Block pickup: the contracted group price for every night of the stay.
+    nightly = getStayDates(search.arrival, search.departure).map((d) => ({ date: d, price: round2(groupRate) }));
+    override = { by: actor.name, reason: input.groupReason || 'מחיר קבוצה' };
+  } else if (input.override?.ratePerNight !== undefined && input.override?.ratePerNight !== null && input.override?.ratePerNight !== '') {
     if (!PRICE_OVERRIDE_ROLES.includes(actor.role)) throw httpError('שינוי מחיר ידני מותר למנהל או להכנסות', 403);
     const rate = round2(input.override.ratePerNight);
     const why = String(input.override.reason || '').trim().slice(0, 300);
@@ -308,8 +323,10 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
     throw httpError('המחיר השתנה מאז שהוצג — יש לאשר את המחיר החדש', 409, { code: 'price_changed', details: [{ total: offer.total, perRoom: offer.perRoom, priceSignature: offer.priceSignature, nightly: offer.nightly }] });
   }
   // Only a draft may be saved for something that cannot be sold right now (it holds nothing).
-  if (mode !== 'draft' && !offer.bookable) {
-    throw httpError(offer.reasons[0]?.label || 'לא ניתן למכור את ההצעה', 409, { code: 'not_bookable', details: offer.reasons });
+  // A group price ignores the public rate's restrictions (rate closed, LOS, missing calendar price) — not inventory.
+  const blocking = groupPriced ? offer.reasons.filter((r) => !['missing_rate', 'rate_closed', 'min_los', 'max_los', 'cta', 'ctd', 'board_unpriced'].includes(r.code)) : offer.reasons;
+  if (mode !== 'draft' && (groupPriced ? blocking.length > 0 : !offer.bookable)) {
+    throw httpError(blocking[0]?.label || 'לא ניתן למכור את ההצעה', 409, { code: 'not_bookable', details: blocking });
   }
 
   const guest = await resolveGuest({ propertyId, input, actor, ip, session, afterCommit });
@@ -346,7 +363,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
       totalAmount: total,
       taxAmount: round2(total - total / (1 + Number(property?.vatRate ?? 18) / 100)),
       bookingRequestHash: requestHash,
-      priceSnapshot: { ratePlanCode: offer.ratePlan.code, ratePlanName: offer.ratePlan.name, nightly, total, vatRate: property?.vatRate ?? 18, refundable: offer.ratePlan.refundable, computedAt: new Date(), ...(override ? { override } : {}), board: { type: offer.board.type, source: offer.board.source, nightly: offer.board.nightly } },
+      priceSnapshot: { ratePlanCode: offer.ratePlan.code, ratePlanName: offer.ratePlan.name, nightly, total, vatRate: property?.vatRate ?? 18, refundable: offer.ratePlan.refundable, computedAt: new Date(), ...(override ? { override } : {}), ...(!override && offer.promotion ? { promotion: { code: offer.promotion.code, name: offer.promotion.name, saving: offer.promotion.saving } } : {}), board: { type: offer.board.type, source: offer.board.source, nightly: offer.board.nightly } },
       board: offer.board.type,
       ...(input.residency === 'tourist' ? { tourist: { nonResident: true } } : {}),
       booker: input.booker && (input.booker.name || input.booker.phone || input.booker.email) ? { name: String(input.booker.name || '').slice(0, 120), phone: String(input.booker.phone || '').slice(0, 30), email: String(input.booker.email || '').slice(0, 120) } : undefined,

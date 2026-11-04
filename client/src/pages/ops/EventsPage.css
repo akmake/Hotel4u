@@ -1,0 +1,31 @@
+/* Events chart — halls × days */
+.ev-chart { background: #fff; border: 1px solid rgb(var(--fg) / .08); border-radius: 14px; }
+.ev-grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 980px; font-size: 13px; }
+.ev-grid th, .ev-grid td { border-bottom: 1px solid rgb(var(--fg) / .07); border-inline-start: 1px solid rgb(var(--fg) / .05); padding: 6px; vertical-align: top; text-align: start; }
+.ev-grid thead th { font-weight: 600; background: #fbfcfd; position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+.ev-grid .ev-sticky { position: sticky; inset-inline-start: 0; background: #fff; z-index: 2; min-width: 140px; }
+.ev-grid thead .ev-sticky { background: #fbfcfd; z-index: 3; }
+.ev-grid td { min-width: 104px; height: 64px; }
+.ev-grid .is-today { background: rgb(13 148 136 / .05); }
+.ev-grid th.is-weekend { color: rgb(var(--fg) / .55); }
+.ev-chip { display: grid; gap: 1px; width: 100%; text-align: start; padding: 5px 7px; margin-bottom: 4px; border-radius: 8px; border: 1px solid transparent; font: inherit; cursor: pointer; line-height: 1.25; }
+.ev-chip b { font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ev-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-chip small { color: rgb(var(--fg) / .6); }
+.ev-chip.is-confirmed { background: rgb(13 148 136 / .12); border-color: rgb(13 148 136 / .3); }
+.ev-chip.is-tentative { background: #fff7e8; border-color: #f2d49b; border-style: dashed; }
+.ev-chip.is-done { background: rgb(var(--fg) / .05); color: rgb(var(--fg) / .6); }
+.ev-add { width: 100%; border: 1px dashed rgb(var(--fg) / .12); background: transparent; border-radius: 8px; color: rgb(var(--fg) / .35); cursor: pointer; height: 22px; opacity: 0; transition: opacity .12s; }
+.ev-grid td:hover .ev-add, .ev-add:focus-visible { opacity: 1; }
+
+/* Demand system */
+.dm-table { width: 100%; min-width: 1100px; font-size: 13px; }
+.dm-table tr.is-weekend td { background: rgb(var(--fg) / .02); }
+.dm-heat { display: inline-block; min-width: 46px; text-align: center; padding: 2px 6px; border-radius: 6px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.dm-heat.is-hot { background: #fde2e2; color: #9b1c1c; }
+.dm-heat.is-high { background: #ffedd5; color: #9a3412; }
+.dm-heat.is-mid { background: #fef9c3; color: #854d0e; }
+.dm-heat.is-low { background: #e0f2fe; color: #075985; }
+.dm-heat.is-cold { background: #f1f5f9; color: #475569; }
+.dm-up { color: #15803d; }
+.dm-down { color: #b91c1c; }

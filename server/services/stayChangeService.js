@@ -119,14 +119,16 @@ function addSiblingConflicts(conflicts, units, unit, from, to) {
   }
 }
 
-export async function moveCandidates({ propertyId, reservationId, unitId, fromRoomId }) {
+export async function moveCandidates({ propertyId, reservationId, unitId, fromRoomId, until }) {
   const property = await loadProperty(propertyId);
   const today = businessDateOf(property);
   const policy = policyOf(await Property.findById(propertyId).select('checkInPolicy').lean());
   const res = await loadRes(propertyId, reservationId);
   if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('מעבר חדר מתבצע רק לאורח שבבית', 409);
   const { unit, units } = await inHouseUnit(res, unitId, fromRoomId);
-  const to = unit.departureDate || res.departureDate;
+  // `until`: free also for the nights of a planned extension (FD-10-A03).
+  const dep = unit.departureDate || res.departureDate;
+  const to = YMD.test(until || '') && until > dep ? until : dep;
   const conflicts = await conflictingRoomIds({ propertyId, from: today, to, excludeReservationId: res._id });
   addSiblingConflicts(conflicts, units, unit, today, to);
   const rooms = await Room.find({ property: propertyId, active: { $ne: false } }).populate('roomType', 'name code baseRate capacityMax adultsMax childrenMax active').sort({ floor: 1, number: 1 }).lean();
@@ -191,7 +193,7 @@ function remainingNightsOf(res, unit, today, to) {
   return getStayDates(today, to).map((date) => ({ date, price: round2(agreed.has(date) ? agreed.get(date) : fallback) }));
 }
 
-export async function moveRoom({ propertyId, reservationId, input, actor, ip }) {
+export async function moveRoom({ propertyId, reservationId, input, actor, ip, outer = null }) {
   const requestKey = input.requestKey;
   if (requestKey !== undefined && (typeof requestKey !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(requestKey))) throw httpError('מזהה בקשה לא תקין', 422);
   const { requestKey: ignoredKey, propertyId: ignoredProperty, ...requestBody } = input;
@@ -225,7 +227,7 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
   }
   if (Object.keys(fields).length) throw httpError('יש לתקן את פרטי המעבר', 422, { fields });
 
-  return withLocks([`room:${input.roomId}`, `res:${reservationId}`], async (lease) => runStayTransaction(async (session, afterCommit) => {
+  const run = async (session, afterCommit) => {
     const tx = { session, afterCommit };
     if (requestKey) {
       const previous = await RoomMoveOperation.findOne({ property: propertyId, reservation: reservationId, requestKey }).session(session).lean();
@@ -363,7 +365,9 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip }) 
     };
     if (requestKey) await RoomMoveOperation.create([{ property: propertyId, reservation: reservationId, requestKey, payloadHash: hash, result }], { session });
     return result;
-  }, lease));
+  };
+  if (outer) return run(outer.session, outer.afterCommit);
+  return withLocks([`room:${input.roomId}`, `res:${reservationId}`], async (lease) => runStayTransaction(run, lease));
 }
 
 // ── FD-10 extension ─────────────────────────────────────────────────────────
@@ -423,7 +427,7 @@ export async function extensionPreview({ propertyId, reservationId, newDeparture
   };
 }
 
-export async function extendStay({ propertyId, reservationId, input, actor, ip }) {
+export async function extendStay({ propertyId, reservationId, input, actor, ip, outer = null }) {
   const fields = {};
   const payment = String(input.paymentArrangement || '').trim().slice(0, 200);
   const confirmation = String(input.guestConfirmation || '').trim().slice(0, 200);
@@ -439,11 +443,12 @@ export async function extendStay({ propertyId, reservationId, input, actor, ip }
   const first = await loadRes(propertyId, reservationId);
   const firstUnits = await ReservationRoom.find({ reservation: reservationId, status: { $in: ['in_house', 'checked_in'] } }).select('roomTypeBooked').lean();
   const typeIds = [...new Set(firstUnits.map((u) => String(u.roomTypeBooked || first.roomType)))];
-  return withLocks([`res:${reservationId}`, ...typeIds.map((type) => `inv:${propertyId}:${type}`)], async (lease) => runStayTransaction(async (session, afterCommit) => {
+  const run = async (session, afterCommit) => {
     const res = await loadRes(propertyId, reservationId, session);
     if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('הארכה מתבצעת לאורח שבבית', 409);
     const plan = await extensionPlan({ propertyId, res, newDeparture: input.newDeparture, session });
-    if (!typeIds.includes(String(plan.roomTypeId))) throw httpError('סוג החדר השתנה — יש לרענן', 409);
+    // Inside a move+extend the type may have changed in the same transaction (both types are locked).
+    if (!outer && !typeIds.includes(String(plan.roomTypeId))) throw httpError('סוג החדר השתנה — יש לרענן', 409);
     if (plan.blockers.length) throw httpError(plan.blockers[0].label, 409, { code: 'cannot_extend', details: plan.blockers });
     let nightly = plan.price.nightly;
     if (manual !== null) nightly = plan.dates.map((d) => ({ date: d, price: manual }));
@@ -477,7 +482,28 @@ export async function extendStay({ propertyId, reservationId, input, actor, ip }
       before: { departureDate: plan.oldDep }, after: { departureDate: newDep, added, payment, confirmation, manualRate: manual }, reason: manual !== null ? input.reason : undefined, ip, session, afterCommit,
     });
     return { reservationId: String(res._id), departureDate: newDep, nights: plan.dates.length, added };
-  }, lease, { operation: 'הארכת שהייה' }));
+  };
+  if (outer) return run(outer.session, outer.afterCommit);
+  return withLocks([`res:${reservationId}`, ...typeIds.map((type) => `inv:${propertyId}:${type}`)], async (lease) => runStayTransaction(run, lease, { operation: 'הארכת שהייה' }));
+}
+
+// FD-10-A03: extension when the current room is taken for the added nights — move to a room free
+// for the remaining AND the added nights, then extend, in ONE transaction (both or neither).
+export async function extendWithMove({ propertyId, reservationId, input, actor, ip }) {
+  const move = input.move || {};
+  const extend = input.extend || {};
+  if (!isId(String(move.roomId || ''))) throw httpError('יש לבחור חדר יעד', 422, { fields: { roomId: 'חדר יעד' } });
+  const target = await Room.findOne({ _id: move.roomId, property: propertyId }).select('roomType').lean();
+  if (!target) throw httpError('חדר היעד לא נמצא', 404);
+  const res0 = await loadRes(propertyId, reservationId);
+  const units = await ReservationRoom.find({ reservation: reservationId, status: { $in: ['in_house', 'checked_in'] } }).select('roomTypeBooked').lean();
+  const types = [...new Set([...units.map((u) => String(u.roomTypeBooked || res0.roomType)), String(target.roomType)])];
+  return withLocks([`room:${move.roomId}`, `res:${reservationId}`, ...types.map((t) => `inv:${propertyId}:${t}`)], async (lease) => runStayTransaction(async (session, afterCommit) => {
+    const outer = { session, afterCommit };
+    const moved = await moveRoom({ propertyId, reservationId, input: move, actor, ip, outer });
+    const extended = await extendStay({ propertyId, reservationId, input: extend, actor, ip, outer });
+    return { move: moved, extension: extended };
+  }, lease, { operation: 'הארכה עם מעבר חדר' }));
 }
 
 // ── FD-11 early departure (preview; the departure itself runs in FD-08 checkout) ──

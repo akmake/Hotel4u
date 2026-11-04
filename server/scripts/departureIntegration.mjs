@@ -153,16 +153,21 @@ async function main() {
     // ── Credit balance: refund capped, manager only ─────────────────────────
     const s3 = await mkStay({ arrival: addDays(today, -1) });
     await postNightsUntil({ reservation: s3.r, until: today, source: 'pms' });
-    await Folio.updateOne({ _id: s3.guestFolio._id }, { $push: { lines: { type: 'payment', description: 'שולם ביתר', amount: -650, taxAmount: 0, serviceDate: today, status: 'posted' } } });
+    await Folio.updateOne({ _id: s3.guestFolio._id }, { $push: { lines: { type: 'payment', description: 'שולם ביתר', amount: -650, taxAmount: 0, serviceDate: today, status: 'posted', method: 'credit_card' } } });
     co = await call('POST', `/frontdesk/reservations/${s3.r._id}/check-out`, R, { propertyId: P });
     check('A credit balance is not "paid" — checkout asks to refund', co.status === 409 && JSON.stringify(co.details).includes('זכות'), co.status);
     let rf = await call('POST', `/frontdesk/folios/${s3.guestFolio._id}/refunds`, R, { propertyId: P, amount: 150, method: 'cash', reason: 'החזר עודף', idempotencyKey: key() });
     check('Receptionist cannot refund', rf.status === 403, rf.status);
     rf = await call('POST', `/frontdesk/folios/${s3.guestFolio._id}/refunds`, M, { propertyId: P, amount: 200, method: 'cash', reason: 'החזר עודף', idempotencyKey: key() });
     check('Refund above the credit is refused (T16)', rf.status === 422, rf.status);
-    rf = await call('POST', `/frontdesk/folios/${s3.guestFolio._id}/refunds`, M, { propertyId: P, amount: 150, method: 'cash', reason: 'החזר עודף', idempotencyKey: key() });
+    const ctx3 = await call('GET', `/frontdesk/reservations/${s3.r._id}/check-out?propertyId=${P}`, M);
+    const src = ctx3.data?.folios?.find((f) => f.id === String(s3.guestFolio._id))?.refundable?.[0];
+    check('FIN-04 checkout lists the payment the refund can go back to', src?.method === 'credit_card' && src.refundable === 650, JSON.stringify(src));
+    rf = await call('POST', `/frontdesk/folios/${s3.guestFolio._id}/refunds`, M, { propertyId: P, amount: 150, paymentLineId: src?.id, reason: 'החזר עודף', idempotencyKey: key() });
     const s3f = await Folio.findById(s3.guestFolio._id).lean();
     check('Refund of the exact credit zeroes the folio', rf.status === 200 && Math.abs(bal(s3f)) < 0.01, bal(s3f));
+    const rl = s3f.lines.find((l) => l.type === 'refund');
+    check('FIN-04 the refund is linked to its payment and keeps its method', String(rl?.refundOf) === src?.id && rl?.method === 'credit_card', JSON.stringify({ refundOf: rl?.refundOf, method: rl?.method }));
     co = await call('POST', `/frontdesk/reservations/${s3.r._id}/check-out`, R, { propertyId: P });
     check('After the refund the stay closes', co.status === 200, co.status);
 

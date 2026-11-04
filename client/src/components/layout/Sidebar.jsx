@@ -15,6 +15,7 @@ import GlobalSearch from '../sys/GlobalSearch';
 import { useProperty } from '../../context/PropertyContext';
 import { useNavStyle } from '../../stores/navStyleStore';
 import NavVariant from './NavVariants';
+import { designToolsOn } from '../../utils/designTools';
 
 // ── תפריט מכירות/תפעול ───────────────────────────────────────────────────────
 const SALES_NAV = [
@@ -80,12 +81,16 @@ const PMS_NAV = [
       { path: '/pms/availability', icon: CalendarDays,    label: 'זמינות' },
       { path: '/pms/tape-chart-classic', icon: CalendarDays, label: 'לוח חדרים הקודם' },
       { path: '/pms/reservations', icon: ClipboardList,   label: 'הזמנות' },
+      { path: '/pms/groups',       icon: Users,           label: 'קבוצות ובלוקים' },
+      { path: '/pms/quotes',       icon: FileText,        label: 'הצעות מחיר' },
       { path: '/pms/arrivals',     icon: LogIn,           label: 'הגעות' },
       { path: '/pms/arrival-queue',icon: Hourglass,       label: 'תור המתנה' },
       { path: '/pms/in-house',     icon: BedSingle,       label: 'שוהים' },
       { path: '/pms/departures',   icon: LogOut,          label: 'עזיבות' },
       { path: '/pms/guests',       icon: Users,           label: 'אורחים' },
       { path: '/pms/folio',        icon: CreditCard,      label: 'חשבונות אורח' },
+      { path: '/pms/house-accounts', icon: ReceiptText,   label: 'חשבונות מזדמנים' },
+      { path: '/pms/cashier',      icon: BadgeDollarSign, label: 'קופה ומט״ח' },
       { path: '/pms/invoices',     icon: ReceiptText,     label: 'חשבוניות' },
     ],
   },
@@ -97,12 +102,15 @@ const PMS_NAV = [
       { path: '/pms/meals',        icon: ListChecks,    label: 'מטבח — סועדים' },
       { path: '/pms/ops-reports',  icon: Printer,       label: 'דוחות תפעול' },
       { path: '/pms/rooms',        icon: BedDouble,     label: 'חדרים' },
+      { path: '/pms/events',       icon: Calendar,      label: 'אירועים ואולמות' },
     ],
   },
   {
     group: 'ניהול',
     items: [
       { path: '/pms/rates',            icon: Tag,        label: 'מחירים' },
+      { path: '/pms/demand',           icon: TrendingUp, label: 'מערכת ביקוש' },
+      { path: '/pms/promotions',       icon: Megaphone,  label: 'מבצעים וקודי הנחה' },
       { path: '/pms/reports',          icon: BarChart3,  label: 'דוחות' },
       { path: '/pms/night-audit',      icon: Moon,       label: 'סגירת יום' },
       { path: '/pms/night-audit/report', icon: BarChart3, label: 'מאזן בוחן וספרים' },
@@ -163,7 +171,7 @@ export default function Sidebar({ open, onClose }) {
   const pmsAllowedPaths = isPMS ? PMS_ROLE_PATHS[user?.role] : undefined;
   const workspace = isPMS ? (property?.name || 'Hotel4U') : 'Hotel4U מכירות';
   const wsInitial = workspace.replace(/^מלון\s+/, '').trim().charAt(0);
-  const allowedGroups = navGroups.filter(section => (!section.adminOnly || isAdmin) && (!pmsAllowedPaths || section.items.some(item => pmsAllowedPaths.includes(item.path))));
+  const allowedGroups = navGroups.filter(section => (section.group !== 'עיצוב' || designToolsOn()) && (!section.adminOnly || isAdmin) && (!pmsAllowedPaths || section.items.some(item => pmsAllowedPaths.includes(item.path))));
   const visibleItems = allowedGroups.flatMap(section => section.items.map(item => ({ ...item, group: section.group }))).filter(item => !pmsAllowedPaths || pmsAllowedPaths.includes(item.path));
 
   // "/" opens search (PMS), like Linear.

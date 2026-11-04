@@ -23,7 +23,9 @@ import { payloadHash } from '../domain/accounting.js';
 
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
 const MAX_ROOMS = 20;
-const SHARED = ['arrival', 'departure', 'source', 'companyId', 'payerType', 'booker', 'specialRequests', 'internalNotes', 'language', 'mode', 'holdMinutes', 'residency'];
+const SHARED = ['arrival', 'departure', 'source', 'companyId', 'payerType', 'booker', 'specialRequests', 'internalNotes', 'language', 'mode', 'holdMinutes', 'residency', 'promoCode'];
+
+const YMD_RX = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function createParty({ propertyId, input, actor, ip }) {
   const key = String(input.idempotencyKey || '').trim();
@@ -60,7 +62,10 @@ async function createPartyTransaction({ propertyId, input, actor, ip, session, a
   lines.forEach((l, i) => {
     if (!isId(String(l.roomTypeId || ''))) lineErrors[i] = 'יש לבחור סוג חדר';
     else if (!isId(String(l.ratePlanId || ''))) lineErrors[i] = 'יש לבחור תעריף';
+    else if ((l.arrival || l.departure) && !(YMD_RX.test(l.arrival || '') && YMD_RX.test(l.departure || '') && l.arrival < l.departure)) lineErrors[i] = 'תאריכי החדר לא תקינים';
   });
+  // RSV-02-A03: a room may have its own dates; otherwise the booking's dates.
+  const stayOf = (l) => (l.arrival && l.departure ? { arrival: l.arrival, departure: l.departure } : { arrival: input.arrival, departure: input.departure });
   const picked = lines.map((l) => l.roomId).filter(Boolean).map(String);
   if (new Set(picked).size !== picked.length) throw httpError('אותו חדר נבחר ליותר משורה אחת', 422, { fields: { lines: 'חדר כפול' } });
   if (Object.keys(lineErrors).length) throw httpError('יש להשלים את פרטי החדרים', 422, { fields: { lines: lineErrors } });
@@ -68,10 +73,15 @@ async function createPartyTransaction({ propertyId, input, actor, ip, session, a
   // Whole-party stock check before anything is written (a draft holds nothing).
   if (mode !== 'draft') {
     const need = new Map();
-    for (const l of lines) need.set(String(l.roomTypeId), (need.get(String(l.roomTypeId)) || 0) + 1);
+    for (const l of lines) {
+      const st = stayOf(l);
+      const k = `${l.roomTypeId}|${st.arrival}|${st.departure}`;
+      need.set(k, (need.get(k) || 0) + 1);
+    }
     const short = [];
-    for (const [typeId, count] of need) {
-      const inv = await nightlyAvailability({ propertyId, roomTypeId: typeId, arrivalDate: input.arrival, departureDate: input.departure, session });
+    for (const [k, count] of need) {
+      const [typeId, arrivalDate, departureDate] = k.split('|');
+      const inv = await nightlyAvailability({ propertyId, roomTypeId: typeId, arrivalDate, departureDate, session });
       const free = Math.min(inv.freeRooms, ...inv.nights.map((n) => (n.missing ? 0 : n.available)));
       if (free < count) short.push({ roomTypeId: typeId, need: count, free: Math.max(0, free) });
     }
@@ -92,7 +102,7 @@ async function createPartyTransaction({ propertyId, input, actor, ip, session, a
         preferredRoomId: l.roomId || null,
         excludedRoomIds: picked.filter((roomId) => roomId !== String(l.roomId || '')),
         input: {
-          ...shared, mode, guestId: String(guest._id), rooms: 1,
+          ...shared, ...stayOf(l), mode, guestId: String(guest._id), rooms: 1,
           roomTypeId: l.roomTypeId, ratePlanId: l.ratePlanId, adults: Number(l.adults), children: Number(l.children || 0),
           childAges: l.childAges, priceSignature: l.priceSignature, override: l.override, board: l.board,
           specialRequests: [shared.specialRequests, l.note].filter(Boolean).join(' · ') || undefined,

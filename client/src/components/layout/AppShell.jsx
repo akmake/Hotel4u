@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, Hotel } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { NavStyleSwitch } from './NavVariants';
+import { designToolsOn } from '../../utils/designTools';
 import { useNavStyle } from '../../stores/navStyleStore';
 import { formatLong, todayYmd } from '../../utils/date';
 
@@ -64,7 +65,7 @@ export default function AppShell() {
 
   return (
     <div className="app-shell hotjar-shell" data-nav={navStyle}>
-      <NavStyleSwitch />
+      {designToolsOn() && <NavStyleSwitch />}
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       {navOpen && <div className="sidebar-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />}
       <div className="main-content">

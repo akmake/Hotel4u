@@ -36,7 +36,7 @@ export default function BookCheckoutPage() {
   async function load() {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
-      const data = await bookApi.search(p, { arrival: q.arrival, departure: q.departure, adults: q.adults, children: q.children, childAges: q.ages.join(',') });
+      const data = await bookApi.search(p, { arrival: q.arrival, departure: q.departure, adults: q.adults, children: q.children, childAges: q.ages.join(','), promoCode: q.promo || undefined });
       const room = data.rooms.find((r) => r.roomType.id === want.room);
       const offer = room?.offers.find((o) => o.ratePlanId === want.plan && o.board === want.board);
       if (!room || !offer) return setState({ loading: false, error: { message: 'החדר או התעריף שבחרתם כבר לא זמינים לתאריכים האלה.' }, room: room || null, offer: null, currency: data.currency, nights: data.nights, changed: false });
@@ -68,6 +68,7 @@ export default function BookCheckoutPage() {
       const out = await bookApi.start(p, {
         arrival: q.arrival, departure: q.departure, adults: q.adults, children: q.children, childAges: q.ages,
         roomTypeId: state.room.roomType.id, ratePlanId: state.offer.ratePlanId, board: state.offer.board, priceSignature: state.offer.priceSignature,
+        promoCode: state.offer.promotion && q.promo ? q.promo : undefined,
         guest: { firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone }, specialRequests: f.specialRequests,
         acceptTerms: f.acceptTerms, marketingConsent: f.marketingConsent,
         idempotencyKey: opKey(`${state.room.roomType.id}:${state.offer.key}:${q.arrival}:${q.departure}:${q.adults}:${q.children}`),

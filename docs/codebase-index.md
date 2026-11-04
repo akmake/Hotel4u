@@ -1222,3 +1222,13 @@ NODE_OPTIONS           e.g. --max-old-space-size=4096
 - Folios for all in-house + history
 - 15 HK Tasks + 5 Maintenance Tickets
 - Rate dates: -90 to +90 days
+
+## Optima gap features (2026-11-04)
+Built to close the gaps vs. the Optima (Silverbyte) home screen. Smoke-tested via API against the dev server.
+- **NR folio** `/pms/house-accounts` — `Folio.ownerType:'house'` with no reservation + `Folio.account{number,name,outlet…}`; `financeService.createHouseAccount/listHouseAccounts/getHouseAccount`; routes `/finance/house-accounts`. Charges/payments/refunds/documents/close reuse the money core (no deposit; cash checks run on the folio itself). Excluded from the guest folio index; ledger counts it in the guest book.
+- **Cashier shifts + FX** `/pms/cashier` (`/pms/currency` = FX tab) — models `CashierShift`, `CurrencyExchange` + `FxRate`; `services/cashierService.js`, routes `/cashier/*`. Expected ILS = float + user's folio cash since open + FX sell − FX buy; blind count with foreign currencies.
+- **Promotions** `/pms/promotions` — model `Promotion`, `services/promotionService.js` (`resolvePromotion`, `applyPromotion`), routes `/promotions`. Applied inside `bookingService.offersFor` (lodging only), `query.promoCode`; stored at `Reservation.priceSnapshot.promotion`. Desk form + `/book` have a promo field (`channel:'web'` on the site).
+- **Group blocks** `/pms/groups` — `services/groupBlockService.js`, routes `/group-blocks` (legacy `/groups` untouched). Hold written to `InventoryDate.groupAllotmentCount` (subtracted in `assessAvailability`); picked = live reservations with `group=<blockId>`; pickup books via `createBooking({ groupRate })`; cancel of a pickup resyncs; auto-release after cut-off on list.
+- **Multi-option quotes** `/pms/quotes` — model `Proposal`, `services/proposalService.js`, routes `/proposals` (print HTML, accept → reservation with price-change check). Single quotes stay on reservations (`view=quotes`).
+- **Events** `/pms/events` — models `EventSpace`, `EventBooking` (`models/Event.js`), `services/eventService.js`, routes `/events`; no overlap per space/time; chart spaces × days; "open account" creates a house folio (outlet events).
+- **Demand** `/pms/demand` — `services/demandService.js`, routes `/demand`; per night on-books, group hold, 7-day pace, last year (−364d), events, forecast, rule-based price advice; apply writes RateDate price only (revenue roles).

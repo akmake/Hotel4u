@@ -100,7 +100,7 @@ export async function getSite({ p }) {
 export async function search({ p, query }) {
   const property = await loadSite(p);
   const plans = await sellable(property);
-  const q = { arrival: query.arrival, departure: query.departure, adults: query.adults, children: query.children, childAges: query.childAges, rooms: 1 };
+  const q = { arrival: query.arrival, departure: query.departure, adults: query.adults, children: query.children, childAges: query.childAges, rooms: 1, promoCode: query.promoCode || undefined, channel: 'web' };
   const res = await searchAvailability({ propertyId: property._id, query: q });
   // Meal plans priced "by board" (a supplement on a room-only rate) are offered as extra options.
   const boards = ((await Property.findById(property._id).select('boardPricing').lean())?.boardPricing?.supplements || [])
@@ -126,6 +126,7 @@ export async function search({ p, query }) {
       nightly: o.nightly.map((n) => ({ date: n.date, price: round2(n.price + (o.board.perNight || 0)) })),
       cancellation: o.cancellation.text, priceSignature: o.priceSignature, left: o.available <= 3 ? o.available : null,
       payNow: payNow(property, o.total),
+      promotion: o.promotion ? { label: o.promotion.label, saving: o.promotion.saving, listTotal: o.promotion.listTotal } : null,
     });
   }
   const rooms = [...groups.values()].map((g) => {
@@ -133,7 +134,7 @@ export async function search({ p, query }) {
     const why = g.reasons.has('capacity') ? 'capacity' : g.reasons.has('sold_out') || g.reasons.has('stop_sell') ? 'sold_out' : g.reasons.has('min_los') ? 'min_los' : g.reasons.size ? 'closed' : null;
     return { roomType: g.roomType, offers: g.offers, from: g.offers[0]?.total ?? null, unavailable: g.offers.length ? null : why || 'closed' };
   }).sort((a, b) => (a.from === null) - (b.from === null) || (a.from ?? 0) - (b.from ?? 0));
-  return { arrival: res.arrival, departure: res.departure, nights: res.nights, adults: res.adults, children: res.children, currency: res.currency, rooms };
+  return { arrival: res.arrival, departure: res.departure, nights: res.nights, adults: res.adults, children: res.children, currency: res.currency, rooms, promo: res.promo };
 }
 
 export async function startBooking({ p, input, ip }) {
@@ -180,6 +181,7 @@ export async function startBooking({ p, input, ip }) {
         arrival: input.arrival, departure: input.departure, adults: Number(input.adults), children: Number(input.children || 0),
         childAges: Array.isArray(input.childAges) ? input.childAges.map(Number) : [], rooms: 1,
         roomTypeId: String(input.roomTypeId || ''), ratePlanId: String(input.ratePlanId || ''), priceSignature: input.priceSignature,
+        promoCode: input.promoCode ? String(input.promoCode).slice(0, 30) : undefined, channel: 'web',
         board: ['room_only', 'breakfast', 'half_board', 'full_board'].includes(input.board) ? input.board : undefined,
         guestId: String(guest._id), specialRequests: clip(input.specialRequests, 1000) || undefined, language: input.language === 'en' ? 'en' : 'he',
       },

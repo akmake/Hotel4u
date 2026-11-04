@@ -163,6 +163,24 @@ async function main() {
     const night2 = lines.find((l) => l.serviceDate === addDays(today, 2));
     check('Nights are charged at the agreed price per night (500 before, 800 for the extension)', night2 && Math.round((night2.amount + night2.taxAmount) * 100) / 100 === 800 && lines.filter((l) => l.serviceDate < today).every((l) => Math.round((l.amount + l.taxAmount) * 100) / 100 === 500), JSON.stringify(lines.map((l) => [l.serviceDate, l.amount + l.taxAmount])));
 
+    // ── FD-10-A03 extension with a move, one transaction ─────────────────────
+    const xt = await RoomType.create({ property: P, code: `${TAG}X`, name: 'סוויטה', baseRate: 700, capacityMax: 3, adultsMax: 3 });
+    await InventoryDate.insertMany(days.map((date) => ({ property: P, roomType: xt._id, date, physicalCount: 3 })));
+    const x1 = await mk('501', xt, { occStatus: 'occupied' }); const x2 = await mk('502', xt); const x3 = await mk('503', xt);
+    const xs = await stay({ status: 'in_house', arrival: addDays(today, -1), departure: addDays(today, 1), room: x1, rt: xt, rate: 700 });
+    await stay({ status: 'confirmed', arrival: addDays(today, 1), departure: addDays(today, 3), room: x1, rt: xt, rate: 700 });
+    await stay({ status: 'confirmed', arrival: addDays(today, 1), departure: addDays(today, 2), room: x3, rt: xt, rate: 700 });
+    r = await call('GET', `/stay/${xs.res._id}/move-candidates?propertyId=${P}&until=${addDays(today, 2)}`, R);
+    check('FD-10-A03 candidates are checked for the added nights too', r.status === 200 && r.data.rooms.find((x) => x.number === '502')?.available === true && r.data.rooms.find((x) => x.number === '503')?.available === false, JSON.stringify(r.data?.rooms?.filter((x) => x.number > '500').map((x) => [x.number, x.available])));
+    const extBody = { newDeparture: addDays(today, 2), manualRate: 700, reason: 'מחיר הסוויטה', paymentArrangement: 'כרטיס בקובץ', guestConfirmation: 'בדלפק' };
+    r = await call('POST', `/stay/${xs.res._id}/extend-with-move`, M, { propertyId: P, move: { roomId: String(x3._id), reason: 'hotel_need', priceMode: 'keep' }, extend: extBody });
+    let xu = await ReservationRoom.findById(xs.unit._id).lean();
+    check('FD-10-A03 extension fails in the new room → the move is rolled back too', r.status === 409 && String(xu.assignedRoom) === String(x1._id) && xu.departureDate === addDays(today, 1), `${r.status} ${r.error || ''}`);
+    r = await call('POST', `/stay/${xs.res._id}/extend-with-move`, M, { propertyId: P, move: { roomId: String(x2._id), reason: 'hotel_need', priceMode: 'keep' }, extend: extBody });
+    xu = await ReservationRoom.findById(xs.unit._id).lean();
+    const xr = await Reservation.findById(xs.res._id).lean();
+    check('FD-10-A03 move + extension in one action: new room, new departure, added night priced', r.status === 200 && String(xu.assignedRoom) === String(x2._id) && xr.departureDate === addDays(today, 2) && xr.totalAmount === 1400 + 700, JSON.stringify({ st: r.status, e: r.error, room: xu.assignedRoom, d: xr.departureDate, t: xr.totalAmount }));
+
     // ── FD-11 ───────────────────────────────────────────────────────────────
     r = await call('GET', `/stay/${ih.res._id}/early-departure?propertyId=${P}`, R);
     check('FD-11 preview: nights released, charged nights kept, no automatic fee', r.status === 200 && r.data.nightsReleased === 3 && r.data.postedFutureNights > 0 && r.data.notes.some((n) => n.includes('אין חיוב אוטומטי')), JSON.stringify(r.data || r).slice(0, 200));

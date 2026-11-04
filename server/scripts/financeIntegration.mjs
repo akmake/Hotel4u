@@ -186,6 +186,7 @@ async function main() {
     const leaving = await mkStay(A, { arrival: addDays(today, -1), departure: today, room: A.rooms[2] });
     let dc = await call('GET', `/finance/day-close?propertyId=${P}`, M);
     check('FIN-12 readiness lists the pending arrival and the departure not checked out', dc.status === 200 && dc.data.dateToClose === today && dc.data.readiness.arrivals.some((a) => a.id === String(arrival.r._id)) && dc.data.readiness.departures.some((d) => d.id === String(leaving.r._id)), JSON.stringify(dc.data?.readiness || dc).slice(0, 200));
+    check('FIN-09 readiness lists the receptionist drawer with cash and no close', dc.data.readiness.cash?.open?.some((c) => c.expected > 0), JSON.stringify(dc.data.readiness.cash));
     check('FIN-12 readiness previews the nights to post (does not charge)', dc.data.readiness.nights.count > 0 && (await Folio.findById(s1.folio._id).lean()).lines.every((l) => l.department !== 'rooms'));
     r = await call('POST', '/finance/day-close/run', R, { propertyId: P });
     check('RBAC: receptionist cannot run day close', r.status === 403, r.status);

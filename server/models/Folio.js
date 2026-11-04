@@ -57,9 +57,21 @@ const FolioLineSchema = new Schema({
 
 const FolioSchema = new Schema({
   property:    { type: Schema.Types.ObjectId, ref: 'Property', required: true },
-  reservation: { type: Schema.Types.ObjectId, ref: 'Reservation', required: true },
+  // A house / passer-by account (NR folio: restaurant, spa, a visitor who does not stay) has no reservation.
+  reservation: { type: Schema.Types.ObjectId, ref: 'Reservation', required: function () { return this.ownerType !== 'house'; } },
   ownerType:   { type: String, enum: ['guest','room','company','group','house'], default: 'guest' },
   ownerRef:    String,
+  account: {
+    number:  String,                                       // NR-000123
+    name:    String,
+    phone:   String,
+    email:   String,
+    taxId:   String,
+    company: { type: Schema.Types.ObjectId, ref: 'Company' },
+    outlet:  String,                                       // restaurant, spa, bar, events, other
+    note:    String,
+    openedByName: String,
+  },
   status:      { type: String, enum: FOLIO_STATUS, default: 'open' },
   currency:    { type: String, default: 'ILS' },
   lines:       [FolioLineSchema],
@@ -76,6 +88,8 @@ const FolioSchema = new Schema({
     at:         Date,
   },
 }, { timestamps: true, toJSON: { virtuals: true } });
+
+FolioSchema.index({ property: 1, ownerType: 1, status: 1 });
 
 FolioSchema.virtual('balance').get(function () {
   return this.lines
