@@ -200,6 +200,27 @@ async function main() {
     r = await call('POST', `/frontdesk/reservations/${sL.r._id}/post-nights`, R, { propertyId: P, ahead: true });
     check('LOP Auto Post twice → "already posted", nothing charged twice', r.status === 409 && r.code === 'already_posted', `${r.status} ${r.code}`);
 
+    // ── FX: foreign currency on the folio (gap-map item 3) ──────────────────
+    r = await call('PUT', '/cashier/fx/rates/USD', M, { propertyId: P, buy: 3.6, sell: 3.8, pay: 3.7, charge: 3.75 });
+    check('FX folio rates (pay / charge) are stored next to the cash rates', r.status === 200 && r.data.rates.find((x) => x.currency === 'USD')?.pay === 3.7, `${r.status} ${r.error}`);
+    r = await call('POST', `/finance/folios/${LF}/charges`, R, { propertyId: P, department: 'spa', quantity: 1, currency: 'USD', foreignUnitPrice: 40, idempotencyKey: key() });
+    let fxLine = (await Folio.findById(LF).lean()).lines.find((l) => String(l._id) === r.data?.lineId);
+    check('FX a $40 charge posts 150 ₪ at the charge rate 3.75 and keeps $40 on the line', r.status === 200 && r.data.gross === 150 && fxLine?.fx?.currency === 'USD' && fxLine.fx.amount === 40 && fxLine.fx.rate === 3.75, `${r.status} ${r.error} ${r.data?.gross}`);
+    r = await call('POST', `/finance/folios/${LF}/charges`, R, { propertyId: P, department: 'spa', quantity: 1, currency: 'EUR', foreignUnitPrice: 40, idempotencyKey: key() });
+    check('FX a currency without a rate is refused (no_rate)', r.status === 422 && r.code === 'no_rate', `${r.status} ${r.code}`);
+    const shiftOpen = await call('POST', '/cashier/shifts', F, { propertyId: P, openingFloat: 500 });
+    r = await call('POST', `/finance/folios/${LF}/payments`, F, { propertyId: P, kind: 'payment', amount: 100, method: 'cash', fx: { currency: 'USD', tendered: 30 }, idempotencyKey: key() });
+    fxLine = (await Folio.findById(LF).lean()).lines.find((l) => String(l._id) === r.data?.lineId);
+    check('FX $30 cash for 100 ₪ at the pay rate 3.7 = 111 ₪: folio credited 100, change 11 ₪', r.status === 200 && fxLine?.amount === -100 && fxLine.fx?.amount === 30 && fxLine.payDetails?.change === 11 && r.data.change === 11, `${r.status} ${r.error}`);
+    const sh = await call('GET', `/cashier/shifts?propertyId=${P}`, F);
+    check('FX the cashier shift expects $30 more and 11 ₪ less in the drawer', shiftOpen.status === 200 && sh.data?.current?.foreign?.find((x) => x.currency === 'USD')?.expected === 30 && sh.data.current.expected === 489, `${shiftOpen.status} ${JSON.stringify(sh.data?.current?.foreign)} ${sh.data?.current?.expected}`);
+    r = await call('POST', `/finance/folios/${LF}/payments`, F, { propertyId: P, kind: 'payment', amount: 100, method: 'cash', fx: { currency: 'USD', tendered: 20 }, idempotencyKey: key() });
+    check('FX foreign cash worth less than the amount credited is refused', r.status === 422 && r.fields?.tendered, `${r.status}`);
+    r = await call('POST', `/finance/folios/${LF}/payments`, F, { propertyId: P, kind: 'payment', amount: 100, method: 'bank_transfer', fx: { currency: 'USD', tendered: 30 }, idempotencyKey: key() });
+    check('FX a foreign-currency payment is cash only', r.status === 422 && r.fields?.method, `${r.status}`);
+    r = await call('GET', `/finance/stays/${sL.r._id}?propertyId=${P}`, R);
+    check('FX the stay view carries the folio rates (balance in every currency)', r.data?.fxRates?.some((x) => x.currency === 'USD' && x.pay === 3.7 && x.charge === 3.75), r.error);
+
     r = await call('POST', `/finance/folios/${s1.folio._id}/charges`, R, { propertyId: P, description: 'ספא', department: 'spa', quantity: 1, unitPrice: 100, serviceDate: addDays(today, 3), idempotencyKey: key() });
     check('FIN-02 service date after the business day is refused', r.status === 422 && r.fields?.serviceDate, r.status);
     r = await call('POST', `/finance/folios/${s1.folio._id}/lines/${ch._id}/reverse`, R, { propertyId: P, reason: 'טעות' });
@@ -337,6 +358,7 @@ async function main() {
     await GuestProfile.deleteMany({ property: { $in: props } });
     await ChargeCode.deleteMany({ property: { $in: props } });
     await WorkItem.deleteMany({ property: { $in: props } });
+    { const { default: CashierShift } = await import('../models/CashierShift.js'); const { FxRate } = await import('../models/CurrencyExchange.js'); await CashierShift.deleteMany({ property: { $in: props } }); await FxRate.deleteMany({ property: { $in: props } }); }
     await Room.deleteMany({ property: { $in: props } });
     await RoomType.deleteMany({ property: { $in: props } });
     await User.deleteMany({ property: { $in: props } });

@@ -14,6 +14,7 @@ import { routesExtras, payerFolio } from './voucherService.js';
 import { LODGING_CODES } from './noPostService.js';
 import { noPostGate } from './noPostService.js';
 import { lineOpsConfig } from './folioOpsService.js';
+import { folioRate, folioRates } from './cashierService.js';
 import mongoose from 'mongoose';
 import { cashDay } from './financeReportsService.js';
 import Folio from '../models/Folio.js';
@@ -175,6 +176,7 @@ function lineDto(l, onDocs, reversedIds, refundedByPayment, onReceipts = new Map
     transferFrom: l.transferFrom?.folio ? { folioId: String(l.transferFrom.folio), label: l.transferFrom.label || null } : null,
     transferTo: l.transferTo?.folio ? { folioId: String(l.transferTo.folio), label: l.transferTo.label || null } : null,
     paidOut: l.paidOut?.purpose ? { purpose: l.paidOut.purpose, payee: l.paidOut.payee || null } : null,
+    fx: l.fx?.currency ? { currency: l.fx.currency, amount: l.fx.amount, rate: l.fx.rate } : null,
     combo: comboOf.get(id) || null,
     reversed: reversedIds.has(id),
     onDocument: onDocs.get(id) || null,
@@ -342,6 +344,8 @@ export async function getStayFolios({ propertyId, reservationId }) {
     exceptions,
     policy: { refundApprovalOver: property?.financePolicy?.refundApprovalOver ?? 0, cashLimitPerStay: property?.financePolicy?.cashLimitPerStay ?? null },
     lineOps: lineOpsConfig(property),
+    // Folio rates per currency (pay / charge): balance in every currency, foreign charge and payment.
+    fxRates: await folioRates(propertyId),
     inHouse: IN_HOUSE_STATUSES.includes(res.status),
   };
 }
@@ -367,7 +371,12 @@ export async function postCharge({ propertyId, folioId, input, actor, ip, sessio
   const noPostApproval = folio.ownerType === 'company' ? null : noPostGate({ res, code, input, actor });
   const description = String(input.description || '').trim().slice(0, 200) || code.name;
   const qty = Number(input.quantity ?? 1);
-  const unit = round2(code.unitPrice ?? input.unitPrice);
+  // A price in a foreign currency is converted at the property's folio charge rate; the line keeps both.
+  const foreign = input.currency && String(input.currency).toUpperCase() !== 'ILS' ? await folioRate(propertyId, input.currency, 'charge') : null;
+  if (foreign && code.unitPrice != null) throw httpError('לקוד הזה מחיר קבוע בשקלים — לא ניתן לחייב אותו במטבע זר', 422, { fields: { currency: 'מחיר קבוע' } });
+  const foreignUnit = foreign ? round2(input.foreignUnitPrice) : null;
+  if (foreign && !(foreignUnit > 0)) errors.unitPrice = 'מחיר חיובי במטבע הזר';
+  const unit = foreign ? round2((foreignUnit || 0) * foreign.rate) : round2(code.unitPrice ?? input.unitPrice);
   const serviceDate = YMD.test(input.serviceDate || '') ? input.serviceDate : today;
   if (!(qty > 0) || qty > 1000) errors.quantity = 'כמות חיובית';
   if (!(unit > 0)) errors.unitPrice = 'מחיר חיובי';
@@ -385,8 +394,9 @@ export async function postCharge({ propertyId, folioId, input, actor, ip, sessio
   // VAT: the code's class first (exempt/zero), then the tourist rule for this stay (EXT-04).
   const lineVat = code.vatClass !== 'standard' ? { rate: 0, reason: `code_${code.vatClass}` } : await vatForLine({ reservation: res, code: code.code, propertyVatRate: property?.vatRate ?? 18 });
   const { net, tax } = lineVat.strip ? { net: taxFor(gross, 'standard', lineVat.propertyVatRate).net, tax: 0 } : taxFor(gross, lineVat.rate === 0 ? 'zero' : 'standard', lineVat.rate);
+  const fx = foreign ? { currency: foreign.currency, amount: round2(qty * foreignUnit), rate: foreign.rate } : undefined;
   target.lines.push({
-    type: 'charge', description: qty !== 1 ? `${description} × ${qty}` : description, amount: net, taxAmount: tax,
+    type: 'charge', description: `${qty !== 1 ? `${description} × ${qty}` : description}${fx ? ` (${fx.amount.toFixed(2)} ${fx.currency} × ${fx.rate})` : ''}`.slice(0, 240), amount: net, taxAmount: tax, fx,
     vatRate: lineVat.rate, taxReason: lineVat.reason || undefined,
     department: code.code, serviceDate, source: input.source === 'pos' ? 'pos' : 'manual', status: 'posted', reference,
     quantity: qty, unitPrice: unit, reason: input.reason ? String(input.reason).slice(0, 300) : undefined, createdBy: actor.id || undefined,
@@ -394,7 +404,7 @@ export async function postCharge({ propertyId, folioId, input, actor, ip, sessio
   await target.save({ session });
   const line = target.lines[target.lines.length - 1];
   if (noPostApproval) await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.no_post_override', entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), gross, department: code.code }, reason: noPostApproval.reason, ip, session, afterCommit });
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: input.auditAction || 'folio.charge', entityType: 'Folio', entityId: target._id, after: { lineId: String(line._id), ...(target !== folio ? { routedFrom: String(folio._id), routing: 'voucher' } : {}), gross, net, tax, department: code.code, vatClass: code.vatClass, serviceDate }, reason: input.reason || undefined, ip, session, afterCommit });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: input.auditAction || 'folio.charge', entityType: 'Folio', entityId: target._id, after: { lineId: String(line._id), ...(target !== folio ? { routedFrom: String(folio._id), routing: 'voucher' } : {}), gross, net, tax, department: code.code, vatClass: code.vatClass, serviceDate, ...(fx ? { fx } : {}) }, reason: input.reason || undefined, ip, session, afterCommit });
   return { folioId: String(target._id), lineId: String(line._id), gross, net, tax, duplicate: false, balance: folioBalance(target), routed: target !== folio ? { to: String(target._id), reason: 'voucher' } : null };
 }
 
@@ -462,7 +472,23 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   if (!(amount > 0)) errors.amount = 'סכום חיובי';
   if (!PAY_METHODS.includes(input.method)) errors.method = 'יש לבחור אמצעי';
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי התשלום', 422, { fields: errors });
-  const { methodRef, payDetails } = paymentDetails({ method: input.method, amount, input, today: todayYmdInTimezone(property.timezone || 'Asia/Jerusalem') });
+  // Foreign cash (gap-map item 3): the guest hands over foreign notes; the folio is credited in shekels at
+  // the folio pay rate and the change is returned in shekels.
+  const fxIn = input.fx && input.fx.currency && String(input.fx.currency).toUpperCase() !== 'ILS' ? input.fx : null;
+  let fx;
+  let fxDetails;
+  if (fxIn) {
+    if (input.method !== 'cash') throw httpError('תשלום במטבע זר נרשם כמזומן', 422, { fields: { method: 'מזומן בלבד' } });
+    const r = await folioRate(propertyId, fxIn.currency, 'pay');
+    const tendered = round2(fxIn.tendered);
+    if (!(tendered > 0) || tendered > 100000) throw httpError('סכום המטבע שהתקבל לא תקין', 422, { fields: { tendered: 'סכום חיובי' } });
+    const value = round2(tendered * r.rate);
+    if (amount - value > 0.005) throw httpError(`${tendered.toFixed(2)} ${r.currency} שווים ${value.toFixed(2)} ₪ — פחות מהסכום לזיכוי`, 422, { fields: { tendered: 'פחות מהסכום' } });
+    fx = { currency: r.currency, amount: tendered, rate: r.rate };
+    fxDetails = { tendered: value, change: round2(value - amount) };
+  }
+  const { methodRef, payDetails: pd0 } = paymentDetails({ method: input.method, amount, input: fxIn ? { ...input, details: {} } : input, today: todayYmdInTimezone(property.timezone || 'Asia/Jerusalem') });
+  const payDetails = fxDetails ? { ...(pd0 || {}), ...fxDetails } : pd0;
   const pm = await resolvePaymentMethod({ propertyId, method: input.method, methodRef });
   const balance = folioBalance(folio);
   if (kind === 'payment' && amount - balance > 0.005) {
@@ -498,14 +524,17 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   }
   folio.lines.push({
     type: kind,
-    description: `${kind === 'deposit' ? 'מקדמה' : 'תשלום'} — ${pm.name}${methodSummary(input.method, methodRef, payDetails)}`,
+    description: fx
+      ? `${kind === 'deposit' ? 'מקדמה' : 'תשלום'} — ${pm.name} ${fx.currency} · התקבלו ${fx.amount.toFixed(2)} ${fx.currency} × ${fx.rate} = ${payDetails.tendered.toFixed(2)} ₪${payDetails.change > 0.005 ? `, עודף ${payDetails.change.toFixed(2)} ₪` : ''}`
+      : `${kind === 'deposit' ? 'מקדמה' : 'תשלום'} — ${pm.name}${methodSummary(input.method, methodRef, payDetails)}`,
+    fx,
     amount: -amount, taxAmount: 0, serviceDate: businessDateOf(property), source: 'pms', status: 'posted', reference,
     method: input.method, methodRef: methodRef || undefined, payDetails, reason: input.note ? String(input.note).slice(0, 200) : undefined,
     createdBy: actor.id || undefined,
   });
   await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: `folio.${kind}`, entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), amount, method: input.method, hasReference: !!methodRef }, ip, session, afterCommit });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: `folio.${kind}`, entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), amount, method: input.method, hasReference: !!methodRef, ...(fx ? { fx, change: payDetails.change } : {}) }, ip, session, afterCommit });
   return { folioId: String(folio._id), lineId: String(line._id), duplicate: false, balance: folioBalance(folio), change: payDetails?.change ?? null };
 }
 

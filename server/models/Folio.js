@@ -34,6 +34,9 @@ const FolioLineSchema = new Schema({
   transferTo:  { type: new Schema({ folio: Schema.Types.ObjectId, label: String }, { _id: false }), default: undefined },
   // Paid Out: cash the desk handed out on the guest's behalf (taxi, courier) — a cash-out line.
   paidOut:     { type: new Schema({ payee: String, purpose: String }, { _id: false }), default: undefined },
+  // Foreign currency (gap-map item 3): the folio stays in shekels; the line keeps what was charged or
+  // handed over in the foreign currency and the rate applied (charge: price; payment: cash tendered).
+  fx:          { type: new Schema({ currency: String, amount: Number, rate: Number }, { _id: false }), default: undefined },
   quantity:    Number,
   unitPrice:   Number,                                     // gross per unit as entered
   method:      String,                                     // payment/refund method

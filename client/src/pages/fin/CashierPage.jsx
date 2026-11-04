@@ -112,12 +112,12 @@ function ExchangeDialog({ open, onClose, propertyId, rates, onSaved }) {
 function RateDialog({ open, onClose, propertyId, currencies, initial, onSaved }) {
   const act = useAction();
   const [f, setF] = useState({});
-  useEffect(() => { if (open) { setF({ currency: initial?.currency || 'USD', buy: initial?.buy ?? '', sell: initial?.sell ?? '', active: initial?.active ?? true }); act.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setF({ currency: initial?.currency || 'USD', buy: initial?.buy ?? '', sell: initial?.sell ?? '', pay: initial?.pay ?? '', charge: initial?.charge ?? '', active: initial?.active ?? true }); act.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
   const why = !(Number(f.buy) > 0) || !(Number(f.sell) > 0) ? 'נדרשים שני השערים' : Number(f.buy) > Number(f.sell) ? 'שער קנייה גבוה ממכירה' : null;
   return (
     <Modal open={open} onClose={onClose} busy={act.busy} width={440} title={initial ? `שער ${initial.currency}` : 'שער חדש'} footer={<Footer onClose={onClose} busy={act.busy} label="שמירה" why={why} form="rate-form" />}>
-      <form id="rate-form" className="ui-stack" noValidate onSubmit={(e) => { e.preventDefault(); if (!why) act.run(async () => onSaved(await cashier.setRate(propertyId, f.currency, { buy: Number(f.buy), sell: Number(f.sell), active: f.active }))); }}>
+      <form id="rate-form" className="ui-stack" noValidate onSubmit={(e) => { e.preventDefault(); if (!why) act.run(async () => onSaved(await cashier.setRate(propertyId, f.currency, { buy: Number(f.buy), sell: Number(f.sell), pay: f.pay === '' ? null : Number(f.pay), charge: f.charge === '' ? null : Number(f.charge), active: f.active }))); }}>
         <ErrorBanner error={act.error} />
         {!initial && (
           <Field id="rt-cur" label="מטבע" required><select id="rt-cur" className="select w-full" value={f.currency} onChange={set('currency')}>{Object.entries(currencies || {}).map(([k, n]) => <option key={k} value={k}>{k} — {n}</option>)}</select></Field>
@@ -125,6 +125,8 @@ function RateDialog({ open, onClose, propertyId, currencies, initial, onSaved })
         <div className="ui-grid-2">
           <Field id="rt-buy" label="קנייה (המלון משלם ₪)" required error={act.fields.buy}><input id="rt-buy" type="number" min="0" step="0.0001" className="input w-full" value={f.buy} onChange={set('buy')} /></Field>
           <Field id="rt-sell" label="מכירה (המלון גובה ₪)" required error={act.fields.sell}><input id="rt-sell" type="number" min="0" step="0.0001" className="input w-full" value={f.sell} onChange={set('sell')} /></Field>
+          <Field id="rt-pay" label="תשלום בחשבון אורח" optional hint={`ריק = שער הקנייה${f.buy ? ` (${f.buy})` : ''}`} error={act.fields.pay}><input id="rt-pay" type="number" min="0" step="0.0001" className="input w-full" value={f.pay} onChange={set('pay')} /></Field>
+          <Field id="rt-charge" label="חיוב במטבע זר" optional hint={`ריק = שער המכירה${f.sell ? ` (${f.sell})` : ''}`} error={act.fields.charge}><input id="rt-charge" type="number" min="0" step="0.0001" className="input w-full" value={f.charge} onChange={set('charge')} /></Field>
         </div>
         <label className="ui-check"><input type="checkbox" checked={!!f.active} onChange={(e) => setF((p) => ({ ...p, active: e.target.checked }))} /><span>פעיל להמרה</span></label>
       </form>
@@ -224,6 +226,8 @@ function RatesTab({ propertyId, role, success }) {
             { key: 'c', label: 'מטבע', nowrap: true, render: (r) => <><b>{r.currency}</b> <span className="ui-sub">{r.name}</span></> },
             { key: 'b', label: 'קנייה', nowrap: true, render: (r) => <span className="ui-num">{r.buy} ₪</span> },
             { key: 's', label: 'מכירה', nowrap: true, render: (r) => <span className="ui-num">{r.sell} ₪</span> },
+            { key: 'p', label: 'תשלום בחשבון', nowrap: true, render: (r) => <span className="ui-num">{r.pay ?? r.buy} ₪{r.pay == null && <span className="ui-sub"> (קנייה)</span>}</span> },
+            { key: 'c', label: 'חיוב במט״ח', nowrap: true, render: (r) => <span className="ui-num">{r.charge ?? r.sell} ₪{r.charge == null && <span className="ui-sub"> (מכירה)</span>}</span> },
             { key: 'a', label: 'מצב', nowrap: true, render: (r) => (r.active ? <Tag tone="ok">פעיל</Tag> : <Tag>מושבת</Tag>) },
             { key: 'u', label: 'עודכן', render: (r) => <span className="ui-sub">{formatDateTime(r.updatedAt)}{r.updatedBy ? ` · ${r.updatedBy}` : ''}</span> },
             { key: 'e', label: 'עריכה', srOnly: true, render: (r) => (canSet ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDialog({ rate: r })}>עדכון</button> : null) },

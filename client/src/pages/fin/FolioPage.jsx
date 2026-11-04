@@ -526,6 +526,11 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
                 <span>{folio.balance > EPS ? 'יתרה לתשלום' : folio.balance < -EPS ? 'זכות לאורח' : 'יתרה'}</span>
                 <b className="ui-num">{money(Math.abs(folio.balance))}</b>
               </div>
+              {Math.abs(folio.balance) > EPS && (data.fxRates || []).length > 0 && (
+                <p className="fo-fx ui-num" aria-label="היתרה במטבעות">
+                  {data.fxRates.map((x) => <span key={x.currency}>{(Math.abs(folio.balance) / x.pay).toFixed(2)} {x.currency}</span>)}
+                </p>
+              )}
               {stayTotal ? (
                 <dl className="fo-kv fo-kv-sub">
                   <div><dt>מחיר השהייה</dt><dd className="ui-num">{money(stayTotal)}</dd></div>
@@ -558,8 +563,8 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
         </>
       )}
 
-      <ChargeDialog open={dialog?.kind === 'charge'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} vatRate={data.vatRate} businessDate={data.businessDate} onSaved={() => { setDialog(null); success('החיוב נרשם'); reload(); }} />
-      <PaymentDialog open={dialog?.kind === 'pay'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} onSaved={(o) => { setDialog(null); success(o?.duplicate ? 'התשלום כבר נרשם' : o?.change ? `התשלום נרשם · עודף ${money(o.change)}` : 'התשלום נרשם'); reload(); }} />
+      <ChargeDialog open={dialog?.kind === 'charge'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} vatRate={data.vatRate} businessDate={data.businessDate} fxRates={data.fxRates || []} onSaved={() => { setDialog(null); success('החיוב נרשם'); reload(); }} />
+      <PaymentDialog open={dialog?.kind === 'pay'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} fxRates={data.fxRates || []} onSaved={(o) => { setDialog(null); success(o?.duplicate ? 'התשלום כבר נרשם' : o?.change ? `התשלום נרשם · עודף ${money(o.change)}` : 'התשלום נרשם'); reload(); }} />
       <RefundDialog open={dialog?.kind === 'refund'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} payment={dialog?.line} canApprove={canApproveRefund} threshold={data.policy.refundApprovalOver} onSaved={() => { setDialog(null); success('ההחזר נרשם'); reload(); }} />
       <IssueDocumentDialog open={dialog?.kind === 'issue'} onClose={() => setDialog(null)} propertyId={propertyId} folioId={folio?.id} subtitle={folio ? `${r.guest} · חשבון ${folio.owner}` : ''} onIssued={() => reload()} />
       <AllocationDialog open={dialog?.kind === 'alloc'} onClose={() => setDialog(null)} propertyId={propertyId} doc={dialog?.doc} onSaved={() => { setDialog(null); success('מספר ההקצאה נשמר'); reload(); }} />

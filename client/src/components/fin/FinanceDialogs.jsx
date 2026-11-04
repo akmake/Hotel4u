@@ -26,14 +26,14 @@ function Footer({ action, onClose, label, blockedWhy, danger }) {
 // ── FIN-02 ──────────────────────────────────────────────────────────────────
 // The code comes from the property catalogue (G1): it may lock the price, be VAT-free or need a
 // manager. Description is optional — the code name is used when it is left empty.
-export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, businessDate, onSaved }) {
+export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, businessDate, fxRates = [], onSaved }) {
   const action = useAction();
   const [f, setF] = useState({});
   const [code, setCode] = useState(null);
   const [opKey, setOpKey] = useState('');
   const [np, setNp] = useState({ need: false, reason: '' });
   useEffect(() => {
-    if (open) { setF({ description: '', quantity: '1', unitPrice: '', serviceDate: businessDate || '' }); setCode(null); setOpKey(newOpKey()); setNp({ need: false, reason: '' }); action.reset(); }
+    if (open) { setF({ description: '', quantity: '1', unitPrice: '', serviceDate: businessDate || '', currency: 'ILS' }); setCode(null); setOpKey(newOpKey()); setNp({ need: false, reason: '' }); action.reset(); }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
   const pick = (c) => {
@@ -41,13 +41,16 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
     if (c?.defaultPrice) set('unitPrice')(String(c.defaultPrice));
   };
   const locked = code && code.priceEditable === false;
-  const gross = round2(Number(f.quantity || 0) * Number(f.unitPrice || 0));
+  // A price in a foreign currency is converted at the folio charge rate (server recomputes it).
+  const fxRate = f.currency && f.currency !== 'ILS' && !locked ? fxRates.find((x) => x.currency === f.currency) : null;
+  const gross = round2(Number(f.quantity || 0) * Number(f.unitPrice || 0) * (fxRate ? fxRate.charge : 1));
   const { net, tax, exempt } = vatPreview(gross, code, vatRate);
   const e = action.fields;
   const why = !code ? 'יש לבחור קוד חיוב' : !(gross > 0) ? 'נדרשים כמות ומחיר' : np.need && np.reason.trim().length < 3 ? 'נדרשת סיבת אישור' : null;
   const submit = () => action.run(async () => {
     try {
-      const out = await finance.charge(propertyId, folio.id, { description: f.description?.trim() || undefined, department: code.code, quantity: Number(f.quantity), unitPrice: Number(f.unitPrice), serviceDate: f.serviceDate, idempotencyKey: opKey, ...(np.need ? { noPostApproval: { reason: np.reason.trim() } } : {}) });
+      const price = fxRate ? { currency: fxRate.currency, foreignUnitPrice: Number(f.unitPrice) } : { unitPrice: Number(f.unitPrice) };
+      const out = await finance.charge(propertyId, folio.id, { description: f.description?.trim() || undefined, department: code.code, quantity: Number(f.quantity), ...price, serviceDate: f.serviceDate, idempotencyKey: opKey, ...(np.need ? { noPostApproval: { reason: np.reason.trim() } } : {}) });
       onSaved?.(out);
     } catch (err) {
       if (err.code === 'no_post' && !np.need) setNp({ need: true, reason: '' });
@@ -68,8 +71,16 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
           <Field id="ch-qty" label="כמות" required error={e.quantity}>
             <input id="ch-qty" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" value={f.quantity || ''} onChange={(ev) => set('quantity')(ev.target.value)} />
           </Field>
-          <Field id="ch-price" label={exempt ? 'מחיר ליחידה (ללא מע״מ)' : 'מחיר ליחידה (כולל מע״מ)'} required error={e.unitPrice} hint={locked ? 'מחיר קבוע לפי הקטלוג' : undefined}>
-            <input id="ch-price" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" disabled={locked} value={f.unitPrice || ''} onChange={(ev) => set('unitPrice')(ev.target.value)} />
+          <Field id="ch-price" label={`${fxRate ? `מחיר ליחידה ב־${fxRate.currency}` : 'מחיר ליחידה'} (${exempt ? 'ללא מע״מ' : 'כולל מע״מ'})`} required error={e.unitPrice} hint={locked ? 'מחיר קבוע לפי הקטלוג' : fxRate ? `לפי שער חיוב ${fxRate.charge} ₪` : undefined}>
+            <div className="fx-price">
+              <input id="ch-price" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" disabled={locked} value={f.unitPrice || ''} onChange={(ev) => set('unitPrice')(ev.target.value)} />
+              {fxRates.length > 0 && !locked && (
+                <select className="select" aria-label="מטבע המחיר" value={f.currency} onChange={(ev) => set('currency')(ev.target.value)}>
+                  <option value="ILS">₪</option>
+                  {fxRates.map((x) => <option key={x.currency} value={x.currency}>{x.currency}</option>)}
+                </select>
+              )}
+            </div>
           </Field>
           <Field id="ch-date" label="מועד שירות" required error={e.serviceDate} hint="נפרד מיום הרישום; לא אחרי היום העסקי">
             <input id="ch-date" type="date" className="input w-full" max={businessDate} value={f.serviceDate || ''} onChange={(ev) => set('serviceDate')(ev.target.value)} />
@@ -81,14 +92,14 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
             <input id="ch-np" className="input w-full" maxLength={300} value={np.reason} onChange={(ev) => setNp((p) => ({ ...p, reason: ev.target.value }))} placeholder="סיבת האישור" />
           </Field>
         )}
-        {gross > 0 && <KeyValues rows={[['נטו', money(net)], [exempt ? 'מע״מ (קוד פטור)' : `מע״מ ${vatRate}%`, money(tax)], ['סה״כ לחיוב', money(gross)]]} />}
+        {gross > 0 && <KeyValues rows={[...(fxRate ? [['במטבע', <bdi key="v" dir="ltr">{`${round2(Number(f.quantity || 0) * Number(f.unitPrice || 0)).toFixed(2)} ${fxRate.currency} × ${fxRate.charge}`}</bdi>]] : []), ['נטו', money(net)], [exempt ? 'מע״מ (קוד פטור)' : `מע״מ ${vatRate}%`, money(tax)], ['סה״כ לחיוב', money(gross)]]} />}
       </form>
     </Modal>
   );
 }
 
 // ── FIN-03 ──────────────────────────────────────────────────────────────────
-export function PaymentDialog({ open, onClose, propertyId, folio, onSaved, noDeposit = false }) {
+export function PaymentDialog({ open, onClose, propertyId, folio, onSaved, noDeposit = false, fxRates = [] }) {
   const action = useAction();
   const [f, setF] = useState({});
   const [details, setDetails] = useState({});
@@ -96,7 +107,7 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved, noDep
   const balance = folio?.balance || 0;
   useEffect(() => {
     if (open) {
-      setF({ kind: balance > 0.005 || noDeposit ? 'payment' : 'deposit', amount: balance > 0.005 ? balance.toFixed(2) : '', method: 'cash', methodRef: '', note: '' });
+      setF({ kind: balance > 0.005 || noDeposit ? 'payment' : 'deposit', amount: balance > 0.005 ? balance.toFixed(2) : '', method: 'cash', methodRef: '', note: '', currency: 'ILS', tendered: '' });
       setDetails(emptyDetails('cash'));
       setOpKey(newOpKey()); action.reset();
     }
@@ -109,14 +120,21 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved, noDep
   // A catalogue may ask for a reference on cash too (e.g. a cash-register slip number).
   const cashRef = f.method === 'cash' && !!methods.find((m) => m.code === 'cash')?.requireReference;
   const amt = Number(f.amount || 0);
+  // Foreign cash: the guest hands over foreign notes; the folio is credited in ₪, change in ₪.
+  const fxRate = f.method === 'cash' && f.currency !== 'ILS' ? fxRates.find((x) => x.currency === f.currency) : null;
+  const fxValue = fxRate ? round2(Number(f.tendered || 0) * fxRate.pay) : 0;
+  const fxChange = fxRate ? round2(fxValue - amt) : 0;
+  const fxNeed = fxRate && amt > 0 ? Math.ceil((amt / fxRate.pay) * 100) / 100 : 0;
   const e = action.fields;
   let why = null;
   if (!(amt > 0)) why = 'נדרש סכום';
   else if (f.kind === 'payment' && amt - balance > 0.005) why = balance > 0.005 ? 'גבוה מהיתרה' : 'אין יתרה — בחרו מקדמה';
   else if (!options.some(([v]) => v === f.method)) why = 'יש לבחור אמצעי תשלום פעיל';
-  else why = detailsMissing(f.method, details, amt) || (cashRef && (f.methodRef || '').trim().length < 2 ? 'נדרשת אסמכתה' : null);
+  else if (fxRate && !(Number(f.tendered) > 0)) why = `כמה ${fxRate.currency} התקבלו`;
+  else if (fxRate && fxChange < -0.005) why = `${f.tendered} ${fxRate.currency} = ${money(fxValue)} — פחות מהסכום`;
+  else why = (fxRate ? null : detailsMissing(f.method, details, amt)) || (cashRef && (f.methodRef || '').trim().length < 2 ? 'נדרשת אסמכתה' : null);
   const submit = () => action.run(async () => {
-    const out = await finance.pay(propertyId, folio.id, { kind: f.kind, amount: amt, method: f.method, details: detailsPayload(f.method, details), methodRef: cashRef ? f.methodRef?.trim() : undefined, note: f.note?.trim() || undefined, idempotencyKey: opKey });
+    const out = await finance.pay(propertyId, folio.id, { kind: f.kind, amount: amt, method: f.method, details: fxRate ? {} : detailsPayload(f.method, details), ...(fxRate ? { fx: { currency: fxRate.currency, tendered: Number(f.tendered) } } : {}), methodRef: cashRef ? f.methodRef?.trim() : undefined, note: f.note?.trim() || undefined, idempotencyKey: opKey });
     onSaved?.(out);
   });
   return (
@@ -129,7 +147,7 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved, noDep
           <label className="ui-radio"><input type="radio" name="kind" checked={f.kind === 'deposit'} onChange={() => set('kind')('deposit')} /><span>מקדמה<span className="ui-sub" style={{ display: 'block' }}>תשלום מראש, עד עלות השהייה</span></span></label>
         </fieldset>}
         <div className="ui-grid-2">
-          <Field id="pm-amt" label="סכום" required error={e.amount}>
+          <Field id="pm-amt" label={fxRate ? 'סכום לזיכוי החשבון (₪)' : 'סכום'} required error={e.amount}>
             <input id="pm-amt" type="number" min="0.01" step="0.01" inputMode="decimal" className="input w-full" value={f.amount || ''} onChange={(ev) => set('amount')(ev.target.value)} />
           </Field>
           <Field id="pm-m" label="אמצעי" required error={e.method}>
@@ -138,7 +156,23 @@ export function PaymentDialog({ open, onClose, propertyId, folio, onSaved, noDep
             </select>
           </Field>
         </div>
-        <PaymentMethodFields idPrefix="pmd" method={f.method} amount={amt} value={details} onChange={setDetails} errors={e} />
+        {f.method === 'cash' && fxRates.length > 0 && (
+          <div className="ui-grid-2">
+            <Field id="pm-cur" label="מטבע שהתקבל">
+              <select id="pm-cur" className="select w-full" value={f.currency} onChange={(ev) => set('currency')(ev.target.value)}>
+                <option value="ILS">שקלים</option>
+                {fxRates.map((x) => <option key={x.currency} value={x.currency}>{x.name} ({x.currency})</option>)}
+              </select>
+            </Field>
+            {fxRate && (
+              <Field id="pm-tend" label={`התקבלו ב־${fxRate.currency}`} required error={e.tendered} hint={fxNeed ? `לכיסוי ${money(amt)} צריך ${fxNeed.toFixed(2)} ${fxRate.currency} (שער ${fxRate.pay})` : undefined}>
+                <input id="pm-tend" type="number" min="0.01" step="0.01" inputMode="decimal" dir="ltr" className="input w-full" value={f.tendered} onChange={(ev) => set('tendered')(ev.target.value)} />
+              </Field>
+            )}
+          </div>
+        )}
+        {fxRate && Number(f.tendered) > 0 && <KeyValues rows={[['שווי בשקלים', <bdi key="v" dir="ltr">{`${f.tendered} ${fxRate.currency} × ${fxRate.pay} = ${money(fxValue)}`}</bdi>], ['לזיכוי החשבון', money(amt)], ['עודף לאורח (₪)', <b key="c">{money(Math.max(0, fxChange))}</b>]]} />}
+        {!fxRate && <PaymentMethodFields idPrefix="pmd" method={f.method} amount={amt} value={details} onChange={setDetails} errors={e} />}
         <div className="ui-grid-2">
           {cashRef && (
             <Field id="pm-ref" label="אסמכתה" required error={e.methodRef}>

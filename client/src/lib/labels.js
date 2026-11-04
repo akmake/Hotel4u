@@ -83,7 +83,7 @@ export const CHARGE_DEPARTMENT_LABELS = {
 };
 
 // Department of a posted line, including lodging posted by day close.
-export const LINE_DEPARTMENT_LABELS = { ...CHARGE_DEPARTMENT_LABELS, rooms: 'לינה', room: 'לינה' };
+export const LINE_DEPARTMENT_LABELS = { ...CHARGE_DEPARTMENT_LABELS, rooms: 'לינה', room: 'לינה', fb: 'מזון ומשקאות' };
 
 export const SETTLEMENT_LABELS = {
   paid: 'שולם וסגור',

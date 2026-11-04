@@ -25,6 +25,19 @@ async function nextNo(prefix, propertyId) {
   return `${prefix}-${String(n).padStart(5, '0')}`;
 }
 
+// Folio rates (gap-map item 3): pay = a folio payment in this currency, charge = a price in it.
+export async function folioRate(propertyId, currency, kind) {
+  const cur = String(currency || '').toUpperCase();
+  const r = await FxRate.findOne({ property: propertyId, currency: cur, active: true }).lean();
+  if (!r) throw httpError(`אין שער פעיל ל־${cur} — מעדכנים בקופה › שערים`, 422, { fields: { currency: 'אין שער' }, code: 'no_rate' });
+  return { currency: cur, rate: kind === 'pay' ? (r.pay || r.buy) : (r.charge || r.sell) };
+}
+
+export async function folioRates(propertyId) {
+  const rates = await FxRate.find({ property: propertyId, active: true }).sort({ currency: 1 }).lean();
+  return rates.map((r) => ({ currency: r.currency, name: CURRENCIES[r.currency] || r.currency, pay: r.pay || r.buy, charge: r.charge || r.sell }));
+}
+
 // Cash that went through this user's hands on folios since the shift opened.
 async function folioCash(propertyId, userId, from, to) {
   const folios = await Folio.find({ property: propertyId, lines: { $elemMatch: { createdBy: userId, method: 'cash', status: 'posted', postedAt: { $gte: from, ...(to ? { $lte: to } : {}) } } } })
@@ -36,7 +49,9 @@ async function folioCash(propertyId, userId, from, to) {
       if (!['payment', 'deposit', 'refund'].includes(l.type)) continue;
       const at = new Date(l.postedAt);
       if (at < from || (to && at > to)) continue;
-      rows.push({ folioId: String(f._id), at, type: l.type, description: l.description, amount: round2(l.type === 'refund' ? -Math.abs(l.amount) : Math.abs(l.amount)) });
+      // Foreign cash on a folio: the foreign notes go into the drawer, only the change leaves in shekels.
+      if (l.fx?.currency && l.type !== 'refund') rows.push({ folioId: String(f._id), at, type: l.type, description: l.description, amount: -round2(l.payDetails?.change || 0), foreign: { currency: l.fx.currency, amount: round2(l.fx.amount) } });
+      else rows.push({ folioId: String(f._id), at, type: l.type, description: l.description, amount: round2(l.type === 'refund' ? -Math.abs(l.amount) : Math.abs(l.amount)) });
     }
   }
   return rows.sort((a, b) => a.at - b.at);
@@ -55,6 +70,7 @@ async function shiftFigures(shift, until = null) {
   const expected = round2(Number(shift.openingFloat || 0) + cashIn - cashOut + exchangeIn - exchangeOut);
   const foreign = new Map();
   for (const x of fx) foreign.set(x.currency, round2((foreign.get(x.currency) || 0) + (x.direction === 'buy' ? x.foreignAmount : -x.foreignAmount)));
+  for (const c of cash.filter((r) => r.foreign)) foreign.set(c.foreign.currency, round2((foreign.get(c.foreign.currency) || 0) + c.foreign.amount));
   return {
     expected, movement: { cashIn, cashOut, exchangeIn, exchangeOut, receipts: cash.length },
     foreign: [...foreign.entries()].map(([currency, amount]) => ({ currency, expected: amount })),
@@ -158,7 +174,7 @@ export async function listRates({ propertyId }) {
   const rates = await FxRate.find({ property: propertyId }).sort({ currency: 1 }).lean();
   return {
     currencies: CURRENCIES,
-    rates: rates.map((r) => ({ currency: r.currency, name: CURRENCIES[r.currency] || r.currency, buy: r.buy, sell: r.sell, active: r.active, updatedAt: r.updatedAt, updatedBy: r.updatedByName || null })),
+    rates: rates.map((r) => ({ currency: r.currency, name: CURRENCIES[r.currency] || r.currency, buy: r.buy, sell: r.sell, pay: r.pay ?? null, charge: r.charge ?? null, active: r.active, updatedAt: r.updatedAt, updatedBy: r.updatedByName || null })),
   };
 }
 
@@ -171,10 +187,15 @@ export async function setRate({ propertyId, currency, input, actor, ip }) {
   if (!(buy > 0)) errors.buy = 'שער קנייה חיובי';
   if (!(sell > 0)) errors.sell = 'שער מכירה חיובי';
   if (buy > 0 && sell > 0 && buy > sell) errors.buy = 'שער הקנייה לא יכול להיות גבוה משער המכירה';
+  // Folio rates are optional: empty → the cash rate is used.
+  const opt = (v) => (v === undefined || v === null || v === '' ? null : round4(v));
+  const pay = opt(input?.pay); const charge = opt(input?.charge);
+  if (pay !== null && !(pay > 0)) errors.pay = 'שער חיובי או ריק';
+  if (charge !== null && !(charge > 0)) errors.charge = 'שער חיובי או ריק';
   if (Object.keys(errors).length) throw httpError('יש לתקן את השערים', 422, { fields: errors });
   const before = await FxRate.findOne({ property: propertyId, currency: cur }).lean();
-  await FxRate.updateOne({ property: propertyId, currency: cur }, { $set: { buy, sell, active: input?.active !== false, updatedByName: actor.name } }, { upsert: true });
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'fx.rate_set', entityType: 'FxRate', entityId: cur, before: before ? { buy: before.buy, sell: before.sell } : undefined, after: { buy, sell }, ip });
+  await FxRate.updateOne({ property: propertyId, currency: cur }, { $set: { buy, sell, pay: pay ?? undefined, charge: charge ?? undefined, active: input?.active !== false, updatedByName: actor.name }, ...(pay === null || charge === null ? { $unset: { ...(pay === null ? { pay: 1 } : {}), ...(charge === null ? { charge: 1 } : {}) } } : {}) }, { upsert: true });
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'fx.rate_set', entityType: 'FxRate', entityId: cur, before: before ? { buy: before.buy, sell: before.sell, pay: before.pay ?? null, charge: before.charge ?? null } : undefined, after: { buy, sell, pay, charge }, ip });
   return listRates({ propertyId });
 }
 

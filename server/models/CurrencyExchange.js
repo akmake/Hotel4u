@@ -10,6 +10,10 @@ const FxRateSchema = new Schema({
   currency:  { type: String, required: true },                    // ISO 4217, e.g. USD
   buy:       { type: Number, required: true },                    // hotel pays this many ILS per unit
   sell:      { type: Number, required: true },                    // hotel charges this many ILS per unit
+  // Folio rates (gap-map item 3): a payment on a folio in this currency, and a charge priced in it.
+  // Empty = the cash rates (pay → buy, charge → sell).
+  pay:       Number,
+  charge:    Number,
   active:    { type: Boolean, default: true },
   updatedByName: String,
 }, { timestamps: true });
