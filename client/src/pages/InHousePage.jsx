@@ -95,6 +95,8 @@ export default function InHousePage() {
       key: 'flags', label: 'שים לב', render: (r) => (
         <div className="ui-row" style={{ gap: 4 }}>
           {r.rooms.some((x) => x.dnd) && <Tag>DND</Tag>}
+          {r.messages > 0 && <Tag tone="bad">{r.messages === 1 ? 'הודעה ממתינה' : `${r.messages} הודעות ממתינות`}</Tag>}
+          {r.locator && <Tag>{r.locator.text}</Tag>}
           {r.openRequests > 0 && <Tag tone="warn">{r.openRequests} בקשות</Tag>}
           {r.exceptions.map((e) => <Tag key={e.code + e.label} tone={e.code === 'overdue' || e.code === 'ticket' ? 'bad' : 'warn'}>{e.label}</Tag>)}
         </div>

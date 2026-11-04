@@ -769,6 +769,19 @@ export const promotions = {
 };
 
 // ── Cashier shifts + currency exchange ───────────────────────────────────────
+// Front-desk communication (gap-map item 4): messages, alerts, traces, wake-ups, locators, log book, phone book.
+export const desk = {
+  items:     (propertyId, params = {}) => api.get(`/desk/items?propertyId=${propertyId}${qs(params)}`),
+  create:    (propertyId, body)        => api.post('/desk/items', { ...body, propertyId }),
+  close:     (propertyId, body)        => api.post('/desk/items/close', { ...body, propertyId }),
+  read:      (propertyId, id)          => api.post(`/desk/items/${id}/read`, { propertyId }),
+  stay:      (propertyId, resId)       => api.get(`/desk/stays/${resId}?propertyId=${propertyId}`),
+  operator:  (propertyId, q)           => api.get(`/desk/operator?propertyId=${propertyId}${qs({ q })}`),
+  phoneBook: (propertyId, q)           => api.get(`/desk/phone-book?propertyId=${propertyId}${qs({ q })}`),
+  savePhone: (propertyId, id, body)    => (id ? api.put(`/desk/phone-book/${id}`, { ...body, propertyId }) : api.post('/desk/phone-book', { ...body, propertyId })),
+  removePhone: (propertyId, id)        => api.delete(`/desk/phone-book/${id}?propertyId=${propertyId}`),
+};
+
 export const cashier = {
   shifts:       (propertyId, params = {}) => api.get(`/cashier/shifts?propertyId=${propertyId}${qs(params)}`),
   shift:        (propertyId, id)          => api.get(`/cashier/shifts/${id}?propertyId=${propertyId}`),

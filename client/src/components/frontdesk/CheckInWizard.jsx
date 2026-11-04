@@ -2,6 +2,7 @@
 // → summary & confirm. Nothing here decides readiness; it renders the server's reasons and the
 // server re-checks everything on "השלמת צ׳ק-אין". Moving between steps never commits anything.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { DeskAlerts } from '../desk/DeskParts';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Check, BedDouble, KeyRound, ChevronDown, AlertTriangle, Star, X } from 'lucide-react';
 import { frontdesk, finance, stay as stayApi } from '../../utils/api';
@@ -46,7 +47,7 @@ export function CheckInFrame({ variant, open, onClose, title, subtitle, footer, 
 
 const money = (n, cur = 'ILS') => new Intl.NumberFormat('he-IL', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(Number(n || 0));
 
-export default function CheckInWizard({ open, propertyId, reservationId, initialUnits, isManager, onClose, onDone, onAssign, onQueue, appearance }) {
+function CheckInWizardBody({ open, propertyId, reservationId, initialUnits, isManager, onClose, onDone, onAssign, onQueue, appearance }) {
   const variant = VARIANTS.includes(appearance) ? appearance : null;
   const [ctx, setCtx] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -883,5 +884,15 @@ function ResultView({ result, ctx, onClose }) {
         <button type="button" className="btn btn-primary" onClick={onClose}>חזרה להגעות</button>
       </div>
     </div>
+  );
+}
+
+// Alerts set on the reservation pop up when the wizard opens (gap-map item 4).
+export default function CheckInWizard(props) {
+  return (
+    <>
+      <CheckInWizardBody {...props} />
+      <DeskAlerts open={!!props.open} propertyId={props.propertyId} reservationId={props.reservationId} moment="check_in" />
+    </>
   );
 }

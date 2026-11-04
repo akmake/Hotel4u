@@ -21,6 +21,7 @@ import { MoveRoomDialog, ExtendDialog, EarlyDepartureDialog, ModifyBookingDialog
 import { ReinstateDialog, ReverseCheckInDialog, PostStayChargeDialog, DeleteReservationDialog } from '../../components/stay/ReversalDialogs';
 import TouristDialog, { DECISION_TONE } from '../../components/stay/TouristDialog';
 import VoucherDialog from '../../components/stay/VoucherDialog';
+import { StayDeskCard, DeskAlerts } from '../../components/desk/DeskParts';
 import CheckInWizard from '../../components/frontdesk/CheckInWizard';
 import CheckOutWizard from '../../components/frontdesk/CheckOutWizard';
 import AssignRoomDialog from '../../components/frontdesk/AssignRoomDialog';
@@ -319,6 +320,9 @@ export default function ReservationPage() {
                 )))}
             </ul>
           </section>
+          {!['cancelled', 'no_show', 'deleted'].includes(r.status) && (
+            <StayDeskCard propertyId={propertyId} reservation={{ id: r.id, room: r.units?.[0]?.room?.number || null, guest: r.guest?.name || '' }} canWork={canFront && r.status !== 'checked_out'} businessDate={r.businessDate} onToast={success} />
+          )}
           {r.money && (
             <section className="rsv-card" aria-labelledby="rsv-money">
               <h2 id="rsv-money">כסף</h2>
@@ -402,6 +406,7 @@ export default function ReservationPage() {
           <input id="gtd-time" type="time" className="input" value={gtdTime} onChange={(e) => setGtdTime(e.target.value)} />
         </Field>
       </ConfirmDialog>
+      <DeskAlerts open={!!r.id} propertyId={propertyId} reservationId={r.id} moment="open" />
       <VoucherDialog open={dialog?.kind === 'voucher'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('ה־Voucher נשמר — החיובים הבאים ינותבו לפיו'); reload(); }} />
       <DeleteReservationDialog open={dialog?.kind === 'delete'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('ההזמנה נמחקה והמלאי שוחרר'); reload(); }} />
       <CancelBookingDialog open={dialog?.kind === 'cancel'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); setCancelled(out); success('הביטול נרשם'); reload(); }} />

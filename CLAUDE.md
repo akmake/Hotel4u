@@ -20,7 +20,7 @@ Seed login: `admin@galil.co.il` / `hotel4u123`. Server :4000.
 - Client UI kit: `client/src/components/kit` + `kit.css`. Availability calendar styles: `.ac-*`.
 
 ## QA (one nearest suite per change; most need the live server + same DB)
-`npm run qa:frontdesk | qa:departures | qa:ops | qa:finance | qa:booking | qa:stay | qa:books | qa:groups | qa:invoicer | qa:identity | qa:platform` (in `server/`).
+`npm run qa:frontdesk | qa:departures | qa:ops | qa:finance | qa:booking | qa:stay | qa:books | qa:groups | qa:invoicer | qa:identity | qa:platform | qa:desk` (in `server/`).
 
 ## Where things are (sections in docs/codebase-index.md)
 Front desk / arrivals / check-in → "frontdesk.js". Availability, room blocks, monthly board → "Availability + room blocks" (+ `services/availabilityBoardService.js`, docs/product/monthly-availability-board.md). Setup → "Hotel setup". Prices → "Price engine". Kitchen / housekeeping reports, MFA, live updates → "Basics batch". Public booking `/book` → "Public booking site". Charge codes, day close, reversals → "Charge codes". Invoicer → "Invoicing lives in a separate system". Models / legacy routes / services → their INDEX sections.

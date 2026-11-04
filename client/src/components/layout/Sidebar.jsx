@@ -88,6 +88,7 @@ const PMS_NAV = [
       { path: '/pms/in-house',     icon: BedSingle,       label: 'שוהים' },
       { path: '/pms/departures',   icon: LogOut,          label: 'עזיבות' },
       { path: '/pms/guests',       icon: Users,           label: 'אורחים' },
+      { path: '/pms/desk',         icon: MessageSquare,   label: 'תקשורת קבלה' },
       { path: '/pms/folio',        icon: CreditCard,      label: 'חשבונות אורח' },
       { path: '/pms/house-accounts', icon: ReceiptText,   label: 'חשבונות מזדמנים' },
       { path: '/pms/cashier',      icon: BadgeDollarSign, label: 'קופה ומט״ח' },

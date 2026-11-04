@@ -4,6 +4,7 @@
 // leave it). Leaving the room and settling the money are separate: an account that still owes money is
 // never closed silently. The server re-checks everything.
 import { useCallback, useEffect, useState } from 'react';
+import { DeskAlerts } from '../desk/DeskParts';
 import { LogOut, FileText, Check } from 'lucide-react';
 import { frontdesk } from '../../utils/api';
 import { PAY_METHOD_LABELS, SETTLEMENT_LABELS, DOC_TYPE_LABELS } from '../../lib/labels';
@@ -18,7 +19,7 @@ const isZero = (n) => Math.abs(Number(n || 0)) < 0.005;
 const HERE = ['in_house', 'checked_in'];
 const LINES_SHOWN = 5;
 
-export default function CheckOutWizard({ open, propertyId, reservationId, isManager, canRefund, onClose, onDone, initialEarlyReason = '' }) {
+function CheckOutWizardBody({ open, propertyId, reservationId, isManager, canRefund, onClose, onDone, initialEarlyReason = '' }) {
   const [ctx, setCtx] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -456,5 +457,15 @@ function SettleChoice({ folio, owes, value, onChange, isManager }) {
       )}
       {value?.mode && <button type="button" className="co-link" onClick={() => { onChange(undefined); setOpen(false); }}>ביטול הבחירה</button>}
     </fieldset>
+  );
+}
+
+// Alerts set on the reservation pop up when the wizard opens (gap-map item 4).
+export default function CheckOutWizard(props) {
+  return (
+    <>
+      <CheckOutWizardBody {...props} />
+      <DeskAlerts open={!!props.open} propertyId={props.propertyId} reservationId={props.reservationId} moment="check_out" />
+    </>
   );
 }

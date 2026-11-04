@@ -90,6 +90,7 @@ const MaintenancePage      = lazy(() => import('./pages/ops/MaintenancePage'));
 const GuestsPage           = lazy(() => import('./pages/guests/GuestDirectory'));
 const FolioPage            = lazy(() => import('./pages/fin/FolioPage'));
 const HouseAccountsPage    = lazy(() => import('./pages/fin/HouseAccountsPage'));
+const DeskPage             = lazy(() => import('./pages/DeskPage'));
 const CashierPage          = lazy(() => import('./pages/fin/CashierPage'));
 const PromotionsPage       = lazy(() => import('./pages/rsv/PromotionsPage'));
 const GroupBlocksPage      = lazy(() => import('./pages/rsv/GroupBlocksPage'));
@@ -282,6 +283,7 @@ export default function App() {
               <Route path="guests"            element={<GuestsPage />} />
               <Route path="folio"             element={<FolioPage />} />
               <Route path="house-accounts"    element={<HouseAccountsPage />} />
+              <Route path="desk"              element={<DeskPage />} />
               <Route path="cashier"           element={<CashierPage />} />
               <Route path="currency"          element={<CashierPage initialTab="fx" />} />
               <Route path="promotions"        element={<PromotionsPage />} />

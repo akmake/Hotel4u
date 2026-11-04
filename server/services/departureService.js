@@ -122,6 +122,7 @@ export async function listInHouse({ propertyId, q, departure, view, page = 1, pa
     HousekeepingTask.find({ property: propertyId, room: { $in: [...roomIds] }, date: businessDate, isDND: true }).select('room').lean(),
     MaintenanceTicket.find({ room: { $in: [...roomIds] }, status: { $in: OPEN_TICKET }, priority: { $in: ['critical', 'high'] } }).select('room priority').lean(),
   ]);
+  const deskByRes = await (await import('./deskService.js')).deskFlags(propertyId, resIds);
   const roomById = new Map(rooms.map((x) => [String(x._id), x]));
   const reqByRes = new Map(requests.map((x) => [String(x._id), x.n]));
   const dnd = new Set(dndTasks.map((t) => String(t.room)));
@@ -161,6 +162,8 @@ export async function listInHouse({ propertyId, q, departure, view, page = 1, pa
       adults: r.adults,
       children: r.children,
       openRequests: reqByRes.get(String(r._id)) || 0,
+      messages: deskByRes.get(String(r._id))?.messages || 0,
+      locator: deskByRes.get(String(r._id))?.locator || null,
       money,
       guarantee: { ok: guarantee.ok, label: guarantee.label },
       exceptions,
