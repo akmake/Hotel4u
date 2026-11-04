@@ -143,11 +143,26 @@ const ReservationSchema = new Schema({
     index: Number,
     size:  Number,
   },
+  // Shares (gap-map item 5): another guest in the same room with their own billing window. The
+  // lodging is split per night by `split`: none = all on the main guest, half = equal parts,
+  // full = the sharer pays a full night as well. Removed / separated shares stay as history.
+  shares: [{
+    guest:   { type: Schema.Types.ObjectId, ref: 'GuestProfile', required: true },
+    name:    String,
+    split:   { type: String, enum: ['none', 'half', 'full'], default: 'half' },
+    folio:   { type: Schema.Types.ObjectId, ref: 'Folio' },
+    status:  { type: String, enum: ['active', 'removed', 'separated'], default: 'active' },
+    mergedFrom: String,                                   // confirmation number of a booking joined into this room
+    newReservation: { type: Schema.Types.ObjectId, ref: 'Reservation' },
+    at: Date, byName: String, endedAt: Date, endedByName: String, reason: String,
+  }],
+  // Split Master (gap-map item 5): this booking was split out of a multi-room booking.
+  splitFrom: { reservation: { type: Schema.Types.ObjectId, ref: 'Reservation' }, confirmationNumber: String, at: Date, byName: String },
   // Gap G6: actions that walk a status back (reinstate a cancellation / no-show, reverse a check-in).
   // Kept as history; the money side (refunds, credit notes) is never touched by these actions.
   reversals: [{
     _id: false,
-    kind:   { type: String, enum: ['reinstate_cancelled', 'reinstate_no_show', 'reverse_check_in'] },
+    kind:   { type: String, enum: ['reinstate_cancelled', 'reinstate_no_show', 'reverse_check_in', 'reinstate_check_out'] },
     from:   String,
     to:     String,
     at:     Date,

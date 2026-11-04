@@ -212,6 +212,23 @@ export default function BookingFormPage() {
   const [pricingMode, setPricingMode] = useState('rates');
   const [discCfg, setDiscCfg] = useState(null);
   useEffect(() => { if (propertyId) booking.discountConfig(propertyId).then(setDiscCfg).catch(() => setDiscCfg(null)); }, [propertyId]);
+  // Copy (gap-map item 5): ?copyFrom=<id>&copy=guest,company,notes — fill what was chosen from that booking.
+  const copyFrom = params.get('copyFrom');
+  const [copiedFrom, setCopiedFrom] = useState(null);
+  useEffect(() => {
+    if (!propertyId || !copyFrom) return;
+    const what = new Set(String(params.get('copy') || '').split(',').filter(Boolean));
+    booking.get(propertyId, copyFrom).then((src) => {
+      setCopiedFrom(src.confirmationNumber);
+      setForm((p) => ({
+        ...p,
+        ...(what.has('guest') && src.guest ? { guest: { id: src.guest.id, name: src.guest.name, vip: src.guest.vip } } : {}),
+        ...(what.has('company') && src.company ? { payerType: 'company', companyId: src.company.id } : {}),
+        ...(what.has('notes') ? { specialRequests: src.notes?.requests || '', internalNotes: src.notes?.internal || '' } : {}),
+        source: src.source || p.source,
+      }));
+    }).catch(() => setCopiedFrom(null));
+  }, [propertyId, copyFrom]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (propertyId) booking.boardConfig(propertyId).then((c) => setPricingMode(c.pricingMode || 'rates')).catch(() => setPricingMode('rates')); }, [propertyId]);
   const byBoard = pricingMode === 'board';
   const planLabel = byBoard ? 'פנסיון' : 'תעריף';
@@ -334,7 +351,7 @@ export default function BookingFormPage() {
   const multi = rows.length > 1;
   const typeLabel = (t) => `${t.name}${t.available !== undefined ? ` · ${t.available} פנויים` : ''}`;
   return (
-    <Page wide title="הזמנה חדשה" back="/pms/reservations">
+    <Page wide title="הזמנה חדשה" meta={copiedFrom ? `העתקה מהזמנה ${copiedFrom}` : undefined} back="/pms/reservations">
       <div className="ui-toolbar">
         <div>
           <div className="ui-sub">{nights > 0 ? `${formatShort(arrival)} – ${formatShort(departure)} · ${nights} לילות · ${rows.length} ${rows.length === 1 ? 'חדר' : 'חדרים'} · ${guests.a} מבוגרים${guests.c ? ` · ${guests.c} ילדים` : ''}` : 'בחרו תאריכים'}</div>

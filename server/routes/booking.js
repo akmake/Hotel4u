@@ -12,6 +12,7 @@ import { deleteReservation, DELETE_ROLES, DELETE_REASONS } from '../services/res
 import { setNonGuaranteed } from '../services/gtdService.js';
 import { setNoPost } from '../services/noPostService.js';
 import { setVoucher } from '../services/voucherService.js';
+import { reinstateCheckOutPreview, reinstateCheckOut, splitUnit, addShare, setShareSplit, endShare, shareCandidates } from '../services/stayToolsService.js';
 import {
   BOOKING_ROLES, searchAvailability, createBooking, listReservations, getStayFile,
   markQuoteSent, closeQuote, convertQuote, DISCOUNT_REASONS, PRICE_OVERRIDE_ROLES,
@@ -181,6 +182,36 @@ router.post('/reservations/:id/no-post', handle(async (req) => {
 }));
 
 // Voucher: who pays for what — one choice that opens the payer's window and routes the charges.
+// ── Stay tools (gap-map item 5): Re-Instate check-out, Split Master, Shares ──
+router.get('/reservations/:id/reinstate-checkout', handle(async (req) => {
+  requireRoles(req, READ_ROLES, 'אין הרשאה');
+  return reinstateCheckOutPreview({ propertyId: scope(req), reservationId: req.params.id });
+}));
+router.post('/reservations/:id/reinstate-checkout', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return reinstateCheckOut({ propertyId: scope(req), reservationId: req.params.id, reason: req.body?.reason, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/reservations/:id/split', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return splitUnit({ propertyId: scope(req), reservationId: req.params.id, unitId: req.body?.unitId, actor: actorOf(req), ip: req.ip });
+}));
+router.get('/reservations/:id/share-candidates', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return shareCandidates({ propertyId: scope(req), reservationId: req.params.id, q: req.query.q });
+}));
+router.post('/reservations/:id/shares', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return addShare({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/reservations/:id/shares/:shareId/split', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return setShareSplit({ propertyId: scope(req), reservationId: req.params.id, shareId: req.params.shareId, split: req.body?.split, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/reservations/:id/shares/:shareId/end', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return endShare({ propertyId: scope(req), reservationId: req.params.id, shareId: req.params.shareId, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
 router.post('/reservations/:id/voucher', handle(async (req) => {
   requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
   return setVoucher({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });

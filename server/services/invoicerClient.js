@@ -72,6 +72,18 @@ export function createInvoicerClient({ baseUrl, apiKey, fetchImpl = fetch, timeo
     async issue(workspaceId, documentId, idempotencyKey) {
       return request(ws(workspaceId) + '/documents/' + documentId + '/issue', { method: 'POST', body: {}, idempotencyKey });
     },
+    // A credit of a tax invoice comes back as a credit note; of a receipt, as a refund receipt.
+    // creditAmount (gross, string) for a partial credit; omitted = the whole remaining balance.
+    async credit(workspaceId, documentId, body, idempotencyKey) {
+      return request(ws(workspaceId) + '/documents/' + encodeURIComponent(documentId) + '/credit', { method: 'POST', body, idempotencyKey });
+    },
+    async creditBalance(workspaceId, documentId) {
+      return request(ws(workspaceId) + '/documents/' + encodeURIComponent(documentId) + '/credit-balance');
+    },
+    async listDocuments(workspaceId, { type, status } = {}) {
+      const q = new URLSearchParams({ ...(type ? { type } : {}), ...(status ? { status } : {}) }).toString();
+      return request(ws(workspaceId) + '/documents' + (q ? '?' + q : ''));
+    },
     async forwardEvent(event) {
       const w = await this.requireWorkspace(event.property);
       return request(ws(w._id) + '/events', {

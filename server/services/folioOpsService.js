@@ -89,6 +89,7 @@ const copyBase = (l) => ({
 async function windowLabel(folio, session) {
   if (folio.ownerRef === 'post_stay') return 'חיובים אחרי יציאה';
   if (String(folio.ownerRef || '').startsWith('extra:')) return folio.account?.name || 'חלון נוסף';
+  if (String(folio.ownerRef || '').startsWith('share:')) return `Share · ${folio.account?.name || 'אורח'}`;
   if (folio.ownerType === 'company') return (await Company.findById(folio.ownerRef).session(session || null).select('name').lean())?.name || 'חברה';
   if (folio.ownerType === 'house') return folio.account?.name || folio.account?.number || 'חשבון מזדמן';
   return { guest: 'אורח', room: 'חדר', group: 'קבוצה' }[folio.ownerType] || folio.ownerType;
@@ -162,7 +163,7 @@ async function resolveTarget({ propertyId, source, input, session }) {
   const res = await Reservation.findOne({ _id: input.toReservationId, property: propertyId }).session(session).select('status currency property').lean();
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
   if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('העברה לחדר אחר — רק לאורח שבבית', 409);
-  let f = await Folio.findOne({ reservation: res._id, ownerType: 'guest', ownerRef: { $not: /^(extra:|post_stay)/ }, status: { $ne: 'closed' } }).sort({ createdAt: 1 }).session(session);
+  let f = await Folio.findOne({ reservation: res._id, ownerType: 'guest', ownerRef: { $not: /^(extra:|post_stay|share:)/ }, status: { $ne: 'closed' } }).sort({ createdAt: 1 }).session(session);
   if (!f) [f] = await Folio.create([{ property: propertyId, reservation: res._id, ownerType: 'guest', currency: res.currency || source.currency || 'ILS', lines: [] }], { session });
   return f;
 }

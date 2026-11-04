@@ -38,6 +38,7 @@ export const INVOICE_TYPES = [
   'proforma',             // חשבון עסקה
   'credit_note',          // הודעת זיכוי
   'debit_note',           // הודעת חיוב
+  'refund_receipt',       // קבלת החזר — זיכוי של קבלה (מערכת החשבוניות)
 ];
 
 export const INVOICE_TYPE_LABELS = {
@@ -47,6 +48,7 @@ export const INVOICE_TYPE_LABELS = {
   proforma:              'חשבון עסקה',
   credit_note:           'הודעת זיכוי',
   debit_note:            'הודעת חיוב',
+  refund_receipt:        'קבלת החזר',
 };
 
 // מסמכים שמכסים חיובים (שורת חיוב שעליהם מתוקנת רק במסמך זיכוי) ומסמכים שמכסים תקבולים.

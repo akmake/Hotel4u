@@ -206,6 +206,16 @@ export function initPmsScheduler() {
     }
   });
 
+  // Credits, refund receipts and allocation numbers made in the invoicing system — every 5 minutes.
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const { syncAllInvoicerDocuments } = await import('./documentService.js');
+      await syncAllInvoicerDocuments();
+    } catch (err) {
+      console.error('[pmsScheduler] invoicer sync failed:', err.message);
+    }
+  });
+
   // Automatic day close (properties that turned it on) — checked every 5 minutes.
   cron.schedule('*/5 * * * *', async () => {
     try {

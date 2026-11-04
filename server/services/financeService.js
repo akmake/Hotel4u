@@ -155,6 +155,7 @@ async function linesOnIssuedDocs(folioId) {
 function ownerLabel(f, companies) {
   if (f.ownerRef === 'post_stay') return 'חיובים אחרי יציאה';
   if (String(f.ownerRef || '').startsWith('extra:')) return f.account?.name || 'חלון נוסף';
+  if (String(f.ownerRef || '').startsWith('share:')) return `Share · ${f.account?.name || 'אורח'}`;
   if (f.ownerType === 'company') return companies.get(String(f.ownerRef))?.name || 'חברה';
   return { guest: 'אורח', room: 'חדר', group: 'קבוצה', house: 'בית' }[f.ownerType] || f.ownerType;
 }
@@ -262,7 +263,7 @@ export async function ensureGuestFolio({ propertyId, reservationId }) {
   const res = await Reservation.findOne({ _id: reservationId, property: propertyId }).select('status currency').lean();
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
   if (['cancelled', 'no_show', 'deleted'].includes(res.status)) throw httpError('לא ניתן לרשום תשלום להזמנה שבוטלה', 409);
-  let folio = await Folio.findOne({ reservation: res._id, status: { $ne: 'closed' }, ownerType: 'guest', ownerRef: { $not: /^(extra:|post_stay)/ } }).sort({ createdAt: 1 });
+  let folio = await Folio.findOne({ reservation: res._id, status: { $ne: 'closed' }, ownerType: 'guest', ownerRef: { $not: /^(extra:|post_stay|share:)/ } }).sort({ createdAt: 1 });
   if (!folio) folio = await Folio.create({ property: propertyId, reservation: res._id, ownerType: 'guest', currency: res.currency || 'ILS', lines: [] });
   return { folioId: String(folio._id) };
 }
@@ -280,9 +281,9 @@ export async function getStayFolios({ propertyId, reservationId }) {
   const companyIds = folios.filter((f) => f.ownerType === 'company' && isId(String(f.ownerRef || ''))).map((f) => f.ownerRef);
   const companies = new Map((await Company.find({ _id: { $in: companyIds } }).select('name').lean()).map((c) => [String(c._id), c]));
   const docs = await Invoice.find({ $or: [{ reservation: res._id }, { folio: { $in: folios.map((f) => f._id) } }] })
-    .select('type invoiceNumber status issueDate totalNet totalVat totalGross amountPaid buyer relatedInvoiceId creditedBy allocationNumber allocationStatus allocationReason allocationThreshold allocationRejectReason printCount folio reservation').sort({ createdAt: 1 }).lean();
+    .select('type invoiceNumber status issueDate totalNet totalVat totalGross amountPaid buyer relatedInvoiceId creditedBy issuer external allocationNumber allocationStatus allocationReason allocationThreshold allocationRejectReason printCount folio reservation').sort({ createdAt: 1 }).lean();
   const creditedOf = new Map();
-  for (const d of docs.filter((x) => x.type === 'credit_note' && x.relatedInvoiceId)) {
+  for (const d of docs.filter((x) => ['credit_note', 'refund_receipt'].includes(x.type) && x.relatedInvoiceId)) {
     const k = String(d.relatedInvoiceId);
     creditedOf.set(k, round2((creditedOf.get(k) || 0) + Math.abs(d.totalGross || 0)));
   }
@@ -582,7 +583,10 @@ export async function creditNote({ propertyId, invoiceId, amount, selections, re
   if (!isId(String(invoiceId || ''))) throw httpError('מזהה מסמך לא תקין', 400);
   const inv = await Invoice.findOne({ _id: invoiceId, property: propertyId }).select('_id type issuer').lean();
   if (!inv) throw httpError('המסמך לא נמצא', 404);
-  if (inv.issuer === 'invoicer') throw httpError('זיכוי של מסמך שהופק במערכת החשבוניות נעשה במערכת החשבוניות', 409, { code: 'managed_by_invoicer' });
+  if (inv.issuer === 'invoicer') {
+    const { creditViaInvoicer } = await import('./documentService.js');
+    return creditViaInvoicer({ propertyId, invoiceId, amount, reason, idempotencyKey, actor, ip });
+  }
   if (inv.type === 'credit_note') throw httpError('לא מזכים מסמך זיכוי', 422);
   if (!CHARGE_DOC_TYPES.includes(inv.type)) throw httpError('מסמך זיכוי מופק רק לחשבונית מס — לא לקבלה או לחשבון עסקה', 422);
   const cn = await issueCreditNote({ originalInvoiceId: invoiceId, creditAmount: amount === undefined || amount === null || amount === '' ? undefined : amount, selections, reason, issuedBy: actor.id, idempotencyKey });
@@ -948,9 +952,9 @@ export async function getHouseAccount({ propertyId, folioId }) {
   }
   const lines = [...f.lines].sort((a, b) => String(a.serviceDate).localeCompare(String(b.serviceDate)) || new Date(a.postedAt) - new Date(b.postedAt))
     .map((l) => lineDto(l, coverage.charges, reversedIds, refundedByPayment, coverage.payments));
-  const docs = await Invoice.find({ folio: f._id }).select('type invoiceNumber status issueDate totalNet totalVat totalGross amountPaid buyer relatedInvoiceId allocationNumber allocationStatus allocationReason printCount folio reservation').sort({ createdAt: 1 }).lean();
+  const docs = await Invoice.find({ folio: f._id }).select('type invoiceNumber status issueDate totalNet totalVat totalGross amountPaid buyer relatedInvoiceId issuer external allocationNumber allocationStatus allocationReason printCount folio reservation').sort({ createdAt: 1 }).lean();
   const creditedOf = new Map();
-  for (const d of docs.filter((x) => x.type === 'credit_note' && x.relatedInvoiceId)) creditedOf.set(String(d.relatedInvoiceId), round2((creditedOf.get(String(d.relatedInvoiceId)) || 0) + Math.abs(d.totalGross || 0)));
+  for (const d of docs.filter((x) => ['credit_note', 'refund_receipt'].includes(x.type) && x.relatedInvoiceId)) creditedOf.set(String(d.relatedInvoiceId), round2((creditedOf.get(String(d.relatedInvoiceId)) || 0) + Math.abs(d.totalGross || 0)));
   const company = f.account?.company ? await Company.findById(f.account.company).select('name').lean() : null;
   return {
     account: {

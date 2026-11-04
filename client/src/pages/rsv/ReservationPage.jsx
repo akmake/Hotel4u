@@ -22,6 +22,7 @@ import { ReinstateDialog, ReverseCheckInDialog, PostStayChargeDialog, DeleteRese
 import TouristDialog, { DECISION_TONE } from '../../components/stay/TouristDialog';
 import VoucherDialog from '../../components/stay/VoucherDialog';
 import { StayDeskCard, DeskAlerts } from '../../components/desk/DeskParts';
+import { ReinstateCheckOutDialog, CopyBookingDialog, SplitUnitDialog, AddShareDialog, EndShareDialog, SharesCard } from '../../components/stay/StayToolsDialogs';
 import CheckInWizard from '../../components/frontdesk/CheckInWizard';
 import CheckOutWizard from '../../components/frontdesk/CheckOutWizard';
 import AssignRoomDialog from '../../components/frontdesk/AssignRoomDialog';
@@ -137,6 +138,9 @@ export default function ReservationPage() {
                   why: !r.actions.reinstate.ok ? r.actions.reinstate.why : r.actions.reinstate.managerOnly ? 'מנהל משמרת ומעלה' : 'אין הרשאה',
                   onSelect: () => setDialog({ kind: 'reinstate' }),
                 },
+                r.status === 'checked_out' && { label: 'החזרת אורח שיצא', hint: 'Re-Instate — רק ביום היציאה', disabled: !SHIFT_MANAGER_ROLES.includes(role), why: 'מנהל משמרת ומעלה', onSelect: () => setDialog({ kind: 'reinstate-out' }) },
+                [...PRE_ARRIVAL, ...IN_HOUSE].includes(r.status) && r.units.filter((u) => u.id && !['cancelled', 'no_show', 'checked_out'].includes(u.status)).length > 1 && { label: 'פיצול חדר להזמנה נפרדת', hint: 'Split — מספר אישור משלו, אותו מחיר', disabled: !CANCEL_ROLES.includes(role), why: 'אין הרשאה', onSelect: () => setDialog({ kind: 'split' }) },
+                r.status !== 'deleted' && !isQuote && { label: 'העתקת הזמנה', hint: 'הזמנה חדשה עם אותם פרטים', disabled: !canFront, why: 'קבלה בלבד', onSelect: () => setDialog({ kind: 'copy' }) },
                 { separator: true },
                 PRE_ARRIVAL.includes(r.status) && r.terms.guarantee !== 'company_guarantee' && (r.terms.guarantee === 'non_guaranteed'
                   ? { label: 'סימון כמובטחת', hint: 'לא תשוחרר בשעת השמירה', disabled: !CANCEL_ROLES.includes(role), why: 'אין הרשאה', onSelect: () => act.run(async () => { await booking.setGuarantee(propertyId, r.id, { nonGuaranteed: false }); success('ההזמנה מובטחת'); reload(); }) }
@@ -320,6 +324,9 @@ export default function ReservationPage() {
                 )))}
             </ul>
           </section>
+          {[...PRE_ARRIVAL, ...IN_HOUSE].includes(r.status) && !isQuote && (
+            <SharesCard propertyId={propertyId} reservation={r} canWork={CANCEL_ROLES.includes(role)} onAdd={() => setDialog({ kind: 'share-add' })} onEnd={(s) => setDialog({ kind: 'share-end', share: s })} onChanged={(m) => { success(m); reload(); }} onOpenFolio={(fid) => nav(`/pms/folio?reservation=${r.id}&folio=${fid}`)} />
+          )}
           {!['cancelled', 'no_show', 'deleted'].includes(r.status) && (
             <StayDeskCard propertyId={propertyId} reservation={{ id: r.id, room: r.units?.[0]?.room?.number || null, guest: r.guest?.name || '' }} canWork={canFront && r.status !== 'checked_out'} businessDate={r.businessDate} onToast={success} />
           )}
@@ -407,6 +414,11 @@ export default function ReservationPage() {
         </Field>
       </ConfirmDialog>
       <DeskAlerts open={!!r.id} propertyId={propertyId} reservationId={r.id} moment="open" />
+      <ReinstateCheckOutDialog open={dialog?.kind === 'reinstate-out'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success(`האורח חזר לשהייה${out.foliosReopened ? ` · ${out.foliosReopened} חשבונות נפתחו` : ''}`); reload(); }} />
+      <CopyBookingDialog open={dialog?.kind === 'copy'} onClose={() => setDialog(null)} reservation={r} />
+      <SplitUnitDialog open={dialog?.kind === 'split'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success(`החדר פוצל להזמנה ${out.confirmationNumber}`); nav(`/pms/reservations/${out.newReservationId}`); }} />
+      <AddShareDialog open={dialog?.kind === 'share-add'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success(out.mergedFrom ? `${out.name} צורף לחדר · הזמנה ${out.mergedFrom} בוטלה` : `${out.name} נוסף לחדר עם חשבון משלו`); reload(); }} />
+      <EndShareDialog open={dialog?.kind === 'share-end'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} share={dialog?.share} onDone={(out) => { setDialog(null); success(out.confirmationNumber ? `נפתחה הזמנה נפרדת ${out.confirmationNumber}` : 'האורח הוסר מהחדר'); reload(); }} />
       <VoucherDialog open={dialog?.kind === 'voucher'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('ה־Voucher נשמר — החיובים הבאים ינותבו לפיו'); reload(); }} />
       <DeleteReservationDialog open={dialog?.kind === 'delete'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('ההזמנה נמחקה והמלאי שוחרר'); reload(); }} />
       <CancelBookingDialog open={dialog?.kind === 'cancel'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); setCancelled(out); success('הביטול נרשם'); reload(); }} />

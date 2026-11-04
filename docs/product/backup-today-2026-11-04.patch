@@ -1,0 +1,88 @@
+diff --git a/client/src/components/frontdesk/DailyWorkspace.jsx b/client/src/components/frontdesk/DailyWorkspace.jsx
+index 535bb7c..32a25fb 100644
+--- a/client/src/components/frontdesk/DailyWorkspace.jsx
++++ b/client/src/components/frontdesk/DailyWorkspace.jsx
+@@ -768,7 +768,7 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
+             {tab === 'alerts' && <Status query={alerts} empty="אין התראות פתוחות."><AlertsList alerts={alerts} notes={notes} onAlert={onAlert} q={q} /></Status>}
+           </div>
+         </section>
+-        <RoomsCard arrivals={arrivals} tickets={tickets} onPick={(key) => { setTab('arrivals'); setMode('all'); setOpenKey(key); }} />
++        {headerAppearance !== 'today' && <RoomsCard arrivals={arrivals} tickets={tickets} onPick={(key) => { setTab('arrivals'); setMode('all'); setOpenKey(key); }} />}
+       </div>
+     </div>
+   );
+diff --git a/client/src/pages/TodayPage.css b/client/src/pages/TodayPage.css
+index 5f6a272..1d64cba 100644
+--- a/client/src/pages/TodayPage.css
++++ b/client/src/pages/TodayPage.css
+@@ -427,3 +427,70 @@
+ .reception-meter-legend > span > i { width: 8px; height: 8px; border-radius: 2px; }
+ .reception-meter-legend b { font-weight: 600; color: rgb(var(--fg)); font-variant-numeric: tabular-nums; }
+ .reception-meter-legend > span.is-zero b { font-weight: 500; color: rgb(var(--fg-secondary)); }
++
++/* 2026-11-04 — working-tool density (client expects Opera/Mews class software):
++   one slim summary strip, the list gets the full width, rows are table rows in one panel. */
++.today-page .dk-body { grid-template-columns: minmax(0, 1fr); gap: 0; }
++.today-page .dk-tiles { gap: 12px; margin-bottom: 12px; }
++.today-page .reception-meter, .today-page .reception-summary-sub { display: none; }
++.today-page .reception-summary.is-glass .reception-summary-face { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px 2px; }
++.today-page .reception-summary.is-glass .reception-summary-heading { order: 0; justify-content: flex-start; gap: 8px; flex-direction: row-reverse; font-size: 13.5px; }
++.today-page .reception-summary.is-glass .reception-summary-face > strong { order: 1; margin: 0; font-size: 26px; line-height: 1.2; }
++.today-page .reception-summary.is-glass .reception-summary-details { padding: 0 16px 10px; }
++.today-page .dk-head.is-today { padding: 10px 20px; margin-bottom: 12px; }
++.today-page .dk-head.is-today h1 { font-size: 20px; }
++.today-page .dk-head-search { height: 38px; }
++.today-page .dk .dk-split.is-primary { height: 36px; }
++.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar.is-slim { min-height: 48px; border-radius: 12px 12px 0 0; border-bottom: 1px solid rgb(var(--fg) / .08); box-shadow: none; }
++.today-page .dk-modes { height: 48px; }
++/* the list: one white panel, hairline rows */
++.today-page .dk-activity > .dk-scroll:has(> .dk-table) { margin: 0; padding: 0; background: #fff; border: 1px solid rgb(var(--fg) / .07); border-top: 0; border-radius: 0 0 12px 12px; box-shadow: var(--card-shadow); }
++.today-page .dk-table { border-spacing: 0; }
++.today-page .dk-table thead th { padding: 8px 12px; background: rgb(var(--bg-content)); border-bottom: 1px solid rgb(var(--fg) / .08); font-size: 12px; font-weight: 600; color: rgb(var(--fg-secondary)); }
++.today-page .dk-table tbody tr:not(.dk-detail, .dk-group) > td { padding: 8px 12px; border: 0; border-bottom: 1px solid rgb(var(--fg) / .07); border-radius: 0; box-shadow: none; clip-path: none; }
++.today-page .dk-table tbody tr:not(.dk-detail, .dk-group):hover > td { background: rgb(var(--bg-content)); }
++.today-page .dk-table tbody tr.is-open > td, .today-page .dk-table tbody tr.is-open:hover > td { border-color: transparent; border-bottom-color: transparent; background: rgb(var(--accent-50) / .5); }
++.today-page .dk-table tbody tr.dk-detail > td { top: 0; border: 0; border-bottom: 1px solid rgb(var(--fg) / .07); border-radius: 0; background: rgb(var(--accent-50) / .5); }
++.today-page .dk-table .dk-av { width: 28px; height: 28px; font-size: 11px; }
++.today-page .dk-table .dk-guest { gap: 10px; }
++.today-page .dk-table .dk-guest b { font-size: 14px; }
++.today-page .dk-table .dk-state-tag { margin-bottom: 1px; font-size: 12.5px; }
++.today-page .dk-table .dk-why { margin-top: 1px; }
++.today-page .dk .dk-table .dk-split { width: 112px; height: 32px; }
++.today-page .dk .dk-table .dk-split button { font-size: 13px; }
++.today-page .dk .dk-table .dk-split .dk-split-arrow { width: 32px; }
++.today-page .dk .dk-table .dk-btn { height: 30px; padding-inline: 12px; font-size: 13px; }
++
++/* 2026-11-04 — flat professional skin (desk-software look, not consumer-app look):
++   square 4px corners, 1px borders instead of shadows, grid-lined table, plain rectangular buttons. */
++.today-page { --pro-line: #d3d9e0; --pro-line-soft: #e4e8ed; --pro-head: #edf0f4; --pro-r: 4px; --card-shadow: none; }
++.today-page .dk-head.is-today, .today-page .reception-summary.is-glass, .today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar.is-slim { border: 1px solid var(--pro-line); border-radius: var(--pro-r); box-shadow: none; }
++.today-page .reception-summary.is-glass:hover { box-shadow: none; background: #f6f8fa; }
++.today-page .reception-summary.is-glass.is-on { box-shadow: none; border-color: #006a61; background: #f1f8f7; box-shadow: inset 0 -3px 0 #006a61; }
++.today-page .dk:has(.dk-head.is-today) .dk-activity > .dk-bar.is-slim { border-radius: var(--pro-r) var(--pro-r) 0 0; border-bottom: 0; }
++.today-page .dk-activity > .dk-scroll:has(> .dk-table) { border: 1px solid var(--pro-line); border-radius: 0 0 var(--pro-r) var(--pro-r); box-shadow: none; }
++/* buttons: rectangular, 4px, no pill */
++.today-page .dk .dk-btn { height: 34px; padding: 0 14px; border-radius: var(--pro-r); border: 1px solid #aab3bd; color: #1c2733; font-size: 13.5px; font-weight: 500; letter-spacing: 0; }
++.today-page .dk .dk-btn:hover { background: #eef1f4; }
++.today-page .dk .dk-btn.is-primary { border-color: #006a61; background: #006a61; color: #fff; box-shadow: none; }
++.today-page .dk .dk-btn.is-primary:hover { background: #00574f; box-shadow: none; }
++.today-page .dk-split, .today-page .dk .dk-table .dk-split, .today-page .dk .dk-split.is-primary { height: 34px; gap: 1px; border-radius: var(--pro-r); overflow: hidden; }
++.today-page .dk-split-main, .today-page .dk-split .dk-split-arrow, .today-page .dk-split:has(.dk-split-arrow) .dk-split-main,
++.today-page .dk-split.is-primary .dk-split-main, .today-page .dk-split.is-primary .dk-split-arrow { border-radius: 0; }
++.today-page .dk-split button, .today-page .dk-split button:hover, .today-page .dk-split button[aria-expanded="true"] { box-shadow: none; }
++.today-page .dk-split.is-plain button { border-color: #aab3bd; color: #1c2733; }
++.today-page .dk-seg, .today-page .dk-seg button { border-radius: 0; }
++/* search */
++.today-page .dk-search, .today-page .dk-head-search { height: 34px; border: 1px solid var(--pro-line); border-radius: var(--pro-r); background: #fff; }
++/* table: header band + grid lines */
++.today-page .dk-table thead th { background: var(--pro-head); border-top: 0; border-bottom: 1px solid var(--pro-line); border-inline-start: 1px solid var(--pro-line-soft); text-transform: none; }
++.today-page .dk-table thead th:first-child { border-inline-start: 0; }
++.today-page .dk-table tbody tr:not(.dk-detail, .dk-group) > td { padding: 6px 12px; border-bottom: 1px solid var(--pro-line-soft); border-inline-start: 1px solid var(--pro-line-soft); }
++.today-page .dk-table tbody tr:not(.dk-detail, .dk-group) > td:first-child { border-inline-start: 0; }
++.today-page .dk-table tbody tr:nth-child(odd):not(.dk-detail, .dk-group) > td { background: #fff; }
++.today-page .dk-table tbody tr:nth-child(even):not(.dk-detail, .dk-group) > td { background: #f8fafb; }
++.today-page .dk-table tbody tr:not(.dk-detail, .dk-group):hover > td { background: #eef5f4; }
++/* avatars square, chips square */
++.today-page .dk-table .dk-av { border-radius: var(--pro-r); background: #e3e8ee; color: #3d4b5a; }
++.today-page .dk-bday, .today-page .dk-mode-n.warn { border-radius: 3px; }
++.today-page .dk-modes button.is-on::after { height: 2px; border-radius: 0; }

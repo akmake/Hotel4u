@@ -322,7 +322,7 @@ async function seed() {
 
     if (res.paymentStatus === 'paid') {
       const totalCharged = lines.filter(l => l.type === 'charge').reduce((s, l) => s + l.amount, 0);
-      lines.push({ type:'payment', description:'תשלום כרטיס אשראי', amount: -totalCharged, taxAmount:0, serviceDate: res.arrivalDate, status:'posted', source:'pms' });
+      lines.push({ type:'payment', description:'תשלום כרטיס אשראי', method:'credit_card', methodRef:'SEED01', payDetails:{ last4:'4242', installments:1 }, amount: -totalCharged, taxAmount:0, serviceDate: res.arrivalDate, status:'posted', source:'pms' });
     } else if (res.paymentStatus === 'partial') {
       lines.push({ type:'deposit', description:'פיקדון', amount: -Math.round(res.totalAmount * 0.5), taxAmount:0, serviceDate: res.arrivalDate, status:'posted', source:'pms' });
     }

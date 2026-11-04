@@ -54,6 +54,8 @@ export function folioBalance(folio) {
 }
 
 function folioOwnerLabel(f, companiesById, unitLabels) {
+  if (String(f.ownerRef || '').startsWith('share:')) return `Share · ${f.account?.name || 'אורח'}`;
+  if (String(f.ownerRef || '').startsWith('extra:')) return f.account?.name || 'חלון נוסף';
   if (f.ownerType === 'company') return companiesById.get(String(f.ownerRef))?.name || 'חברה';
   if (f.ownerType === 'room' && unitLabels?.has(String(f.ownerRef))) return unitLabels.get(String(f.ownerRef));
   return { guest: 'אורח', room: 'חדר', group: 'קבוצה', house: 'בית' }[f.ownerType] || f.ownerType;
@@ -164,6 +166,7 @@ export async function listInHouse({ propertyId, q, departure, view, page = 1, pa
       openRequests: reqByRes.get(String(r._id)) || 0,
       messages: deskByRes.get(String(r._id))?.messages || 0,
       locator: deskByRes.get(String(r._id))?.locator || null,
+      shares: (r.shares || []).filter((s) => s.status === 'active').map((s) => s.name),
       money,
       guarantee: { ok: guarantee.ok, label: guarantee.label },
       exceptions,

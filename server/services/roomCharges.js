@@ -39,9 +39,19 @@ export function splitGross(gross, vatRatePct) {
 }
 
 // The guest folio the lodging goes to (routing to a company happens through FIN-05 rules).
+// The billing window of a Share guest (created with the share; re-created if missing).
+export async function shareFolio(reservation, shareId, { session = null } = {}) {
+  let folio = await Folio.findOne({ reservation: reservation._id, ownerRef: `share:${shareId}` }).session(session);
+  if (!folio) {
+    const s = (reservation.shares || []).find((x) => String(x._id) === String(shareId));
+    [folio] = await Folio.create([{ property: reservation.property, reservation: reservation._id, ownerType: 'guest', ownerRef: `share:${shareId}`, account: { name: s?.name || 'Share' }, currency: reservation.currency || 'ILS', lines: [] }], { session });
+  }
+  return folio;
+}
+
 export async function lodgingFolio(reservation, { create = true, session = null } = {}) {
   // Lodging never lands on an extra window the desk opened (ownerRef extra:N) or the post-stay window.
-  const mainWindow = { ownerRef: { $not: /^(extra:|post_stay)/ } };
+  const mainWindow = { ownerRef: { $not: /^(extra:|post_stay|share:)/ } };
   let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'guest', status: { $ne: 'closed' }, ...mainWindow }).sort({ createdAt: 1 }).session(session);
   if (!folio) folio = await Folio.findOne({ reservation: reservation._id, ownerType: { $nin: ['room', 'company'] }, status: { $ne: 'closed' }, ...mainWindow }).sort({ createdAt: 1 }).session(session);
   if (!folio && create) {
@@ -95,6 +105,24 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
       { ...it, reference: `${it.reference}:rest`, net: round2(it.net - pNet), tax: round2(it.tax - pTax), gross: round2(it.net - pNet + it.tax - pTax), description: `${it.description} · יתרה לאורח` },
     ];
   };
+  // Shares (gap-map item 5): a guest sharing the room pays part of each lodging night on their own
+  // window — half (equal parts with the others on "half") or a full night on top ("full").
+  const activeShares = (reservation.shares || []).filter((s) => s.status === 'active' && s.split !== 'none');
+  const shareSplit = (list) => list.flatMap((it) => {
+    if (!activeShares.length || it.code !== 'rooms' || it.toPayer || it.toUnit) return [it];
+    const parts = activeShares.filter((s) => s.split === 'half').length + 1;
+    let main = { ...it };
+    const out = [];
+    for (const s of activeShares) {
+      const ratio = s.split === 'half' ? 1 / parts : 1;
+      // Split on the gross so the parts add up to the night exactly; VAT follows pro rata.
+      const g = round2(it.gross * ratio); const tax = round2(it.tax * ratio);
+      out.push({ ...it, toShare: true, shareId: String(s._id), net: round2(g - tax), tax, gross: g, reference: `${it.reference}:share:${s._id}`, description: `${it.description} · ${s.name}` });
+      if (s.split === 'half') main = { ...main, gross: round2(main.gross - g), tax: round2(main.tax - tax) };
+    }
+    main.net = round2(main.gross - main.tax);
+    return [main, ...out];
+  });
   const live = all.flatMap((f) => f.lines.filter((l) => l.status !== 'voided'));
   const posted = new Set(live.filter((l) => l.reference).map((l) => l.reference));
   // Lodging posted before this model (no night reference) still covers its night: count those
@@ -124,11 +152,11 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
       const reference = `night:${unitKey}:${date}`;
       const legacyCovered = !posted.has(reference) && (legacyByDate.get(date) || 0) > 0;
       if (legacyCovered) legacyByDate.set(date, legacyByDate.get(date) - 1);
-      if (!posted.has(reference) && !legacyCovered) items.push(...routed({
+      if (!posted.has(reference) && !legacyCovered) items.push(...shareSplit(routed({
         ...route,
         reference, date, net, tax, gross: round2(net + tax), vatRate, taxReason: vat.reason || undefined, code: 'rooms',
         description: `לינה ${date}${u?.assignedRoom?.number ? ` · חדר ${u.assignedRoom.number}` : ''}`,
-      }));
+      })));
       // G2: the board of that night, posted on its own line (F&B revenue, own VAT decision).
       const boardGross = boardByDate.get(date);
       const boardRef = `board:${unitKey}:${date}`;
@@ -138,17 +166,18 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
       }
     }
   }
-  return { items, count: items.filter((i) => i.code === 'rooms').length, gross: round2(items.reduce((s, i) => s + i.gross, 0)) };
+  return { items, count: items.filter((i) => i.code === 'rooms' && !i.toShare).length, gross: round2(items.reduce((s, i) => s + i.gross, 0)) };
 }
 
 // Which account an unposted night lands on: the room's own account when its guest pays the room,
 // else the reservation's lodging account.
 export function pendingGrossFor(folio, items, lodgingId) {
   if (!folio) return 0;
+  if (String(folio.ownerRef || '').startsWith('share:')) return round2(items.filter((i) => i.toShare && `share:${i.shareId}` === String(folio.ownerRef)).reduce((s, i) => s + i.gross, 0));
   const mine = folio.ownerType === 'room'
     ? items.filter((i) => i.toUnit && String(i.unitId) === String(folio.ownerRef))
     : folio.ownerType === 'company' && items.some((i) => i.toPayer && String(i.payerId) === String(folio.ownerRef)) ? items.filter((i) => i.toPayer && String(i.payerId) === String(folio.ownerRef))
-      : String(folio._id) === String(lodgingId) ? items.filter((i) => !i.toUnit && !i.toPayer) : [];
+      : String(folio._id) === String(lodgingId) ? items.filter((i) => !i.toUnit && !i.toPayer && !i.toShare) : [];
   return round2(mine.reduce((s, i) => s + i.gross, 0));
 }
 
@@ -156,13 +185,14 @@ export async function postPlannedNights({ reservation, items, source = 'night_au
   if (!items.length) return 0;
   const groups = new Map();
   for (const it of items) {
-    const key = it.toUnit ? `unit:${it.unitId}` : it.toPayer ? `payer:${it.payerId}` : 'lodging';
+    const key = it.toShare ? `share:${it.shareId}` : it.toUnit ? `unit:${it.unitId}` : it.toPayer ? `payer:${it.payerId}` : 'lodging';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(it);
   }
   let added = 0;
   for (const [key, list] of groups) {
     const folio = key === 'lodging' ? await lodgingFolio(reservation, { session })
+      : key.startsWith('share:') ? await shareFolio(reservation, key.slice(6), { session })
       : key.startsWith('payer:') ? await (await import('./voucherService.js')).payerFolio(reservation, key.slice(6), { session })
         : await unitFolio(reservation, key.slice(5), { session });
     const existing = new Set(folio.lines.map((l) => l.reference).filter(Boolean));
