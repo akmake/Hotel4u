@@ -131,11 +131,13 @@ function eligibleLines(folio, coverage, propertyVat) {
       const net = round2(l.amount);
       const vat = round2(l.taxAmount || 0);
       const rate = Number.isFinite(l.vatRate) ? l.vatRate : (Math.abs(vat) > 0.005 ? propertyVat : 0);
-      return { id: String(l._id), description: l.description, serviceDate: l.serviceDate, department: l.department || '', quantity: l.quantity || 1, net, vat, gross: round2(net + vat), vatRate: rate };
+      return { id: String(l._id), description: l.description, serviceDate: l.serviceDate, department: l.department || '', quantity: l.quantity || 1, net, vat, gross: round2(net + vat), vatRate: rate, discountOf: l.discountOf ? String(l.discountOf) : null };
     });
   // A refund of a payment that has no receipt yet is netted into that payment's receipt; a refund of a
   // payment already receipted gets its own (negative) receipt line — money returned is documented too.
-  const refunds = posted.filter((x) => x.type === 'refund' && !coverage.payments.has(String(x._id)));
+  // A Paid Out (cash handed out for the guest) is not a refund of a payment — it is owed back and has
+  // its own signed slip, so it never enters a receipt.
+  const refunds = posted.filter((x) => x.type === 'refund' && !x.paidOut?.purpose && !coverage.payments.has(String(x._id)));
   const refundedOf = new Map();
   for (const l of refunds.filter((x) => x.refundOf && !coverage.payments.has(String(x.refundOf)))) {
     const k = String(l.refundOf);
@@ -412,7 +414,12 @@ const fixed2 = (n) => round2(n).toFixed(2);
 // Charges at the price the guest paid (VAT included), so the document total equals the folio to the
 // agora. A discount or adjustment (negative) cannot be a line of its own — it is folded into the
 // largest charges with the same VAT rate and named in their description.
-function invoicerLines(charges) {
+// Folio line id → its invoice combination (folio.combos): those lines go out as one invoice line.
+function comboMap(folio) {
+  return new Map((folio.combos || []).flatMap((c) => (c.lineIds || []).map((id) => [String(id), { id: String(c._id), label: c.label }])));
+}
+
+function invoicerLines(charges, combos = new Map()) {
   const byRate = new Map();
   for (const c of charges) byRate.set(c.vatRate, [...(byRate.get(c.vatRate) || []), c]);
   const out = [];
@@ -421,7 +428,8 @@ function invoicerLines(charges) {
     const neg = rows.filter((r) => r.gross < -0.005);
     for (const n of neg) {
       let left = round2(-n.gross);
-      for (const p of [...pos].sort((a, b) => b.gross - a.gross)) {
+      // A line discount folds into its own charge first, then into the largest ones.
+      for (const p of [...pos].sort((a, b) => (b.id === n.discountOf) - (a.id === n.discountOf) || b.gross - a.gross)) {
         if (left <= 0.005) break;
         const take = round2(Math.min(left, p.gross));
         if (take <= 0.005) continue;
@@ -432,7 +440,18 @@ function invoicerLines(charges) {
       }
       if (left > 0.005) throw httpError(`ההנחות והזיכויים בשיעור מע״מ ${rate}% גדולים מהחיובים באותו שיעור — לא ניתן לבנות מהם חשבונית`, 422, { code: 'negative_exceeds_charges' });
     }
-    out.push(...pos);
+    // Combined lines (same rate by construction) become one line under the combination's name.
+    const merged = new Map();
+    for (const p of pos) {
+      const c = combos.get(p.id);
+      if (!c) { out.push(p); continue; }
+      const m = merged.get(c.id);
+      if (!m) { const first = { ...p, description: c.label, folded: [...p.folded] }; merged.set(c.id, first); out.push(first); continue; }
+      m.gross = round2(m.gross + p.gross);
+      m.ids.push(...p.ids.filter((id) => !m.ids.includes(id)));
+      m.folded.push(...p.folded);
+      if (String(p.serviceDate || '') > String(m.serviceDate || '')) m.serviceDate = p.serviceDate;
+    }
   }
   return out
     .sort((a, b) => String(a.serviceDate || '').localeCompare(String(b.serviceDate || '')))
@@ -479,7 +498,7 @@ async function issueViaInvoicer({ propertyId, folioId, input, actor, ip, type, r
     const buyer = cleanBuyer(input.buyer);
     const withCharges = type !== 'receipt';
     const withPayments = ['receipt', 'tax_invoice_receipt'].includes(type);
-    const lines = withCharges ? invoicerLines(charges) : [];
+    const lines = withCharges ? invoicerLines(charges, comboMap(folio)) : [];
     const pays = withPayments ? invoicerPayments(payments) : [];
     const res = await Reservation.findById(folio.reservation).select('confirmationNumber').lean();
     const ref = res?.confirmationNumber ? `הזמנה ${res.confirmationNumber}` : '';

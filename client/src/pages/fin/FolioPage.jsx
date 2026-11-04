@@ -2,7 +2,7 @@
 // grouped by how urgent the collection is. With ?reservation=<id>: every folio window of the stay —
 // what is owed now and by departure, whether it is covered, whether the money is documented, the
 // next step, and the ledger (nothing is ever deleted — corrections are reversal/refund lines).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FileText, AlertTriangle, CheckCircle2, CreditCard, Undo2, Percent, Tag as TagIcon, BedDouble, ShoppingBag, Moon, Phone, Mail } from 'lucide-react';
 import { useProperty } from '../../context/PropertyContext';
@@ -16,16 +16,18 @@ import { formatShort } from '../../utils/date';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/ui/Toast';
 import {
-  Page, PageBar, BackArrow, Card, Segmented, SearchBox, DataTable, Tag, Empty, Banner, ConfirmDialog, Pager,
+  Page, PageBar, BackArrow, Card, Segmented, SearchBox, DataTable, Tag, Empty, Banner, ConfirmDialog, Pager, RowMenu,
   ErrorBanner, Spinner, useUrlState, useLoader, useAction, money, formatDateTime,
 } from '../../components/kit';
 import { ChargeDialog, PaymentDialog, RefundDialog, CreditNoteDialog } from '../../components/fin/FinanceDialogs';
 import { IssueDocumentDialog, AllocationDialog, DocumentList } from '../../components/fin/DocumentDialogs';
+import { LineDiscountDialog, TransferDialog, SplitDialog, CombineDialog, PaidOutDialog, NewWindowDialog } from '../../components/fin/LineOpsDialogs';
 
 const MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const REVERSE_ROLES = [...MANAGER_ROLES, 'finance_manager'];
 const CREDIT_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'finance_manager'];
 const WORK_ROLES = [...MANAGER_ROLES, 'receptionist', 'finance_manager', 'cashier'];
+const DISCOUNT_APPROVERS = [...MANAGER_ROLES, 'revenue_manager', 'sales_manager'];
 const DEFAULTS = { view: 'open', q: '', page: '1' };
 const RES_STATUS = { in_house: 'בבית', checked_in: 'בבית', checked_out: 'יצא', confirmed: 'מאושרת', cancelled: 'בוטלה', no_show: 'לא הגיע', partially_checked_in: 'נכנס חלקית', partially_checked_out: 'יצא חלקית', modified: 'עודכנה', pending_payment: 'ממתינה לתשלום' };
 const IN_HOUSE = ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'];
@@ -162,6 +164,113 @@ function FolioIndex({ propertyId, url, onOpen }) {
   );
 }
 
+const isChargeLine = (l) => ['charge', 'fee', 'tax'].includes(l.type);
+const isPayLine = (l) => ['payment', 'deposit'].includes(l.type);
+
+// Lines of one window, with what is left on each charge after its discounts and which lines can be
+// worked (discount / split / transfer / combine): a posted charge, not reversed, not on a document.
+function prepWindow(folio) {
+  const lines = folio?.lines || [];
+  const discountBy = new Map();
+  for (const l of lines) if (l.type === 'discount' && l.discountOf && l.status === 'posted' && !l.reversed) discountBy.set(l.discountOf, (discountBy.get(l.discountOf) || 0) + l.gross);
+  // How a reversed line went: moved to another window, split, or a plain reversal.
+  const how = new Map(lines.filter((l) => l.reversalOf).map((l) => [l.reversalOf, l.transferTo ? `הועבר ל${l.transferTo.label || 'חלון אחר'}` : /^פוצל/.test(l.description || '') ? 'פוצל' : 'בוטל בהיפוך']));
+  const rows = lines.map((l) => ({ ...l, reversedHow: how.get(l.id) || null, left: discountBy.has(l.id) ? Math.round((l.gross + discountBy.get(l.id)) * 100) / 100 : l.gross }));
+  const workable = rows.filter((l) => ['charge', 'fee'].includes(l.type) && l.status === 'posted' && !l.reversed && !l.reversalOf && !l.onDocument);
+  return { rows, workable, workableIds: new Set(workable.map((l) => l.id)) };
+}
+
+function LineIcon({ l }) {
+  const Icon = isPayLine(l) ? CreditCard : l.type === 'refund' ? Undo2 : l.type === 'tax' ? Percent : ['adjustment', 'discount'].includes(l.type) ? TagIcon : l.department === 'room' || l.department === 'rooms' || l.department === 'lodging' || /לינה/.test(l.description || '') ? BedDouble : ShoppingBag;
+  return <span className={`fo-ico ${isPayLine(l) ? 'is-pay' : ''}`}><Icon size={15} aria-hidden="true" /></span>;
+}
+
+function docBadge(l) {
+  if (l.status !== 'posted') return <span className="fo-flag is-bad">{l.status}</span>;
+  if (l.reversed) return <span className="fo-doc is-none">{l.reversedHow || 'בוטל בהיפוך'}</span>;
+  if (l.reversalOf) return <span className="fo-doc is-none">{l.transferTo ? 'הועבר' : 'היפוך'}</span>;
+  if (l.onDocument) return <span className="fo-doc">חשבונית {l.onDocument}</span>;
+  if (l.onReceipt) return <span className="fo-doc">קבלה {l.onReceipt}</span>;
+  if (l.paidOut) return <span className="fo-doc is-none">לא בחשבונית</span>;
+  if (isPayLine(l)) return <span className="fo-flag is-warn">ללא קבלה</span>;
+  if (isChargeLine(l)) return <span className="fo-doc is-none">טרם בחשבונית</span>;
+  return null;
+}
+
+// The ledger of one window: lines by service night (newest first), optional selection checkboxes,
+// invoice combinations and totals. Used alone, or twice side by side.
+function Ledger({ folio, head, toolbar, codeName, prep, sel, onToggle, lineAction, onUncombine, compact = false }) {
+  const { rows, workableIds } = prep;
+  const days = [];
+  for (const l of [...rows].reverse()) {
+    const d = days.find((x) => x.date === l.serviceDate);
+    if (d) d.lines.push(l); else days.push({ date: l.serviceDate, lines: [l] });
+  }
+  const posted = rows.filter((l) => l.status === 'posted');
+  const charged = posted.filter((l) => isChargeLine(l) || ['adjustment', 'discount'].includes(l.type)).reduce((s, l) => s + l.gross, 0);
+  const paid = folio.totals.payments || 0;
+  const combos = (folio.combos || []).filter((c) => c.live > 0);
+  return (
+    <section className={`fo-panel fo-ledger ${compact ? 'is-compact' : ''}`} aria-label={`תנועות בחשבון ${folio.owner}`}>
+      <header className="fo-ledger-h">{head}</header>
+      {toolbar}
+      {rows.length === 0 && <Empty title="אין תנועות בחלון" />}
+      {days.map((d) => (
+        <div key={d.date} className="fo-day">
+          <div className="fo-day-h"><span>{formatShort(d.date)}</span><span>{d.lines.length === 1 ? 'תנועה אחת' : `${d.lines.length} תנועות`}</span></div>
+          <ul className="fo-lines">
+            {d.lines.map((l) => {
+              const can = onToggle && workableIds.has(l.id);
+              const act = lineAction?.(l);
+              return (
+                <li key={l.id} className={`fo-line ${l.reversed || l.reversalOf ? 'is-done' : ''} ${sel?.has(l.id) ? 'is-sel' : ''}`}>
+                  {onToggle && (can
+                    ? <input type="checkbox" className="fo-check" checked={sel.has(l.id)} onChange={() => onToggle(l.id)} aria-label={`בחירת ${l.description}`} />
+                    : <span className="fo-check is-none" aria-hidden="true" />)}
+                  <LineIcon l={l} />
+                  <div className="fo-line-main">
+                    <div className="fo-line-t">{l.description}</div>
+                    <div className="fo-line-meta">
+                      <span>{LINE_TYPE_LABELS[l.type] && !l.paidOut ? LINE_TYPE_LABELS[l.type] : l.paidOut ? 'Paid Out' : l.type}{l.department && !compact ? ` · ${codeName(l.department)}` : ''}</span>
+                      {!compact && <span className="ui-num">{formatDateTime(l.postedAt)}</span>}
+                      {l.transferFrom && <span className="fo-tag">הגיע מ{l.transferFrom.label || 'חלון אחר'}</span>}
+                      {l.combo && !l.reversed && <span className="fo-tag is-combo">בחשבונית: {l.combo.label}</span>}
+                      {l.left !== l.gross && !l.reversed && <span className="fo-tag">אחרי הנחה {money(l.left)}</span>}
+                      {l.reason && !['refund', 'discount'].includes(l.type) && !l.transferFrom && !compact && <span>{l.reason}</span>}
+                      {docBadge(l)}
+                      {l.refundable !== null && l.refundable < Math.abs(l.gross) - EPS && <span className="fo-doc is-none">{l.refundable > EPS ? 'הוחזר חלקית' : 'הוחזר'}</span>}
+                    </div>
+                  </div>
+                  {act && <button type="button" className="fo-line-act" onClick={act.run}>{act.label}</button>}
+                  <div className="fo-line-amt">
+                    <span className={`ui-num ${l.gross < 0 ? 'is-credit' : ''}`}>{l.gross < 0 ? `−${money(Math.abs(l.gross))}` : money(l.gross)}</span>
+                    {l.tax && !compact ? <span className="ui-sub ui-num">מע״מ {money(l.tax)}</span> : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+      {combos.length > 0 && (
+        <div className="fo-combos" aria-label="איחודים בחשבונית">
+          {combos.map((c) => (
+            <span key={c.id} className="fo-combo">בחשבונית כשורה אחת: <b>{c.label}</b> ({c.live} שורות){onUncombine && <button type="button" className="fo-line-act" onClick={() => onUncombine(c)}>ביטול איחוד</button>}</span>
+          ))}
+        </div>
+      )}
+      {rows.length > 0 && (
+        <footer className="fo-ledger-f ui-num">
+          <span>{rows.length} תנועות</span>
+          <span>חיובים <b>{money(charged)}</b></span>
+          <span>תשלומים <b className="is-credit">−{money(paid)}</b></span>
+          <span>יתרה <b className={folio.balance > EPS ? 'is-due' : ''}>{money(folio.balance)}</b></span>
+        </footer>
+      )}
+    </section>
+  );
+}
+
 function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
   const nav = useNavigate();
   const { toasts, success } = useToast();
@@ -183,6 +292,16 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
   const canReverse = REVERSE_ROLES.includes(role);
   const canCredit = CREDIT_ROLES.includes(role);
   const canApproveRefund = REVERSE_ROLES.includes(role);
+  // Line operations: selection per window; "dual" shows two windows side by side.
+  const [sel, setSel] = useState(() => new Set());
+  const [sel2, setSel2] = useState(() => new Set());
+  const [dual, setDual] = useState(false);
+  const [rightId, setRightId] = useState(null);
+  const [opsErr, setOpsErr] = useState(null);
+  useEffect(() => { setSel(new Set()); }, [folio?.id, data]);
+  useEffect(() => { setSel2(new Set()); }, [rightId, data]);
+  const right = dual ? (data?.folios.find((f) => f.id === rightId && f.id !== folio?.id) || data?.folios.find((f) => f.id !== folio?.id) || null) : null;
+  const toggle = (setter) => (id) => setter((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   if (loading && !data) return <div className="ui-empty"><Spinner /> טוען…</div>;
   if (error) return <ErrorBanner error={error} onRetry={reload} />;
@@ -222,26 +341,57 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
     else next = { tone: 'ok', text: notYetCharged > EPS ? `החשבון מאוזן כרגע · עוד ${money(notYetCharged)} יחויבו עד היציאה` : 'החשבון מאוזן ומתועד', label: null };
   }
 
-  const docBadge = (l) => {
-    if (l.status !== 'posted') return <span className="fo-flag is-bad">{l.status}</span>;
-    if (l.reversed) return <span className="fo-doc is-none">בוטל בהיפוך</span>;
-    if (l.reversalOf) return <span className="fo-doc is-none">היפוך</span>;
-    if (l.onDocument) return <span className="fo-doc">חשבונית {l.onDocument}</span>;
-    if (l.onReceipt) return <span className="fo-doc">קבלה {l.onReceipt}</span>;
-    if (isPayment(l)) return <span className="fo-flag is-warn">ללא קבלה</span>;
-    if (isCharge(l)) return <span className="fo-doc is-none">טרם בחשבונית</span>;
+  const prep = prepWindow(folio);
+  const prepR = right ? prepWindow(right) : null;
+  const picked = prep.workable.filter((l) => sel.has(l.id));
+  const pickedR = prepR ? prepR.workable.filter((l) => sel2.has(l.id)) : [];
+  const pickedSum = picked.reduce((s, l) => s + l.left, 0);
+  const lineOps = data.lineOps || {};
+  const canOps = canCharge && folio?.status !== 'closed';
+  const done = (msg) => { setDialog(null); success(msg); reload(); };
+  const departmentsHere = [...new Set(prep.workable.map((l) => l.department).filter(Boolean))];
+  const quickPick = (v) => setSel(new Set(prep.workable.filter((l) => v === '*' || l.department === v).map((l) => l.id)));
+  const nightTonight = data.inHouse && String(r.departureDate) > String(data.businessDate);
+  const uncombine = async (c) => { setOpsErr(null); try { await finance.uncombine(propertyId, folio.id, c.id); success('האיחוד בוטל'); reload(); } catch (e) { setOpsErr(e); } };
+  const windowSelect = (value, onChange, exclude, id) => (
+    <select id={id} className="select fo-win-select" value={value} onChange={(ev) => onChange(ev.target.value)} aria-label="חלון חשבון">
+      {data.folios.filter((f) => f.id !== exclude).map((f) => <option key={f.id} value={f.id}>{f.owner}{f.status === 'closed' ? ' (סגור)' : ''} · {money(f.balance, f.currency, 0)}</option>)}
+    </select>
+  );
+  const lineAction = (l) => {
+    const canRev = isCharge(l) && l.type !== 'tax' && !l.reversed && !l.reversalOf && l.status === 'posted' && canReverse && !l.onDocument && folio.status !== 'closed';
+    const canRef = isPayment(l) && l.status === 'posted' && l.refundable > EPS && folio.balance < -EPS;
+    if (canRev) return { label: 'היפוך', run: () => setDialog({ kind: 'reverse', line: l }) };
+    if (canRef) return { label: 'החזר', run: () => setDialog({ kind: 'refund', line: l }) };
     return null;
   };
-  const LineIcon = ({ l }) => {
-    const Icon = isPayment(l) ? CreditCard : l.type === 'refund' ? Undo2 : l.type === 'tax' ? Percent : ['adjustment', 'discount'].includes(l.type) ? TagIcon : l.department === 'room' || l.department === 'lodging' || /לינה/.test(l.description || '') ? BedDouble : ShoppingBag;
-    return <span className={`fo-ico ${isPayment(l) ? 'is-pay' : ''}`}><Icon size={15} aria-hidden="true" /></span>;
-  };
-  // Lines grouped by service night, newest first, like a folio statement.
-  const days = [];
-  for (const l of [...lines].reverse()) {
-    const d = days.find((x) => x.date === l.serviceDate);
-    if (d) d.lines.push(l); else days.push({ date: l.serviceDate, lines: [l] });
-  }
+  const selBar = picked.length > 0 && (
+    <div className="fo-selbar" role="toolbar" aria-label="פעולות על השורות שנבחרו">
+      <b>{picked.length === 1 ? 'שורה אחת' : `${picked.length} שורות`}</b>
+      <span className="ui-num">{money(pickedSum)}</span>
+      <span className="fo-selbar-acts">
+        {dual && right ? (
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'transfer', lines: picked, from: folio, preset: { kind: 'window', folioId: right.id, label: right.owner } })}>העברה ל{right.owner} ←</button>
+        ) : (
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'discount', lines: picked })}>הנחה</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'transfer', lines: picked, from: folio })}>העברה</button>
+            {picked.length === 1 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'split', line: picked[0] })}>פיצול</button>}
+            {picked.length > 1 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'combine', lines: picked })}>איחוד בחשבונית</button>}
+          </>
+        )}
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSel(new Set())}>ניקוי</button>
+      </span>
+    </div>
+  );
+  const quickSelect = canOps && prep.workable.length > 1 && !picked.length && (
+    <select className="select fo-pick" value="" onChange={(ev) => quickPick(ev.target.value)} aria-label="בחירה מהירה של שורות">
+      <option value="">בחירת שורות…</option>
+      <option value="*">כל החיובים הפתוחים</option>
+      {departmentsHere.map((d) => <option key={d} value={d}>כל {codeName(d)}</option>)}
+    </select>
+  );
+
   const chargeLines = posted.filter((l) => isCharge(l) || ['adjustment', 'discount'].includes(l.type));
   const net = chargeLines.reduce((s, l) => s + (l.net || 0), 0);
   const vat = chargeLines.reduce((s, l) => s + (l.tax || 0), 0);
@@ -270,6 +420,12 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
           {canIssue && <button type="button" className="btn btn-secondary" onClick={() => setDialog({ kind: 'issue' })}><FileText size={16} /> הפקת מסמך</button>}
           {canCharge && <button type="button" className="btn btn-secondary" onClick={() => setDialog({ kind: 'charge' })}><Plus size={16} /> חיוב</button>}
           {canPay && <button type="button" className="btn btn-primary" onClick={() => setDialog({ kind: 'pay' })}>תשלום</button>}
+          <RowMenu label="עוד פעולות בחשבון" items={[
+            canCharge && { label: 'חלון חשבון נוסף', hint: 'לחלוקת החיובים בתוך השהייה', onSelect: () => setDialog({ kind: 'window' }) },
+            data.folios.length > 1 && { label: dual ? 'תצוגת חלון אחד' : 'שני חלונות זה לצד זה', hint: dual ? undefined : 'להעברת שורות בין חלונות', onSelect: () => setDual((v) => !v) },
+            canOps && data.inHouse && folio?.ownerType !== 'company' && { label: 'Paid Out — מזומן בשם האורח', hint: 'מונית, שליח…', onSelect: () => setDialog({ kind: 'paidout' }) },
+            canCharge && data.inHouse && { label: 'חיוב הלילה מראש', disabled: !nightTonight, why: 'האורח עוזב היום', hint: 'Auto Post — לפני סגירת היום', onSelect: () => setDialog({ kind: 'ahead' }) },
+          ]} />
         </div>
         <div className="fo-head-stay">
           <span className={`fo-status is-${departed ? 'out' : IN_HOUSE.includes(r.status) ? 'in' : 'future'}`}>{RES_STATUS[r.status] || r.status}</span>
@@ -295,63 +451,55 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
       {!folio && <Card><Empty title="אין חשבון להזמנה זו">חשבון נפתח אוטומטית עם החיוב או התשלום הראשון בכניסה.</Empty></Card>}
       {folio && (
         <>
+        {dual && right ? (
+          <div className="fo-dual">
+            <Ledger
+              compact folio={folio} prep={prep} codeName={codeName} sel={sel} onToggle={canOps ? toggle(setSel) : null}
+              head={<>{windowSelect(folio.id, (id) => url.set({ folio: id }, { resetPage: false }), right.id, 'dual-l')}<span className="fo-dual-bal ui-num">{money(folio.balance)}</span></>}
+              toolbar={selBar}
+            />
+            <Ledger
+              compact folio={right} prep={prepR} codeName={codeName} sel={sel2} onToggle={canOps && right.status !== 'closed' ? toggle(setSel2) : null}
+              head={<>{windowSelect(right.id, setRightId, folio.id, 'dual-r')}<span className="fo-dual-bal ui-num">{money(right.balance)}</span></>}
+              toolbar={pickedR.length > 0 && (
+                <div className="fo-selbar" role="toolbar" aria-label="פעולות על השורות שנבחרו">
+                  <b>{pickedR.length === 1 ? 'שורה אחת' : `${pickedR.length} שורות`}</b>
+                  <span className="ui-num">{money(pickedR.reduce((t, l) => t + l.left, 0))}</span>
+                  <span className="fo-selbar-acts">
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'transfer', lines: pickedR, from: right, preset: { kind: 'window', folioId: folio.id, label: folio.owner } })}>→ העברה ל{folio.owner}</button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSel2(new Set())}>ניקוי</button>
+                  </span>
+                </div>
+              )}
+            />
+          </div>
+        ) : (
         <div className="fo-layout">
 
           {/* the ledger */}
-          <section className="fo-panel fo-ledger" aria-label="תנועות בחשבון">
-            <header className="fo-ledger-h">
-              {data.folios.length > 1 ? (
-                <Segmented
-                  label="חלונות חשבון"
-                  value={folio.id}
-                  onChange={(id) => url.set({ folio: id }, { resetPage: false })}
-                  options={data.folios.map((f) => ({ value: f.id, label: `${f.owner}${f.status === 'closed' ? ' (סגור)' : ''}`, count: money(f.balance, f.currency, 0) }))}
-                />
-              ) : <h2 className="fo-panel-h">חשבון {folio.owner}{folio.status === 'closed' ? ' · סגור' : ''}</h2>}
-            </header>
-            {lines.length === 0 && <Empty title="אין תנועות בחשבון" />}
-            {days.map((d) => (
-              <div key={d.date} className="fo-day">
-                <div className="fo-day-h"><span>{formatShort(d.date)}</span><span>{d.lines.length === 1 ? 'תנועה אחת' : `${d.lines.length} תנועות`}</span></div>
-                <ul className="fo-lines">
-                  {d.lines.map((l) => {
-                    const canRev = isCharge(l) && l.type !== 'tax' && !l.reversed && !l.reversalOf && l.status === 'posted' && canReverse && !l.onDocument && folio.status !== 'closed';
-                    const canRef = isPayment(l) && l.status === 'posted' && l.refundable > EPS && folio.balance < -EPS;
-                    return (
-                      <li key={l.id} className={`fo-line ${l.reversed || l.reversalOf ? 'is-done' : ''}`}>
-                        <LineIcon l={l} />
-                        <div className="fo-line-main">
-                          <div className="fo-line-t">{l.description}</div>
-                          <div className="fo-line-meta">
-                            <span>{LINE_TYPE_LABELS[l.type] || l.type}{l.department ? ` · ${codeName(l.department)}` : ''}</span>
-                            <span className="ui-num">{formatDateTime(l.postedAt)}</span>
-                            {l.reason && l.type !== 'refund' && <span>{l.reason}</span>}
-                            {docBadge(l)}
-                            {l.refundable !== null && l.refundable < Math.abs(l.gross) - EPS && <span className="fo-doc is-none">{l.refundable > EPS ? 'הוחזר חלקית' : 'הוחזר'}</span>}
-                          </div>
-                        </div>
-                        {(canRev || canRef) && (
-                          <button type="button" className="fo-line-act" onClick={() => setDialog(canRev ? { kind: 'reverse', line: l } : { kind: 'refund', line: l })}>{canRev ? 'היפוך' : 'החזר'}</button>
-                        )}
-                        <div className="fo-line-amt">
-                          <span className={`ui-num ${l.gross < 0 ? 'is-credit' : ''}`}>{l.gross < 0 ? `−${money(Math.abs(l.gross))}` : money(l.gross)}</span>
-                          {l.tax ? <span className="ui-sub ui-num">מע״מ {money(l.tax)}</span> : null}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-            {lines.length > 0 && (
-              <footer className="fo-ledger-f ui-num">
-                <span>{lines.length} תנועות</span>
-                <span>חיובים <b>{money(net + vat)}</b></span>
-                <span>תשלומים <b className="is-credit">−{money(paid)}</b></span>
-                <span>יתרה <b className={folio.balance > EPS ? 'is-due' : ''}>{money(folio.balance)}</b></span>
-              </footer>
+          <Ledger
+            folio={folio}
+            prep={prep}
+            codeName={codeName}
+            sel={sel}
+            onToggle={canOps ? toggle(setSel) : null}
+            lineAction={lineAction}
+            onUncombine={canOps ? uncombine : null}
+            head={(
+              <>
+                {data.folios.length > 1 ? (
+                  <Segmented
+                    label="חלונות חשבון"
+                    value={folio.id}
+                    onChange={(id) => url.set({ folio: id }, { resetPage: false })}
+                    options={data.folios.map((f) => ({ value: f.id, label: `${f.owner}${f.status === 'closed' ? ' (סגור)' : ''}`, count: money(f.balance, f.currency, 0) }))}
+                  />
+                ) : <h2 className="fo-panel-h">חשבון {folio.owner}{folio.status === 'closed' ? ' · סגור' : ''}</h2>}
+                {quickSelect}
+              </>
             )}
-          </section>
+            toolbar={<>{selBar}<ErrorBanner error={opsErr} /></>}
+          />
 
           {/* the statement */}
           <aside className="fo-col">
@@ -372,6 +520,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
                 <div className="is-total"><dt>סה״כ חיובים</dt><dd className="ui-num">{money(net + vat)}</dd></div>
                 <div><dt>תשלומים</dt><dd className="ui-num is-credit">−{money(paid)}</dd></div>
                 {folio.totals.refunds ? <div><dt>החזרים</dt><dd className="ui-num">{money(folio.totals.refunds)}</dd></div> : null}
+                {folio.totals.paidOut ? <div><dt>Paid Out (מזומן בשם האורח)</dt><dd className="ui-num">{money(folio.totals.paidOut)}</dd></div> : null}
               </dl>
               <div className={`fo-due ${folio.balance > EPS ? 'is-due' : folio.balance < -EPS ? 'is-credit' : ''}`}>
                 <span>{folio.balance > EPS ? 'יתרה לתשלום' : folio.balance < -EPS ? 'זכות לאורח' : 'יתרה'}</span>
@@ -405,6 +554,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
             </section>
           </aside>
         </div>
+        )}
         </>
       )}
 
@@ -414,6 +564,22 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
       <IssueDocumentDialog open={dialog?.kind === 'issue'} onClose={() => setDialog(null)} propertyId={propertyId} folioId={folio?.id} subtitle={folio ? `${r.guest} · חשבון ${folio.owner}` : ''} onIssued={() => reload()} />
       <AllocationDialog open={dialog?.kind === 'alloc'} onClose={() => setDialog(null)} propertyId={propertyId} doc={dialog?.doc} onSaved={() => { setDialog(null); success('מספר ההקצאה נשמר'); reload(); }} />
       <CreditNoteDialog open={dialog?.kind === 'credit'} onClose={() => setDialog(null)} propertyId={propertyId} doc={dialog?.doc} onSaved={(o) => { setDialog(null); success(`הופק מסמך זיכוי ${o?.number || ''}`); reload(); }} />
+      <LineDiscountDialog open={dialog?.kind === 'discount'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} lines={dialog?.lines} config={lineOps} canApprove={DISCOUNT_APPROVERS.includes(role)} onSaved={(o) => done(o?.duplicate ? 'ההנחה כבר נרשמה' : `נרשמה הנחה של ${money(o?.total || 0)}`)} />
+      <TransferDialog open={dialog?.kind === 'transfer'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} folio={dialog?.from || folio} windows={data.folios} lines={dialog?.lines} preset={dialog?.preset} onSaved={(o) => done(`${o?.moved === 1 ? 'שורה הועברה' : `${o?.moved || ''} שורות הועברו`} ל${o?.toLabel || 'יעד'}`)} />
+      <SplitDialog open={dialog?.kind === 'split'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} folio={folio} windows={data.folios} line={dialog?.line} onSaved={(o) => done(`השורה פוצלה: ${money(o?.kept || 0)} נשאר · ${money(o?.moved || 0)} עבר`)} />
+      <CombineDialog open={dialog?.kind === 'combine'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} lines={dialog?.lines} suggest={dialog?.lines ? (new Set(dialog.lines.map((l) => l.department)).size === 1 ? codeName(dialog.lines[0].department) : 'שירותים נוספים') : ''} onSaved={() => done('השורות יופיעו כשורה אחת בחשבונית')} />
+      <PaidOutDialog open={dialog?.kind === 'paidout'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} config={lineOps} canApprove={canApproveRefund} onSaved={(o) => done(o?.duplicate ? 'כבר נרשם' : `Paid Out ${money(o?.amount || 0)} נרשם — יצא מהקופה`)} />
+      <NewWindowDialog open={dialog?.kind === 'window'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} existing={data.folios.map((f) => f.owner)} onSaved={(o) => { done(`נפתח חלון ${o.label}`); url.set({ folio: o.folioId }, { resetPage: false }); }} />
+      <ConfirmDialog
+        open={dialog?.kind === 'ahead'}
+        onClose={() => setDialog(null)}
+        title="חיוב הלילה מראש"
+        subtitle={`לילה ${formatShort(data.businessDate)} · חדר ${r.room || '—'}`}
+        confirmLabel="חיוב הלילה עכשיו"
+        onConfirm={async () => { const o = await finance.postNightAhead(propertyId, r.id); done(o?.posted === 1 ? 'הלילה חויב' : `${o?.posted} לילות חויבו`); }}
+      >
+        <p className="ui-p">הלינה של הלילה נרשמת עכשיו לחלון הראשי, למשל לאורח שיוצא מוקדם או משלם מראש. סגירת היום לא תחייב אותה שוב.</p>
+      </ConfirmDialog>
       <ConfirmDialog
         open={dialog?.kind === 'reverse'}
         onClose={() => setDialog(null)}

@@ -196,7 +196,7 @@ export default function BookingFormPage() {
   const [form, setForm] = useState({
     guest: null, newGuest: { firstName: '', lastName: '', phone: '', email: '' }, forceNewGuest: false,
     bookerDiffers: false, booker: { name: '', phone: '', email: '' }, payerType: 'guest', companyId: '', source: 'direct',
-    specialRequests: '', internalNotes: '', fieldErrors: {},
+    specialRequests: '', internalNotes: '', fieldErrors: {}, nonGuaranteed: false, holdUntilTime: '18:00', voucherType: '', voucherNumber: '',
   });
   const [companies, setCompanies] = useState([]);
   const [holdMinutes, setHoldMinutes] = useState('60');
@@ -210,6 +210,8 @@ export default function BookingFormPage() {
   const [residency, setResidency] = useState('resident');
   const [taxRule, setTaxRule] = useState(null);
   const [pricingMode, setPricingMode] = useState('rates');
+  const [discCfg, setDiscCfg] = useState(null);
+  useEffect(() => { if (propertyId) booking.discountConfig(propertyId).then(setDiscCfg).catch(() => setDiscCfg(null)); }, [propertyId]);
   useEffect(() => { if (propertyId) booking.boardConfig(propertyId).then((c) => setPricingMode(c.pricingMode || 'rates')).catch(() => setPricingMode('rates')); }, [propertyId]);
   const byBoard = pricingMode === 'board';
   const planLabel = byBoard ? 'פנסיון' : 'תעריף';
@@ -249,7 +251,10 @@ export default function BookingFormPage() {
   const rowOffer = (r) => data.offers[offerKey(r, data.types, stay)];
   const offerOf = (r) => rowOffer(r)?.byPlan?.[r.ratePlanId] || null;
   const usedByType = rows.reduce((m, r) => (r.roomTypeId && !ownDates(r) ? m.set(r.roomTypeId, (m.get(r.roomTypeId) || 0) + 1) : m), new Map());
-  const rowTotal = (r) => { const o = offerOf(r); if (!o) return null; return r.override?.rate > 0 ? Math.round((r.override.rate * rowNights(r) + Number(o.board?.total || 0)) * 100) / 100 : o.perRoom; };
+  // Discount on lodging (not board): percent or amount; the server recomputes and enforces the threshold.
+  const discSaving = (r) => { const o = offerOf(r); const v = Number(r.discount?.value); if (!o || !r.discount || !(v > 0)) return 0; return Math.round((r.discount.kind === 'amount' ? Math.min(v, o.roomPerRoom) : o.roomPerRoom * Math.min(v, 100) / 100) * 100) / 100; };
+  const discPct = (r) => { const o = offerOf(r); return o?.roomPerRoom ? (discSaving(r) / o.roomPerRoom) * 100 : 0; };
+  const rowTotal = (r) => { const o = offerOf(r); if (!o) return null; if (r.discount && !r.override) return Math.round((o.perRoom - discSaving(r)) * 100) / 100; return r.override?.rate > 0 ? Math.round((r.override.rate * rowNights(r) + Number(o.board?.total || 0)) * 100) / 100 : o.perRoom; };
   const grand = rows.reduce((s, r) => s + (rowTotal(r) || 0), 0);
   const grandTourist = touristPrice ? rows.reduce((s, r) => s + (touristOf(r) || 0), 0) : null;
   const guests = rows.reduce((s, r) => ({ a: s.a + Number(r.adults || 0), c: s.c + Number(r.children || 0) }), { a: 0, c: 0 });
@@ -267,6 +272,13 @@ export default function BookingFormPage() {
     if (!o.bookable) return o.reasons[0]?.label || 'לא ניתן למכור';
     if (t && !ownDates(r) && (usedByType.get(r.roomTypeId) || 0) > t.available) return `נבחרו ${usedByType.get(r.roomTypeId)} חדרים מסוג זה — פנויים ${t.available}`;
     if (r.override && (!(Number(r.override.rate) > 0) || (r.override.reason || '').trim().length < 3)) return 'מחיר ידני: מחיר וסיבה';
+    if (r.discount) {
+      const v = Number(r.discount.value);
+      if (!(v > 0) || (r.discount.kind === 'percent' && v >= 100) || (r.discount.kind === 'amount' && o && v >= o.roomPerRoom)) return 'הנחה: סכום או אחוז תקין';
+      if (!r.discount.reason) return 'הנחה: בחרו סיבה';
+      if (r.discount.reason === 'other' && (r.discount.note || '').trim().length < 3) return 'הנחה: פרטו את הסיבה';
+      if (discCfg && !discCfg.canApprove && discPct(r) > discCfg.threshold + 1e-9) return `הנחה מעל ${discCfg.threshold}% — נדרש מנהל`;
+    }
     return lineErrors[i] || null;
   };
   const loading = rows.some((r) => r.roomTypeId && r.ratePlanId && !rowOffer(r));
@@ -279,18 +291,22 @@ export default function BookingFormPage() {
   else if (loading) why = 'טוען מחירים…';
   else if (!guestOk) why = 'בחרו אורח או מלאו אורח חדש';
   else if (form.payerType === 'company' && !form.companyId) why = 'בחרו חברה משלמת';
+  else if (form.payerType === 'company' && form.voucherType && !form.voucherNumber.trim() && companies.find((c) => c.id === form.companyId)?.voucherRequired) why = 'מספר Voucher חובה אצל החברה';
 
   const guestPart = form.guest ? { guestId: form.guest.id } : { newGuest: form.newGuest, forceNewGuest: form.forceNewGuest };
   const common = {
     arrival, departure, source: form.source, payerType: form.payerType, companyId: form.payerType === 'company' ? form.companyId : undefined,
     booker: form.bookerDiffers ? form.booker : undefined, specialRequests: form.specialRequests || undefined, internalNotes: form.internalNotes || undefined, ...guestPart, residency,
     ...(promoOk ? { promoCode } : {}),
+    ...(form.payerType === 'company' && form.voucherType ? { voucher: { type: form.voucherType, number: form.voucherNumber.trim() || undefined } } : {}),
+    ...(form.nonGuaranteed && form.payerType !== 'company' ? { guarantee: 'non_guaranteed', holdUntilTime: form.holdUntilTime } : {}),
   };
   const lineBody = (r) => ({
     roomTypeId: r.roomTypeId, ratePlanId: r.ratePlanId, board: effBoardOf(r, data.types), adults: Number(r.adults), children: Number(r.children || 0),
     childAges: Number(r.children) > 0 ? r.childAges.map(Number) : [], priceSignature: offerOf(r)?.priceSignature, roomId: r.roomId || undefined,
     ...(ownDates(r) ? { arrival: r.arr, departure: r.dep } : {}),
     ...(r.override ? { override: { ratePerNight: Number(r.override.rate), reason: r.override.reason } } : {}),
+    ...(r.discount && !r.override ? { discount: { kind: r.discount.kind, value: Number(r.discount.value), reason: r.discount.reason, note: r.discount.note || undefined } } : {}),
   });
 
   async function submit(mode) {
@@ -429,7 +445,26 @@ export default function BookingFormPage() {
                               {o.promotion && !r.override && <div className="ui-sub" style={{ color: 'rgb(21 128 61)' }}>{o.promotion.label} · חיסכון {money(o.promotion.saving)}</div>}
                               {Number(o.board?.total) > 0 && <div className="ui-sub">לינה {money(r.override?.rate > 0 ? r.override.rate * rowNights(r) : o.roomPerRoom)} · אירוח {money(o.board.total)}</div>}
                               {touristPrice && <div className="ui-sub">לתייר: {money(touristOf(r))}</div>}
-                              {canOverride && !r.override && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRow(r.key, { override: { rate: '', reason: '' } })}>מחיר ידני</button>}
+                              {r.discount && discSaving(r) > 0 && <div className="ui-sub" style={{ color: 'rgb(21 128 61)' }}>הנחה {r.discount.kind === 'percent' ? `${r.discount.value}%` : money(Number(r.discount.value))} · חיסכון {money(discSaving(r))}</div>}
+                              <span className="ui-row" style={{ gap: 2 }}>
+                                {!r.override && !r.discount && discCfg && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRow(r.key, { discount: { kind: 'percent', value: '', reason: '', note: '' } })}>הנחה</button>}
+                                {canOverride && !r.override && !r.discount && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRow(r.key, { override: { rate: '', reason: '' } })}>מחיר ידני</button>}
+                              </span>
+                            </div>
+                          )}
+                          {r.discount && discCfg && (
+                            <div className="ui-stack" style={{ gap: 4, marginTop: 4 }}>
+                              <span className="ui-row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+                                <input type="number" min="0" step="0.01" className="input" style={{ width: 80 }} aria-label={`הנחה חדר ${i + 1}`} value={r.discount.value} onChange={(e) => setRow(r.key, { discount: { ...r.discount, value: e.target.value } })} />
+                                <select className="input" style={{ width: 64 }} aria-label={`סוג הנחה חדר ${i + 1}`} value={r.discount.kind} onChange={(e) => setRow(r.key, { discount: { ...r.discount, kind: e.target.value } })}><option value="percent">%</option><option value="amount">₪</option></select>
+                              </span>
+                              <select className="input" aria-label={`סיבת הנחה חדר ${i + 1}`} value={r.discount.reason} onChange={(e) => setRow(r.key, { discount: { ...r.discount, reason: e.target.value } })}>
+                                <option value="">סיבה…</option>
+                                {discCfg.reasons.map((x) => <option key={x.code} value={x.code}>{x.label}</option>)}
+                              </select>
+                              {r.discount.reason === 'other' && <input className="input" maxLength={300} placeholder="פירוט" aria-label={`פירוט הנחה חדר ${i + 1}`} value={r.discount.note} onChange={(e) => setRow(r.key, { discount: { ...r.discount, note: e.target.value } })} />}
+                              <div className="ui-sub">{discPct(r) > discCfg.threshold + 1e-9 ? (discCfg.canApprove ? `מעל ${discCfg.threshold}% — יירשם באישורך` : `מעל ${discCfg.threshold}% — נדרש מנהל`) : `עד ${discCfg.threshold}% ללא אישור`}</div>
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRow(r.key, { discount: null })}>ביטול הנחה</button>
                             </div>
                           )}
                           {r.override && (
@@ -479,10 +514,31 @@ export default function BookingFormPage() {
                 <select id="bf-src" className="select w-full" value={form.source} onChange={(e) => setForm((p) => ({ ...p, source: e.target.value }))}>{Object.entries(SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
               </Field>
             </div>
+            {form.payerType !== 'company' && (
+              <div className="ui-row" style={{ gap: 8, alignItems: 'center' }}>
+                <label className="ui-check"><input type="checkbox" checked={form.nonGuaranteed} onChange={(e) => setForm((p) => ({ ...p, nonGuaranteed: e.target.checked }))} /><span>לא מובטחת — נשמרת ביום ההגעה עד</span></label>
+                <input type="time" className="input" style={{ width: 110 }} aria-label="שמירה עד שעה" disabled={!form.nonGuaranteed} value={form.holdUntilTime} onChange={(e) => setForm((p) => ({ ...p, holdUntilTime: e.target.value }))} />
+              </div>
+            )}
             {form.payerType === 'company' && (
               <Field id="bf-co" label="חברה" required>
                 <select id="bf-co" className="select w-full" value={form.companyId} onChange={(e) => setForm((p) => ({ ...p, companyId: e.target.value }))}><option value="">בחירה…</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
               </Field>
+            )}
+            {form.payerType === 'company' && (
+              <div className="ui-grid-2">
+                <Field id="bf-vt" label="Voucher — מי משלם על מה" optional hint="קובע לאיזה חשבון ינותבו הלינה והתוספות">
+                  <select id="bf-vt" className="select w-full" value={form.voucherType} onChange={(e) => setForm((p) => ({ ...p, voucherType: e.target.value }))}>
+                    <option value="">ללא Voucher</option>
+                    <option value="agent_all">החברה משלמת הכול</option>
+                    <option value="agent_room">החדר על החברה, התוספות על האורח</option>
+                    <option value="guest_all">האורח משלם הכול</option>
+                  </select>
+                </Field>
+                <Field id="bf-vn" label="מספר Voucher" optional={!companies.find((c) => c.id === form.companyId)?.voucherRequired} error={form.fieldErrors?.voucherNumber}>
+                  <input id="bf-vn" className="input w-full" maxLength={40} value={form.voucherNumber} disabled={!form.voucherType} onChange={(e) => setForm((p) => ({ ...p, voucherNumber: e.target.value }))} />
+                </Field>
+              </div>
             )}
             <Field id="bf-req" label="בקשות האורח" optional hint="מוצג לקבלה ולחדרנות"><textarea id="bf-req" className="input w-full" rows={2} maxLength={1000} value={form.specialRequests} onChange={(e) => setForm((p) => ({ ...p, specialRequests: e.target.value }))} /></Field>
             <Field id="bf-int" label="הערה פנימית" optional><input id="bf-int" className="input w-full" maxLength={1000} value={form.internalNotes} onChange={(e) => setForm((p) => ({ ...p, internalNotes: e.target.value }))} /></Field>

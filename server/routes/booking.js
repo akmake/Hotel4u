@@ -8,9 +8,13 @@ import Company from '../models/Company.js';
 import Property from '../models/Property.js';
 import { cancelWithNotice } from '../services/stayChangeService.js';
 import { audit } from '../services/auditService.js';
+import { deleteReservation, DELETE_ROLES, DELETE_REASONS } from '../services/reservationService.js';
+import { setNonGuaranteed } from '../services/gtdService.js';
+import { setNoPost } from '../services/noPostService.js';
+import { setVoucher } from '../services/voucherService.js';
 import {
   BOOKING_ROLES, searchAvailability, createBooking, listReservations, getStayFile,
-  markQuoteSent, closeQuote, convertQuote,
+  markQuoteSent, closeQuote, convertQuote, DISCOUNT_REASONS, PRICE_OVERRIDE_ROLES,
 } from '../services/bookingService.js';
 import { createParty, freeRooms } from '../services/partyBookingService.js';
 import { getBoardConfig, updateBoardConfig, BOARD_ADMIN_ROLES } from '../services/boardService.js';
@@ -78,6 +82,13 @@ router.post('/reservations/:id/confirmation', handle(async (req) => {
 }));
 
 // G2: board (meal plan) pricing — supplements per person and which rate plans include a board.
+// Discount at booking: reasons, the approval threshold and whether this user may approve above it.
+router.get('/discount-config', handle(async (req) => {
+  requireRoles(req, READ_ROLES, 'אין הרשאה');
+  const p = await Property.findById(scope(req)).select('discountApprovalPercent').lean();
+  return { reasons: Object.entries(DISCOUNT_REASONS).map(([code, label]) => ({ code, label })), threshold: Number(p?.discountApprovalPercent ?? 10), canApprove: PRICE_OVERRIDE_ROLES.includes(req.actor?.role) };
+}));
+
 router.get('/board-config', handle(async (req) => {
   requireRoles(req, READ_ROLES, 'אין הרשאה');
   return getBoardConfig({ propertyId: scope(req) });
@@ -120,8 +131,8 @@ router.get('/companies', handle(async (req) => {
   const propertyId = scope(req);
   const filter = { property: propertyId, active: { $ne: false } };
   if (req.query.q) filter.name = rx(req.query.q);
-  const list = await Company.find(filter).select('name type').sort({ name: 1 }).limit(50).lean();
-  return list.map((c) => ({ id: String(c._id), name: c.name, type: c.type }));
+  const list = await Company.find(filter).select('name type voucherRequired').sort({ name: 1 }).limit(50).lean();
+  return list.map((c) => ({ id: String(c._id), name: c.name, type: c.type, voucherRequired: !!c.voucherRequired }));
 }));
 
 // ── RSV-01 / RSV-03 ─────────────────────────────────────────────────────────
@@ -149,6 +160,35 @@ router.post('/reservations/:id/cancel', handle(async (req) => {
   const out = await cancelWithNotice({ propertyId: scope(req), reservationId: req.params.id, input: { channel: req.body?.channel || 'other', track: 'review', reason: 'other', note: why }, actor: a, ip: req.ip });
   if (out.status === 'cancelled') autoSendCancellation({ propertyId: scope(req), reservationId: req.params.id, actor: a, ip: req.ip });
   return { id: out.reservationId, status: out.status };
+}));
+
+// Deleted vs cancelled: a booking entered by mistake leaves every statistic. Manager only, reason from a list.
+router.get('/delete-reasons', handle(async (req) => {
+  requireRoles(req, READ_ROLES, 'אין הרשאה');
+  return Object.entries(DELETE_REASONS).map(([code, label]) => ({ code, label }));
+}));
+
+// GTD: mark as non-guaranteed (held until a time on arrival day) or back to a regular booking.
+router.post('/reservations/:id/guarantee', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return setNonGuaranteed({ propertyId: scope(req), reservationId: req.params.id, on: !!req.body?.nonGuaranteed, holdUntilTime: req.body?.holdUntilTime, actor: actorOf(req), ip: req.ip });
+}));
+
+// Cash Basis / No Post: any desk user may block charges to the room; opening it is a manager decision.
+router.post('/reservations/:id/no-post', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return setNoPost({ propertyId: scope(req), reservationId: req.params.id, on: !!req.body?.on, reason: req.body?.reason, actor: actorOf(req), ip: req.ip });
+}));
+
+// Voucher: who pays for what — one choice that opens the payer's window and routes the charges.
+router.post('/reservations/:id/voucher', handle(async (req) => {
+  requireRoles(req, CANCEL_ROLES, 'אין הרשאה');
+  return setVoucher({ propertyId: scope(req), reservationId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+
+router.post('/reservations/:id/delete', handle(async (req) => {
+  requireRoles(req, DELETE_ROLES, 'מחיקת הזמנה מותרת למנהל משמרת ומעלה');
+  return deleteReservation({ propertyId: scope(req), reservationId: req.params.id, reasonCode: req.body?.reason, note: req.body?.note, actor: actorOf(req), ip: req.ip });
 }));
 
 // ── RSV-04 quote lifecycle ──────────────────────────────────────────────────

@@ -24,7 +24,7 @@ const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
 const PRE_ARRIVAL = ['draft', 'quote', 'hold', 'pending_payment', 'confirmed', 'modified', 'waitlisted'];
 const IN_HOUSE = ['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'];
-const VOID_STATUSES = ['cancelled', 'no_show'];
+const VOID_STATUSES = ['cancelled', 'no_show', 'deleted'];
 export const LEDGER_LABELS = { guest: 'יתרות שוהים ועוזבים (Guest Ledger)', deposit: 'הזמנות שטרם הגיעו — מקדמות וחיובים מראש (Deposit Ledger)', ar: 'חייבים — חברות (AR / City Ledger)', void: 'יתרות בהזמנות שבוטלו / לא הגיעו' };
 
 function localDate(date, tz) {

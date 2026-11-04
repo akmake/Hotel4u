@@ -59,7 +59,7 @@ export default function InHousePage() {
         <div className="ui-guest">
           <Avatar name={r.guest.name} />
           <div className="min-w-0">
-            <div className="ui-guest-name">{r.guest.name}{r.guest.vip && <Crown size={12} className="text-amber-600" aria-label="VIP" />}</div>
+            <div className="ui-guest-name">{r.guest.name}{r.guest.vip && <Crown size={12} className="text-amber-600" aria-label="VIP" />}{r.noPost && <span className="ui-tag is-warn" title="שירותים נגבים במקום — לא מחייבים לחדר">ללא חיוב לחדר</span>}</div>
             <div className="ui-sub"><bdi>{r.confirmationNumber}</bdi>{r.company && ` · ${r.company.name}`}</div>
           </div>
         </div>

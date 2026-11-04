@@ -6,6 +6,7 @@ export const RES_STATUS = [
   'confirmed', 'modified', 'cancelled', 'waitlisted',
   'no_show', 'checked_in', 'in_house', 'checked_out',
   'partially_checked_in', 'partially_checked_out',
+  'deleted', // entered by mistake — not a cancellation; never counted in cancellation / no-show / revenue stats
 ];
 
 export const PAYMENT_STATUS = ['unpaid', 'partial', 'paid', 'refunded', 'balance_due'];
@@ -51,7 +52,12 @@ const ReservationSchema = new Schema({
   depositAmount:     { type: Number, default: 0 },
   depositPaid:       { type: Number, default: 0 },
   currency:          { type: String, default: 'ILS' },
-  guaranteeType:     { type: String, enum: ['none', 'credit_card', 'deposit', 'voucher', 'company_guarantee'], default: 'none' },
+  guaranteeType:     { type: String, enum: ['none', 'credit_card', 'deposit', 'voucher', 'company_guarantee', 'non_guaranteed'], default: 'none' },
+  // Cash Basis / No Post: services other than lodging/board may not be charged to the room without a manager.
+  noPost: { on: Boolean, source: { type: String, enum: ['manual', 'check_in'] }, by: { type: Schema.Types.ObjectId, ref: 'User' }, byName: String, at: Date, reason: String },
+  // Voucher — who pays for what (services/voucherService.js); drives routing to the payer's window.
+  voucher: { type: { type: String, enum: ['agent_all', 'agent_room', 'deposit', 'guest_all'] }, number: String, amount: Number, payerRef: String, payerRole: { type: String, enum: ['agent', 'company'] }, payerName: String, by: { type: Schema.Types.ObjectId, ref: 'User' }, byName: String, at: Date },
+  holdUntilTime:     { type: String, match: /^([01]\d|2[0-3]):[0-5]\d$/ }, // GTD: non-guaranteed booking held until HH:MM on arrival day
   confirmationSent:  { type: Boolean, default: false },
   confirmationSentAt: Date,
   confirmationSentTo: String,
@@ -72,6 +78,9 @@ const ReservationSchema = new Schema({
     computedAt:   Date,
     override:     { by: String, reason: String },      // manual price, manager only
     promotion:    { code: String, name: String, saving: Number }, // promo code applied at booking
+    // Discount on top of the rate (not a manual price): percent or amount off lodging, with a reason
+    // from the list; above Property.discountApprovalPercent a manager approves. Saving is per room.
+    discount: { kind: { type: String, enum: ['percent', 'amount'] }, value: Number, reason: String, note: String, saving: Number, baseTotal: Number, by: String, approvedBy: String, threshold: Number },
     // G2: board on top of the room price. source=plan → included in the rate (nothing extra);
     // source=supplement → per-night meal price for this room, posted as code 'board'.
     board: {
@@ -171,6 +180,8 @@ const ReservationSchema = new Schema({
   checkedOutAt:      Date,
   cancelledAt:       Date,
   cancellationReason:String,
+  // Deleted (entered by mistake): kept for the audit trail, out of every list and statistic.
+  deletion: { at: Date, by: { type: Schema.Types.ObjectId, ref: 'User' }, byName: String, reason: String, note: String },
   noShowAt:          Date,
 
   createdBy:         { type: Schema.Types.ObjectId, ref: 'User' },

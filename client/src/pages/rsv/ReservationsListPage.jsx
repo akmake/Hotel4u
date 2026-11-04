@@ -22,13 +22,14 @@ import './ReservationsListPage.css';
 const DEFAULTS = { status: 'all', q: '', from: '', to: '', dateField: 'arrival', source: '', sort: 'arrival', dir: 'asc', page: '1' };
 const STATUS_TONE = {
   confirmed: 'ok', modified: 'ok', in_house: 'ok', checked_in: 'ok', partially_checked_in: 'ok', partially_checked_out: 'warn',
-  hold: 'warn', pending_payment: 'warn', quote: 'muted', draft: 'muted', checked_out: 'muted', cancelled: 'bad', no_show: 'bad',
+  hold: 'warn', pending_payment: 'warn', quote: 'muted', draft: 'muted', checked_out: 'muted', cancelled: 'bad', no_show: 'bad', deleted: 'muted',
 };
 const DATE_FIELDS = { arrival: 'הגעה', stay: 'שהייה', departure: 'יציאה', created: 'יצירה' };
 const NEEDS_ROOM = ['confirmed', 'modified', 'pending_payment', 'hold', 'in_house', 'checked_in'];
 const TABS = [
   { id: 'all', label: 'הכול' }, { id: 'upcoming', label: 'עתידיות' }, { id: 'inhouse', label: 'בבית' },
   { id: 'departed', label: 'יצאו' }, { id: 'quotes', label: 'הצעות' }, { id: 'cancelled', label: 'בוטלו' },
+  { id: 'deleted', label: 'נמחקו' },
 ];
 const SORTS = [{ id: 'arrival', label: 'הגעה' }, { id: 'departure', label: 'יציאה' }, { id: 'guest', label: 'אורח' }, { id: 'total', label: 'סכום' }];
 
@@ -55,7 +56,7 @@ function Row({ r, on, onPick }) {
   const tone = STATUS_TONE[r.status] || 'muted';
   return (
     <li>
-      <button type="button" className={`rv-card ${on ? 'is-selected' : ''} ${['cancelled', 'no_show'].includes(r.status) ? 'is-done' : ''}`} onClick={() => onPick(r)} aria-pressed={on}>
+      <button type="button" className={`rv-card ${on ? 'is-selected' : ''} ${['cancelled', 'no_show', 'deleted'].includes(r.status) ? 'is-done' : ''}`} onClick={() => onPick(r)} aria-pressed={on}>
         <bdi className="rv-conf ui-num" title={r.externalId || undefined}>{r.confirmationNumber}</bdi>
         <span className="rv-flags">
           {r.overbooking && <span className="rv-ic is-bad" title="עודף הזמנה"><TriangleAlert size={13} /></span>}
@@ -90,7 +91,7 @@ function Line({ r, on, onPick }) {
   const arr = ymdToDate(r.arrivalDate);
   return (
     <li>
-      <button type="button" className={`rv-item ${on ? 'is-selected' : ''} ${['cancelled', 'no_show'].includes(r.status) ? 'is-done' : ''}`} onClick={() => onPick(r)} aria-pressed={on}>
+      <button type="button" className={`rv-item ${on ? 'is-selected' : ''} ${['cancelled', 'no_show', 'deleted'].includes(r.status) ? 'is-done' : ''}`} onClick={() => onPick(r)} aria-pressed={on}>
         <span className="rv-date" aria-label={`הגעה ${formatShort(r.arrivalDate)}`}>
           <b className="ui-num">{arr.getDate()}</b>
           <small>{arr.toLocaleDateString('he-IL', { month: 'short' })}</small>

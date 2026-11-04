@@ -19,6 +19,7 @@ import { journal, vatReport, receiptsReport, undocumentedReport, allocationsRepo
 import { buildUnifiedFile } from '../services/unifiedFileService.js';
 import { connectUrl, disconnect, connectionStatus, retryPending } from '../services/taxAuthorityService.js';
 import Property from '../models/Property.js';
+import { discountLines, splitLine, transferLines, combineLines, uncombineLines, paidOut, openWindow, transferTargets } from '../services/folioOpsService.js';
 
 const router = Router();
 
@@ -106,6 +107,42 @@ router.post('/folios/:id/lines/:lineId/reverse', handle(async (req) => {
 router.post('/folios/:id/close', handle(async (req) => {
   requireRoles(req, MONEY_WORK, 'אין הרשאה לסגור חשבון');
   return closeSettledFolio({ propertyId: scope(req), folioId: req.params.id, actor: actorOf(req), ip: req.ip });
+}));
+
+// ── Folio line operations (gap-map item 2) ─────────────────────────────────
+// Roles: the desk works the folio; a discount above the property threshold and a Paid Out above the
+// refund threshold are re-checked against the approver's role inside the service.
+router.post('/folios/:id/lines/discount', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה לתת הנחה');
+  return discountLines({ propertyId: scope(req), folioId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/folios/:id/lines/transfer', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה להעביר שורות');
+  return transferLines({ propertyId: scope(req), folioId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/folios/:id/lines/:lineId/split', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה לפצל שורה');
+  return splitLine({ propertyId: scope(req), folioId: req.params.id, lineId: req.params.lineId, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/folios/:id/combos', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה לאחד שורות');
+  return combineLines({ propertyId: scope(req), folioId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/folios/:id/combos/:comboId/remove', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה לבטל איחוד');
+  return uncombineLines({ propertyId: scope(req), folioId: req.params.id, comboId: req.params.comboId, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/folios/:id/paid-out', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה ל־Paid Out');
+  return paidOut({ propertyId: scope(req), folioId: req.params.id, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+router.post('/stays/:reservationId/windows', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה לפתוח חלון');
+  return openWindow({ propertyId: scope(req), reservationId: req.params.reservationId, input: req.body || {}, actor: actorOf(req), ip: req.ip });
+}));
+router.get('/stays/:reservationId/transfer-targets', handle(async (req) => {
+  requireRoles(req, MONEY_WORK, 'אין הרשאה');
+  return transferTargets({ propertyId: scope(req), reservationId: req.params.reservationId });
 }));
 
 // ── FIN-03 / FIN-04 ─────────────────────────────────────────────────────────

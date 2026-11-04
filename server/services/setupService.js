@@ -11,7 +11,7 @@ import { audit } from './auditService.js';
 import { httpError, businessDateOf } from './frontDeskService.js';
 
 export const SETUP_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager'];
-const LIVE = ['cancelled', 'no_show', 'checked_out', 'quote', 'draft', 'waitlisted'];
+const LIVE = ['cancelled', 'no_show', 'deleted', 'checked_out', 'quote', 'draft', 'waitlisted'];
 const VIEWS = ['sea', 'garden', 'city', 'mountain', 'pool', 'interior', 'courtyard', 'other'];
 const BED_TYPES = ['king', 'queen', 'twin', 'double', 'single', 'bunk', 'mixed', 'other'];
 const clip = (v, n) => String(v ?? '').trim().slice(0, n);

@@ -148,6 +148,62 @@ async function main() {
     r = await call('POST', `/booking/reservations/${inh._id}/cancel`, M, { propertyId: P, reason: 'ניסיון' });
     check('A stay that already started cannot be cancelled (T32)', r.status === 409, r.status);
 
+    // ── Deleted vs cancelled ────────────────────────────────────────────────
+    const d16 = addDays(today, 16);
+    r = await call('POST', '/booking/reservations', R, { propertyId: P, arrival: d16, departure: addDays(today, 17), adults: 2, rooms: 1, roomTypeId: String(rt._id), ratePlanId: String(bar._id), guestId: String(existing._id), idempotencyKey: key() });
+    const delId = r.data?.id; const inv16 = await booked(d16);
+    r = await call('POST', `/booking/reservations/${delId}/delete`, R, { propertyId: P, reason: 'duplicate' });
+    check('DEL a receptionist cannot delete a booking (shift manager and up)', r.status === 403, r.status);
+    r = await call('POST', `/booking/reservations/${delId}/delete`, M, { propertyId: P, reason: 'whatever' });
+    check('DEL the reason must come from the list', r.status === 422, r.status);
+    r = await call('POST', `/booking/reservations/${delId}/delete`, M, { propertyId: P, reason: 'duplicate', note: 'כפולה' });
+    const delRes = await Reservation.findById(delId).lean();
+    check('DEL deleted: status "deleted" with reason, inventory released', r.status === 200 && delRes.status === 'deleted' && delRes.deletion?.reason === 'duplicate' && (await booked(d16)) === inv16 - 1, `${r.status} ${r.error || ''} ${await booked(d16)}`);
+    const listAll = await call('GET', `/booking/reservations?${qs({ pageSize: 100 })}`, R);
+    const listCancel = await call('GET', `/booking/reservations?${qs({ status: 'cancelled', pageSize: 100 })}`, R);
+    const listDel = await call('GET', `/booking/reservations?${qs({ status: 'deleted' })}`, R);
+    check('DEL a deleted booking is out of the default list and the cancelled view, found under "deleted"', !listAll.data.rows.some((x) => x.id === delId) && !listCancel.data.rows.some((x) => x.id === delId) && listDel.data.rows.some((x) => x.id === delId) && listAll.data.counts.deleted === 1);
+    check('DEL audit row "reservation.deleted" written', !!(await AuditLog.findOne({ entityId: delId, action: 'reservation.deleted' }).lean()));
+    r = await call('POST', `/booking/reservations/${inh._id}/delete`, M, { propertyId: P, reason: 'wrong_entry' });
+    check('DEL a stay that started cannot be deleted', r.status === 409, r.status);
+    const paidRes = await Reservation.create({ property: P, confirmationNumber: `${TAG}-PD`, status: 'confirmed', primaryGuest: existing._id, adults: 1, arrivalDate: addDays(today, 29), departureDate: addDays(today, 30), nights: 1, roomsCount: 1, roomType: rt._id, ratePerNight: 500, totalAmount: 500 });
+    await Folio.create({ property: P, reservation: paidRes._id, guest: existing._id, lines: [{ type: 'payment', description: 'מקדמה', amount: -100, status: 'posted', serviceDate: today }] });
+    r = await call('POST', `/booking/reservations/${paidRes._id}/delete`, M, { propertyId: P, reason: 'duplicate' });
+    check('DEL a booking with money in its folio cannot be deleted (cancel instead)', r.status === 409, `${r.status} ${r.error}`);
+
+    // ── Discount with reason and approver ───────────────────────────────────
+    const d28 = { propertyId: P, arrival: addDays(today, 28), departure: addDays(today, 29), adults: 2, rooms: 1, roomTypeId: String(rt._id), ratePlanId: String(bar._id), guestId: String(existing._id) };
+    r = await call('POST', '/booking/reservations', R, { ...d28, discount: { kind: 'percent', value: 5 }, idempotencyKey: key() });
+    check('DSC a discount needs a reason from the list', r.status === 422 && r.fields?.discountReason, r.status);
+    r = await call('POST', '/booking/reservations', R, { ...d28, discount: { kind: 'percent', value: 20, reason: 'returning_guest' }, idempotencyKey: key() });
+    check('DSC above the threshold (10%) a receptionist is refused — needs a manager', r.status === 403 && r.code === 'discount_needs_approval', `${r.status} ${r.code}`);
+    r = await call('POST', '/booking/reservations', R, { ...d28, discount: { kind: 'percent', value: 5, reason: 'returning_guest' }, idempotencyKey: key() });
+    const ds1 = await Reservation.findById(r.data?.id).lean();
+    check('DSC 5% by a receptionist: 500 → 475, saving kept apart from manual price', r.status === 200 && ds1.totalAmount === 475 && ds1.discountAmount === 25 && ds1.priceSnapshot.discount.saving === 25 && !ds1.priceSnapshot.override?.reason && !ds1.priceSnapshot.discount.approvedBy, `${r.status} ${r.error} ${ds1?.totalAmount}`);
+    r = await call('POST', '/booking/reservations', M, { ...d28, discount: { kind: 'amount', value: 150, reason: 'service_recovery' }, idempotencyKey: key() });
+    const ds2 = await Reservation.findById(r.data?.id).lean();
+    check('DSC 150₪ (30%) by a manager: recorded as approved, audit row written', r.status === 200 && ds2.totalAmount === 350 && ds2.priceSnapshot.discount.approvedBy && !!(await AuditLog.findOne({ entityId: ds2._id, action: 'reservation.discount' }).lean()), `${r.status} ${r.error}`);
+    for (const id of [ds1?._id, ds2?._id].filter(Boolean)) await call('POST', `/booking/reservations/${id}/delete`, M, { propertyId: P, reason: 'test' }); // frees day 28 for the party tests
+
+    // ── GTD: non-guaranteed held until a time, bulk release ────────────────
+    const g0 = { propertyId: P, arrival: today, departure: addDays(today, 1), adults: 2, rooms: 1, roomTypeId: String(rt._id), ratePlanId: String(bar._id), guestId: String(existing._id), guarantee: 'non_guaranteed' };
+    const invT = await booked(today);
+    r = await call('POST', '/booking/reservations', R, { ...g0, holdUntilTime: '00:00', idempotencyKey: key() });
+    const gDue = r.data?.id;
+    // A second non-guaranteed arrival held until 23:59 (written directly: today's stock is used by earlier cases).
+    const gLater = String((await Reservation.create({ property: P, confirmationNumber: `${TAG}-GL`, status: 'confirmed', guaranteeType: 'non_guaranteed', holdUntilTime: '23:59', primaryGuest: existing._id, adults: 1, arrivalDate: today, departureDate: addDays(today, 1), nights: 1, roomsCount: 1, roomType: rt._id, ratePerNight: 500, totalAmount: 500 }))._id);
+    const gRes = await Reservation.findById(gDue).lean();
+    check('GTD booking saved as non-guaranteed with its hold time', gRes?.guaranteeType === 'non_guaranteed' && gRes.holdUntilTime === '00:00', JSON.stringify({ g: gRes?.guaranteeType, t: gRes?.holdUntilTime, e: r.error }));
+    r = await call('GET', `/frontdesk/arrivals/non-guaranteed?${qs({})}`, R);
+    check('GTD today list: the 00:00 one is due, the 23:59 one is still held', r.status === 200 && r.data.rows.find((x) => x.id === gDue)?.due === true && r.data.rows.find((x) => x.id === gLater)?.due === false, JSON.stringify(r.data || r).slice(0, 200));
+    r = await call('POST', '/frontdesk/arrivals/release-non-guaranteed', R, { propertyId: P });
+    check('GTD release is for a shift manager and up', r.status === 403, r.status);
+    r = await call('POST', '/frontdesk/arrivals/release-non-guaranteed', M, { propertyId: P });
+    const gAfter = await Reservation.findById(gDue).lean(); const gKept = await Reservation.findById(gLater).lean();
+    check('GTD release cancels only the due one, with the GTD reason, and frees its night', r.status === 200 && r.data.released === 1 && gAfter.status === 'cancelled' && /לא מובטחת/.test(gAfter.cancellationReason) && gKept.status === 'confirmed' && (await booked(today)) === invT, `${r.status} ${r.error || ''} ${gAfter?.status} ${await booked(today)}`);
+    r = await call('POST', `/booking/reservations/${gLater}/guarantee`, R, { propertyId: P, nonGuaranteed: false });
+    check('GTD a booking can be marked guaranteed again', r.status === 200 && (await Reservation.findById(gLater).lean()).guaranteeType === 'none', r.status);
+
     // ── RSV-04 quotes ───────────────────────────────────────────────────────
     const q = { propertyId: P, arrival: addDays(today, 22), departure: addDays(today, 24), adults: 2, rooms: 1, roomTypeId: String(rt._id), ratePlanId: String(bar._id), guestId: String(existing._id) };
     r = await call('POST', '/booking/reservations', R, { ...q, mode: 'quote', validUntil: new Date(Date.now() - 60000).toISOString(), idempotencyKey: key() });
@@ -194,7 +250,7 @@ async function main() {
 
     // ── RSV-01 / RSV-03 ─────────────────────────────────────────────────────
     r = await call('GET', `/booking/reservations?${qs({ q: res1.confirmationNumber })}`, R);
-    check('RSV-01 finds a booking by confirmation number', r.status === 200 && r.data.rows.length === 1 && r.data.rows[0].id === String(res1._id), r.status);
+    check('RSV-01 finds a booking by confirmation number', r.status === 200 && r.data.rows.some((x) => x.id === String(res1._id) && x.confirmationNumber === res1.confirmationNumber), r.status);
     r = await call('GET', `/booking/reservations?${qs({ status: 'quotes' })}`, R);
     check('RSV-01 quotes filter', r.status === 200 && r.data.rows.every((x) => ['quote', 'draft'].includes(x.status)));
     r = await call('GET', `/booking/reservations?${qs({ from: addDays(today, 1), to: addDays(today, 3), dateField: 'arrival' })}`, R);

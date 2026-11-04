@@ -23,7 +23,7 @@ import { payloadHash } from '../domain/accounting.js';
 
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
 const MAX_ROOMS = 20;
-const SHARED = ['arrival', 'departure', 'source', 'companyId', 'payerType', 'booker', 'specialRequests', 'internalNotes', 'language', 'mode', 'holdMinutes', 'residency', 'promoCode'];
+const SHARED = ['arrival', 'departure', 'source', 'companyId', 'payerType', 'booker', 'specialRequests', 'internalNotes', 'language', 'mode', 'holdMinutes', 'residency', 'promoCode', 'guarantee', 'holdUntilTime', 'voucher'];
 
 const YMD_RX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -104,7 +104,7 @@ async function createPartyTransaction({ propertyId, input, actor, ip, session, a
         input: {
           ...shared, ...stayOf(l), mode, guestId: String(guest._id), rooms: 1,
           roomTypeId: l.roomTypeId, ratePlanId: l.ratePlanId, adults: Number(l.adults), children: Number(l.children || 0),
-          childAges: l.childAges, priceSignature: l.priceSignature, override: l.override, board: l.board,
+          childAges: l.childAges, priceSignature: l.priceSignature, override: l.override, discount: l.discount, board: l.board,
           specialRequests: [shared.specialRequests, l.note].filter(Boolean).join(' · ') || undefined,
           idempotencyKey: `${key}-${i + 1}`,
         },

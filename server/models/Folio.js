@@ -25,6 +25,15 @@ const FolioLineSchema = new Schema({
   // returns. Lines are never deleted — corrections are new lines.
   reversalOf:  { type: Schema.Types.ObjectId },
   refundOf:    { type: Schema.Types.ObjectId },
+  // Folio line operations (gap-map item 2, services/folioOpsService.js) — each is a new line:
+  // a discount points at the charge it reduces; a split/transfer reverses the original
+  // (reversalOf) and posts the parts/copy with a link back.
+  discountOf:  { type: Schema.Types.ObjectId },
+  splitOf:     { type: Schema.Types.ObjectId },
+  transferFrom: { type: new Schema({ folio: Schema.Types.ObjectId, line: Schema.Types.ObjectId, label: String }, { _id: false }), default: undefined },
+  transferTo:  { type: new Schema({ folio: Schema.Types.ObjectId, label: String }, { _id: false }), default: undefined },
+  // Paid Out: cash the desk handed out on the guest's behalf (taxi, courier) — a cash-out line.
+  paidOut:     { type: new Schema({ payee: String, purpose: String }, { _id: false }), default: undefined },
   quantity:    Number,
   unitPrice:   Number,                                     // gross per unit as entered
   method:      String,                                     // payment/refund method
@@ -75,6 +84,15 @@ const FolioSchema = new Schema({
   status:      { type: String, enum: FOLIO_STATUS, default: 'open' },
   currency:    { type: String, default: 'ILS' },
   lines:       [FolioLineSchema],
+  // Invoice combinations: charges shown as ONE line on the next invoice. Display only — the lines
+  // themselves stay separate in the folio and are never edited.
+  combos: [{
+    label:   { type: String, required: true },
+    lineIds: [Schema.Types.ObjectId],
+    by:      { type: Schema.Types.ObjectId, ref: 'User' },
+    byName:  String,
+    at:      { type: Date, default: Date.now },
+  }],
   closedAt:    Date,
   closedBy:    { type: Schema.Types.ObjectId, ref: 'User' },
   // How a balance was left at departure (FD-08-F04). A folio that still owes money stays open:

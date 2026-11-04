@@ -60,6 +60,8 @@ export default function ArrivalsPage() {
   const [queueRow, setQueueRow] = useState(null);
   const [etaRow, setEtaRow] = useState(null);
   const [noShowRow, setNoShowRow] = useState(null);
+  const [gtdOpen, setGtdOpen] = useState(false);
+  const [gtd, setGtd] = useState(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [onlineRow, setOnlineRow] = useState(null);
@@ -99,6 +101,7 @@ export default function ArrivalsPage() {
         pageSize: p('size'),
       });
       if (version === loadVersion.current) setData({ ...d, loadedForPropertyId: propertyId });
+      frontdesk.nonGuaranteed(propertyId).then((g) => { if (version === loadVersion.current) setGtd(g); }).catch(() => setGtd(null));
     } catch (e) {
       if (version === loadVersion.current) setError(e.message);
     } finally {
@@ -162,6 +165,7 @@ export default function ArrivalsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPlanOpen(true)} disabled={!propertyId || !viewDate}>שיבוץ אוטומטי</button>
+          {isToday && gtd?.rows?.length > 0 && <button type="button" className={`btn btn-sm ${gtd.dueCount ? 'btn-danger' : 'btn-secondary'}`} onClick={() => setGtdOpen(true)}>לא מובטחות · {gtd.dueCount ? `${gtd.dueCount} לשחרור` : gtd.rows.length}</button>}
           <Link to="/pms/arrival-queue" className="btn btn-secondary btn-sm">תור המתנה{counts.queued ? ` · ${counts.queued}` : ''}</Link>
           {canWorkCribs && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCribDialog({})} disabled={!propertyId}>לולים ואיסוף ציוד</button>}
         </div>
@@ -333,6 +337,7 @@ export default function ArrivalsPage() {
         onQueued={() => { setQueueRow(null); success('נוסף לתור ההמתנה'); load(); wizardReload?.(); setWizardReload(null); }}
       />
       <EtaDialog row={etaRow} propertyId={propertyId} onClose={() => setEtaRow(null)} onSaved={() => { setEtaRow(null); load(); success('שעת ההגעה עודכנה'); }} />
+      <GtdReleaseDialog open={gtdOpen} data={gtd} canRelease={isManager} propertyId={propertyId} onClose={() => setGtdOpen(false)} onDone={(out) => { setGtdOpen(false); load(); success(`שוחררו ${out.released} הזמנות לא מובטחות${out.failed.length ? ` · ${out.failed.length} נכשלו` : ''}`); }} />
       <NoShowDialog row={noShowRow} propertyId={propertyId} onClose={() => setNoShowRow(null)} onDone={() => { setNoShowRow(null); load(); success('סומנה אי הגעה'); }} onError={toastError} />
       {cribDialog && <CribDialog key={`${propertyId}:${cribDialog.unitId || 'desk'}`} propertyId={propertyId} {...cribDialog} onClose={() => setCribDialog(null)} onChanged={load} />}
       <WalkInDialog
@@ -519,6 +524,48 @@ function NoShowDialog({ row, propertyId, onClose, onDone, onError }) {
         אי הגעה אינה ביטול ואינה מוחקת את ההזמנה. המלאי של הלילות ישוחרר והחדר יחזור לפנוי.
         חיוב דמי אי הגעה או החזר מקדמה אינם מתבצעים כאן — הם פעולות כספיות נפרדות בתיק ההזמנה.
       </p>
+    </Modal>
+  );
+}
+
+// GTD — non-guaranteed arrivals of the business day: held until their time, then released together.
+function GtdReleaseDialog({ open, data, canRelease, propertyId, onClose, onDone }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  useEffect(() => { if (open) setError(null); }, [open]);
+  const rows = data?.rows || [];
+  const due = rows.filter((r) => r.due && !r.blocked);
+  async function release() {
+    setSaving(true); setError(null);
+    try { onDone(await frontdesk.releaseNonGuaranteed(propertyId, due.map((r) => r.id))); }
+    catch (e) { setError(e.message); }
+    finally { setSaving(false); }
+  }
+  const why = !canRelease ? 'מנהל משמרת ומעלה' : !due.length ? 'אין הזמנות שעבר מועד השמירה שלהן' : null;
+  return (
+    <Modal open={open} onClose={onClose} busy={saving} width={560} title="הזמנות לא מובטחות" subtitle={data ? `היום העסקי · עכשיו ${data.now}` : ''}
+      footer={(
+        <>
+          {why && <span className="ui-foot-note">{why}</span>}
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>סגירה</button>
+          <button type="button" className="btn btn-danger" onClick={release} disabled={saving || !!why}>{saving ? <><Spinner /> משחרר…</> : `שחרור ${due.length} שעבר מועדן`}</button>
+        </>
+      )}>
+      <ErrorBanner error={error} />
+      <table className="ui-table">
+        <thead><tr><th scope="col">אורח</th><th scope="col">אישור</th><th scope="col">נשמרת עד</th><th scope="col">מצב</th></tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>{r.guest}{r.rooms > 1 ? ` · ${r.rooms} חדרים` : ''}</td>
+              <td className="ui-mono">{r.confirmationNumber}</td>
+              <td>{r.holdUntil}{r.eta ? <span className="ui-sub"> · הגעה צפויה {r.eta}</span> : null}</td>
+              <td>{r.blocked ? <Tag tone="warn">{r.blocked}</Tag> : r.due ? <Tag tone="bad">עבר המועד</Tag> : <Tag>נשמרת</Tag>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="ui-p mt-3">שחרור מבטל את ההזמנה עם הסיבה "שחרור הזמנה לא מובטחת" ומחזיר את המלאי. הזמנה ששולם עליה לא משוחררת כאן.</p>
     </Modal>
   );
 }

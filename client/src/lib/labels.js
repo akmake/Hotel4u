@@ -59,6 +59,7 @@ export const GUARANTEE_LABELS = {
   deposit: 'מקדמה',
   voucher: 'שובר',
   company_guarantee: 'ערבות חברה',
+  non_guaranteed: 'לא מובטחת (שמירה עד שעה)',
 };
 
 export const ID_DOC_LABELS = {
@@ -155,7 +156,7 @@ export const DISPOSAL_LABELS = { donated: 'נתרם', discarded: 'הושמד', p
 export const RES_STATUS_LABELS = {
   draft: 'טיוטה', quote: 'הצעת מחיר', hold: 'מוחזקת', pending_payment: 'ממתינה לתשלום', confirmed: 'מאושרת', modified: 'עודכנה',
   cancelled: 'בוטלה', waitlisted: 'רשימת המתנה', no_show: 'לא הגיע', checked_in: 'בבית', in_house: 'בבית', checked_out: 'יצא',
-  partially_checked_in: 'נכנס חלקית', partially_checked_out: 'יצא חלקית',
+  partially_checked_in: 'נכנס חלקית', partially_checked_out: 'יצא חלקית', deleted: 'נמחקה',
 };
 export const SOURCE_LABELS = {
   direct: 'ישיר', phone: 'טלפון', walk_in: 'הגעה ללא הזמנה', corporate: 'חברה', agent: 'סוכן', booking: 'Booking.com',

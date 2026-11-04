@@ -22,6 +22,7 @@ const CompanySchema = new Schema({
 
   // Financial
   creditLimit:  { type: Number, default: 0 },
+  voucherRequired: { type: Boolean, default: false }, // bookings paid by this company/agent need a voucher number
   discountPct:  { type: Number, default: 0, min: 0, max: 100 },
   paymentTerms: { type: String, default: 'immediate' },  // e.g. 'Net 30', 'Net 60', 'immediate'
   currency:     { type: String, default: 'ILS' },

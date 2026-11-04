@@ -768,7 +768,7 @@ router.get('/channel-performance', asyncHandler(async (req, res) => {
 
   const reservations = await Reservation.find({
     property: propertyId,
-    status: { $nin: ['cancelled'] },
+    status: { $nin: ['cancelled', 'deleted'] },
     arrivalDate: { $gte: from, $lte: to },
   }).lean();
 
@@ -816,7 +816,7 @@ router.get('/market-segment', asyncHandler(async (req, res) => {
 
   const reservations = await Reservation.find({
     property: propertyId,
-    status: { $nin: ['cancelled'] },
+    status: { $nin: ['cancelled', 'deleted'] },
     arrivalDate: { $gte: from, $lte: to },
   }).lean();
 
@@ -856,7 +856,7 @@ router.get('/pickup', asyncHandler(async (req, res) => {
 
   const reservations = await Reservation.find({
     property: propertyId,
-    status: { $nin: ['cancelled'] },
+    status: { $nin: ['cancelled', 'deleted'] },
     arrivalDate: { $gte: targetFrom, $lte: targetTo },
     createdAt:   { $gte: new Date(since) },
   }).lean();
@@ -899,7 +899,7 @@ router.get('/avg-los', asyncHandler(async (req, res) => {
 
   const reservations = await Reservation.find({
     property: propertyId,
-    status: { $nin: ['cancelled'] },
+    status: { $nin: ['cancelled', 'deleted'] },
     arrivalDate: { $gte: from, $lte: to },
   }).lean();
 

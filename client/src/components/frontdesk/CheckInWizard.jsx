@@ -740,6 +740,11 @@ function GuaranteeStep({ ctx, propertyId, reload, method, setMethod, reference, 
 // ── Step 4: summary & confirm ───────────────────────────────────────────────
 function ConfirmStep({ ctx, chosen, chosenSelf = [], chosenBooker = [], roomGuarantees = {}, method, guaranteeRef, isManager, propertyId, reload, goTo, onSuccess }) {
   const [override, setOverride] = useState(false);
+  // Cash Basis: default follows how the guest pays (card, voucher, company → may charge; cash/deposit → not).
+  const [noPostPick, setNoPostPick] = useState(null);
+  const effMethod = method || ctx.reservation.guaranteeType || 'none';
+  const noPostDefault = !!ctx.reservation.noPost || (ctx.reservation.payerType !== 'company' && !['credit_card', 'voucher', 'company_guarantee'].includes(effMethod));
+  const noPost = noPostPick === null ? noPostDefault : noPostPick;
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -789,6 +794,7 @@ function ConfirmStep({ ctx, chosen, chosenSelf = [], chosenBooker = [], roomGuar
         guarantee: method && chosenBooker.length && !keepsExisting ? { method, reference: guaranteeRef || undefined } : undefined,
         unitGuarantees: chosenSelf.filter((u) => roomGuaranteeValid(roomGuarantees[u.index])).map((u) => ({ unitIndex: u.index, unitId: u.unitId || undefined, method: roomGuarantees[u.index].method, reference: roomGuarantees[u.index].reference })),
         override: override ? { enabled: true, reason } : undefined,
+        noPost,
       });
       onSuccess(out);
     } catch (e) {
@@ -817,6 +823,10 @@ function ConfirmStep({ ctx, chosen, chosenSelf = [], chosenBooker = [], roomGuar
         </div>
       )}
 
+      <label className="ui-check" style={{ marginTop: 8 }}>
+        <input type="checkbox" checked={noPost} onChange={(e) => setNoPostPick(e.target.checked)} />
+        <span>ללא חיוב לחדר (Cash Basis)<span className="ui-hint"> — מסעדה, ספא ושירותים נגבים במקום. {noPostPick === null ? 'נקבע לפי אמצעי התשלום' : ''}</span></span>
+      </label>
       {needsOverride && !hardIssues.length && (
         <div className="ui-sub-card">
           <label className={`ui-check ${!isManager ? 'is-disabled' : ''}`}>

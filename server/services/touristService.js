@@ -102,7 +102,7 @@ export async function recordTourist({ propertyId, reservationId, input, actor, i
   if (!DESK_ROLES.includes(actor.role) && !TAX_ADMIN_ROLES.includes(actor.role)) throw httpError('רישום מעמד תייר מתבצע בקבלה', 403);
   const res = await Reservation.findOne({ _id: reservationId, property: propertyId });
   if (!res) throw httpError('ההזמנה לא נמצאה', 404);
-  if (['cancelled', 'no_show'].includes(res.status)) throw httpError('לא רושמים מעמד להזמנה שבוטלה', 409);
+  if (['cancelled', 'no_show', 'deleted'].includes(res.status)) throw httpError('לא רושמים מעמד להזמנה שבוטלה', 409);
   const property = await Property.findById(propertyId).select('timezone dayClose').lean();
   const today = businessDateOf(property);
   const nonResident = !!input.nonResident;

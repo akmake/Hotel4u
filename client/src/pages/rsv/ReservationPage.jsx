@@ -18,8 +18,9 @@ import {
   useLoader, useAction, money, formatDateTime,
 } from '../../components/kit';
 import { MoveRoomDialog, ExtendDialog, EarlyDepartureDialog, ModifyBookingDialog, CancelBookingDialog } from '../../components/stay/StayChangeDialogs';
-import { ReinstateDialog, ReverseCheckInDialog, PostStayChargeDialog } from '../../components/stay/ReversalDialogs';
+import { ReinstateDialog, ReverseCheckInDialog, PostStayChargeDialog, DeleteReservationDialog } from '../../components/stay/ReversalDialogs';
 import TouristDialog, { DECISION_TONE } from '../../components/stay/TouristDialog';
+import VoucherDialog from '../../components/stay/VoucherDialog';
 import CheckInWizard from '../../components/frontdesk/CheckInWizard';
 import CheckOutWizard from '../../components/frontdesk/CheckOutWizard';
 import AssignRoomDialog from '../../components/frontdesk/AssignRoomDialog';
@@ -29,7 +30,7 @@ import { stay as stayApi } from '../../utils/api';
 
 const STATUS_TONE = {
   confirmed: 'ok', modified: 'ok', in_house: 'ok', checked_in: 'ok', partially_checked_in: 'ok', partially_checked_out: 'warn',
-  hold: 'warn', pending_payment: 'warn', quote: 'muted', draft: 'muted', checked_out: 'muted', cancelled: 'bad', no_show: 'bad',
+  hold: 'warn', pending_payment: 'warn', quote: 'muted', draft: 'muted', checked_out: 'muted', cancelled: 'bad', no_show: 'bad', deleted: 'muted',
 };
 const UNIT_STATUS = { reserved: 'שמורה', tentative: 'זמנית', in_house: 'בבית', checked_in: 'בבית', checked_out: 'יצאה', cancelled: 'בוטלה', no_show: 'לא הגיעה' };
 const PAYER = { guest: 'האורח', company: 'חברה', booker: 'המזמין' };
@@ -42,6 +43,9 @@ const IN_HOUSE = ['in_house', 'checked_in', 'partially_checked_in', 'partially_c
 // G6: who may walk a stay back (the server enforces the same).
 const SHIFT_MANAGER_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
 const POST_STAY_ROLES = [...SHIFT_MANAGER_ROLES, 'finance_manager'];
+const CLOSED_STATES = ['checked_out', 'cancelled', 'no_show', 'deleted'];
+const DISCOUNT_LABEL = { returning_guest: 'אורח חוזר', service_recovery: 'פיצוי על תקלה', staff: 'עובד / משפחת עובד', long_stay: 'שהייה ארוכה', negotiated: 'משא ומתן עם הלקוח', management: 'מחווה של ההנהלה', other: 'אחר' };
+const DELETE_LABEL = { duplicate: 'הזמנה כפולה', wrong_entry: 'הוזנה בטעות', test: 'הזמנת ניסיון', wrong_property: 'נכס או תאריכים שגויים', other: 'אחר' };
 const REVERSAL_LABELS = { reinstate_cancelled: 'שחזור הזמנה שבוטלה', reinstate_no_show: 'שחזור "לא הגיע"', reverse_check_in: 'ביטול כניסה' };
 
 export default function ReservationPage() {
@@ -52,6 +56,7 @@ export default function ReservationPage() {
   const role = useAuthStore((s) => s.user?.role);
   const { toasts, success } = useToast();
   const [mailTo, setMailTo] = useState('');
+  const [gtdTime, setGtdTime] = useState('18:00');
   const [dialog, setDialog] = useState(null);
   const act = useAction();
   const { data: r, loading, error, reload } = useLoader(async () => (propertyId ? booking.get(propertyId, id) : null), [propertyId, id]);
@@ -132,6 +137,13 @@ export default function ReservationPage() {
                   onSelect: () => setDialog({ kind: 'reinstate' }),
                 },
                 { separator: true },
+                PRE_ARRIVAL.includes(r.status) && r.terms.guarantee !== 'company_guarantee' && (r.terms.guarantee === 'non_guaranteed'
+                  ? { label: 'סימון כמובטחת', hint: 'לא תשוחרר בשעת השמירה', disabled: !CANCEL_ROLES.includes(role), why: 'אין הרשאה', onSelect: () => act.run(async () => { await booking.setGuarantee(propertyId, r.id, { nonGuaranteed: false }); success('ההזמנה מובטחת'); reload(); }) }
+                  : { label: 'סימון כלא מובטחת', hint: 'נשמרת עד שעה ביום ההגעה', disabled: !CANCEL_ROLES.includes(role), why: 'אין הרשאה', onSelect: () => setDialog({ kind: 'gtd' }) }),
+                [...PRE_ARRIVAL, ...IN_HOUSE].includes(r.status) && (r.noPost?.on
+                  ? { label: 'פתיחת חיוב לחדר', hint: 'מבטל את "ללא חיוב לחדר"', disabled: !SHIFT_MANAGER_ROLES.includes(role), why: 'מנהל משמרת ומעלה', onSelect: () => act.run(async () => { await booking.setNoPost(propertyId, r.id, false); success('חיוב לחדר נפתח'); reload(); }) }
+                  : { label: 'ללא חיוב לחדר', hint: 'Cash Basis — שירותים נגבים במקום', disabled: !CANCEL_ROLES.includes(role), why: 'אין הרשאה', onSelect: () => act.run(async () => { await booking.setNoPost(propertyId, r.id, true); success('סומן "ללא חיוב לחדר"'); reload(); }) }),
+                r.actions.delete && r.status !== 'deleted' && { label: 'מחיקת הזמנה', hint: 'נכנסה בטעות — לא נספרת כביטול', danger: true, disabled: !r.actions.delete.ok || !SHIFT_MANAGER_ROLES.includes(role), why: !r.actions.delete.ok ? r.actions.delete.why : 'מנהל משמרת ומעלה', onSelect: () => setDialog({ kind: 'delete' }) },
                 !isQuote && { label: 'ביטול הזמנה', hint: 'קליטת הודעה ובדיקת זכאות', danger: true, disabled: !r.actions.cancel.ok || !CANCEL_ROLES.includes(role), why: !CANCEL_ROLES.includes(role) ? 'אין הרשאה' : r.actions.cancel.why, onSelect: () => setDialog({ kind: 'cancel' }) },
               ].filter(Boolean);
 
@@ -163,6 +175,7 @@ export default function ReservationPage() {
           </div>
         </Banner>
       )}
+      {r.deletion && <Banner tone="warn">ההזמנה נמחקה ({r.deletion.reason ? (DELETE_LABEL[r.deletion.reason] || r.deletion.reason) : ''}{r.deletion.note ? ` — ${r.deletion.note}` : ''}) · {r.deletion.by} · {formatShort(String(r.deletion.at).slice(0, 10))}. היא לא נספרת בביטולים, ב"לא הגיע" ובהכנסות.</Banner>}
       {cancelled && (
         <Banner tone="info">
           <div className="ui-stack" style={{ gap: 6, width: '100%' }}>
@@ -329,7 +342,24 @@ export default function ReservationPage() {
                   <dl className="rsv-dl">{r.price.snapshot.nightly.map((n) => <div key={n.date}><dt>{formatShort(n.date)}</dt><dd>{money(n.price, currency)}</dd></div>)}</dl>
                 </details>
               )}
+              {r.price.snapshot?.discount?.saving > 0 && <p className="rsv-note">הנחה {r.price.snapshot.discount.kind === 'percent' ? `${r.price.snapshot.discount.value}%` : money(r.price.snapshot.discount.value, currency)} על הלינה ({DISCOUNT_LABEL[r.price.snapshot.discount.reason] || r.price.snapshot.discount.reason}{r.price.snapshot.discount.note ? ` — ${r.price.snapshot.discount.note}` : ''}) · לפני הנחה {money(r.price.snapshot.discount.baseTotal, currency)} · חיסכון {money(r.price.snapshot.discount.saving, currency)} לחדר · {r.price.snapshot.discount.by}{r.price.snapshot.discount.approvedBy ? ` · אושר מעל ${r.price.snapshot.discount.threshold}%` : ''}</p>}
               {r.price.snapshot?.override?.reason && <p className="rsv-note">מחיר ידני: {r.price.snapshot.override.reason} · {r.price.snapshot.override.by}</p>}
+            </section>
+          )}
+          {r.voucher && (r.voucher.current || r.voucher.payers.length > 0) && (
+            <section className="rsv-card" aria-labelledby="rsv-voucher">
+              <div className="rsv-card-head">
+                <h2 id="rsv-voucher">Voucher — מי משלם על מה</h2>
+                {CANCEL_ROLES.includes(role) && ![...CLOSED_STATES].includes(r.status) && <button type="button" className="rsv-link" onClick={() => setDialog({ kind: 'voucher' })}>{r.voucher.current ? 'שינוי' : 'קביעה'}</button>}
+              </div>
+              {r.voucher.current ? (
+                <dl className="rsv-dl">
+                  <div><dt>חלוקה</dt><dd>{r.voucher.current.label}</dd></div>
+                  {r.voucher.current.payerName && <div><dt>משלם</dt><dd>{r.voucher.current.payerName} ({r.voucher.current.payerRole === 'agent' ? 'סוכן' : 'חברה'})</dd></div>}
+                  {r.voucher.current.amount != null && <div><dt>סכום הסוכן</dt><dd>{money(r.voucher.current.amount, currency)}</dd></div>}
+                  <div><dt>מספר Voucher</dt><dd>{r.voucher.current.number || '—'}</dd></div>
+                </dl>
+              ) : <p className="rsv-note">לא נקבע — כל החיובים בחשבון האורח.</p>}
             </section>
           )}
           <section className="rsv-card" aria-labelledby="rsv-terms">
@@ -337,7 +367,8 @@ export default function ReservationPage() {
             <dl className="rsv-dl">
               <div><dt>ביטול</dt><dd>{r.terms.cancellation || 'לא נשמר בהזמנה'}</dd></div>
               <div><dt>מקדמה</dt><dd>{r.terms.deposit || '—'}</dd></div>
-              <div><dt>ערבות</dt><dd>{GUARANTEE_LABELS[r.terms.guarantee] || r.terms.guarantee}</dd></div>
+              <div><dt>חיוב לחדר</dt><dd>{r.noPost?.on ? `ללא חיוב לחדר — שירותים נגבים במקום (${r.noPost.source === 'check_in' ? 'נקבע בצ׳ק־אין' : r.noPost.by})` : 'מותר'}</dd></div>
+              <div><dt>ערבות</dt><dd>{r.terms.guarantee === 'non_guaranteed' ? `לא מובטחת — נשמרת עד ${r.terms.holdUntilTime} ביום ההגעה` : GUARANTEE_LABELS[r.terms.guarantee] || r.terms.guarantee}</dd></div>
             </dl>
           </section>
           {tourist.data && (
@@ -365,6 +396,14 @@ export default function ReservationPage() {
       <ReinstateDialog open={dialog?.kind === 'reinstate'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success(out.roomReleased ? 'ההזמנה שוחזרה · החדר ששובץ נתפס — יש לשבץ מחדש' : 'ההזמנה שוחזרה'); reload(); }} />
       <ReverseCheckInDialog open={dialog?.kind === 'reverse'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('הכניסה בוטלה — ההזמנה מאושרת וממתינה לכניסה'); reload(); }} />
       <PostStayChargeDialog open={dialog?.kind === 'poststay'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); success('החיוב נרשם בחשבון "אחרי יציאה"'); nav(`/pms/folio?reservation=${r.id}&folio=${out.folioId}`); }} />
+      <ConfirmDialog open={dialog?.kind === 'gtd'} onClose={() => setDialog(null)} title="סימון כלא מובטחת" subtitle={r.confirmationNumber} confirmLabel="סימון"
+        onConfirm={async () => { await booking.setGuarantee(propertyId, r.id, { nonGuaranteed: true, holdUntilTime: gtdTime || undefined }); setDialog(null); success('ההזמנה סומנה כלא מובטחת'); reload(); }}>
+        <Field id="gtd-time" label="נשמרת ביום ההגעה עד" hint="אחרי השעה הזאת היא תופיע בהגעות לשחרור">
+          <input id="gtd-time" type="time" className="input" value={gtdTime} onChange={(e) => setGtdTime(e.target.value)} />
+        </Field>
+      </ConfirmDialog>
+      <VoucherDialog open={dialog?.kind === 'voucher'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('ה־Voucher נשמר — החיובים הבאים ינותבו לפיו'); reload(); }} />
+      <DeleteReservationDialog open={dialog?.kind === 'delete'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={() => { setDialog(null); success('ההזמנה נמחקה והמלאי שוחרר'); reload(); }} />
       <CancelBookingDialog open={dialog?.kind === 'cancel'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} onDone={(out) => { setDialog(null); setCancelled(out); success('הביטול נרשם'); reload(); }} />
       <ModifyBookingDialog open={dialog?.kind === 'modify'} onClose={() => setDialog(null)} propertyId={propertyId} reservation={r} roomTypes={(types.data || []).map((t) => ({ id: t._id, name: t.name }))} onDone={(out) => { setDialog(null); success(out.unassignedRooms ? `ההזמנה עודכנה · ${out.unassignedRooms} חדרים שוחררו משיבוץ` : 'ההזמנה עודכנה'); reload(); }} />
       <MoveRoomDialog open={dialog?.kind === 'move'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} unitId={dialog?.unitId} canChangePrice={PRICE_ROLES.includes(role)} onDone={(out) => { setDialog(null); success(`עבר מחדר ${out.from || '—'} לחדר ${out.to}${out.ticket ? (out.ticket.linked ? ' · נרשם בתקלה הפתוחה' : ' · נפתחה תקלה בתחזוקה') + (out.ticket.blocked ? ' והחדר נחסם' : '') : ''}${out.key ? ' · יש להנפיק מפתח' : ''}`); reload(); }} />

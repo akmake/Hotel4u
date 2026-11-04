@@ -12,7 +12,7 @@ const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const isId = (v) => mongoose.isValidObjectId(String(v || ''));
 const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 export const PROMO_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'revenue_manager', 'sales_manager', 'front_desk_manager'];
-const LIVE = { status: { $nin: ['cancelled', 'no_show', 'draft'] } };
+const LIVE = { status: { $nin: ['cancelled', 'no_show', 'deleted', 'draft'] } };
 
 export function cleanCode(v) {
   return String(v || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 30);

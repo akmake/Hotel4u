@@ -127,6 +127,9 @@ const PropertySchema = new Schema({
   // Tax and billing
   taxNumber:        String,
   vatRate:          { type: Number, default: 17 },
+  // A booking discount above this share of the lodging price needs a manager (price-override role).
+  nonGuaranteedReleaseTime: { type: String, default: '18:00' }, // GTD: default hold time for non-guaranteed bookings
+  discountApprovalPercent: { type: Number, default: 10, min: 0, max: 100 },
   invoicePrefix:    { type: String, default: 'INV' },
   invoiceSequence:  { type: Number, default: 1000 },
   // One running series per document type (FIN-06): the last number issued in each.

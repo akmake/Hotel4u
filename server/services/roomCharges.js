@@ -7,6 +7,7 @@
 //
 // Rates are the price the guest was quoted (gross). VAT is extracted, not added on top:
 // 118 at 18% → net 100 + VAT 18.
+import { routesRoom, ROOM_CODES } from './voucherService.js';
 import Folio from '../models/Folio.js';
 import Property from '../models/Property.js';
 import ReservationRoom from '../models/ReservationRoom.js';
@@ -39,8 +40,10 @@ export function splitGross(gross, vatRatePct) {
 
 // The guest folio the lodging goes to (routing to a company happens through FIN-05 rules).
 export async function lodgingFolio(reservation, { create = true, session = null } = {}) {
-  let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'guest', status: { $ne: 'closed' } }).session(session);
-  if (!folio) folio = await Folio.findOne({ reservation: reservation._id, ownerType: { $ne: 'room' }, status: { $ne: 'closed' } }).session(session);
+  // Lodging never lands on an extra window the desk opened (ownerRef extra:N) or the post-stay window.
+  const mainWindow = { ownerRef: { $not: /^(extra:|post_stay)/ } };
+  let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'guest', status: { $ne: 'closed' }, ...mainWindow }).sort({ createdAt: 1 }).session(session);
+  if (!folio) folio = await Folio.findOne({ reservation: reservation._id, ownerType: { $nin: ['room', 'company'] }, status: { $ne: 'closed' }, ...mainWindow }).sort({ createdAt: 1 }).session(session);
   if (!folio && create) {
     [folio] = await Folio.create([{
       property: reservation.property, reservation: reservation._id, ownerType: 'guest',
@@ -74,7 +77,24 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
   const boardVat = await vatForLine({ reservation, code: 'board', propertyVatRate: propertyVat ?? 18, session });
   const boardByDate = reservation.priceSnapshot?.board?.source === 'supplement' ? new Map((reservation.priceSnapshot.board.nightly || []).map((n) => [n.date, Number(n.price)])) : new Map();
   const split = (gross, v) => (v.rate === 0 ? { net: v.strip ? splitGross(gross, propertyVat ?? 18).net : round2(gross), tax: 0 } : splitGross(gross, v.rate));
-  const all = await Folio.find({ reservation: reservation._id }).session(session).select('lines').lean();
+  const all = await Folio.find({ reservation: reservation._id }).session(session).select('lines ownerType ownerRef').lean();
+  // Voucher: nights/board of the booker's account go to the payer's window; "deposit" only up to its amount.
+  const v = reservation.voucher;
+  const toPayer = routesRoom(v);
+  let payerLeft = v?.type === 'deposit' ? round2(Number(v.amount || 0) - all.filter((f) => f.ownerType === 'company' && String(f.ownerRef) === String(v.payerRef))
+    .flatMap((f) => f.lines).filter((l) => l.status === 'posted' && l.type === 'charge' && ROOM_CODES.includes(l.department)).reduce((s, l) => s + Number(l.amount || 0) + Number(l.taxAmount || 0), 0)) : Infinity;
+  const routed = (it) => {
+    if (!toPayer || it.toUnit) return [it];
+    if (payerLeft >= it.gross - 0.005) { payerLeft = round2(payerLeft - it.gross); return [{ ...it, toPayer: true, payerId: String(v.payerRef) }]; }
+    if (payerLeft <= 0.005) return [it];
+    // The night that crosses the deposit amount is split: the payer's part and the guest's rest.
+    const share = payerLeft / it.gross; payerLeft = 0;
+    const pNet = round2(it.net * share); const pTax = round2(it.tax * share);
+    return [
+      { ...it, net: pNet, tax: pTax, gross: round2(pNet + pTax), toPayer: true, payerId: String(v.payerRef), description: `${it.description} · חלק הסוכן` },
+      { ...it, reference: `${it.reference}:rest`, net: round2(it.net - pNet), tax: round2(it.tax - pTax), gross: round2(it.net - pNet + it.tax - pTax), description: `${it.description} · יתרה לאורח` },
+    ];
+  };
   const live = all.flatMap((f) => f.lines.filter((l) => l.status !== 'voided'));
   const posted = new Set(live.filter((l) => l.reference).map((l) => l.reference));
   // Lodging posted before this model (no night reference) still covers its night: count those
@@ -104,17 +124,17 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
       const reference = `night:${unitKey}:${date}`;
       const legacyCovered = !posted.has(reference) && (legacyByDate.get(date) || 0) > 0;
       if (legacyCovered) legacyByDate.set(date, legacyByDate.get(date) - 1);
-      if (!posted.has(reference) && !legacyCovered) items.push({
+      if (!posted.has(reference) && !legacyCovered) items.push(...routed({
         ...route,
         reference, date, net, tax, gross: round2(net + tax), vatRate, taxReason: vat.reason || undefined, code: 'rooms',
         description: `לינה ${date}${u?.assignedRoom?.number ? ` · חדר ${u.assignedRoom.number}` : ''}`,
-      });
+      }));
       // G2: the board of that night, posted on its own line (F&B revenue, own VAT decision).
       const boardGross = boardByDate.get(date);
       const boardRef = `board:${unitKey}:${date}`;
       if (boardGross > 0 && !posted.has(boardRef)) {
         const b = split(boardGross, boardVat);
-        items.push({ ...route, reference: boardRef, date, net: b.net, tax: b.tax, gross: round2(b.net + b.tax), vatRate: boardVat.rate, taxReason: boardVat.reason || undefined, code: 'board', description: `אירוח (${BOARD_LABEL[reservation.priceSnapshot.board.type] || 'ארוחות'}) ${date}` });
+        items.push(...routed({ ...route, reference: boardRef, date, net: b.net, tax: b.tax, gross: round2(b.net + b.tax), vatRate: boardVat.rate, taxReason: boardVat.reason || undefined, code: 'board', description: `אירוח (${BOARD_LABEL[reservation.priceSnapshot.board.type] || 'ארוחות'}) ${date}` }));
       }
     }
   }
@@ -127,7 +147,8 @@ export function pendingGrossFor(folio, items, lodgingId) {
   if (!folio) return 0;
   const mine = folio.ownerType === 'room'
     ? items.filter((i) => i.toUnit && String(i.unitId) === String(folio.ownerRef))
-    : String(folio._id) === String(lodgingId) ? items.filter((i) => !i.toUnit) : [];
+    : folio.ownerType === 'company' && items.some((i) => i.toPayer && String(i.payerId) === String(folio.ownerRef)) ? items.filter((i) => i.toPayer && String(i.payerId) === String(folio.ownerRef))
+      : String(folio._id) === String(lodgingId) ? items.filter((i) => !i.toUnit && !i.toPayer) : [];
   return round2(mine.reduce((s, i) => s + i.gross, 0));
 }
 
@@ -135,13 +156,15 @@ export async function postPlannedNights({ reservation, items, source = 'night_au
   if (!items.length) return 0;
   const groups = new Map();
   for (const it of items) {
-    const key = it.toUnit ? `unit:${it.unitId}` : 'lodging';
+    const key = it.toUnit ? `unit:${it.unitId}` : it.toPayer ? `payer:${it.payerId}` : 'lodging';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(it);
   }
   let added = 0;
   for (const [key, list] of groups) {
-    const folio = key === 'lodging' ? await lodgingFolio(reservation, { session }) : await unitFolio(reservation, key.slice(5), { session });
+    const folio = key === 'lodging' ? await lodgingFolio(reservation, { session })
+      : key.startsWith('payer:') ? await (await import('./voucherService.js')).payerFolio(reservation, key.slice(6), { session })
+        : await unitFolio(reservation, key.slice(5), { session });
     const existing = new Set(folio.lines.map((l) => l.reference).filter(Boolean));
     let here = 0;
     for (const it of list) {

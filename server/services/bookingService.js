@@ -46,6 +46,7 @@ const OFFER_TTL_MIN = 15;
 
 export const BOOKING_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'receptionist', 'sales_manager', 'revenue_manager'];
 export const PRICE_OVERRIDE_ROLES = [...new Set([...MANAGER_ROLES, 'revenue_manager', 'sales_manager'])];
+export const DISCOUNT_REASONS = { returning_guest: 'אורח חוזר', service_recovery: 'פיצוי על תקלה', staff: 'עובד / משפחת עובד', long_stay: 'שהייה ארוכה', negotiated: 'משא ומתן עם הלקוח', management: 'מחווה של ההנהלה', other: 'אחר' };
 export const SOURCES = ['direct', 'phone', 'walk_in', 'corporate', 'agent', 'booking', 'expedia', 'agoda', 'airbnb', 'gds'];
 
 function signature(nightly) {
@@ -273,7 +274,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
   }
 
   const { offer, search } = await resolveOffer({ propertyId, input, session });
-  const property = await Property.findById(propertyId).select('timezone vatRate dayClose').lean();
+  const property = await Property.findById(propertyId).select('timezone vatRate dayClose discountApprovalPercent nonGuaranteedReleaseTime').lean();
   const fields = {};
   if (!SOURCES.includes(input.source || 'direct')) fields.source = 'ערוץ לא מוכר';
   if (search.children > 0) {
@@ -287,6 +288,9 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
     if (input.companyId && !company) fields.companyId = 'החברה לא נמצאה או אינה פעילה';
   }
   if (input.payerType === 'company' && !company) fields.companyId = 'משלם חברה מחייב בחירת חברה';
+  // GTD: a non-guaranteed booking is held until a time on its arrival day (company-paid ones are guaranteed).
+  const nonGuaranteed = input.guarantee === 'non_guaranteed' && !(company && input.payerType === 'company') && ['confirm', 'hold'].includes(mode);
+  if (nonGuaranteed && input.holdUntilTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.holdUntilTime)) fields.holdUntilTime = 'שעה לא תקינה';
   let validUntil = null;
   let holdUntil = null;
   if (mode === 'quote') {
@@ -322,6 +326,31 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
     // T02: the price shown is no longer the price — never commit on an old snapshot.
     throw httpError('המחיר השתנה מאז שהוצג — יש לאשר את המחיר החדש', 409, { code: 'price_changed', details: [{ total: offer.total, perRoom: offer.perRoom, priceSignature: offer.priceSignature, nightly: offer.nightly }] });
   }
+  // Discount on top of the rate — separate from a manual price; reason from the list; manager above the threshold.
+  let discount = null;
+  if (!groupPriced && input.discount && input.discount.value !== undefined && input.discount.value !== null && input.discount.value !== '') {
+    if (override) throw httpError('הנחה ומחיר ידני לא באותו חדר — בוחרים אחד', 422, { fields: { discount: 'הנחה או מחיר ידני' } });
+    const kind = input.discount.kind === 'amount' ? 'amount' : 'percent';
+    const value = round2(Number(input.discount.value));
+    const reason = String(input.discount.reason || '');
+    const note = String(input.discount.note || '').trim().slice(0, 300);
+    const base = round2(nightly.reduce((s, n) => s + n.price, 0));
+    const df = {};
+    if (!DISCOUNT_REASONS[reason]) df.discountReason = 'יש לבחור סיבה';
+    if (reason === 'other' && note.length < 3) df.discountNote = 'יש לפרט';
+    if (!(value > 0) || (kind === 'percent' && value >= 100) || (kind === 'amount' && value >= base)) df.discount = kind === 'percent' ? 'אחוז בין 0 ל־100' : `סכום עד ${base}`;
+    if (Object.keys(df).length) throw httpError('יש לתקן את פרטי ההנחה', 422, { fields: df });
+    const saving = kind === 'percent' ? round2(base * value / 100) : value;
+    const threshold = Number(property?.discountApprovalPercent ?? 10);
+    const needsApproval = (saving / base) * 100 > threshold + 1e-9;
+    if (needsApproval && !PRICE_OVERRIDE_ROLES.includes(actor.role)) throw httpError(`הנחה מעל ${threshold}% מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
+    // Spread over the nights by share of each night's price; rounding rest goes on the last night.
+    const factor = (base - saving) / base;
+    nightly = nightly.map((n) => ({ date: n.date, price: round2(n.price * factor) }));
+    const drift = round2(base - saving - nightly.reduce((s, n) => s + n.price, 0));
+    if (drift && nightly.length) nightly[nightly.length - 1].price = round2(nightly[nightly.length - 1].price + drift);
+    discount = { kind, value, reason, note: note || undefined, saving, baseTotal: base, by: actor.name, approvedBy: needsApproval ? actor.name : undefined, threshold };
+  }
   // Only a draft may be saved for something that cannot be sold right now (it holds nothing).
   // A group price ignores the public rate's restrictions (rate closed, LOS, missing calendar price) — not inventory.
   const blocking = groupPriced ? offer.reasons.filter((r) => !['missing_rate', 'rate_closed', 'min_los', 'max_los', 'cta', 'ctd', 'board_unpriced'].includes(r.code)) : offer.reasons;
@@ -351,7 +380,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
         cancellationPolicy: offer.cancellation.text, depositPolicy: offer.deposit,
         holdExpiresAt: status === 'hold' ? (holdUntil || validUntil) : undefined,
         quoteExpiresAt: validUntil || undefined, language: input.language || 'he',
-        guaranteeType: company && input.payerType === 'company' ? 'company_guarantee' : 'none',
+        guaranteeType: company && input.payerType === 'company' ? 'company_guarantee' : nonGuaranteed ? 'non_guaranteed' : 'none',
       },
     });
   } catch (e) {
@@ -363,8 +392,10 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
       totalAmount: total,
       taxAmount: round2(total - total / (1 + Number(property?.vatRate ?? 18) / 100)),
       bookingRequestHash: requestHash,
-      priceSnapshot: { ratePlanCode: offer.ratePlan.code, ratePlanName: offer.ratePlan.name, nightly, total, vatRate: property?.vatRate ?? 18, refundable: offer.ratePlan.refundable, computedAt: new Date(), ...(override ? { override } : {}), ...(!override && offer.promotion ? { promotion: { code: offer.promotion.code, name: offer.promotion.name, saving: offer.promotion.saving } } : {}), board: { type: offer.board.type, source: offer.board.source, nightly: offer.board.nightly } },
+      priceSnapshot: { ratePlanCode: offer.ratePlan.code, ratePlanName: offer.ratePlan.name, nightly, total, vatRate: property?.vatRate ?? 18, refundable: offer.ratePlan.refundable, computedAt: new Date(), ...(override ? { override } : {}), ...(discount ? { discount } : {}), ...(!override && offer.promotion ? { promotion: { code: offer.promotion.code, name: offer.promotion.name, saving: offer.promotion.saving } } : {}), board: { type: offer.board.type, source: offer.board.source, nightly: offer.board.nightly } },
       board: offer.board.type,
+      discountAmount: discount ? round2(discount.saving * search.rooms) : 0,
+      ...(nonGuaranteed ? { holdUntilTime: input.holdUntilTime || (property?.nonGuaranteedReleaseTime || '18:00') } : {}),
       ...(input.residency === 'tourist' ? { tourist: { nonResident: true } } : {}),
       booker: input.booker && (input.booker.name || input.booker.phone || input.booker.email) ? { name: String(input.booker.name || '').slice(0, 120), phone: String(input.booker.phone || '').slice(0, 30), email: String(input.booker.email || '').slice(0, 120) } : undefined,
       payerType: ['guest', 'company', 'booker'].includes(input.payerType) ? input.payerType : 'guest',
@@ -372,6 +403,12 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
       ...(mode === 'quote' ? { quote: { version: 1, validUntil, language: input.language || 'he', channel: ['email', 'link', 'print'].includes(input.channel) ? input.channel : 'email' } } : {}),
     },
   }, { session });
+  // Voucher chosen at booking (payer = the company on the booking) — same rules as on the stay file.
+  if (input.voucher?.type) {
+    const { setVoucher } = await import('./voucherService.js');
+    await setVoucher({ propertyId, reservationId: res._id, input: input.voucher, actor, ip, session, afterCommit });
+  }
+  if (discount) await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.discount', entityType: 'Reservation', entityId: res._id, reason: `${DISCOUNT_REASONS[discount.reason]}${discount.note ? ` — ${discount.note}` : ''}`, before: { lodging: discount.baseTotal }, after: { lodging: round2(discount.baseTotal - discount.saving), kind: discount.kind, value: discount.value, approvedBy: discount.approvedBy || null }, ip, session, afterCommit });
   if (override) await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.price_override', entityType: 'Reservation', entityId: res._id, reason: override.reason, before: { total: offer.total }, after: { total }, ip, session, afterCommit });
   return { id: String(res._id), confirmationNumber: res.confirmationNumber, status, total, duplicate: false };
 }
@@ -484,6 +521,7 @@ const STATUS_GROUPS = {
   departed: ['checked_out'],
   cancelled: ['cancelled', 'no_show'],
   quotes: ['quote', 'draft'],
+  deleted: ['deleted'],
 };
 
 export async function listReservations({ propertyId, q }) {
@@ -497,7 +535,9 @@ export async function listReservations({ propertyId, q }) {
     else if (field === 'stay') { if (to) filter.arrivalDate = { $lte: to }; if (from) filter.departureDate = { $gt: from }; }
     else filter.createdAt = { ...(from ? { $gte: new Date(`${from}T00:00:00Z`) } : {}), ...(to ? { $lte: new Date(`${to}T23:59:59Z`) } : {}) };
   }
+  // Deleted bookings are shown only when asked for by name (they were entered by mistake).
   if (q.status && STATUS_GROUPS[q.status]) filter.status = { $in: STATUS_GROUPS[q.status] };
+  else filter.status = { $ne: 'deleted' };
   if (q.source && SOURCES.includes(q.source)) filter.source = q.source;
   if (isId(String(q.companyId || ''))) filter.company = q.companyId;
   if (q.q) {
@@ -531,7 +571,7 @@ export async function listReservations({ propertyId, q }) {
   const { status: _s, ...baseFilter } = aggMatch;
   const byStatus = await Reservation.aggregate([{ $match: baseFilter }, { $group: { _id: '$status', n: { $sum: 1 } } }]);
   const countOf = (list) => byStatus.filter((b) => list.includes(b._id)).reduce((s, b) => s + b.n, 0);
-  const counts = { all: byStatus.reduce((s, b) => s + b.n, 0), ...Object.fromEntries(Object.entries(STATUS_GROUPS).map(([k, list]) => [k, countOf(list)])) };
+  const counts = { all: byStatus.filter((b) => b._id !== 'deleted').reduce((s, b) => s + b.n, 0), ...Object.fromEntries(Object.entries(STATUS_GROUPS).map(([k, list]) => [k, countOf(list)])) };
   return {
     total, units: unitTotal[0]?.units || 0, page, pages, pageSize, counts,
     rows: rows.map((r) => {
@@ -560,8 +600,8 @@ export async function listReservations({ propertyId, q }) {
 
 // ── RSV-03 stay file ────────────────────────────────────────────────────────
 const ACTION_LABELS = {
-  'reservation.created': 'נוצרה', 'reservation.updated': 'עודכנה', 'reservation.cancelled': 'בוטלה', 'reservation.no_show': 'סומנה אי הגעה',
-  'reservation.check_in': 'כניסה', 'reservation.check_out': 'יציאה', 'reservation.price_override': 'מחיר ידני', 'quote.sent': 'הצעה נשלחה',
+  'reservation.created': 'נוצרה', 'reservation.updated': 'עודכנה', 'reservation.cancelled': 'בוטלה', 'reservation.deleted': 'נמחקה (הוזנה בטעות)', 'reservation.no_show': 'סומנה אי הגעה',
+  'reservation.check_in': 'כניסה', 'reservation.check_out': 'יציאה', 'reservation.price_override': 'מחיר ידני', 'reservation.discount': 'הנחה', 'quote.sent': 'הצעה נשלחה',
   'quote.closed': 'הצעה נסגרה', 'quote.converted': 'הצעה הומרה להזמנה', 'reservation.hold_expired': 'החזקה פגה',
   'reservation.reinstated': 'שוחזרה', 'reservation.check_in_reversed': 'כניסה בוטלה',
 };
@@ -601,7 +641,7 @@ export async function getStayFile({ propertyId, id, role }) {
     roomType: r.roomType?.name || null, ratePlan: r.ratePlan ? { code: r.ratePlan.code, name: r.ratePlan.name } : null,
     units: unitRows,
     price: financeVisible ? { total: r.totalAmount, ratePerNight: r.ratePerNight, currency: r.currency || 'ILS', snapshot: r.priceSnapshot?.nightly?.length ? r.priceSnapshot : null } : null,
-    terms: { cancellation: r.cancellationPolicy || null, deposit: r.depositPolicy || null, guarantee: r.guaranteeType || 'none' },
+    terms: { cancellation: r.cancellationPolicy || null, deposit: r.depositPolicy || null, guarantee: r.guaranteeType || 'none', holdUntilTime: r.guaranteeType === 'non_guaranteed' ? r.holdUntilTime || '18:00' : null },
     quote: r.quote?.version ? { ...r.quote, expired: !!(r.quote.validUntil && new Date(r.quote.validUntil) < new Date()) } : null,
     holdExpiresAt: r.status === 'hold' ? r.holdExpiresAt : null,
     confirmation: { sent: !!r.confirmationSent, at: r.confirmationSentAt || null, to: r.confirmationSentTo || null, guestEmail: r.primaryGuest?.email || null },
@@ -621,7 +661,18 @@ export async function getStayFile({ propertyId, id, role }) {
         && new Intl.DateTimeFormat('en-CA', { timeZone: property?.timezone || 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(r.checkedInAt)) === today
         ? { ok: true } : { ok: false, why: 'רק ביום העסקי של הכניסה' },
       postStay: r.status === 'checked_out' ? { ok: true } : { ok: false, why: 'רק אחרי יציאה' },
+      // Deleted ≠ cancelled: only a booking with no money, no document and no entry (server re-checks).
+      delete: (() => {
+        if (!['confirmed', 'modified', 'pending_payment', 'hold', 'draft', 'quote', 'waitlisted'].includes(r.status)) return { ok: false, why: 'רק הזמנה פתוחה שלא נכנסה' };
+        if (r.checkedInAt) return { ok: false, why: 'האורח כבר נכנס פעם — מבטלים' };
+        if (folios.some((f) => (f.lines || []).some((l) => l.status === 'posted' && Math.abs(Number(l.amount || 0)) > 0.005))) return { ok: false, why: 'יש תנועות בחשבון — מבטלים' };
+        if (docs.length) return { ok: false, why: 'הופק מסמך — מבטלים' };
+        return { ok: true };
+      })(),
     },
+    noPost: r.noPost?.on ? { on: true, by: r.noPost.byName || '—', at: r.noPost.at, source: r.noPost.source || 'manual' } : { on: false },
+    voucher: await (async () => { const m = await import('./voucherService.js'); return { current: m.publicVoucher(r.voucher), types: Object.entries(m.VOUCHER_TYPES).map(([code, label]) => ({ code, label })), payers: await m.payerOptions(r) }; })(),
+    deletion: r.status === 'deleted' && r.deletion ? { at: r.deletion.at, by: r.deletion.byName || '—', reason: r.deletion.reason, note: r.deletion.note || null } : null,
     reversals: (r.reversals || []).map((x) => ({ kind: x.kind, from: x.from, at: x.at, by: x.byName || '—', reason: x.reason || null })),
     party: r.party?.id ? { id: r.party.id, code: r.party.code, index: r.party.index, size: r.party.size, members: await partyMembers({ propertyId, partyId: r.party.id }) } : null,
   };

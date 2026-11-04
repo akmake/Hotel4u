@@ -491,7 +491,7 @@ export async function cancelReservation({ reservationId, reason, actorId, actorN
   if (!session) return withReservationTransaction({ reservationId }, (session, afterCommit) => cancelReservation({ reservationId, reason, actorId, actorName, ip, session, afterCommit }));
   const res = await Reservation.findById(reservationId).session(session);
   if (!res) throw httpError('Reservation not found', 404);
-  if (['cancelled', 'checked_out', 'no_show'].includes(res.status)) throw httpError('Reservation already closed/cancelled', 409);
+  if (['cancelled', 'checked_out', 'no_show', 'deleted'].includes(res.status)) throw httpError('Reservation already closed/cancelled', 409);
   // A stay that has started is not cancelled silently (T32) — it is checked out or handled as an exception.
   if (['in_house', 'checked_in', 'partially_checked_in', 'partially_checked_out'].includes(res.status)) {
     throw httpError('השהייה כבר התחילה — לא מבטלים אחרי כניסה; יש לטפל ביציאה או כחריג', 409);
@@ -549,6 +549,61 @@ export async function cancelReservation({ reservationId, reason, actorId, actorN
   if (res.group) afterCommit.push(() => import('./groupBlockService.js').then((m) => m.resyncBlockOf(res.property, res.group)).catch(() => null));
 
   return res;
+}
+
+// ── Deleted vs cancelled ─────────────────────────────────────────────────────
+// A booking entered by mistake is deleted, not cancelled: same stock release, but it never
+// counts as a cancellation, no-show or revenue. Only before any money moved or the guest entered.
+export const DELETE_REASONS = { duplicate: 'הזמנה כפולה', wrong_entry: 'הוזנה בטעות', test: 'הזמנת ניסיון', wrong_property: 'נכס או תאריכים שגויים לגמרי', other: 'אחר' };
+export const DELETE_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager'];
+const DELETABLE = ['confirmed', 'modified', 'pending_payment', 'hold', 'draft', 'quote', 'waitlisted'];
+
+export async function deletionBlockers(res, session = null) {
+  const why = [];
+  if (!DELETABLE.includes(res.status)) why.push('רק הזמנה שלא נכנסה, לא בוטלה ולא סומנה "לא הגיע"');
+  if (res.checkedInAt || (res.reversals || []).some((x) => x.kind === 'reverse_check_in')) why.push('האורח כבר נכנס פעם — מבטלים ולא מוחקים');
+  const folios = await Folio.find({ reservation: res._id }).session(session).select('lines.status lines.amount').lean();
+  if (folios.some((f) => (f.lines || []).some((l) => l.status === 'posted' && Math.abs(Number(l.amount || 0)) > 0.005))) why.push('יש תנועות כספיות בחשבון — מבטלים ולא מוחקים');
+  const { default: Invoice } = await import('../models/Invoice.js');
+  if (await Invoice.exists({ reservation: res._id }).session(session)) why.push('הופק מסמך להזמנה — מבטלים ולא מוחקים');
+  return why;
+}
+
+export async function deleteReservation({ propertyId, reservationId, reasonCode, note, actor, ip }) {
+  if (!DELETE_REASONS[reasonCode]) throw Object.assign(httpError('יש לבחור סיבת מחיקה', 422), { fields: { reason: 'נדרש' } });
+  const text = String(note || '').trim().slice(0, 300);
+  if (reasonCode === 'other' && text.length < 3) throw Object.assign(httpError('יש לפרט את הסיבה', 422), { fields: { note: 'נדרש' } });
+  return withReservationTransaction({ reservationId, propertyId }, async (session, afterCommit) => {
+    const res = await Reservation.findOne({ _id: reservationId, property: propertyId }).session(session);
+    if (!res) throw httpError('ההזמנה לא נמצאה', 404);
+    const blockers = await deletionBlockers(res, session);
+    if (blockers.length) throw Object.assign(httpError(blockers[0], 409), { details: blockers });
+    await assertNoEnteredUnits(res._id, session);
+    const heldInventory = ['confirmed', 'modified', 'pending_payment', 'hold'].includes(res.status);
+    const before = { status: res.status };
+    const reason = `${DELETE_REASONS[reasonCode]}${text ? ` — ${text}` : ''}`;
+    res.status = 'deleted';
+    res.deletion = { at: new Date(), by: actor.id || undefined, byName: actor.name, reason: reasonCode, note: text || undefined };
+    res.assignedRoom = undefined;
+    res.updatedBy = actor.id;
+    await res.save({ session });
+    await closeOpenUnits(res._id, 'cancelled', 'ההזמנה נמחקה', session);
+    await ReservationRoom.updateMany({ reservation: res._id }, { $unset: { assignedRoom: 1 } }, { session });
+    if (heldInventory) {
+      await incrementInventory(res.property, res.roomType, res.arrivalDate, res.departureDate, -(res.roomsCount || 1), {
+        propertyId: res.property, actorId: actor.id, actorName: actor.name, ip, action: 'inventory.reservation_deleted', reason: `Reservation ${res.confirmationNumber}`,
+      }, { session, afterCommit });
+    }
+    await audit({ property: res.property, actor: actor.id, actorName: actor.name, action: 'reservation.deleted', entityType: 'Reservation', entityId: res._id, before, after: { status: 'deleted', confirmationNumber: res.confirmationNumber, reason: reasonCode }, reason, ip, session, afterCommit });
+    // Channels only know "cancelled" — a booking that came from a channel is released there too.
+    await enqueueChannelUpdate({
+      propertyId: res.property, session, channel: res.source || 'direct', eventType: 'reservation',
+      payload: { action: 'cancelled', reservationId: String(res._id), confirmationNumber: res.confirmationNumber },
+      idempotencyKey: `reservation:${res._id}:deleted:${randomUUID()}`,
+    });
+    if (res.group) afterCommit.push(() => import('./groupBlockService.js').then((m) => m.resyncBlockOf(res.property, res.group)).catch(() => null));
+    return { id: String(res._id), status: 'deleted', confirmationNumber: res.confirmationNumber };
+  });
 }
 
 export async function modifyReservation({ reservationId, data, actorId, actorName, ip }) {

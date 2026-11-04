@@ -366,7 +366,7 @@ router.post('/:id/anonymize', asyncHandler(async (req, res) => {
   const active = await Reservation.countDocuments({
     property: guest.property,
     $or: [{ primaryGuest: guest._id }, { additionalGuests: guest._id }],
-    status: { $nin: ['cancelled', 'no_show', 'checked_out', 'quote', 'draft'] },
+    status: { $nin: ['cancelled', 'no_show', 'deleted', 'checked_out', 'quote', 'draft'] },
   });
 
   if (active > 0) {

@@ -19,7 +19,7 @@ const MODES = {
   room_only: { roomPayer: 'booker', extrasPayer: 'guest' },
   none: { roomPayer: 'guest', extrasPayer: 'guest' },
 };
-const CLOSED = ['checked_out', 'cancelled', 'no_show'];
+const CLOSED = ['checked_out', 'cancelled', 'no_show', 'deleted'];
 const LIVE_RES = ['hold', 'pending_payment', 'confirmed', 'modified', 'checked_in', 'in_house', 'partially_checked_in', 'partially_checked_out'];
 
 export function groupMode(units) {

@@ -83,7 +83,7 @@ export function businessDateOf(property) {
 // Reservations created through the API have ReservationRoom units; older/seeded ones do not.
 // Reads present such a reservation as one implicit unit; writes materialise it first.
 function unitStatusFor(resStatus) {
-  if (['cancelled', 'no_show', 'checked_out'].includes(resStatus)) return resStatus;
+  if (['cancelled', 'no_show', 'deleted', 'checked_out'].includes(resStatus)) return resStatus;
   return IN_HOUSE_STATUSES.includes(resStatus) && resStatus !== 'partially_checked_in' ? 'in_house' : 'reserved';
 }
 
@@ -141,7 +141,8 @@ export function guaranteeState(res, folio) {
   else if (type === 'company_guarantee') { ok = !!res.company; label = ok ? 'ערבות חברה' : 'ערבות חברה ללא חברה משויכת'; }
   else if (type === 'credit_card') { ok = true; label = 'כרטיס אשראי (נרשם ידנית, ללא אימות ספק)'; }
   else if (type === 'voucher') { ok = true; label = 'שובר'; }
-  return { type, ok, label, paid, total: Number(res.totalAmount || 0), paymentStatus: res.paymentStatus };
+  else if (type === 'non_guaranteed') { ok = false; label = `לא מובטחת — נשמרת עד ${res.holdUntilTime || '18:00'}`; }
+  return { type, ok, label, holdUntil: type === 'non_guaranteed' ? res.holdUntilTime || '18:00' : null, paid, total: Number(res.totalAmount || 0), paymentStatus: res.paymentStatus };
 }
 
 // ── Group billing (per room) ────────────────────────────────────────────────
@@ -256,7 +257,7 @@ export async function occupancyMap(propertyId, roomIds, session = null) {
   };
   for (const st of stays) if (!withUnits.has(String(st._id))) add(st.assignedRoom, st._id, st.confirmationNumber);
   for (const u of units) {
-    if (['checked_out', 'cancelled', 'no_show'].includes(u.reservation?.status)) continue;
+    if (['checked_out', 'cancelled', 'no_show', 'deleted'].includes(u.reservation?.status)) continue;
     add(u.assignedRoom, u.reservation?._id || u.reservation, u.reservation?.confirmationNumber || 'שהייה אחרת');
   }
   return map;
@@ -539,6 +540,8 @@ export async function getCheckInContext({ propertyId, reservationId }) {
       specialRequests: res.specialRequests || null,
       company: res.company ? { id: idStr(res.company), name: res.company.name } : null,
       guaranteeType: res.guaranteeType,
+      noPost: !!res.noPost?.on,
+      payerType: res.payerType || 'guest',
       folioId: folio?._id ? String(folio._id) : null,
     },
     guest: {
@@ -695,14 +698,14 @@ export async function saveRegistration({ propertyId, reservationId, input, actor
 }
 
 // ── FD-03 complete check-in ─────────────────────────────────────────────────
-export async function completeCheckIn({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, actor, ip }) {
+export async function completeCheckIn({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, noPost, actor, ip }) {
   const initial = await loadReservationInScope(reservationId, propertyId);
   const assigned = await ReservationRoom.find({ reservation: reservationId }).select('assignedRoom').lean();
   const keys = [`res:${reservationId}`, ...[initial.assignedRoom, ...assigned.map((u) => u.assignedRoom)].filter(Boolean).map((r) => `room:${r}`)];
-  return withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, actor, ip, session, afterCommit }), lease, { operation: 'כניסת אורח' }));
+  return withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, noPost, actor, ip, session, afterCommit }), lease, { operation: 'כניסת אורח' }));
 }
 
-async function completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, actor, ip, session, afterCommit }) {
+async function completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, noPost, actor, ip, session, afterCommit }) {
   const property = await loadProperty(propertyId, session);
   const policy = policyOf(property);
   const res = await loadReservationInScope(reservationId, propertyId, session);
@@ -745,7 +748,13 @@ async function completeCheckInTransaction({ propertyId, reservationId, unitIds, 
     roomGuarantees.push({ unitId: g.unitId ? String(g.unitId) : null, unitIndex: Number(g.unitIndex) || null, method: g.method, reference: ref || undefined });
   }
 
-  return checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees, overrideOn, overrideReason, actor, ip, session, afterCommit });
+  const out = await checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees, overrideOn, overrideReason, actor, ip, session, afterCommit });
+  // Cash Basis: the desk's choice at check-in (the wizard pre-selects it from the guarantee method).
+  if (typeof noPost === 'boolean') {
+    const { setNoPost } = await import('./noPostService.js');
+    await setNoPost({ propertyId, reservationId: res._id, on: noPost, source: 'check_in', reason: noPost ? 'נקבע בצ׳ק־אין' : undefined, actor, ip, session, afterCommit });
+  }
+  return out;
 }
 
 async function checkInLocked({ property, policy, res, unitIds, unitIndexes, guarantee, guaranteeChange, roomGuarantees = [], overrideOn, overrideReason, actor, ip, session, afterCommit }) {

@@ -762,7 +762,7 @@ export async function cancellationPreview({ propertyId, reservationId, input }) 
   validateCancelInput(input);
   const res = await loadRes(propertyId, reservationId);
   if (IN_HOUSE_STATUSES.includes(res.status)) throw httpError('השהייה כבר התחילה — לא מבטלים אחרי כניסה (T32)', 409);
-  if (['cancelled', 'checked_out', 'no_show'].includes(res.status)) throw httpError('ההזמנה כבר נסגרה', 409);
+  if (['cancelled', 'checked_out', 'no_show', 'deleted'].includes(res.status)) throw httpError('ההזמנה כבר נסגרה', 409);
   const property = await Property.findById(propertyId).select('defaultCancellationHours defaultCancellationFee restDays').lean();
   const paid = await paidOn(res._id);
   const docs = await issuedDocs(res._id);

@@ -50,7 +50,7 @@ export async function getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, 
   const query = {
     property: propertyId,
     assignedRoom: { $ne: null },
-    status: { $nin: ['cancelled', 'no_show', 'checked_out'] },
+    status: { $nin: ['cancelled', 'no_show', 'deleted', 'checked_out'] },
     arrivalDate: { $lt: departureDate },
     departureDate: { $gt: arrivalDate },
   };
@@ -69,7 +69,7 @@ export async function getOccupiedRoomIds({ propertyId, roomTypeId, arrivalDate, 
   if (excludeReservationId) unitQuery.reservation = { $ne: excludeReservationId };
   const units = await ReservationRoom.find(unitQuery).session(session).select('assignedRoom reservation').populate('reservation', 'status').lean();
   for (const u of units) {
-    if (['cancelled', 'no_show', 'checked_out'].includes(u.reservation?.status)) continue;
+    if (['cancelled', 'no_show', 'deleted', 'checked_out'].includes(u.reservation?.status)) continue;
     ids.add(String(u.assignedRoom));
   }
   return ids;
@@ -242,7 +242,7 @@ export async function incrementInventory(propertyId, roomTypeId, arrivalDate, de
 // as the type, minus rooms of the type held by stays sold as another type (upgrades, moves), minus
 // short booking locks and manual holds. No pre-made inventory rows are needed: an InventoryDate row,
 // when present, only adds restrictions (stop sell, CTA/CTD, min/max stay) and the overbooking allowance.
-const LIVE_RES_STATUSES = ['cancelled', 'no_show', 'checked_out', 'quote', 'draft', 'waitlisted'];
+const LIVE_RES_STATUSES = ['cancelled', 'no_show', 'deleted', 'checked_out', 'quote', 'draft', 'waitlisted'];
 const LIVE_UNIT_STATUSES = ['reserved', 'tentative', 'checked_in', 'in_house'];
 const HELD_NOW = ['out_of_order', 'out_of_service', 'maintenance_hold', 'owner_hold', 'internal_use'];
 const nextDay = (ymd) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return toIsoDate(d); };

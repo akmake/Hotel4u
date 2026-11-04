@@ -522,7 +522,7 @@ export const REPORTS = [
     code: 'pickup', name: 'הזמנות שנכנסו (Pickup)', group: 'הכנסות וסטטיסטיקה', period: 'range', defaultPeriod: 'last7',
     description: 'הזמנות שנוצרו בתקופה — לאיזה חודשי שהייה הן נכנסו ומאיזה מקור.',
     async build({ propertyId, from, to }) {
-      const res = await Reservation.find({ property: propertyId, createdAt: { $gte: new Date(`${from}T00:00:00Z`), $lte: new Date(`${to}T23:59:59Z`) }, status: { $nin: ['draft', 'quote'] } }).select('arrivalDate nights roomsCount totalAmount status source').lean();
+      const res = await Reservation.find({ property: propertyId, createdAt: { $gte: new Date(`${from}T00:00:00Z`), $lte: new Date(`${to}T23:59:59Z`) }, status: { $nin: ['draft', 'quote', 'deleted'] } }).select('arrivalDate nights roomsCount totalAmount status source').lean();
       const g = new Map();
       for (const r of res) {
         const k = r.arrivalDate.slice(0, 7);

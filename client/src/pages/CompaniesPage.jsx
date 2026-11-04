@@ -40,6 +40,7 @@ function CompanyModal({ propertyId, company, onClose, onSaved }) {
     taxId:       company?.taxId       || '',
     creditLimit: company?.creditLimit ?? 0,
     discountPct: company?.discountPct ?? 0,
+    voucherRequired: !!company?.voucherRequired,
     notes:       company?.notes       || '',
   });
   const [loading, setLoading] = useState(false);
@@ -108,6 +109,10 @@ function CompanyModal({ propertyId, company, onClose, onSaved }) {
                 <label className="form-label">הנחה (%)</label>
                 <input type="number" className="input w-full" value={form.discountPct} onChange={e => set('discountPct', Number(e.target.value))} min={0} max={100} />
               </div>
+              <label className="col-span-2 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={form.voucherRequired} onChange={e => set('voucherRequired', e.target.checked)} />
+                מספר Voucher חובה בהזמנות שהחברה משלמת עליהן
+              </label>
               <div className="col-span-2">
                 <label className="form-label">הערות</label>
                 <textarea className="input w-full" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />

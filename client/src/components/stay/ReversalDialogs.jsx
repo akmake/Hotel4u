@@ -2,7 +2,7 @@
 // late charge after departure. Each dialog loads the server preview first (blockers, money that
 // moved, room that was taken) and asks for a reason; the server re-checks everything on submit.
 import { useEffect, useState } from 'react';
-import { stay } from '../../utils/api';
+import { stay, booking } from '../../utils/api';
 import ChargeCodeSelect, { vatPreview } from '../fin/ChargeCodeSelect';
 import { Modal, Field, ErrorBanner, Banner, Spinner, KeyValues, useAction, useLoader, money, newOpKey } from '../kit';
 
@@ -48,6 +48,34 @@ export function ReinstateDialog({ open, onClose, propertyId, reservation, onDone
         {p?.managerOnly && <Banner tone="info">שחזור "לא הגיע" מותר למנהל משמרת ומעלה.</Banner>}
         <Field id="rv-reason" label="סיבה" required error={action.fields.reason}>
           <input id="rv-reason" className="input w-full" maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="למשל: האורח הגיע בשתיים בלילה / ביקש לחדש" />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+// Deleted ≠ cancelled: a booking entered by mistake. Reason from a list; leaves every statistic.
+export function DeleteReservationDialog({ open, onClose, propertyId, reservation, onDone }) {
+  const action = useAction();
+  const [reason, setReason] = useState('');
+  const [note, setNote] = useState('');
+  const reasons = useLoader(async () => (open ? booking.deleteReasons(propertyId) : null), [open, propertyId]);
+  useEffect(() => { if (open) { setReason(''); setNote(''); action.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const why = !reason ? 'יש לבחור סיבה' : reason === 'other' && note.trim().length < 3 ? 'יש לפרט' : null;
+  const submit = () => action.run(async () => { const out = await booking.remove(propertyId, reservation.id, reason, note.trim() || undefined); onDone?.(out); });
+  return (
+    <Modal open={open} onClose={onClose} busy={action.busy} width={480} title="מחיקת הזמנה" subtitle={reservation?.confirmationNumber} footer={<Foot action={action} onClose={onClose} label="מחיקה" why={why} danger />}>
+      <form id="rv-form" className="ui-stack" onSubmit={(e) => { e.preventDefault(); if (!why) submit(); }} noValidate>
+        <ErrorBanner error={reasons.error || action.error} />
+        <Banner tone="info">מחיקה היא להזמנה שנכנסה בטעות. היא משחררת את המלאי ולא נספרת בביטולים, ב"לא הגיע" ובהכנסות. אם האורח ביטל — משתמשים ב"ביטול הזמנה".</Banner>
+        <Field id="del-reason" label="סיבת המחיקה" required error={action.fields.reason}>
+          <select id="del-reason" className="input w-full" value={reason} onChange={(e) => setReason(e.target.value)}>
+            <option value="">בחירה…</option>
+            {(reasons.data || []).map((x) => <option key={x.code} value={x.code}>{x.label}</option>)}
+          </select>
+        </Field>
+        <Field id="del-note" label={reason === 'other' ? 'פירוט' : 'הערה'} required={reason === 'other'} error={action.fields.note}>
+          <input id="del-note" className="input w-full" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder={reason === 'duplicate' ? 'למשל: כפולה של הזמנה 10234' : ''} />
         </Field>
       </form>
     </Modal>

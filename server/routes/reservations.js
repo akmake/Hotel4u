@@ -532,7 +532,7 @@ async function executeBulkReservationAction({
   }
 
   if (action === 'link_group' || action === 'unlink_group') {
-    if (['cancelled', 'no_show', 'checked_out'].includes(existing.status)) {
+    if (['cancelled', 'no_show', 'deleted', 'checked_out'].includes(existing.status)) {
       return { reservationId, success: false, error: 'Cannot link group to closed reservation' };
     }
 
@@ -2591,7 +2591,7 @@ router.post('/:id/add-service', asyncHandler(async (req, res) => {
   // Goes through the finance service (catalogue code, VAT class, audit). Amount is the guest price.
   let folio = await Folio.findOne({ reservation: reservation._id, ownerType: 'guest', status: { $ne: 'closed' } })
     || await Folio.findOne({ reservation: reservation._id, status: { $ne: 'closed' } });
-  if (!folio && !['cancelled', 'no_show'].includes(reservation.status)) {
+  if (!folio && !['cancelled', 'no_show', 'deleted'].includes(reservation.status)) {
     folio = await Folio.create({ property: reservation.property, reservation: reservation._id, ownerType: 'guest', status: 'open', currency: reservation.currency || 'ILS', lines: [] });
   }
   if (!folio) return res.status(409).json({ success: false, error: 'לא ניתן לחייב הזמנה שבוטלה או לא הגיעה' });
@@ -2619,7 +2619,7 @@ router.post('/:id/link-group', asyncHandler(async (req, res) => {
   if (!reservation) return;
   assertPropertyScope(req, reservation.property);
 
-  if (['cancelled', 'no_show', 'checked_out'].includes(reservation.status)) {
+  if (['cancelled', 'no_show', 'deleted', 'checked_out'].includes(reservation.status)) {
     return res.status(400).json({ success: false, error: 'Cannot link group to closed reservation' });
   }
 

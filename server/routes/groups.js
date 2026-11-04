@@ -66,7 +66,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
   const reservationCount = await Reservation.countDocuments({
     property: group.property,
     $or: [{ group: String(group._id) }, { groupCode: group.groupCode }],
-    status: { $nin: ['cancelled', 'no_show'] },
+    status: { $nin: ['cancelled', 'no_show', 'deleted'] },
   });
 
   res.json({ success: true, data: { ...group, reservationCount } });
@@ -348,7 +348,7 @@ router.get('/:id/reservations', asyncHandler(async (req, res) => {
     inHouse: reservations.filter(r => r.status === 'in_house').length,
     checkedOut: reservations.filter(r => r.status === 'checked_out').length,
     cancelled: reservations.filter(r => r.status === 'cancelled').length,
-    totalRevenue: reservations.filter(r => !['cancelled', 'no_show'].includes(r.status))
+    totalRevenue: reservations.filter(r => !['cancelled', 'no_show', 'deleted'].includes(r.status))
       .reduce((s, r) => s + (r.totalAmount || 0), 0),
   };
 
@@ -458,7 +458,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 
   const linkedCount = await Reservation.countDocuments({
     $or: [{ group: String(group._id) }, { groupCode: group.groupCode }],
-    status: { $nin: ['cancelled'] },
+    status: { $nin: ['cancelled', 'deleted'] },
   });
   if (linkedCount > 0) {
     return res.status(409).json({ success: false, error: `Cannot delete: ${linkedCount} active reservations linked to this group` });

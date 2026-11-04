@@ -31,8 +31,9 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
   const [f, setF] = useState({});
   const [code, setCode] = useState(null);
   const [opKey, setOpKey] = useState('');
+  const [np, setNp] = useState({ need: false, reason: '' });
   useEffect(() => {
-    if (open) { setF({ description: '', quantity: '1', unitPrice: '', serviceDate: businessDate || '' }); setCode(null); setOpKey(newOpKey()); action.reset(); }
+    if (open) { setF({ description: '', quantity: '1', unitPrice: '', serviceDate: businessDate || '' }); setCode(null); setOpKey(newOpKey()); setNp({ need: false, reason: '' }); action.reset(); }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
   const pick = (c) => {
@@ -43,10 +44,15 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
   const gross = round2(Number(f.quantity || 0) * Number(f.unitPrice || 0));
   const { net, tax, exempt } = vatPreview(gross, code, vatRate);
   const e = action.fields;
-  const why = !code ? 'יש לבחור קוד חיוב' : !(gross > 0) ? 'נדרשים כמות ומחיר' : null;
+  const why = !code ? 'יש לבחור קוד חיוב' : !(gross > 0) ? 'נדרשים כמות ומחיר' : np.need && np.reason.trim().length < 3 ? 'נדרשת סיבת אישור' : null;
   const submit = () => action.run(async () => {
-    const out = await finance.charge(propertyId, folio.id, { description: f.description?.trim() || undefined, department: code.code, quantity: Number(f.quantity), unitPrice: Number(f.unitPrice), serviceDate: f.serviceDate, idempotencyKey: opKey });
-    onSaved?.(out);
+    try {
+      const out = await finance.charge(propertyId, folio.id, { description: f.description?.trim() || undefined, department: code.code, quantity: Number(f.quantity), unitPrice: Number(f.unitPrice), serviceDate: f.serviceDate, idempotencyKey: opKey, ...(np.need ? { noPostApproval: { reason: np.reason.trim() } } : {}) });
+      onSaved?.(out);
+    } catch (err) {
+      if (err.code === 'no_post' && !np.need) setNp({ need: true, reason: '' });
+      throw err;
+    }
   });
   return (
     <Modal open={open} onClose={onClose} busy={action.busy} width={520} title="רישום חיוב" subtitle={folio ? `חשבון ${folio.owner}` : ''} footer={<Footer action={action} onClose={onClose} label="רישום חיוב" blockedWhy={why} />}>
@@ -70,6 +76,11 @@ export function ChargeDialog({ open, onClose, propertyId, folio, vatRate = 18, b
           </Field>
         </div>
         {code?.postLevel === 'manager' && <Banner tone="info">קוד זה נרשם על ידי מנהל משמרת או כספים.</Banner>}
+        {np.need && (
+          <Field id="ch-np" label="אישור מנהל לחיוב אורח &quot;ללא חיוב לחדר&quot;" required error={e.noPostReason} hint="האורח משלם במקום. רק מנהל משמרת ומעלה יכול לאשר חיוב לחדר.">
+            <input id="ch-np" className="input w-full" maxLength={300} value={np.reason} onChange={(ev) => setNp((p) => ({ ...p, reason: ev.target.value }))} placeholder="סיבת האישור" />
+          </Field>
+        )}
         {gross > 0 && <KeyValues rows={[['נטו', money(net)], [exempt ? 'מע״מ (קוד פטור)' : `מע״מ ${vatRate}%`, money(tax)], ['סה״כ לחיוב', money(gross)]]} />}
       </form>
     </Modal>

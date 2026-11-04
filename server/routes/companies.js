@@ -89,7 +89,7 @@ router.post('/', asyncHandler(async (req, res) => {
     creditLimit, discountPct, paymentTerms, currency,
     contractNumber, contractStartDate, contractEndDate,
     agentCode, commissionPct, rateCodes,
-    notes,
+    notes, voucherRequired,
   } = req.body;
   assertPropertyScope(req, propertyId);
   if (!name) return res.status(400).json({ success: false, error: 'שם חברה נדרש' });
@@ -99,7 +99,7 @@ router.post('/', asyncHandler(async (req, res) => {
     creditLimit, discountPct, paymentTerms, currency,
     contractNumber, contractStartDate, contractEndDate,
     agentCode, commissionPct, rateCodes,
-    notes,
+    notes, voucherRequired: !!voucherRequired,
   });
 
   await audit({ property: propertyId, ...auditCtxFromReq(req), action: 'company.create', entityType: 'Company', entityId: company._id, after: company.toObject() });
@@ -117,7 +117,7 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     'creditLimit','discountPct','paymentTerms','currency',
     'contractNumber','contractStartDate','contractEndDate','contractDocuments',
     'agentCode','commissionPct','rateCodes',
-    'notes','active',
+    'notes','active','voucherRequired',
   ];
   const before = company.toObject();
   const update = {};

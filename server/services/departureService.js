@@ -149,6 +149,7 @@ export async function listInHouse({ propertyId, q, departure, view, page = 1, pa
       confirmationNumber: r.confirmationNumber,
       status: r.status,
       guest: { name: `${g.firstName || ''} ${g.lastName || ''}`.trim() || 'אורח', vip: !!(r.isVip || g.vipLevel > 0) },
+      noPost: !!r.noPost?.on,
       company: r.company ? { id: idStr(r.company), name: r.company.name } : null,
       rooms: unitRooms.map((x) => ({ id: String(x._id), number: x.number, dnd: dnd.has(String(x._id)) })),
       unitsInHouse: inUnits.length,
@@ -674,15 +675,21 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
 }
 
 // Post the lodging nights already used (up to today) so the guest can pay the full amount now.
-export async function postPendingNights({ propertyId, reservationId, actor, ip }) {
+// ahead = Auto Post: also post TONIGHT now (guest leaves before the day close / pays in advance).
+// The day close skips a night already posted (same reference), so nothing is charged twice.
+export async function postPendingNights({ propertyId, reservationId, actor, ip, ahead = false }) {
   return withLocks([`dayclose:${propertyId}`, `res:${reservationId}`], (lease) => runStayTransaction(async (session, afterCommit) => {
     session.financialDayCloseLease = lease;
     const property = await loadProperty(propertyId, session);
     const res = await loadReservationInScope(reservationId, propertyId, session);
     if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('רישום לילות רק לשהייה פעילה', 409);
     await ensureUnits(res, session);
-    const posted = await postNightsUntil({ reservation: res, until: businessDateOf(property), source: 'pms', actorId: actor.id, session });
-    await audit({ property: res.property, actor: actor.id, actorName: actor.name, action: 'folio.nights_posted', entityType: 'Reservation', entityId: res._id, after: { nights: posted }, ip, session, afterCommit });
+    const today = businessDateOf(property);
+    if (ahead && !(String(res.departureDate || '') > today)) throw httpError('האורח עוזב היום — אין לילה לחייב מראש', 409, { code: 'no_night_tonight' });
+    const until = ahead ? new Date(Date.parse(`${today}T00:00:00Z`) + 864e5).toISOString().slice(0, 10) : today;
+    const posted = await postNightsUntil({ reservation: res, until, source: 'pms', actorId: actor.id, session });
+    if (ahead && !posted) throw httpError('הלילה כבר חויב', 409, { code: 'already_posted' });
+    await audit({ property: res.property, actor: actor.id, actorName: actor.name, action: ahead ? 'folio.night_posted_ahead' : 'folio.nights_posted', entityType: 'Reservation', entityId: res._id, after: { nights: posted, until }, ip, session, afterCommit });
     return { posted };
   }, lease, { operation: 'רישום לילות' }));
 }

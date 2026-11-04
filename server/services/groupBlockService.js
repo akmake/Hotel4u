@@ -22,7 +22,7 @@ const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const isId = (v) => mongoose.isValidObjectId(String(v || ''));
 const LIVE_BLOCK = ['tentative', 'confirmed', 'active'];
-const DEAD_RES = ['cancelled', 'no_show', 'draft'];
+const DEAD_RES = ['cancelled', 'no_show', 'deleted', 'draft'];
 export const GROUP_WORK = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'sales_manager', 'revenue_manager', 'receptionist'];
 export const GROUP_MANAGE = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'sales_manager', 'revenue_manager'];
 export const STATUS_LABELS = { tentative: 'טנטטיבי', confirmed: 'מאושר', active: 'בשהייה', completed: 'הסתיים', cancelled: 'בוטל' };

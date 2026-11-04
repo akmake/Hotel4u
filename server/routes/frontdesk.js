@@ -13,6 +13,7 @@ import {
   listQueue, addToQueue, takeQueueOwnership, updateQueueEntry, removeFromQueue, prioritizeHousekeeping,
 } from '../services/frontDeskService.js';
 import { setRoomBilling, setGroupBilling } from '../services/groupBillingService.js';
+import { nonGuaranteedToday, releaseNonGuaranteed, GTD_ROLES } from '../services/gtdService.js';
 import { proposeRoomPlan, applyRoomPlan } from '../services/roomPlanService.js';
 import { issueLink, deskView, decideUpsell, postApprovedUpsells } from '../services/onlineCheckInService.js';
 import { cribDesk, getCribContext, setCribStock, changeCribs } from '../services/cribService.js';
@@ -105,6 +106,17 @@ router.patch('/reservations/:id/eta', handle(async (req) => {
   return setEta({ propertyId: scope(req), reservationId: req.params.id, eta: req.body?.eta, actor: actorOf(req), ip: req.ip });
 }));
 
+// GTD: non-guaranteed arrivals of the business day and the one-click release of those past their time.
+router.get('/arrivals/non-guaranteed', handle(async (req) => {
+  requireRoles(req, ARRIVALS_READ_ROLES);
+  return nonGuaranteedToday({ propertyId: scope(req) });
+}));
+
+router.post('/arrivals/release-non-guaranteed', handle(async (req) => {
+  requireRoles(req, GTD_ROLES, 'שחרור הזמנות לא מובטחות מותר למנהל משמרת ומעלה');
+  return releaseNonGuaranteed({ propertyId: scope(req), ids: req.body?.ids, actor: actorOf(req), ip: req.ip });
+}));
+
 router.post('/reservations/:id/no-show', handle(async (req) => {
   requireRoles(req, FRONT_ROLES);
   return noShowFromArrivals({ propertyId: scope(req), reservationId: req.params.id, actor: actorOf(req), ip: req.ip });
@@ -133,6 +145,7 @@ router.post('/reservations/:id/check-in', handle(async (req) => {
     guarantee: b.guarantee,
     unitGuarantees: b.unitGuarantees,
     override: b.override,
+    noPost: typeof b.noPost === 'boolean' ? b.noPost : undefined,
     actor: actorOf(req),
     ip: req.ip,
   });
@@ -280,7 +293,7 @@ router.post('/reservations/:id/charges', handle(async (req) => {
 
 router.post('/reservations/:id/post-nights', handle(async (req) => {
   requireRoles(req, DEPARTURE_WORK_ROLES);
-  return postPendingNights({ propertyId: scope(req), reservationId: req.params.id, actor: actorOf(req), ip: req.ip });
+  return postPendingNights({ propertyId: scope(req), reservationId: req.params.id, actor: actorOf(req), ip: req.ip, ahead: req.body?.ahead === true });
 }));
 
 router.post('/folios/:folioId/payments', handle(async (req) => {

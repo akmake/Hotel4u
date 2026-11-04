@@ -9,7 +9,7 @@ import RoomBlock from '../models/RoomBlock.js';
 import Property from '../models/Property.js';
 import { businessDateOf } from './frontDeskService.js';
 
-const GONE = ['cancelled', 'no_show', 'quote', 'draft', 'waitlisted'];
+const GONE = ['cancelled', 'no_show', 'deleted', 'quote', 'draft', 'waitlisted'];
 const UNIT_LIVE = ['reserved', 'tentative', 'checked_in', 'in_house', 'checked_out'];
 const isYmd = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 const addDays = (ymd, n) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };

@@ -554,7 +554,7 @@ router.get('/used-by-active-reservations', asyncHandler(async (req, res) => {
   const { ratePlanId } = req.query;
   const count = await Reservation.countDocuments({
     ratePlan: ratePlanId,
-    status: { $nin: ['cancelled', 'no_show', 'checked_out'] },
+    status: { $nin: ['cancelled', 'no_show', 'deleted', 'checked_out'] },
   });
   res.json({ success: true, data: { activeReservations: count } });
 }));

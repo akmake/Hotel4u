@@ -52,7 +52,7 @@ router.get('/stats', asyncHandler(async (req, res) => {
 
   const [rooms, reservations, hkTasks, maintenanceTickets, failedPayments, unsyncedCount] = await Promise.all([
     Room.find({ property: propertyId, active: true }),
-    Reservation.find({ property: propertyId, status: { $nin: ['cancelled', 'no_show'] } })
+    Reservation.find({ property: propertyId, status: { $nin: ['cancelled', 'no_show', 'deleted'] } })
       .populate('primaryGuest', 'firstName lastName vipLevel')
       .populate('roomType', 'name code')
       .populate('assignedRoom', 'number floor cleanStatus')
