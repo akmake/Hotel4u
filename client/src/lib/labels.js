@@ -102,7 +102,7 @@ export const LINE_TYPE_LABELS = {
 export const REFUND_REASON_LABELS = { cancellation: 'ביטול', overpayment: 'תשלום עודף', complaint: 'תלונה', other: 'אחר' };
 export const DOC_TYPE_LABELS = {
   tax_invoice: 'חשבונית מס', tax_invoice_receipt: 'חשבונית מס/קבלה', receipt: 'קבלה', proforma: 'חשבון עסקה',
-  credit_note: 'מסמך זיכוי', debit_note: 'מסמך חיוב',
+  credit_note: 'מסמך זיכוי', debit_note: 'מסמך חיוב', refund_receipt: 'קבלת החזר',
 };
 export const DOC_STATUS_LABELS = { draft: 'טיוטה', issued: 'הונפק', cancelled: 'בוטל', pending_allocation: 'ממתין למספר הקצאה' };
 export const ALLOCATION_LABELS = { not_required: 'לא נדרש מספר הקצאה', pending: 'ממתין למספר הקצאה', approved: 'מספר הקצאה', rejected: 'מספר הקצאה סורב' };
@@ -111,6 +111,7 @@ export const DOC_TYPE_HINTS = {
   tax_invoice: 'חיובים — התשלום בנפרד או בהמשך',
   receipt: 'תקבולים (מקדמה / תשלום על חשבונית קודמת)',
   proforma: 'דרישת תשלום — אינה חשבונית מס',
+  refund_receipt: 'כסף שהוחזר לאורח — זיכוי של הקבלה המקורית',
 };
 export const DAY_STEP_LABELS = { post_nights: 'רישום חיובי לינה', no_shows: 'טיפול בהגעות שלא הגיעו', snapshot: 'דוח יום', ledgers: 'מאזן בוחן וספרי חשבונות', advance: 'סימון היום כסגור' };
 export const RUN_STATUS_LABELS = { pending: 'ממתין', running: 'רץ', failed: 'נכשל', done: 'הושלם', skipped: 'דולג' };

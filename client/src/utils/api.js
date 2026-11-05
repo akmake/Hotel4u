@@ -304,6 +304,11 @@ export const finance = {
   itaConnect:  (propertyId, env)         => api.post(`/finance/fiscal/ita/connect?propertyId=${propertyId}`, { env }),
   itaDisconnect: (propertyId)            => api.post(`/finance/fiscal/ita/disconnect?propertyId=${propertyId}`, {}),
   itaRetry:    (propertyId)              => api.post(`/finance/fiscal/ita/retry?propertyId=${propertyId}`, {}),
+  // The standalone invoicing system (every fiscal document is issued there).
+  invoicerStatus:   (propertyId)         => api.get(`/invoicer/status?propertyId=${propertyId}`),
+  invoicerOverview: (propertyId)         => api.get(`/invoicer/overview?propertyId=${propertyId}`),
+  invoicerConnect:  (propertyId, body)   => api.post(`/invoicer/connect`, { ...body, propertyId }),
+  invoicerSync:     (propertyId)         => api.post(`/invoicer/sync`, { propertyId }),
   // Binary download (Excel workbook) with the bearer token; saves under the server's file name.
   downloadWorkbook: async (propertyId, params = {}) => {
     const token = getToken();

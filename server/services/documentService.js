@@ -94,23 +94,31 @@ function sellerOf(property) {
 export async function docCoverage(folioIds, session) {
   const ids = (Array.isArray(folioIds) ? folioIds : [folioIds]).map(String);
   const docs = await Invoice.find({ folio: { $in: ids }, status: { $in: ['issued', 'pending_allocation'] } })
-    .select('type invoiceNumber totalGross relatedInvoiceId coveredLineIds lines.folioLineId payments.folioLineId payments.nettedLineIds').session(session || null).lean();
-  const credited = new Map();
+    .select('type issuer invoiceNumber totalGross relatedInvoiceId creditPurpose coveredLineIds lines.folioLineId payments.folioLineId payments.nettedLineIds').session(session || null).lean();
+  const creditsOf = new Map();
   for (const d of docs.filter((x) => x.type === 'credit_note' && x.relatedInvoiceId)) {
     const k = String(d.relatedInvoiceId);
-    credited.set(k, round2((credited.get(k) || 0) + Math.abs(d.totalGross || 0)));
+    creditsOf.set(k, [...(creditsOf.get(k) || []), d]);
   }
   const charges = new Map();
+  const credits = new Map(); // folio line → the credit note that documents it (a correction line)
   const payments = new Map();
   for (const d of docs) {
     if (CHARGE_DOC_TYPES.includes(d.type)) {
-      const fully = (credited.get(String(d._id)) || 0) >= Math.abs(d.totalGross || 0) - 0.005;
-      if (!fully) {
+      const cns = creditsOf.get(String(d._id)) || [];
+      const fully = round2(cns.reduce((s, c) => s + Math.abs(c.totalGross || 0), 0)) >= Math.abs(d.totalGross || 0) - 0.005;
+      // Only a cancellation for re-issue frees the charges for a corrected invoice; a correction
+      // credit (the guest pays less) is matched by correction lines on the folio, so nothing is freed.
+      // An old in-app credit note has no purpose — it kept the old meaning (free when fully credited).
+      const reissued = cns.some((c) => c.creditPurpose === 'reissue' || (!c.creditPurpose && c.issuer !== 'invoicer'));
+      if (!(fully && reissued)) {
         for (const l of d.lines || []) if (l.folioLineId) charges.set(String(l.folioLineId), d.invoiceNumber);
         for (const id of d.coveredLineIds || []) charges.set(String(id), d.invoiceNumber);
+        for (const c of cns) for (const id of c.coveredLineIds || []) { charges.set(String(id), c.invoiceNumber); credits.set(String(id), c.invoiceNumber); }
       }
     }
     // A refund receipt (invoicing system) documents the refund lines it lists.
+    if (d.type === 'refund_receipt') for (const id of d.coveredLineIds || []) payments.set(String(id), d.invoiceNumber);
     if (PAYMENT_DOC_TYPES.includes(d.type) || d.type === 'refund_receipt') {
       for (const p of d.payments || []) {
         if (p.folioLineId) payments.set(String(p.folioLineId), d.invoiceNumber);
@@ -118,7 +126,53 @@ export async function docCoverage(folioIds, session) {
       }
     }
   }
-  return { charges, payments };
+  return { charges, payments, credits };
+}
+
+// Folio ↔ documents, in gross: what the documents say was charged / paid must equal the folio lines
+// they cover. A difference means money moved without a document (or the other way round).
+export async function reconcileFolios(folios) {
+  const list = (Array.isArray(folios) ? folios : [folios]).filter(Boolean);
+  const out = new Map();
+  if (!list.length) return out;
+  const ids = list.map((f) => f._id);
+  const coverage = await docCoverage(ids);
+  const docs = await Invoice.find({ folio: { $in: ids }, status: { $in: ['issued', 'pending_allocation'] } })
+    .select('folio type issuer totalGross amountPaid relatedInvoiceId creditPurpose').lean();
+  const byId = new Map(docs.map((d) => [String(d._id), d]));
+  for (const f of list) {
+    const mine = docs.filter((d) => String(d.folio) === String(f._id));
+    // A charge document freed by a cancellation for re-issue nets to zero with its credits.
+    const freed = new Set();
+    for (const d of mine.filter((x) => CHARGE_DOC_TYPES.includes(x.type))) {
+      const cns = mine.filter((c) => c.type === 'credit_note' && String(c.relatedInvoiceId) === String(d._id));
+      const fully = round2(cns.reduce((s, c) => s + Math.abs(c.totalGross || 0), 0)) >= Math.abs(d.totalGross || 0) - 0.005;
+      if (fully && cns.some((c) => c.creditPurpose === 'reissue' || (!c.creditPurpose && c.issuer !== 'invoicer'))) { freed.add(String(d._id)); cns.forEach((c) => freed.add(String(c._id))); }
+    }
+    let docCharges = 0;
+    let docPaid = 0;
+    for (const d of mine) {
+      if (freed.has(String(d._id))) continue;
+      if (CHARGE_DOC_TYPES.includes(d.type)) docCharges += Math.abs(d.totalGross || 0);
+      if (d.type === 'credit_note' && byId.get(String(d.relatedInvoiceId))) docCharges -= Math.abs(d.totalGross || 0);
+      if (PAYMENT_DOC_TYPES.includes(d.type)) docPaid += Number(d.amountPaid || 0);
+      if (d.type === 'refund_receipt') docPaid -= Math.abs(d.totalGross || 0);
+    }
+    let folioCharges = 0;
+    let folioPaid = 0;
+    for (const l of f.lines || []) {
+      if (l.status !== 'posted') continue;
+      const id = String(l._id);
+      if (coverage.charges.has(id)) folioCharges += Number(l.amount || 0) + Number(l.taxAmount || 0);
+      if (coverage.payments.has(id)) folioPaid -= Number(l.amount || 0);
+    }
+    const c = { documents: round2(docCharges), folio: round2(folioCharges) };
+    const p = { documents: round2(docPaid), folio: round2(folioPaid) };
+    c.diff = round2(c.documents - c.folio);
+    p.diff = round2(p.documents - p.folio);
+    out.set(String(f._id), { ok: Math.abs(c.diff) < 0.01 && Math.abs(p.diff) < 0.01, charges: c, payments: p });
+  }
+  return out;
 }
 
 function eligibleLines(folio, coverage, propertyVat) {
@@ -538,6 +592,7 @@ async function issueViaInvoicer({ propertyId, folioId, input, actor, ip, type, r
       description: l.description, quantity: Number(l.quantity) || 1, unitPrice: num(l.unitPrice), discountPct: 0,
       netAmount: num(l.net), vatRate: Number(l.vatRate), vatAmount: num(l.tax), grossAmount: num(l.gross),
       serviceDate: lines[i]?.serviceDate, department: lines[i]?.department, folioLineId: lines[i]?.ids[0],
+      externalLineId: l._id ? String(l._id) : undefined, folioLineIds: withCharges ? lines[i]?.ids : undefined,
     }));
     const mirrorPays = withPayments ? payments.map((p) => ({
       method: p.method, amount: p.amount, reference: p.reference || undefined, paidAt: p.postedAt, paymentDate: p.date, folioLineId: p.id, nettedLineIds: p.netted?.length ? p.netted : undefined,
@@ -585,8 +640,11 @@ async function issueViaInvoicer({ propertyId, folioId, input, actor, ip, type, r
 const mirrorMethod = (m) => (PAYMENT_MEANS_OK.includes(m) ? m : 'other');
 const PAYMENT_MEANS_OK = ['cash', 'credit_card', 'bank_transfer', 'cheque', 'voucher', 'other'];
 
-async function saveCreditMirror({ propertyId, source, issued, requestKey, requestPayloadHash, actor, notes, payments = [] }) {
+export async function saveCreditMirror({ propertyId, source, issued, requestKey, requestPayloadHash, actor, notes, payments = [], purpose, origin = 'hotel4u', coveredLineIds, session = null }) {
   const num = (v) => legacyNumber(v ?? '0');
+  // Inside a transaction a duplicate-key error would abort it — look first.
+  const before = await Invoice.findOne({ property: propertyId, $or: [{ requestKey }, { 'external.documentId': String(issued._id) }] }).session(session).lean();
+  if (before) return { doc: before, created: false };
   const type = issued.type === 'refund_receipt' ? 'refund_receipt' : 'credit_note';
   const issueDate = issued.issueDate || todayYmdInTimezone('Asia/Jerusalem');
   const gross = num(issued.gross);
@@ -600,13 +658,16 @@ async function saveCreditMirror({ propertyId, source, issued, requestKey, reques
       lines: (issued.lines || []).map((l) => ({
         description: l.description, quantity: Number(l.quantity) || 1, unitPrice: num(l.unitPrice ?? l.gross), discountPct: 0,
         netAmount: num(l.net), vatRate: Number(l.vatRate) || 0, vatAmount: num(l.tax), grossAmount: num(l.gross),
+        externalLineId: l._id ? String(l._id) : undefined, externalSourceLineId: l.sourceLineId ? String(l.sourceLineId) : undefined,
       })),
+      ...(type === 'credit_note' ? { creditPurpose: purpose || 'correction', creditOrigin: origin } : {}),
+      ...(coveredLineIds?.length ? { coveredLineIds } : {}),
       totalNet: num(issued.net), totalVat: num(issued.tax), totalGross: gross, totalDiscount: 0, vatRate: source.vatRate,
       payments, amountPaid: type === 'refund_receipt' ? gross : 0, balance: 0,
       relatedInvoiceId: source._id,
       allocationStatus: issued.allocationNumber ? 'approved' : 'not_required', allocationNumber: issued.allocationNumber || undefined,
       allocationReason: 'מנוהל במערכת החשבוניות', issuedBy: actor?.id || undefined, issuedAt: new Date(), notes: clip(notes, 500) || undefined,
-    }]);
+    }], { session });
     return { doc: doc.toObject(), created: true };
   } catch (err) {
     if (err?.code !== 11000) throw err;
@@ -634,6 +695,14 @@ async function refundViaInvoicer({ propertyId, folio, refunds, input, actor, ip,
   if (source.type !== 'receipt') throw httpError(`התשלום תועד ב${INVOICE_TYPE_LABELS[source.type]} ${source.invoiceNumber} — את ההחזר מתעדים במסמך זיכוי לאותו מסמך (רשימת המסמכים › זיכוי)`, 409, { code: 'refund_on_invoice_receipt' });
   const group = refunds.filter((r) => String(sourceOf(r)?._id) === String(source._id));
   const amount = round2(-sum(group, 'amount'));
+  // The same money may already have a refund receipt made directly in the invoicing system (synced,
+  // not tied to a line): tie these refund lines to it instead of issuing a second one.
+  const loose = await Invoice.findOne({ property: propertyId, type: 'refund_receipt', relatedInvoiceId: source._id, status: 'issued', totalGross: amount, 'payments.folioLineId': { $exists: false }, 'coveredLineIds.0': { $exists: false } }).lean();
+  if (loose) {
+    await Invoice.updateOne({ _id: loose._id }, { $set: { coveredLineIds: group.map((r) => r.id) } });
+    await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'invoice.refund_receipt_linked', entityType: 'Invoice', entityId: loose._id, after: { number: loose.invoiceNumber, refundLines: group.length, amount }, ip });
+    return { ...docDto(await Invoice.findById(loose._id).lean()), duplicate: false, linked: true };
+  }
   const reason = clip(input.notes, 500) || `החזר כספי לאורח (קבלה ${source.invoiceNumber})`;
   const issued = await invoicerClient()
     .credit(source.external.workspace, source.external.documentId, { reason, creditAmount: fixed2(amount) }, `hotel4u:refund:${requestKey}`)
@@ -648,38 +717,6 @@ async function refundViaInvoicer({ propertyId, folio, refunds, input, actor, ip,
     after: { issuer: 'invoicer', externalId: String(issued._id), number: doc.invoiceNumber, source: source.invoiceNumber, folioId: String(folio._id), amount, refundLines: group.length }, ip,
   });
   return { ...docDto(doc), duplicate: false };
-}
-
-// FIN-07 for a document issued in the invoicing system: the credit note is issued there.
-export async function creditViaInvoicer({ propertyId, invoiceId, amount, reason, idempotencyKey, actor, ip }) {
-  const k = String(idempotencyKey || '').trim();
-  if (!/^[A-Za-z0-9_-]{8,80}$/.test(k)) throw httpError('חסר מזהה פעולה (idempotency key)', 422);
-  const requestKey = `credit:${k}`;
-  const why = clip(reason, 300);
-  if (why.length < 3) throw httpError('נדרשת סיבת זיכוי', 422, { fields: { reason: 'סיבה' } });
-  const partial = amount === undefined || amount === null || amount === '' ? null : round2(Number(amount));
-  if (partial !== null && !(partial > 0)) throw httpError('סכום הזיכוי חייב להיות חיובי', 422, { fields: { amount: 'סכום' } });
-  const requestPayloadHash = payloadHash({ invoiceId: String(invoiceId), amount: partial, reason: why });
-  const dup = await Invoice.findOne({ property: propertyId, requestKey }).lean();
-  if (dup) {
-    if (dup.requestPayloadHash && dup.requestPayloadHash !== requestPayloadHash) throw httpError('מזהה הפעולה כבר שימש לבקשה עם תוכן אחר', 409);
-    return { id: String(dup._id), number: dup.invoiceNumber, gross: round2(dup.totalGross), duplicate: true };
-  }
-  const source = await Invoice.findOne({ _id: invoiceId, property: propertyId, issuer: 'invoicer' }).lean();
-  if (!source) throw httpError('המסמך לא נמצא', 404);
-  if (!CHARGE_DOC_TYPES.includes(source.type)) throw httpError('קבלה לא מזכים כאן: רושמים החזר כספי בחשבון ומפיקים קבלת החזר', 422, { code: 'receipt_is_refunded' });
-  return withLocks([`docs:${source.folio}`], async () => {
-    await syncInvoicerDocuments(propertyId).catch(() => null); // a credit made there first lowers what is left
-    const issued = await invoicerClient()
-      .credit(source.external.workspace, source.external.documentId, { reason: why, ...(partial !== null ? { creditAmount: fixed2(partial) } : {}) }, `hotel4u:credit:${k}`)
-      .catch(invoicerFailure('מסמך הזיכוי'));
-    const { doc } = await saveCreditMirror({ propertyId, source, issued, requestKey, requestPayloadHash, actor, notes: why });
-    await audit({
-      property: propertyId, actor: actor.id, actorName: actor.name, action: 'invoice.credit_note', entityType: 'Invoice', entityId: source._id, reason: why,
-      after: { issuer: 'invoicer', creditNote: String(doc._id), externalId: String(issued._id), number: doc.invoiceNumber, gross: doc.totalGross }, ip,
-    });
-    return { id: String(doc._id), number: doc.invoiceNumber, gross: round2(doc.totalGross) };
-  }, { ttlMs: 60_000, waitMs: 3000 });
 }
 
 // Pull back what happened in the invoicing system after issuing: credits / refunds made there and
@@ -707,6 +744,14 @@ export async function syncInvoicerDocuments(propertyId) {
     if (!['credit_note', 'refund_receipt'].includes(d.type)) continue;
     const source = byExt.get(String(d.relatedDocument));
     if (!source) continue;
+    if (d.type === 'credit_note') {
+      // A credit made there is a correction of the folio too: mirrored with its correction lines.
+      const { recordInvoicerCredit } = await import('./fiscalCorrectionService.js');
+      const r = await recordInvoicerCredit({ propertyId, source, issued: d, origin: 'invoicer' });
+      if (r.created || r.posted) added++;
+      byExt.set(String(d._id), { external: { documentId: String(d._id) } });
+      continue;
+    }
     let payments = [];
     if (d.type === 'refund_receipt') {
       // Tie it to a refund line on the folio that is not documented yet (same receipt, same amount),
@@ -724,6 +769,19 @@ export async function syncInvoicerDocuments(propertyId) {
       added++;
       byExt.set(String(d._id), { external: { documentId: String(d._id) } });
       await audit({ property: propertyId, actor: null, actorName: 'מערכת החשבוניות', action: d.type === 'refund_receipt' ? 'invoice.refund_receipt' : 'invoice.credit_note', entityType: 'Invoice', entityId: source._id, after: { issuer: 'invoicer', synced: true, externalId: String(d._id), number: String(d.number), source: source.invoiceNumber } });
+    }
+  }
+  // Credit notes mirrored before the folio carried their correction lines (or whose posting did not
+  // finish): post them now, so folio and documents agree.
+  const unposted = mirrors.filter((m) => m.type === 'credit_note' && m.creditPurpose !== 'reissue' && !(m.coveredLineIds || []).length && m.relatedInvoiceId);
+  if (unposted.length) {
+    const { recordInvoicerCredit } = await import('./fiscalCorrectionService.js');
+    for (const m of unposted) {
+      const source = mirrors.find((x) => String(x._id) === String(m.relatedInvoiceId));
+      const issued = remote.find((x) => String(x._id) === String(m.external?.documentId)) || await client.getDocument(w._id, m.external.documentId).catch(() => null);
+      if (!source || !issued) continue;
+      const r = await recordInvoicerCredit({ propertyId, source, issued, origin: m.creditOrigin || 'hotel4u' });
+      if (r.posted) updated++;
     }
   }
   return { added, updated };

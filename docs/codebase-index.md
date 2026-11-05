@@ -733,7 +733,25 @@ Issuing (built 2026-10-19): `POST /finance/folios/:id/documents` → `documentSe
 from the folio (VAT-inclusive lines `pricesIncludeVat:true`, discounts folded into same-rate charges, payments with their
 details), ensures the customer (`externalId hotel4u:vat|id|res:…`), creates the draft + issues with keys
 `hotel4u:draft|issue:<requestKey>`, then saves a mirror `Invoice {issuer:'invoicer', external, coveredLineIds}`.
-In-app numbering (`nextNumber`) refuses; allocation / send / credit of a mirror return 409 (done in the invoicer).
+In-app numbering (`nextNumber`) refuses; allocation / send of a mirror return 409 (done in the invoicer).
+Credits (2026-11-05): `POST /finance/invoices/:id/credit-note` on a mirror → `documentService.creditViaInvoicer` (invoicer
+`/documents/:id/credit`, partial `creditAmount`, key `hotel4u:credit:<k>`) → mirror `credit_note` with `relatedInvoiceId`.
+Refund receipt: issue type `refund_receipt` from folio refund lines (`refundOf` a payment on an invoicer receipt) → credit
+of that receipt → mirror `refund_receipt` whose payments cover the refund lines. Receipts never carry refunds there.
+Sync back: `syncInvoicerDocuments` (cron 5 min, on doc-context open, `POST /api/pms/invoicer/sync`) mirrors credits /
+refunds made in the invoicer and late allocation numbers. Settings › מסמכים (`/pms/admin/fiscal`): connect form, status,
+readiness gates (from invoicer overview); legacy ITA/series cards show only with LEGACY_LOCAL_DOCUMENTS.
+Hosted invoicer: https://myinvoicer.io (sandbox), key in server/.env.
+Folio ↔ documents in step (2026-11-05, `services/fiscalCorrectionService.js`): the folio is the one source. Invoice
+mirror lines keep `externalLineId` + `folioLineIds`. Discount / reversal of an invoiced charge → folio lines + a credit
+note on exactly that invoice line (`selections` by `sourceLineId`), one transaction under the folio lock, key
+`hotel4u:fix:<op>:<doc>`. Document "credit": `purpose` correction (credit + discount lines per credited line, VAT as
+invoicer split it) or reissue (full, no lines, frees charges + its credits' lines for a corrected invoice). Credit
+notes cover their lines (`coveredLineIds`, `coverage.credits`); a credit made in the invoicer is synced with its lines;
+mirrors without lines are backfilled by the sync. Closed folio left with a balance reopens. `reconcileFolios` (gross:
+documents vs covered lines, charges + payments) → folio `reconciliation`, exception `documents_mismatch`, day-close row.
+Issued-invoice lock allows only link paths (`LINKAGE_PATH` in models/Invoice.js). Old in-app documents keep T18.
+QA: `qa:invoicer` 33 checks, `qa:finance` 74.
 `LEGACY_LOCAL_DOCUMENTS=1` (never in production) re-enables local numbering for the legacy suites only.
 QA: `npm run qa:invoicer` starts the real invoicer (INVOICER_DIR, default ../invoicer) on a disposable Replica Set.
 

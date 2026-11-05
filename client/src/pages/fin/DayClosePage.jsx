@@ -147,6 +147,17 @@ export default function DayClosePage() {
                   {rd.cash?.open?.length ? <Link className="btn btn-secondary btn-sm" to={`/pms/fin/reports?tab=cash`}>{rd.cash.open.length} לסגירה</Link> : <Pill tone="ok">תקין</Pill>}
                 </li>
                 <li>
+                  <div>
+                    <div className="font-medium">חשבון מול מסמכים</div>
+                    <div className="ui-sub">{rd.documentMismatches?.length
+                      ? rd.documentMismatches.slice(0, 3).map((m) => `${m.guest}${m.confirmationNumber ? ` (${m.confirmationNumber})` : ''}`).join(', ')
+                      : 'כל חשבונית, זיכוי וקבלה תואמים לשורות החשבון (60 ימים)'}</div>
+                  </div>
+                  {rd.documentMismatches?.length
+                    ? <Link className="btn btn-secondary btn-sm" to={rd.documentMismatches[0].reservationId ? `/pms/folio?reservation=${rd.documentMismatches[0].reservationId}` : '/pms/house-accounts'}>{rd.documentMismatches.length} לבדיקה</Link>
+                    : <Pill tone="ok">תואם</Pill>}
+                </li>
+                <li>
                   <div><div className="font-medium">חיובי לינה שיירשמו</div><div className="ui-sub">{rd.nights.inHouse} שהיות בבית · כל לילה נרשם פעם אחת</div></div>
                   <span className="ui-num font-medium">{rd.nights.count} · {money(rd.nights.amount)}</span>
                 </li>

@@ -14,7 +14,7 @@ import { dayReport } from '../services/ledgerService.js';
 import { closeSettledFolio } from '../services/reversalService.js';
 import { MIGRATION_ROLES, previewBusinessDayMigration, applyBusinessDayMigration, rollbackBusinessDayMigration } from '../services/businessDayMigrationService.js';
 import { getTaxPolicy, updateTaxPolicy, TAX_ADMIN_ROLES } from '../services/touristService.js';
-import { documentContext, issueDocument, listDocuments, setAllocation, printDocument, sendDocument, listSeries, setSeriesStart, SERIES_ROLES } from '../services/documentService.js';
+import { documentContext, issueDocument, listDocuments, setAllocation, printDocument, sendDocument, listSeries, setSeriesStart, SERIES_ROLES, documentIssuer } from '../services/documentService.js';
 import { journal, vatReport, receiptsReport, undocumentedReport, allocationsReport, cashDay, closeCash, accountantWorkbook } from '../services/financeReportsService.js';
 import { buildUnifiedFile } from '../services/unifiedFileService.js';
 import { connectUrl, disconnect, connectionStatus, retryPending } from '../services/taxAuthorityService.js';
@@ -159,7 +159,7 @@ router.post('/folios/:id/payments/:lineId/refund', handle(async (req) => {
 // ── FIN-07 ──────────────────────────────────────────────────────────────────
 router.post('/invoices/:id/credit-note', handle(async (req) => {
   requireRoles(req, MONEY_WORK, 'אין הרשאה למסמך זיכוי');
-  return creditNote({ propertyId: scope(req), invoiceId: req.params.id, amount: req.body?.amount, selections: req.body?.selections, reason: req.body?.reason, idempotencyKey: req.body?.idempotencyKey, actor: actorOf(req), ip: req.ip });
+  return creditNote({ propertyId: scope(req), invoiceId: req.params.id, amount: req.body?.amount, selections: req.body?.selections, purpose: req.body?.purpose, reason: req.body?.reason, idempotencyKey: req.body?.idempotencyKey, actor: actorOf(req), ip: req.ip });
 }));
 
 // ── FIN-06 documents from a folio · FIN-10 allocation centre ────────────────
@@ -233,7 +233,7 @@ router.get('/fiscal', handle(async (req) => {
   requireRoles(req, MONEY_READ, 'אין הרשאה');
   const propertyId = scope(req);
   const p = await Property.findById(propertyId).select('legalName name taxNumber address city fiscal').lean();
-  return { ita: await connectionStatus(propertyId), series: await listSeries({ propertyId }), emailFrom: p?.fiscal?.emailFrom || '', seller: { name: p?.legalName || p?.name || '', taxNumber: p?.taxNumber || '', address: p?.address || '', city: p?.city || '' } };
+  return { issuer: documentIssuer(), ita: await connectionStatus(propertyId), series: await listSeries({ propertyId }), emailFrom: p?.fiscal?.emailFrom || '', seller: { name: p?.legalName || p?.name || '', taxNumber: p?.taxNumber || '', address: p?.address || '', city: p?.city || '' } };
 }));
 router.put('/fiscal', handle(async (req) => {
   requireRoles(req, FISCAL_ADMIN, 'הגדרות מסמכים — להנהלה ולכספים');

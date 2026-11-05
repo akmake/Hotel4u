@@ -37,7 +37,15 @@ import { runStayTransaction } from './stayTransaction.js';
 import { financialWrite } from './financialTransaction.js';
 import { todayYmdInTimezone } from '../utils/dateHelpers.js';
 import { issueCreditNote } from './invoiceService.js';
-import { docCoverage, docDto } from './documentService.js';
+import { docCoverage, docDto, reconcileFolios } from './documentService.js';
+
+// Folio ↔ documents gap, in words the desk can act on.
+export function mismatchLabel(label, rec) {
+  const parts = [];
+  if (Math.abs(rec.charges.diff) >= 0.01) parts.push(`חיובים: במסמכים ${rec.charges.documents.toFixed(2)}, בחשבון ${rec.charges.folio.toFixed(2)}`);
+  if (Math.abs(rec.payments.diff) >= 0.01) parts.push(`תשלומים: במסמכים ${rec.payments.documents.toFixed(2)}, בחשבון ${rec.payments.folio.toFixed(2)}`);
+  return `${label}: החשבון והמסמכים לא תואמים — ${parts.join(' · ')}`;
+}
 import { raiseWork } from './platformService.js';
 import { resolveChargeCode, resolvePaymentMethod, taxFor } from './chargeCodeService.js';
 import { computeLedger, ledgerChecks, storedFrom } from './ledgerService.js';
@@ -160,7 +168,7 @@ function ownerLabel(f, companies) {
   return { guest: 'אורח', room: 'חדר', group: 'קבוצה', house: 'בית' }[f.ownerType] || f.ownerType;
 }
 
-function lineDto(l, onDocs, reversedIds, refundedByPayment, onReceipts = new Map(), comboOf = new Map()) {
+function lineDto(l, onDocs, reversedIds, refundedByPayment, onReceipts = new Map(), comboOf = new Map(), onCredits = new Map()) {
   const gross = round2(Number(l.amount || 0) + Number(l.taxAmount || 0));
   const id = String(l._id);
   const refunded = refundedByPayment.get(id) || 0;
@@ -181,6 +189,7 @@ function lineDto(l, onDocs, reversedIds, refundedByPayment, onReceipts = new Map
     combo: comboOf.get(id) || null,
     reversed: reversedIds.has(id),
     onDocument: onDocs.get(id) || null,
+    onCredit: onCredits.get(id) || null, // a correction line documented by this credit note
     refundable: ['payment', 'deposit'].includes(l.type) && l.status === 'posted' ? round2(Math.abs(gross) - refunded) : null,
   };
 }
@@ -289,6 +298,7 @@ export async function getStayFolios({ propertyId, reservationId }) {
   }
   const windows = [];
   const exceptions = [];
+  const recon = await reconcileFolios(folios);
   for (const f of folios) {
     const coverage = await docCoverage(f._id);
     const onDocs = coverage.charges;
@@ -306,15 +316,17 @@ export async function getStayFolios({ propertyId, reservationId }) {
     const combos = (f.combos || []).map((c) => ({ id: String(c._id), label: c.label, lineIds: c.lineIds.map(String), live: c.lineIds.filter(live).length, by: c.byName || null, at: c.at }));
     const comboOf = new Map(combos.flatMap((c) => c.lineIds.map((id) => [id, { id: c.id, label: c.label }])));
     const lines = [...f.lines].sort((a, b) => String(a.serviceDate).localeCompare(String(b.serviceDate)) || new Date(a.postedAt) - new Date(b.postedAt))
-      .map((l) => lineDto(l, onDocs, reversedIds, refundedByPayment, coverage.payments, comboOf));
+      .map((l) => lineDto(l, onDocs, reversedIds, refundedByPayment, coverage.payments, comboOf, coverage.credits));
     const label = f.ownerType === 'room' && unitLabels.has(String(f.ownerRef)) ? unitLabels.get(String(f.ownerRef)) : ownerLabel(f, companies);
     if (balance < -0.005) exceptions.push({ code: 'credit', folioId: String(f._id), label: `${label}: יתרת זכות ${Math.abs(balance).toFixed(2)} — יש להחזיר או לאשר` });
     if (f.status === 'closed' && Math.abs(balance) > 0.005) exceptions.push({ code: 'closed_with_balance', folioId: String(f._id), label: `${label}: חשבון סגור עם יתרה` });
     if (f.settlement?.mode && Math.abs(balance) > 0.005) exceptions.push({ code: 'settled_open', folioId: String(f._id), label: `${label}: יתרה פתוחה באישור (${f.settlement.approvedByName || '—'})` });
+    const rec = recon.get(String(f._id));
+    if (rec && !rec.ok) exceptions.push({ code: 'documents_mismatch', folioId: String(f._id), label: mismatchLabel(label, rec) });
     windows.push({
       id: String(f._id), ownerType: f.ownerType, owner: label, unitId: f.ownerType === 'room' ? String(f.ownerRef) : null, status: f.status, currency: f.currency || 'ILS',
       extra: String(f.ownerRef || '').startsWith('extra:'), combos,
-      balance, totals: totalsOf(f.lines),
+      balance, totals: totalsOf(f.lines), reconciliation: recon.get(String(f._id)) || null,
       settlement: f.settlement?.mode ? { mode: f.settlement.mode, reason: f.settlement.reason || null, by: f.settlement.approvedByName || null, at: f.settlement.at || null } : null,
       lines,
     });
@@ -424,12 +436,23 @@ export async function reverseCharge({ propertyId, folioId, lineId, reason, actor
   const reference = `rev:${line._id}`;
   const existing = folio.lines.find((l) => l.reference === reference || String(l.reversalOf || '') === String(line._id));
   if (existing) throw httpError('החיוב כבר הופך', 409);
-  const onDocs = await linesOnIssuedDocs(folio._id);
-  if (onDocs.has(String(line._id))) throw httpError(`החיוב כלול במסמך ${onDocs.get(String(line._id))} שהונפק — התיקון במסמך זיכוי (T18)`, 409, { code: 'on_document' });
+  const onDocs = (await docCoverage(folio._id, session)).charges;
   const property = await Property.findById(propertyId).session(session).select('timezone dayClose').lean();
   // A discount given on this charge goes with it (otherwise the folio would be left in credit).
   const reversedNow = new Set(folio.lines.filter((l) => l.reversalOf).map((l) => String(l.reversalOf)));
-  for (const d of folio.lines.filter((l) => l.type === 'discount' && l.status === 'posted' && String(l.discountOf || '') === String(line._id) && !reversedNow.has(String(l._id)))) {
+  const ownDiscounts = folio.lines.filter((l) => l.type === 'discount' && l.status === 'posted' && String(l.discountOf || '') === String(line._id) && !reversedNow.has(String(l._id)));
+  // A charge already on an issued invoice: the reversal is documented by a credit note on exactly the
+  // invoice line that covers it, issued in the same operation (folio and documents stay in step).
+  let credits = [];
+  const fx = await import('./fiscalCorrectionService.js');
+  if (onDocs.has(String(line._id))) {
+    const { documentIssuer } = await import('./documentService.js');
+    if (documentIssuer() !== 'invoicer') throw httpError(`החיוב כלול במסמך ${onDocs.get(String(line._id))} שהונפק — התיקון במסמך זיכוי (T18)`, 409, { code: 'on_document' });
+    const remaining = round2(Number(line.amount || 0) + Number(line.taxAmount || 0) + ownDiscounts.reduce((s, d) => s + Number(d.amount || 0) + Number(d.taxAmount || 0), 0));
+    if (remaining > 0.005) credits = await fx.creditInvoicedParts({ folio, parts: [{ folioLineId: String(line._id), gross: remaining }], reason: why, key: reference, session });
+  }
+  const firstNew = folio.lines.length;
+  for (const d of ownDiscounts) {
     folio.lines.push({
       type: 'adjustment', description: `היפוך: ${d.description}`, amount: -round2(d.amount), taxAmount: -round2(d.taxAmount || 0), vatRate: d.vatRate, taxReason: d.taxReason,
       department: d.department, serviceDate: businessDateOf(property), source: 'manual', status: 'posted', reference: `rev:${d._id}`,
@@ -448,8 +471,10 @@ export async function reverseCharge({ propertyId, folioId, lineId, reason, actor
     throw e;
   }
   const rev = folio.lines[folio.lines.length - 1];
-  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.charge_reversed', entityType: 'Folio', entityId: folio._id, reason: why, before: { lineId: String(line._id), gross: round2(line.amount + (line.taxAmount || 0)) }, after: { reversalLineId: String(rev._id) }, ip, session, afterCommit });
-  return { folioId: String(folio._id), lineId: String(rev._id), balance: folioBalance(folio) };
+  const newIds = folio.lines.slice(firstNew).map((l) => String(l._id));
+  const cn = credits.length ? await fx.mirrorCredits({ propertyId, credits, lineIdsOf: () => newIds, actor, reason: why, session }) : [];
+  await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.charge_reversed', entityType: 'Folio', entityId: folio._id, reason: why, before: { lineId: String(line._id), gross: round2(line.amount + (line.taxAmount || 0)) }, after: { reversalLineId: String(rev._id), creditNotes: cn.map((d) => d.invoiceNumber) }, ip, session, afterCommit });
+  return { folioId: String(folio._id), lineId: String(rev._id), balance: folioBalance(folio), creditNotes: cn.map((d) => d.invoiceNumber) };
 }
 
 // ── FIN-03 payment / deposit (manual methods; card = external terminal record) ──
@@ -578,14 +603,14 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
 }
 
 // ── FIN-07 credit note (scope + role here; caps and immutability in invoiceService) ──
-export async function creditNote({ propertyId, invoiceId, amount, selections, reason, idempotencyKey, actor, ip }) {
+export async function creditNote({ propertyId, invoiceId, amount, selections, purpose, reason, idempotencyKey, actor, ip }) {
   if (!CREDIT_ROLES.includes(actor.role)) throw httpError('מסמך זיכוי מופק על ידי כספים או הנהלה', 403);
   if (!isId(String(invoiceId || ''))) throw httpError('מזהה מסמך לא תקין', 400);
   const inv = await Invoice.findOne({ _id: invoiceId, property: propertyId }).select('_id type issuer').lean();
   if (!inv) throw httpError('המסמך לא נמצא', 404);
   if (inv.issuer === 'invoicer') {
-    const { creditViaInvoicer } = await import('./documentService.js');
-    return creditViaInvoicer({ propertyId, invoiceId, amount, reason, idempotencyKey, actor, ip });
+    const { creditDocument } = await import('./fiscalCorrectionService.js');
+    return creditDocument({ propertyId, invoiceId, amount, purpose, reason, idempotencyKey, actor, ip });
   }
   if (inv.type === 'credit_note') throw httpError('לא מזכים מסמך זיכוי', 422);
   if (!CHARGE_DOC_TYPES.includes(inv.type)) throw httpError('מסמך זיכוי מופק רק לחשבונית מס — לא לקבלה או לחשבון עסקה', 422);
@@ -635,8 +660,21 @@ export async function readinessFor(propertyId, date) {
   // close of a drawer stays a separate act of the cashier).
   const cash = await cashDay({ propertyId, date });
   const openDrawers = cash.rows.filter((x) => (Math.abs(x.expected) > 0.005 || x.lines) && (!x.close || x.close.stale)).map((x) => ({ userId: x.userId, name: x.name, expected: x.expected, stale: !!x.close?.stale }));
+  // Folio ↔ documents (not blocking): folios with documents in the last 60 days whose documents do not
+  // match the folio lines they cover — money moved without a document, or a document without a line.
+  const docFolios = await Invoice.distinct('folio', { property: propertyId, issueDate: { $gte: addDays(date, -60) }, status: { $in: ['issued', 'pending_allocation'] } });
+  const checkFolios = docFolios.length ? await Folio.find({ _id: { $in: docFolios } }).select('reservation account lines').lean() : [];
+  const recon = await reconcileFolios(checkFolios);
+  const badFolios = checkFolios.filter((f) => recon.get(String(f._id)) && !recon.get(String(f._id)).ok);
+  const badRes = badFolios.length ? new Map((await Reservation.find({ _id: { $in: badFolios.map((f) => f.reservation).filter(Boolean) } }).select('confirmationNumber primaryGuest').populate('primaryGuest', 'firstName lastName').lean()).map((r) => [String(r._id), r])) : new Map();
+  const documentMismatches = badFolios.map((f) => {
+    const r = badRes.get(String(f.reservation));
+    const rec = recon.get(String(f._id));
+    return { folioId: String(f._id), reservationId: f.reservation ? String(f.reservation) : null, confirmationNumber: r?.confirmationNumber || null, guest: r ? name(r.primaryGuest) : f.account?.name || 'חשבון מזדמן', charges: rec.charges, payments: rec.payments };
+  });
   return {
     cash: { open: openDrawers, unattributed: cash.unattributed },
+    documentMismatches,
     arrivals: arrivals.map((r) => ({ id: String(r._id), confirmationNumber: r.confirmationNumber, guest: name(r.primaryGuest), arrivalDate: r.arrivalDate, rooms: r.roomsCount || 1 })),
     departures: departures.map((r) => ({ id: String(r._id), confirmationNumber: r.confirmationNumber, guest: name(r.primaryGuest), departureDate: r.departureDate, room: r.assignedRoom?.number || null })),
     queueOpen: queue,
@@ -951,7 +989,7 @@ export async function getHouseAccount({ propertyId, folioId }) {
     if (l.type === 'refund' && l.refundOf && l.status === 'posted') refundedByPayment.set(String(l.refundOf), round2((refundedByPayment.get(String(l.refundOf)) || 0) + Number(l.amount || 0)));
   }
   const lines = [...f.lines].sort((a, b) => String(a.serviceDate).localeCompare(String(b.serviceDate)) || new Date(a.postedAt) - new Date(b.postedAt))
-    .map((l) => lineDto(l, coverage.charges, reversedIds, refundedByPayment, coverage.payments));
+    .map((l) => lineDto(l, coverage.charges, reversedIds, refundedByPayment, coverage.payments, new Map(), coverage.credits));
   const docs = await Invoice.find({ folio: f._id }).select('type invoiceNumber status issueDate totalNet totalVat totalGross amountPaid buyer relatedInvoiceId issuer external allocationNumber allocationStatus allocationReason printCount folio reservation').sort({ createdAt: 1 }).lean();
   const creditedOf = new Map();
   for (const d of docs.filter((x) => ['credit_note', 'refund_receipt'].includes(x.type) && x.relatedInvoiceId)) creditedOf.set(String(d.relatedInvoiceId), round2((creditedOf.get(String(d.relatedInvoiceId)) || 0) + Math.abs(d.totalGross || 0)));
@@ -962,7 +1000,7 @@ export async function getHouseAccount({ propertyId, folioId }) {
       taxId: f.account?.taxId || null, outlet: f.account?.outlet || 'other', outletLabel: HOUSE_OUTLETS[f.account?.outlet] || 'אחר', note: f.account?.note || null,
       company: company ? { id: String(company._id), name: company.name } : null, openedAt: f.createdAt, openedBy: f.account?.openedByName || null, closedAt: f.closedAt || null,
     },
-    folio: { id: String(f._id), ownerType: 'house', owner: f.account?.name || 'מזדמן', status: f.status, currency: f.currency || 'ILS', balance: folioBalance(f), totals: totalsOf(f.lines), lines, settlement: null },
+    folio: { id: String(f._id), ownerType: 'house', owner: f.account?.name || 'מזדמן', status: f.status, currency: f.currency || 'ILS', balance: folioBalance(f), totals: totalsOf(f.lines), lines, settlement: null, reconciliation: (await reconcileFolios(f)).get(String(f._id)) || null },
     documents: docs.map((d) => ({
       ...docDto(d), credited: creditedOf.get(String(d._id)) || 0, allocationNumber: d.allocationNumber || null,
       creditable: CHARGE_DOC_TYPES.includes(d.type) && d.status === 'issued' ? round2(Math.abs(d.totalGross || 0) - (creditedOf.get(String(d._id)) || 0)) : 0,

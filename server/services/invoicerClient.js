@@ -77,6 +77,9 @@ export function createInvoicerClient({ baseUrl, apiKey, fetchImpl = fetch, timeo
     async credit(workspaceId, documentId, body, idempotencyKey) {
       return request(ws(workspaceId) + '/documents/' + encodeURIComponent(documentId) + '/credit', { method: 'POST', body, idempotencyKey });
     },
+    async getDocument(workspaceId, documentId) {
+      return request(ws(workspaceId) + '/documents/' + encodeURIComponent(documentId));
+    },
     async creditBalance(workspaceId, documentId) {
       return request(ws(workspaceId) + '/documents/' + encodeURIComponent(documentId) + '/credit-balance');
     },

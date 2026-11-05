@@ -10,7 +10,8 @@ import Company from '../models/Company.js';
 import { audit } from './auditService.js';
 import { httpError, businessDateOf, IN_HOUSE_STATUSES } from './frontDeskService.js';
 import { folioBalance } from './departureService.js';
-import { docCoverage } from './documentService.js';
+import { docCoverage, documentIssuer } from './documentService.js';
+import { creditInvoicedParts, mirrorCredits } from './fiscalCorrectionService.js';
 import { withLocks } from './locks.js';
 import { runStayTransaction } from './stayTransaction.js';
 import { financialWrite } from './financialTransaction.js';
@@ -61,17 +62,18 @@ function twoFolioWrite(ids, work, propertyId) {
 
 // What may be operated on: a posted charge/fee that is not a reversal, not reversed and not on an
 // issued document. Returns { line, discounts, remaining } or throws a precise reason.
-function workable(folio, lineId, onDocs) {
+function workable(folio, lineId, onDocs, { allowInvoiced = false } = {}) {
   const line = folio.lines.id(lineId);
   if (!line) throw httpError('השורה לא נמצאה', 404);
   if (!['charge', 'fee'].includes(line.type) || line.status !== 'posted') throw httpError(`"${line.description}" אינה חיוב רשום`, 422);
   if (line.reversalOf) throw httpError('שורת היפוך לא ניתנת לפעולה', 422);
   if (folio.lines.some((l) => String(l.reversalOf || '') === String(line._id))) throw httpError(`"${line.description}" כבר בוטל או הועבר`, 409);
-  if (onDocs.has(String(line._id))) throw httpError(`"${line.description}" כלול במסמך ${onDocs.get(String(line._id))} — תיקון במסמך זיכוי`, 409, { code: 'on_document' });
+  const invoiced = onDocs.has(String(line._id));
+  if (invoiced && !allowInvoiced) throw httpError(`"${line.description}" כלול במסמך ${onDocs.get(String(line._id))} — תיקון במסמך זיכוי`, 409, { code: 'on_document' });
   const reversed = new Set(folio.lines.filter((l) => l.reversalOf).map((l) => String(l.reversalOf)));
   const discounts = folio.lines.filter((l) => l.type === 'discount' && l.status === 'posted' && String(l.discountOf || '') === String(line._id) && !reversed.has(String(l._id)));
   const remaining = round2(gross(line) + discounts.reduce((s, d) => s + gross(d), 0));
-  return { line, discounts, remaining };
+  return { line, discounts, remaining, invoiced };
 }
 
 // Net/VAT of a gross part, in the proportion of the original line.
@@ -122,7 +124,13 @@ export async function discountLines({ propertyId, folioId, input, actor, ip }) {
     if (input.reasonCode === 'other' && note.length < 3) errors.note = 'יש לפרט';
     if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי ההנחה', 422, { fields: errors });
     const onDocs = (await docCoverage(folio._id, session)).charges;
-    const items = ids.map((id) => workable(folio, id, onDocs));
+    // A line already on an issued invoice may be discounted too: the discount is documented by a
+    // credit note on that invoice line, issued in the same operation (fiscalCorrectionService).
+    const items = ids.map((id) => workable(folio, id, onDocs, { allowInvoiced: true }));
+    if (items.some((x) => x.invoiced) && documentIssuer() !== 'invoicer') {
+      const x = items.find((y) => y.invoiced);
+      throw httpError(`"${x.line.description}" כלול במסמך ${onDocs.get(String(x.line._id))} — תיקון במסמך זיכוי`, 409, { code: 'on_document' });
+    }
     const left = round2(items.reduce((s, x) => s + x.remaining, 0));
     if (!(left > 0.005)) throw httpError('אין יתרה להנחה בשורות שנבחרו', 422);
     // Per line, in gross: percent of what is left on each line, or an amount spread pro rata.
@@ -143,16 +151,29 @@ export async function discountLines({ propertyId, folioId, input, actor, ip }) {
     const threshold = Number(property?.discountApprovalPercent ?? 10);
     if (pct - threshold > 0.005 && !PRICE_OVERRIDE_ROLES.includes(actor.role)) throw httpError(`הנחה של ${pct}% (מעל ${threshold}%) מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
     const why = `${DISCOUNT_REASONS[input.reasonCode]}${note ? ` · ${note}` : ''}`;
+    const invoicedParts = parts.filter((p) => p.invoiced);
+    const credits = invoicedParts.length
+      ? await creditInvoicedParts({ folio, parts: invoicedParts.map((p) => ({ folioLineId: String(p.line._id), gross: p.d })), reason: why, key: ref, session })
+      : [];
+    // The VAT split of an invoiced part is the one the credit note carries, to the agora.
+    const fromCredit = new Map(credits.flatMap((c) => [...c.amounts.entries()].map(([id, a]) => [id, { ...a, credit: c }])));
+    const lineOf = new Map();
     for (const { line, d } of parts) {
-      const { net, tax } = partOf(line, d);
+      const c = fromCredit.get(String(line._id));
+      const { net, tax } = c && c.net !== null ? { net: c.net, tax: c.tax } : partOf(line, d);
       folio.lines.push({
         type: 'discount', description: `הנחה${kind === 'percent' ? ` ${value}%` : ''}: ${line.description}`.slice(0, 200), amount: -net, taxAmount: -tax,
         ...copyBase(line), source: 'manual', status: 'posted', reference: `${ref}:${line._id}`, discountOf: line._id, reason: why, createdBy: actor.id || undefined,
       });
+      if (c) lineOf.set(String(folio.lines[folio.lines.length - 1]._id), c.credit);
     }
     await folio.save({ session });
-    await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.line_discount', entityType: 'Folio', entityId: folio._id, reason: why, after: { lines: parts.map((p) => String(p.line._id)), kind, value, total, percentOfLines: pct, threshold, approvedBy: pct - threshold > 0.005 ? actor.name : null }, ip, session, afterCommit });
-    return { folioId: String(folio._id), total, percent: pct, lines: parts.length, balance: folioBalance(folio) };
+    const cn = credits.length ? await mirrorCredits({
+      propertyId, credits, actor, reason: why, session,
+      lineIdsOf: (c) => [...lineOf.entries()].filter(([, cr]) => cr === c).map(([id]) => id),
+    }) : [];
+    await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.line_discount', entityType: 'Folio', entityId: folio._id, reason: why, after: { lines: parts.map((p) => String(p.line._id)), kind, value, total, percentOfLines: pct, threshold, approvedBy: pct - threshold > 0.005 ? actor.name : null, creditNotes: cn.map((d) => d.invoiceNumber) }, ip, session, afterCommit });
+    return { folioId: String(folio._id), total, percent: pct, lines: parts.length, balance: folioBalance(folio), creditNotes: cn.map((d) => d.invoiceNumber) };
   }, propertyId);
 }
 

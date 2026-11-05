@@ -92,6 +92,11 @@ const InvoiceLineSchema = new Schema({
   department:   { type: String },                    // rooms / f&b / parking וכו'
   folioLineId:  { type: Schema.Types.ObjectId },     // קישור לשורת folio המקורית
   sourceInvoiceLineId: { type: Schema.Types.ObjectId },
+  // מערכת החשבוניות: מזהה השורה שם, ואילו שורות חשבון היא מכסה (חיוב + הנחות שקופלו / שילוב שורות).
+  // בזיכוי — שורת המקור שזוכתה (externalSourceLineId).
+  externalLineId:       { type: String },
+  externalSourceLineId: { type: String },
+  folioLineIds:         { type: [String], default: undefined },
   taxCode: String,
   taxRuleVersion: String,
 }, { _id: true });
@@ -217,6 +222,10 @@ const InvoiceSchema = new Schema({
 
   // ── קישורי מסמכים קשורים ─────────────────────────────────────────
   relatedInvoiceId:     { type: Schema.Types.ObjectId, ref: 'Invoice' }, // הודעת זיכוי ← חשבונית מקורית
+  // למה זוכה המסמך: correction = תיקון סכום (נרשמו שורות זיכוי בחשבון, האורח משלם פחות);
+  // reissue = ביטול להפקה מחדש (הסכום לא השתנה, השורות משתחררות לחשבונית מתוקנת). origin: invoicer = זוכה שם ישירות.
+  creditPurpose:        { type: String, enum: ['correction', 'reissue'] },
+  creditOrigin:         { type: String, enum: ['hotel4u', 'invoicer'] },
   creditedBy:           [{ type: Schema.Types.ObjectId, ref: 'Invoice' }], // חשבונית ← הודעות זיכוי
 
   // ── נתוני הנפקה ─────────────────────────────────────────────────
@@ -251,10 +260,15 @@ export function assertInvoiceMetadataUpdate(update) {
     for (const [path, value] of Object.entries(fields)) {
       if (operator === '$setOnInsert' && path === 'createdAt') continue;
       if (path === 'status' && operator === '$set' && value === 'issued') continue;
+      if (operator === '$set' && LINKAGE_PATH.test(path)) continue;
       if (!MUTABLE_METADATA.has(path.split('.')[0])) throw immutableError();
     }
   }
 }
+// Links of a copy of an invoicing-system document to the folio (which folio lines it covers, the id
+// of each line there, why it was credited). The fiscal content — numbers, amounts, parties, lines'
+// text and sums — stays locked; only these links may be written after issue.
+const LINKAGE_PATH = /^(coveredLineIds|creditPurpose|creditOrigin|lines\.\d+\.(externalLineId|folioLineIds))$/;
 InvoiceSchema.pre('save', async function () {
   if (this.isNew || !this.isModified()) return;
   const original = await this.constructor.findById(this._id).select('status').session(this.$session()).lean();

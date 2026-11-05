@@ -56,6 +56,7 @@ export function LineDiscountDialog({ open, onClose, propertyId, folio, lines = [
       <form id="lop-form" className="ui-stack" onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }} noValidate>
         <ErrorBanner error={action.error} />
         <LinesSummary lines={lines} />
+        {lines.some((l) => l.onDocument) && <Banner tone="info">חלק מהשורות כבר בחשבונית ({[...new Set(lines.filter((l) => l.onDocument).map((l) => l.onDocument))].join(', ')}). ההנחה עליהן תופק במערכת החשבוניות כמסמך זיכוי על אותן שורות, באותה פעולה.</Banner>}
         <div className="ui-grid-2">
           <Field id="ld-kind" label="סוג">
             <Segmented label="סוג הנחה" value={f.kind} onChange={set('kind')} options={[{ value: 'percent', label: 'אחוז' }, { value: 'amount', label: 'סכום ₪' }]} />

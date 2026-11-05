@@ -33,10 +33,10 @@ router.post('/connect',asyncHandler(async(req,res)=>{
   if(!property)throw Object.assign(new Error('הנכס לא נמצא'),{status:404});
   const client=invoicerClient();
   const existing=await client.findWorkspace(id);
-  if(existing)return res.json({success:true,data:wsDto(existing)});
+  if(existing)return res.json({success:true,data:existing});
   const addr=typeof property.address==='string'?property.address:property.address?.line1;
   const input={legalName:req.body.legalName||property.legalName||property.name,taxId:String(req.body.taxId||property.taxNumber||'').replace(/\D/g,''),address:req.body.address||addr,city:req.body.city||property.city};
-  res.json({success:true,data:wsDto(await client.connectWorkspace(property,input))});
+  res.json({success:true,data:await client.connectWorkspace(property,input)});
 }));
 router.post('/sync',asyncHandler(async(req,res)=>{const id=scope(req,manage);res.json({success:true,data:await syncInvoicerDocuments(id)});}));
 export default router;

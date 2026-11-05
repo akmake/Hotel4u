@@ -173,8 +173,14 @@ try {
   check('allocation number of an invoicing-system document is not set in Hotel4u (409)', r.status === 409, `${r.status}`);
   r = await call('POST', `/finance/documents/${first.data.id}/send`, F, { propertyId: P, to: 'a@b.co' });
   check('sending is done from the invoicing system (409)', r.status === 409, `${r.status}`);
-  r = await call('POST', `/finance/invoices/${first.data.id}/credit-note`, F, { propertyId: P, reason: 'בדיקה', idempotencyKey: key() });
-  check('credit note is done in the invoicing system (409)', r.status === 409, `${r.status} ${r.error || ''}`);
+  // A credit is issued in the invoicing system (credit note tied to its source) and mirrored here.
+  const ck = key();
+  r = await call('POST', `/finance/invoices/${first.data.id}/credit-note`, F, { propertyId: P, amount: 100, reason: 'בדיקת זיכוי', idempotencyKey: ck });
+  const cn = await Invoice.findById(r.data?.id).lean();
+  const remoteCn = (await api(`/v1/workspaces/${WS}/documents/${cn?.external?.documentId}`)).body?.data;
+  check('credit note issued in the invoicing system, tied to the source, mirrored here', r.status === 200 && cn?.type === 'credit_note' && String(cn.relatedInvoiceId) === first.data.id && remoteCn?.type === 'credit_note' && remoteCn.gross === '100.00' && String(remoteCn.relatedDocument) === first.data.external.documentId, JSON.stringify({ s: r.status, e: r.error, t: remoteCn?.type, g: remoteCn?.gross }));
+  const cnAgain = await call('POST', `/finance/invoices/${first.data.id}/credit-note`, F, { propertyId: P, amount: 100, reason: 'בדיקת זיכוי', idempotencyKey: ck });
+  check('a credit retry with the same key issues nothing new', cnAgain.data?.duplicate === true && cnAgain.data.id === r.data?.id, JSON.stringify(cnAgain.data));
   r = await call('POST', '/invoices/manual', F, { propertyId: P, type: 'tax_invoice', buyer: privateBuyer, lines: [{ description: 'x', quantity: 1, unitPrice: 100 }], idempotencyKey: key() });
   check('no in-app numbering: a manual invoice in Hotel4u is refused', r.status === 409 && (await Invoice.countDocuments({ property: P, issuer: { $ne: 'invoicer' } })) === 0, `${r.status} ${r.error || r.message || ''}`);
 
@@ -211,6 +217,68 @@ try {
   check('a VAT number the invoicing system rejects (check digit) → 422 with its message; no mirror; charge still to document',
     r.status === 422 && /מערכת החשבוניות/.test(r.error || r.message || '') && open.data?.charges.length === 1 && (await Invoice.countDocuments({ folio: f4._id })) === 0,
     `${r.status} ${r.error || r.message || ''}`);
+
+  // ── folio ↔ documents stay in step: every correction is a folio line + its credit note ──
+  const { reconcileFolios, syncInvoicerDocuments } = await import('../services/documentService.js');
+  const { folioBalance } = await import('../services/departureService.js');
+  const recOf = async (f) => (await reconcileFolios(await Folio.findById(f._id).lean())).get(String(f._id));
+  const balOf = async (f) => folioBalance(await Folio.findById(f._id).lean());
+  const f5 = await mkStay();
+  await charge(f5, 300);
+  await charge(f5, 200);
+  r = await issue(f5, { type: 'tax_invoice', buyer: privateBuyer });
+  const inv5 = await Invoice.findById(r.data?.id).lean();
+  const [c1, c2] = (await Folio.findById(f5._id).lean()).lines.filter((l) => l.type === 'charge');
+  const invLineOf = (id) => inv5.lines.find((l) => (l.folioLineIds || []).includes(String(id)));
+  check('the invoice copy keeps each line\'s id in the invoicing system and the folio lines it covers', inv5.lines.every((l) => l.externalLineId && l.folioLineIds?.length) && invLineOf(c1._id) && invLineOf(c2._id), JSON.stringify(inv5.lines.map((l) => [l.externalLineId, l.folioLineIds])));
+
+  r = await call('POST', `/finance/folios/${f5._id}/lines/discount`, F, { propertyId: P, lineIds: [String(c1._id)], kind: 'amount', value: 20, reasonCode: 'service_recovery', note: 'רעש', idempotencyKey: key() });
+  const cnD = await Invoice.findOne({ folio: f5._id, type: 'credit_note' }).lean();
+  const remD = cnD && (await api(`/v1/workspaces/${WS}/documents/${cnD.external.documentId}`)).body?.data;
+  const discLine = (await Folio.findById(f5._id).lean()).lines.find((l) => l.type === 'discount');
+  check('discount on an invoiced line → credit note on exactly that invoice line, and the folio discount line it covers',
+    r.status === 200 && r.data.creditNotes?.length === 1 && remD?.gross === '20.00' && remD.lines.length === 1 && String(remD.lines[0].sourceLineId) === invLineOf(c1._id)?.externalLineId
+      && cnD.creditPurpose === 'correction' && cnD.coveredLineIds?.length === 1 && cnD.coveredLineIds[0] === String(discLine?._id) && Math.abs((discLine.amount + discLine.taxAmount) + 20) < 0.005,
+    JSON.stringify({ s: r.status, e: r.error, g: remD?.gross, cov: cnD?.coveredLineIds }));
+  let rc = await recOf(f5);
+  check('after the discount: folio and documents agree (charges 480 = 480), balance 480', rc.ok && rc.charges.documents === 480 && (await balOf(f5)) === 480, JSON.stringify(rc));
+
+  r = await call('POST', `/finance/folios/${f5._id}/lines/${c2._id}/reverse`, F, { propertyId: P, reason: 'חויב בטעות' });
+  const cnR = await Invoice.findOne({ folio: f5._id, type: 'credit_note', _id: { $ne: cnD._id } }).lean();
+  rc = await recOf(f5);
+  check('reversal of an invoiced charge → credit note for it in the same operation; folio and documents agree (280)', r.status === 200 && r.data.creditNotes?.length === 1 && cnR?.totalGross === 200 && rc.ok && rc.charges.documents === 280 && (await balOf(f5)) === 280, JSON.stringify({ s: r.status, e: r.error, g: cnR?.totalGross, rc }));
+
+  r = await call('POST', `/finance/invoices/${inv5._id}/credit-note`, F, { propertyId: P, amount: 50, reason: 'פיצוי', idempotencyKey: key() });
+  rc = await recOf(f5);
+  check('credit on the document (amount) → correction lines on the folio for the credited lines; balance 230, still in step', r.status === 200 && r.data.folioLines >= 1 && rc.ok && (await balOf(f5)) === 230, JSON.stringify({ s: r.status, e: r.error, d: r.data, rc }));
+
+  // A credit made directly in the invoicing system: the check catches the gap, the sync closes it.
+  // A credit made directly in the invoicing system: the sync mirrors it with its folio line.
+  const direct = await api(`/v1/workspaces/${WS}/documents/${inv5.external.documentId}/credit`, { method: 'POST', idem: `qa-direct-${key()}`, body: { reason: 'זיכוי ישיר במערכת החשבוניות', creditAmount: '10.00' } });
+  const s1 = await syncInvoicerDocuments(P);
+  rc = await recOf(f5);
+  const synced = await Invoice.findOne({ 'external.documentId': String(direct.body?.data?._id) }).lean();
+  check('a credit made in the invoicing system: sync mirrors it with its correction line; folio and documents agree; balance 220', [200, 201].includes(direct.status) && s1.added >= 1 && synced?.creditOrigin === 'invoicer' && synced.coveredLineIds?.length === 1 && rc.ok && (await balOf(f5)) === 220, JSON.stringify({ d: direct.status, s1, o: synced?.creditOrigin, rc }));
+  const s2 = await syncInvoicerDocuments(P);
+  check('a second sync changes nothing', s2.added === 0 && (await Folio.findById(f5._id).lean()).lines.filter((l) => String(l.reference || '').startsWith(`credit:${direct.body?.data?._id}`)).length === 1, JSON.stringify(s2));
+
+  // A mirror without its folio lines (posting interrupted) is a real gap — the check names it.
+  await Invoice.collection.updateOne({ _id: synced._id }, { $unset: { coveredLineIds: '' } });
+  rc = await recOf(f5);
+  check('folio/documents check flags a credit note whose folio lines are missing', !rc.ok && rc.charges.diff === -10, JSON.stringify(rc));
+  await Invoice.collection.updateOne({ _id: synced._id }, { $set: { coveredLineIds: synced.coveredLineIds } });
+
+  // Cancel for re-issue: same money, charges freed, a corrected invoice to the right payer.
+  const f6 = await mkStay();
+  await charge(f6, 150);
+  r = await issue(f6, { type: 'tax_invoice', buyer: privateBuyer });
+  const inv6 = r.data;
+  r = await call('POST', `/finance/invoices/${inv6.id}/credit-note`, F, { propertyId: P, purpose: 'reissue', reason: 'נמען שגוי', idempotencyKey: key() });
+  const ctx6 = await ctxOf(f6);
+  check('cancel for re-issue: full credit, no folio lines, balance unchanged, the charge is free to invoice again', r.status === 200 && r.data.purpose === 'reissue' && r.data.folioLines === 0 && r.data.gross === 150 && (await balOf(f6)) === 150 && ctx6.data?.charges.length === 1, JSON.stringify({ s: r.status, e: r.error, d: r.data, c: ctx6.data?.charges?.length }));
+  r = await issue(f6, { type: 'tax_invoice', buyer: businessBuyer });
+  rc = await recOf(f6);
+  check('the corrected invoice is issued; folio and documents agree (150)', r.status === 200 && rc.ok && rc.charges.documents === 150, JSON.stringify({ s: r.status, rc }));
 } catch (err) {
   console.error(err);
   results.push(false);

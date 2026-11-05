@@ -12,6 +12,8 @@ import { formatShort } from '../../utils/date';
 
 export const ALLOCATION_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'finance_manager'];
 const TYPE_ORDER = ['tax_invoice_receipt', 'tax_invoice', 'receipt', 'proforma'];
+// A refund receipt exists only with the invoicing system (the credit of the original receipt).
+const EXTERNAL_TYPES = ['refund_receipt'];
 const digits = (v) => String(v || '').replace(/\D/g, '');
 
 // Mirrors documentService.allocationRule so the desk knows before issuing; the server decides.
@@ -62,7 +64,7 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
     setBuyer(src ? { ...src } : { kind, name: '' });
   };
 
-  const withCharges = type && type !== 'receipt';
+  const withCharges = type && !['receipt', 'refund_receipt'].includes(type);
   const withPayments = ['receipt', 'tax_invoice_receipt'].includes(type);
   const totals = ctx?.totals.charges || { net: 0, vat: 0, gross: 0 };
   const needsAlloc = ctx && type ? allocationPreview({ type, buyer, totals, threshold: ctx.allocation }) : null;
@@ -75,6 +77,7 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
     if (!ctx.seller.ok) return external ? 'מערכת החשבוניות לא זמינה' : 'חסרים פרטי העסק';
     if (!type) return 'אין מה להפיק';
     if (!ctx.types[type]?.ok) return ctx.types[type]?.why;
+    if (type === 'refund_receipt') return null; // the recipient is the original receipt's
     if (String(buyer.name || '').trim().length < 2) return 'נדרש שם הנמען';
     if (buyer.kind === 'business') {
       if (digits(buyer.vatNumber).length !== 9) return 'מספר עוסק / ח.פ. — 9 ספרות';
@@ -122,12 +125,12 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
           <KeyValues rows={[
             ['מסמך', <b key="n">{issued.typeLabel} מס׳ <bdi>{issued.number}</bdi></b>],
             ['נמען', issued.buyer?.name || '—'],
-            issued.type === 'receipt' ? ['התקבל', money(issued.paid)] : ['סה״כ כולל מע״מ', money(issued.gross)],
-            issued.type !== 'receipt' && ['מתוכו מע״מ', money(issued.vat)],
+            issued.type === 'receipt' ? ['התקבל', money(issued.paid)] : issued.type === 'refund_receipt' ? ['הוחזר', money(issued.gross)] : ['סה״כ כולל מע״מ', money(issued.gross)],
+            !['receipt', 'refund_receipt'].includes(issued.type) && ['מתוכו מע״מ', money(issued.vat)],
           ]} />
           {issued.issuer === 'invoicer' && (
             <Banner tone={issued.external?.environment === 'live' ? 'ok' : 'warn'}>
-              המסמך הופק במערכת החשבוניות{issued.external?.environment === 'live' ? '' : ' — סביבת בדיקות, ללא תוקף חשבונאי'}. המקור, מספר ההקצאה, הזיכוי והשליחה ללקוח מנוהלים שם; כאן נשמר העתק.
+              המסמך הופק במערכת החשבוניות{issued.external?.environment === 'live' ? '' : ' — סביבת בדיקות, ללא תוקף חשבונאי'}. המקור, מספר ההקצאה והשליחה ללקוח נמצאים שם; כאן נשמר העתק.
             </Banner>
           )}
           {issued.allocation.status === 'approved' && (
@@ -163,7 +166,7 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
           <div>
             <div className="ui-label">סוג המסמך</div>
             <div className="doc-types" role="radiogroup" aria-label="סוג המסמך">
-              {TYPE_ORDER.map((t) => {
+              {[...TYPE_ORDER, ...(external ? EXTERNAL_TYPES : [])].map((t) => {
                 const a = ctx.types[t] || {};
                 return (
                   <button type="button" key={t} role="radio" aria-checked={type === t} className={`doc-type ${type === t ? 'is-on' : ''}`} disabled={!a.ok} title={a.ok ? undefined : a.why} onClick={() => setType(t)}>
@@ -175,7 +178,7 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
             </div>
           </div>
 
-          <div>
+          {type !== 'refund_receipt' && <div>
             <div className="ui-label">נמען</div>
             <Segmented
               label="סוג נמען"
@@ -203,7 +206,25 @@ export function IssueDocumentDialog({ open, onClose, propertyId, folioId, subtit
                 <input id="db-mail" type="email" className="input w-full" dir="ltr" maxLength={120} value={buyer.email || ''} onChange={setB('email')} />
               </Field>
             </div>
-          </div>
+          </div>}
+
+          {type === 'refund_receipt' && ctx.refunds?.length > 0 && (
+            <div>
+              <div className="ui-label">החזרים במסמך ({ctx.refunds.length})</div>
+              <table className="ui-table">
+                <tbody>
+                  {ctx.refunds.map((p) => (
+                    <tr key={p.id}>
+                      <td className="ui-nowrap ui-num">{formatShort(p.date)}</td>
+                      <td>{PAY_METHOD_LABELS[p.method] || p.method}<span className="ui-sub"> · {p.description}</span></td>
+                      <td className="ui-amount" style={{ textAlign: 'left' }}>{money(p.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Banner tone="info">קבלת ההחזר תופק במערכת החשבוניות כזיכוי של הקבלה שבה תועד התשלום, לאותו נמען ובאותו אמצעי תשלום. ההערה תירשם כסיבת ההחזר.</Banner>
+            </div>
+          )}
 
           {withCharges && ctx.charges.length > 0 && (
             <div>
@@ -372,7 +393,7 @@ export function DocumentList({ docs, propertyId, onAllocate, onCredit, canCredit
             <div className="min-w-0">
               <div className="font-medium"><FileText size={13} style={{ display: 'inline', marginInlineEnd: 4 }} />{DOC_TYPE_LABELS[d.type] || d.type} <bdi>{d.number}</bdi></div>
               <div className="ui-sub">
-                {money(d.type === 'receipt' ? d.paid : d.gross)}{d.buyer?.name ? ` · ${d.buyer.name}` : ''}{d.credited ? ` · זוכה ${money(d.credited)}` : ''}
+                {money(d.type === 'receipt' ? d.paid : d.gross)}{d.buyer?.name ? ` · ${d.buyer.name}` : ''}{d.credited ? ` · ${d.type === 'receipt' ? 'הוחזר' : 'זוכה'} ${money(d.credited)}` : ''}
                 {a === 'approved' && d.allocation.number ? ` · הקצאה ${d.allocation.number}` : ''}
               </div>
               {a === 'pending' && <Tag tone="warn">{ALLOCATION_LABELS.pending}</Tag>}
@@ -383,7 +404,7 @@ export function DocumentList({ docs, propertyId, onAllocate, onCredit, canCredit
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPrint(propertyId, d.id, onError)} title={a === 'pending' ? 'יודפס כהעתק לעיון עד הזנת מספר ההקצאה' : 'הדפסה'}><Printer size={14} />הדפסה</button>
               {d.issuer !== 'invoicer' && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSending(d)}><Send size={14} />שליחה</button>}
               {d.issuer !== 'invoicer' && ['pending', 'rejected'].includes(a) && onAllocate && <button type="button" className="btn btn-secondary btn-sm" disabled={!canAllocate} title={canAllocate ? undefined : 'כספים או הנהלה'} onClick={() => onAllocate(d)}>מספר הקצאה</button>}
-              {onCredit && d.issuer !== 'invoicer' && d.creditable > 0.005 && <button type="button" className="btn btn-secondary btn-sm" disabled={!canCredit} title={!canCredit ? 'כספים או הנהלה' : undefined} onClick={() => onCredit(d)}>זיכוי</button>}
+              {onCredit && d.creditable > 0.005 && <button type="button" className="btn btn-secondary btn-sm" disabled={!canCredit} title={!canCredit ? 'כספים או הנהלה' : undefined} onClick={() => onCredit(d)}>זיכוי</button>}
             </div>
           </li>
         );

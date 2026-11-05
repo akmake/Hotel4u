@@ -13,6 +13,103 @@ import { Page, Card, Field, ErrorBanner, Banner, Spinner, Pill, KeyValues, DataT
 import AdminNav from '../../components/sys/AdminNav';
 
 const ADMIN_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'general_manager', 'finance_manager'];
+const CONNECT_ROLES = ['super_admin', 'chain_admin', 'property_admin', 'finance_manager'];
+const GATE_DONE = ['APPROVED', 'NOT_APPLICABLE'];
+const DOC_COUNT_LABELS = { tax_invoice: 'חשבוניות מס', tax_invoice_receipt: 'חשבוניות מס/קבלה', receipt: 'קבלות', credit_note: 'זיכויים', refund_receipt: 'קבלות החזר', proforma: 'חשבונות עסקה' };
+
+// Every fiscal document is issued by the standalone invoicing system. Here the property is connected
+// to it once (a workspace there, keyed by this property), and its readiness for real documents is shown.
+function InvoicerCards({ propertyId, canConnect, onToast }) {
+  const { data: st, loading, error, reload } = useLoader(async () => (propertyId ? finance.invoicerStatus(propertyId) : null), [propertyId]);
+  const { data: ov } = useLoader(async () => (propertyId && st?.connected ? finance.invoicerOverview(propertyId) : null), [propertyId, st?.connected]);
+  const [f, setF] = useState(null);
+  const conn = useAction();
+  const sync = useAction();
+  useEffect(() => { if (st && !f) setF({ ...st.defaults }); }, [st]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading && !st) return <Card title="מערכת החשבוניות"><div className="ui-empty"><Spinner /> בודק חיבור…</div></Card>;
+  if (error) return <Card title="מערכת החשבוניות"><ErrorBanner error={error} onRetry={reload} /></Card>;
+  if (!st) return null;
+  const w = st.workspace;
+  const live = w?.environment === 'live';
+  const tone = !st.configured ? 'bad' : !st.reachable ? 'bad' : st.connected ? (live ? 'ok' : 'warn') : 'muted';
+  const state = !st.configured ? 'השרת לא מחובר' : !st.reachable ? 'לא זמינה' : st.connected ? (live ? 'מחובר · הפקה חיה' : 'מחובר · סביבת בדיקות') : 'הנכס לא חובר';
+  const url = st.host ? `https://${st.host}` : null;
+  const docs = Object.entries(st.documents || {}).filter(([, n]) => n > 0).map(([t, n]) => `${n} ${DOC_COUNT_LABELS[t] || t}`).join(' · ');
+  const missing = f ? [!String(f.legalName || '').trim() && 'שם משפטי', !/^\d{9}$/.test(String(f.taxId || '').replace(/\D/g, '')) && 'מספר עוסק / ח.פ. (9 ספרות)', !String(f.address || '').trim() && 'כתובת', !String(f.city || '').trim() && 'עיר'].filter(Boolean) : [];
+  const gates = ov?.gates || [];
+  const open = gates.filter((g) => !GATE_DONE.includes(g.status));
+  const set = (k) => (ev) => setF((p) => ({ ...p, [k]: ev.target.value }));
+
+  return (
+    <>
+      <Card title="מערכת החשבוניות" actions={<Pill tone={tone}>{state}</Pill>}>
+        <p className="ui-p">כל חשבונית, קבלה, זיכוי וקבלת החזר מופקים במערכת החשבוניות שלנו וממוספרים בה. Hotel4u בונה את המסמך מהחשבון של האורח, שולח אותו בחיבור שרת־לשרת ושומר העתק עם המספר שחזר.</p>
+        {!st.configured && <Banner tone="warn">השרת עדיין לא מחובר למערכת החשבוניות. יוצרים מפתח במערכת החשבוניות (״חיבורים ו־API״, מערכת מקור hotel4u) ומגדירים בשרת INVOICER_API_URL ו־INVOICER_API_KEY. המפתח נשמר בשרת בלבד.</Banner>}
+        {st.configured && !st.reachable && <Banner tone="bad">אין תשובה ממערכת החשבוניות{st.error ? `: ${st.error}` : ''}. אי אפשר להפיק מסמכים עד שהחיבור יחזור.</Banner>}
+        {st.connected && (
+          <>
+            <KeyValues rows={[
+              ['סביבת עבודה', w.name],
+              ['העסק המנפיק', [w.legalName, w.taxNumber && `ח.פ. ${w.taxNumber}`].filter(Boolean).join(' · ') || '—'],
+              ['כתובת העסק', [w.address, w.city].filter(Boolean).join(', ') || '—'],
+              ['סוג המסמכים', live ? 'מסמכים אמיתיים במספור מאושר' : 'מסמכי בדיקה, בלי תוקף חשבונאי'],
+              ['מסמכים שהופקו מכאן', docs || 'עדיין לא הופקו'],
+              ['חובר', w.connectedAt ? formatDateTime(w.connectedAt) : '—'],
+            ]} />
+            {!live && <Banner tone="warn">מסמכים שהופקו עכשיו הם מסמכי בדיקה. מעבר להפקה חיה נעשה במערכת החשבוניות על ידי בעל העסק, אחרי שכל שלבי המוכנות למטה הושלמו.</Banner>}
+            <ErrorBanner error={sync.error} />
+            <div className="ui-row">
+              {canConnect && <button type="button" className="btn btn-secondary" disabled={sync.busy} onClick={async () => { const out = await sync.run(() => finance.invoicerSync(propertyId)); if (out) { onToast(out.added || out.updated ? `עודכנו ${out.added || 0} זיכויים/החזרים ו־${out.updated || 0} מספרי הקצאה` : 'הכול מעודכן — אין שינויים במערכת החשבוניות'); reload(); } }}>{sync.busy ? <Spinner /> : 'סנכרון עכשיו'}</button>}
+              {url && <a className="btn btn-ghost" href={url} target="_blank" rel="noreferrer">פתיחת מערכת החשבוניות</a>}
+            </div>
+            <div className="ui-sub">זיכויים וקבלות החזר שהופקו ישירות במערכת החשבוניות נמשכים לכאן אוטומטית כל 5 דקות, ובכל פתיחה של חלון ״הפקת מסמך״.</div>
+          </>
+        )}
+        {st.configured && st.reachable && !st.connected && f && (
+          <>
+            <ErrorBanner error={conn.error} />
+            <p className="ui-p">חיבור נעשה פעם אחת לכל נכס: נפתחת לו סביבת עבודה במערכת החשבוניות עם פרטי העסק המנפיק. הפרטים נלקחים מהגדרות הנכס, ואפשר לתקן אותם כאן.</p>
+            <div className="ui-grid-2">
+              <Field id="iv-name" label="שם משפטי של העסק" required><input id="iv-name" className="input w-full" disabled={!canConnect} value={f.legalName} onChange={set('legalName')} /></Field>
+              <Field id="iv-tax" label="מספר עוסק / ח.פ." required hint="9 ספרות"><input id="iv-tax" className="input w-full" dir="ltr" inputMode="numeric" disabled={!canConnect} value={f.taxId} onChange={(ev) => setF((p) => ({ ...p, taxId: ev.target.value.replace(/\D/g, '').slice(0, 9) }))} /></Field>
+              <Field id="iv-addr" label="כתובת" required><input id="iv-addr" className="input w-full" disabled={!canConnect} value={f.address} onChange={set('address')} /></Field>
+              <Field id="iv-city" label="עיר" required><input id="iv-city" className="input w-full" disabled={!canConnect} value={f.city} onChange={set('city')} /></Field>
+            </div>
+            {canConnect ? (
+              <div className="ui-row">
+                <button type="button" className="btn btn-primary" disabled={conn.busy || missing.length > 0} title={missing.length ? `חסר: ${missing.join(', ')}` : undefined} onClick={async () => { const out = await conn.run(() => finance.invoicerConnect(propertyId, f)); if (out) { onToast('הנכס חובר למערכת החשבוניות'); reload(); } }}>{conn.busy ? <Spinner /> : 'חיבור הנכס'}</button>
+                {missing.length > 0 && <span className="ui-sub">חסר: {missing.join(', ')}</span>}
+              </div>
+            ) : <Banner tone="info">חיבור הנכס מותר למנהל הנכס או לכספים.</Banner>}
+          </>
+        )}
+      </Card>
+
+      {st.connected && (
+        <Card title="מוכנות להפקה חיה" actions={ov ? <Pill tone={open.length ? 'warn' : 'ok'}>{open.length ? `${gates.length - open.length} מתוך ${gates.length} הושלמו` : 'הכול הושלם'}</Pill> : null}>
+          {!ov && <div className="ui-empty"><Spinner /> טוען…</div>}
+          {ov && (
+            <>
+              <p className="ui-p">לפני שמפיקים מסמכים אמיתיים צריך להשלים במערכת החשבוניות את השלבים האלה. חלק מהם החלטות של רואה החשבון, וחלק תלויים ברישום התוכנה ברשות המסים. המעבר עצמו נעשה שם, על ידי בעל העסק.</p>
+              <ul className="ui-list">
+                {gates.map((g) => (
+                  <li key={g._id || g.id} className="ui-row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                    <div className="min-w-0">
+                      <div className="font-medium">{g.label}</div>
+                      <div className="ui-sub">{g.need}{g.owner ? ` · באחריות ${g.owner}` : ''}</div>
+                    </div>
+                    <Pill tone={GATE_DONE.includes(g.status) ? 'ok' : g.status === 'EXPIRED' ? 'bad' : 'muted'}>{GATE_DONE.includes(g.status) ? (g.status === 'NOT_APPLICABLE' ? 'לא רלוונטי' : 'הושלם') : g.status === 'EXPIRED' ? 'פג תוקף' : 'פתוח'}</Pill>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </Card>
+      )}
+    </>
+  );
+}
 
 function SeriesRow({ row, propertyId, canEdit, onSaved }) {
   const [next, setNext] = useState(String(row.next));
@@ -68,6 +165,9 @@ export default function FiscalSettingsPage() {
       {itaResult === 'failed' && <Banner tone="warn">החיבור לרשות המסים לא הושלם{params.get('reason') ? `: ${params.get('reason')}` : ''}. אפשר לנסות שוב. <button type="button" className="btn btn-ghost btn-sm" onClick={() => setParams({})}>סגירה</button></Banner>}
       {!canEdit && <Banner tone="info">צפייה בלבד — הגדרות המסמכים מותרות להנהלה ולכספים.</Banner>}
 
+      <InvoicerCards propertyId={propertyId} canConnect={CONNECT_ROLES.includes(role)} onToast={success} />
+
+      {data.issuer !== 'invoicer' && <>
       <Card title="העסק המנפיק" actions={<Pill tone={sellerMissing.length ? 'bad' : 'ok'}>{sellerMissing.length ? 'חסרים פרטים' : 'תקין'}</Pill>}>
         <KeyValues rows={[['שם משפטי', s.name || '—'], ['מספר עוסק / ח.פ.', s.taxNumber || '—'], ['כתובת', [s.address, s.city].filter(Boolean).join(', ') || '—']]} />
         {sellerMissing.length > 0 && <Banner tone="warn">בלי {sellerMissing.join(', ')} אי אפשר להפיק חשבוניות ואי אפשר להפיק קובץ במבנה אחיד. <Link to="/pms/settings" className="ui-link">להגדרות הנכס</Link></Banner>}
@@ -112,6 +212,7 @@ export default function FiscalSettingsPage() {
         <div className="ui-sub" style={{ padding: '10px 14px 0' }}>לכל סוג מסמך סדרה רצה משלו. את המספר הראשון אפשר לקבוע רק לפני המסמך הראשון מאותו סוג — כדי להמשיך את המספור של התוכנה הקודמת. אחרי זה הסדרה רציפה ונעולה.</div>
         <DataTable caption="סדרות מספור" columns={seriesCols} rows={data.series.map((r) => ({ ...r, id: r.type }))} />
       </Card>
+      </>}
     </Page>
   );
 }

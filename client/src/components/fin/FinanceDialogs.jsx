@@ -234,9 +234,12 @@ export function CreditNoteDialog({ open, onClose, propertyId, doc, onSaved }) {
   const [idempotencyKey, setIdempotencyKey] = useState(newOpKey);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
-  useEffect(() => { if (open) { setAmount(''); setReason(''); setIdempotencyKey(newOpKey()); action.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [purpose, setPurpose] = useState('correction');
+  useEffect(() => { if (open) { setAmount(''); setReason(''); setPurpose('correction'); setIdempotencyKey(newOpKey()); action.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const external = doc?.issuer === 'invoicer';
+  const reissue = external && purpose === 'reissue';
   const remaining = doc?.creditable || 0;
-  const amt = amount === '' ? remaining : Number(amount);
+  const amt = amount === '' || reissue ? remaining : Number(amount);
   const why = useMemo(() => {
     if (!(remaining > 0)) return 'המסמך זוכה במלואו';
     if (!(amt > 0)) return 'נדרש סכום';
@@ -244,19 +247,32 @@ export function CreditNoteDialog({ open, onClose, propertyId, doc, onSaved }) {
     if (reason.trim().length < 3) return 'נדרשת סיבה';
     return null;
   }, [remaining, amt, reason]);
-  const submit = () => action.run(async () => { const out = await finance.creditNote(propertyId, doc.id, { amount: amount === '' ? undefined : amount, reason: reason.trim(), idempotencyKey }); onSaved?.(out); });
+  const submit = () => action.run(async () => { const out = await finance.creditNote(propertyId, doc.id, { amount: amount === '' || reissue ? undefined : amount, purpose: external ? purpose : undefined, reason: reason.trim(), idempotencyKey }); onSaved?.(out); });
   return (
-    <Modal open={open} onClose={onClose} busy={action.busy} width={480} title="מסמך זיכוי" subtitle={doc ? `${DOC_TYPE_LABELS[doc.type] || doc.type} ${doc.number}` : ''} footer={<Footer action={action} onClose={onClose} label="הפקת מסמך זיכוי" blockedWhy={why} danger />}>
+    <Modal open={open} onClose={onClose} busy={action.busy} width={520} title="מסמך זיכוי" subtitle={doc ? `${DOC_TYPE_LABELS[doc.type] || doc.type} ${doc.number}` : ''} footer={<Footer action={action} onClose={onClose} label={reissue ? 'ביטול המסמך להפקה מחדש' : 'הפקת מסמך זיכוי'} blockedWhy={why} danger />}>
       <form id="fin-form" className="ui-stack" onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }} noValidate>
         <ErrorBanner error={action.error} />
         {doc && <KeyValues rows={[['סכום המסמך', money(doc.gross)], ['זוכה עד כה', money(doc.credited)], ['ניתן לזכות', money(remaining)]]} />}
-        <Field id="cn-amt" label="סכום לזיכוי" optional hint="ריק = יתרת המסמך המלאה">
-          <input id="cn-amt" type="number" min="0.01" step="0.01" max={remaining} inputMode="decimal" className="input w-full" value={amount} onChange={(ev) => setAmount(ev.target.value)} placeholder={remaining.toFixed(2)} />
-        </Field>
+        {external && (
+          <div className="doc-types" role="radiogroup" aria-label="סוג הזיכוי">
+            <button type="button" role="radio" aria-checked={purpose === 'correction'} className={`doc-type ${purpose === 'correction' ? 'is-on' : ''}`} onClick={() => setPurpose('correction')}>
+              <b>תיקון סכום</b><small>האורח משלם פחות — נרשם זיכוי גם בחשבון</small>
+            </button>
+            <button type="button" role="radio" aria-checked={purpose === 'reissue'} className={`doc-type ${purpose === 'reissue' ? 'is-on' : ''}`} onClick={() => setPurpose('reissue')}>
+              <b>ביטול והפקה מחדש</b><small>פרטי המסמך שגויים, הסכום לא משתנה</small>
+            </button>
+          </div>
+        )}
+        {!reissue && (
+          <Field id="cn-amt" label="סכום לזיכוי" optional hint="ריק = יתרת המסמך המלאה">
+            <input id="cn-amt" type="number" min="0.01" step="0.01" max={remaining} inputMode="decimal" className="input w-full" value={amount} onChange={(ev) => setAmount(ev.target.value)} placeholder={remaining.toFixed(2)} />
+          </Field>
+        )}
+        {reissue && <Banner tone="info">כל יתרת המסמך ({money(remaining)}) תזוכה, והחיובים ישתחררו להפקת חשבונית מתוקנת (למשל לנמען הנכון). יתרת החשבון לא משתנה.</Banner>}
         <Field id="cn-reason" label="סיבת הזיכוי" required error={action.fields.reason}>
           <input id="cn-reason" className="input w-full" maxLength={300} value={reason} onChange={(ev) => setReason(ev.target.value)} />
         </Field>
-        <Banner tone="info">המסמך המקורי לא משתנה. מסמך הזיכוי מקבל מספר נפרד ומקושר אליו. החזר כסף הוא פעולה נפרדת.</Banner>
+        {!reissue && <Banner tone="info">{external ? 'מסמך הזיכוי יופק במערכת החשבוניות ויקושר למסמך המקורי, שלא משתנה, ובחשבון תירשם שורת זיכוי על אותן שורות. ' : 'המסמך המקורי לא משתנה. מסמך הזיכוי מקבל מספר נפרד ומקושר אליו. '}החזר כסף הוא פעולה נפרדת: רושמים החזר בחשבון ומפיקים קבלת החזר.</Banner>}
       </form>
     </Modal>
   );

@@ -176,7 +176,9 @@ function prepWindow(folio) {
   // How a reversed line went: moved to another window, split, or a plain reversal.
   const how = new Map(lines.filter((l) => l.reversalOf).map((l) => [l.reversalOf, l.transferTo ? `הועבר ל${l.transferTo.label || 'חלון אחר'}` : /^פוצל/.test(l.description || '') ? 'פוצל' : 'בוטל בהיפוך']));
   const rows = lines.map((l) => ({ ...l, reversedHow: how.get(l.id) || null, left: discountBy.has(l.id) ? Math.round((l.gross + discountBy.get(l.id)) * 100) / 100 : l.gross }));
-  const workable = rows.filter((l) => ['charge', 'fee'].includes(l.type) && l.status === 'posted' && !l.reversed && !l.reversalOf && !l.onDocument);
+  // A charge already on an invoice can still be picked for a discount (a credit note is issued for it);
+  // split / transfer / combine stay for lines not on a document.
+  const workable = rows.filter((l) => ['charge', 'fee'].includes(l.type) && l.status === 'posted' && !l.reversed && !l.reversalOf);
   return { rows, workable, workableIds: new Set(workable.map((l) => l.id)) };
 }
 
@@ -188,11 +190,13 @@ function LineIcon({ l }) {
 function docBadge(l) {
   if (l.status !== 'posted') return <span className="fo-flag is-bad">{l.status}</span>;
   if (l.reversed) return <span className="fo-doc is-none">{l.reversedHow || 'בוטל בהיפוך'}</span>;
-  if (l.reversalOf) return <span className="fo-doc is-none">{l.transferTo ? 'הועבר' : 'היפוך'}</span>;
+  if (l.reversalOf) return <span className={`fo-doc ${l.onCredit ? '' : 'is-none'}`}>{l.transferTo ? 'הועבר' : 'היפוך'}{l.onCredit ? ` · זיכוי ${l.onCredit}` : ''}</span>;
+  if (l.onCredit) return <span className="fo-doc">זיכוי {l.onCredit}</span>;
   if (l.onDocument) return <span className="fo-doc">חשבונית {l.onDocument}</span>;
-  if (l.onReceipt) return <span className="fo-doc">קבלה {l.onReceipt}</span>;
+  if (l.onReceipt) return <span className="fo-doc">{l.type === 'refund' ? 'קבלת החזר' : 'קבלה'} {l.onReceipt}</span>;
   if (l.paidOut) return <span className="fo-doc is-none">לא בחשבונית</span>;
   if (isPayLine(l)) return <span className="fo-flag is-warn">ללא קבלה</span>;
+  if (l.type === 'refund') return <span className="fo-flag is-warn">ללא קבלת החזר</span>;
   if (isChargeLine(l)) return <span className="fo-doc is-none">טרם בחשבונית</span>;
   return null;
 }
@@ -346,6 +350,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
   const picked = prep.workable.filter((l) => sel.has(l.id));
   const pickedR = prepR ? prepR.workable.filter((l) => sel2.has(l.id)) : [];
   const pickedSum = picked.reduce((s, l) => s + l.left, 0);
+  const pickedInvoiced = picked.some((l) => l.onDocument);
   const lineOps = data.lineOps || {};
   const canOps = canCharge && folio?.status !== 'closed';
   const done = (msg) => { setDialog(null); success(msg); reload(); };
@@ -359,7 +364,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
     </select>
   );
   const lineAction = (l) => {
-    const canRev = isCharge(l) && l.type !== 'tax' && !l.reversed && !l.reversalOf && l.status === 'posted' && canReverse && !l.onDocument && folio.status !== 'closed';
+    const canRev = isCharge(l) && l.type !== 'tax' && !l.reversed && !l.reversalOf && !l.onCredit && l.status === 'posted' && canReverse && folio.status !== 'closed';
     const canRef = isPayment(l) && l.status === 'posted' && l.refundable > EPS && folio.balance < -EPS;
     if (canRev) return { label: 'היפוך', run: () => setDialog({ kind: 'reverse', line: l }) };
     if (canRef) return { label: 'החזר', run: () => setDialog({ kind: 'refund', line: l }) };
@@ -374,10 +379,11 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
           <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialog({ kind: 'transfer', lines: picked, from: folio, preset: { kind: 'window', folioId: right.id, label: right.owner } })}>העברה ל{right.owner} ←</button>
         ) : (
           <>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'discount', lines: picked })}>הנחה</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'transfer', lines: picked, from: folio })}>העברה</button>
-            {picked.length === 1 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'split', line: picked[0] })}>פיצול</button>}
-            {picked.length > 1 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'combine', lines: picked })}>איחוד בחשבונית</button>}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'discount', lines: picked })}>{pickedInvoiced ? 'הנחה (יופק זיכוי)' : 'הנחה'}</button>
+            {!pickedInvoiced && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'transfer', lines: picked, from: folio })}>העברה</button>}
+            {!pickedInvoiced && picked.length === 1 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'split', line: picked[0] })}>פיצול</button>}
+            {!pickedInvoiced && picked.length > 1 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog({ kind: 'combine', lines: picked })}>איחוד בחשבונית</button>}
+            {pickedInvoiced && <span className="ui-sub">שורות בחשבונית — העברה, פיצול ואיחוד רק לשורות שעוד לא בחשבונית</span>}
           </>
         )}
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSel(new Set())}>ניקוי</button>
@@ -569,7 +575,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
       <IssueDocumentDialog open={dialog?.kind === 'issue'} onClose={() => setDialog(null)} propertyId={propertyId} folioId={folio?.id} subtitle={folio ? `${r.guest} · חשבון ${folio.owner}` : ''} onIssued={() => reload()} />
       <AllocationDialog open={dialog?.kind === 'alloc'} onClose={() => setDialog(null)} propertyId={propertyId} doc={dialog?.doc} onSaved={() => { setDialog(null); success('מספר ההקצאה נשמר'); reload(); }} />
       <CreditNoteDialog open={dialog?.kind === 'credit'} onClose={() => setDialog(null)} propertyId={propertyId} doc={dialog?.doc} onSaved={(o) => { setDialog(null); success(`הופק מסמך זיכוי ${o?.number || ''}`); reload(); }} />
-      <LineDiscountDialog open={dialog?.kind === 'discount'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} lines={dialog?.lines} config={lineOps} canApprove={DISCOUNT_APPROVERS.includes(role)} onSaved={(o) => done(o?.duplicate ? 'ההנחה כבר נרשמה' : `נרשמה הנחה של ${money(o?.total || 0)}`)} />
+      <LineDiscountDialog open={dialog?.kind === 'discount'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} lines={dialog?.lines} config={lineOps} canApprove={DISCOUNT_APPROVERS.includes(role)} onSaved={(o) => done(o?.duplicate ? 'ההנחה כבר נרשמה' : `נרשמה הנחה של ${money(o?.total || 0)}${o?.creditNotes?.length ? ` · הופק זיכוי ${o.creditNotes.join(', ')}` : ''}`)} />
       <TransferDialog open={dialog?.kind === 'transfer'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} folio={dialog?.from || folio} windows={data.folios} lines={dialog?.lines} preset={dialog?.preset} onSaved={(o) => done(`${o?.moved === 1 ? 'שורה הועברה' : `${o?.moved || ''} שורות הועברו`} ל${o?.toLabel || 'יעד'}`)} />
       <SplitDialog open={dialog?.kind === 'split'} onClose={() => setDialog(null)} propertyId={propertyId} reservationId={r.id} folio={folio} windows={data.folios} line={dialog?.line} onSaved={(o) => done(`השורה פוצלה: ${money(o?.kept || 0)} נשאר · ${money(o?.moved || 0)} עבר`)} />
       <CombineDialog open={dialog?.kind === 'combine'} onClose={() => setDialog(null)} propertyId={propertyId} folio={folio} lines={dialog?.lines} suggest={dialog?.lines ? (new Set(dialog.lines.map((l) => l.department)).size === 1 ? codeName(dialog.lines[0].department) : 'שירותים נוספים') : ''} onSaved={() => done('השורות יופיעו כשורה אחת בחשבונית')} />
@@ -593,9 +599,10 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
         confirmLabel="רישום היפוך"
         danger
         requireReason
-        onConfirm={async (reason) => { await finance.reverse(propertyId, folio.id, dialog.line.id, reason); setDialog(null); success('החיוב הופך'); reload(); }}
+        onConfirm={async (reason) => { const o = await finance.reverse(propertyId, folio.id, dialog.line.id, reason); setDialog(null); success(o?.creditNotes?.length ? `החיוב הופך · הופק זיכוי ${o.creditNotes.join(', ')}` : 'החיוב הופך'); reload(); }}
       >
         <p className="ui-p">נרשמת שורה נגדית מקושרת. החיוב המקורי נשאר בחשבון לתיעוד.</p>
+        {dialog?.line?.onDocument && <Banner tone="info">החיוב כלול בחשבונית {dialog.line.onDocument}. יחד עם ההיפוך יופק במערכת החשבוניות מסמך זיכוי על שורה זו ({money(dialog.line.left ?? dialog.line.gross)}), והחשבון והמסמכים יישארו תואמים.</Banner>}
       </ConfirmDialog>
     </>
   );
