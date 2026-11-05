@@ -120,7 +120,7 @@ export async function computeLedger(propertyId, date) {
     if (Math.abs(bal) < 0.005) continue;
     const st = statusOf.get(String(f.reservation));
     let book = 'guest';
-    if (f.settlement?.mode === 'company_ar' || (f.ownerType === 'company' && st === 'checked_out')) book = 'ar';
+    if (f.settlement?.mode === 'company_ar' || (f.ownerType === 'company' && (st === 'checked_out' || !f.reservation))) book = 'ar';
     else if (VOID_STATUSES.includes(st)) book = 'void';
     else if (PRE_ARRIVAL.includes(st)) book = 'deposit';
     else if (IN_HOUSE.includes(st) || st === 'checked_out') book = 'guest';

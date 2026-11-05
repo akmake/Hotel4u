@@ -7,7 +7,7 @@ import {
   BadgeDollarSign, Search, TrendingUp, Building2, Star, PackagePlus,
   LogOut, Calendar, Sparkles, Tag, BookOpen, Funnel, CreditCard,
   LogIn, Hourglass, BedSingle, Moon, ReceiptText, ListChecks, Printer, Zap, Radio,
-  ChevronDown, SquarePen,
+  ChevronDown, SquarePen, CalendarRange, Coins, Keyboard, HelpCircle, UserRoundCog,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { roleLabel } from '../../lib/labels';
@@ -16,6 +16,8 @@ import { useProperty } from '../../context/PropertyContext';
 import { useNavStyle } from '../../stores/navStyleStore';
 import NavVariant from './NavVariants';
 import { designToolsOn } from '../../utils/designTools';
+import { useHomeStore } from '../../stores/homeStore';
+import { shortcutFor } from '../../lib/shortcuts';
 
 // ── תפריט מכירות/תפעול ───────────────────────────────────────────────────────
 const SALES_NAV = [
@@ -111,11 +113,15 @@ const PMS_NAV = [
     items: [
       { path: '/pms/rates',            icon: Tag,        label: 'מחירים' },
       { path: '/pms/demand',           icon: TrendingUp, label: 'מערכת ביקוש' },
+      { path: '/pms/revenue',          icon: CalendarRange, label: 'ניהול הכנסות' },
+      { path: '/pms/packages',         icon: PackagePlus, label: 'חבילות' },
       { path: '/pms/promotions',       icon: Megaphone,  label: 'מבצעים וקודי הנחה' },
       { path: '/pms/reports',          icon: BarChart3,  label: 'דוחות' },
       { path: '/pms/night-audit',      icon: Moon,       label: 'סגירת יום' },
       { path: '/pms/night-audit/report', icon: BarChart3, label: 'מאזן בוחן וספרים' },
-      { path: '/pms/fin/receivables',  icon: Building2,  label: 'חייבים — חברות' },
+      { path: '/pms/fin/receivables',  icon: Building2,  label: 'חייבים' },
+      { path: '/pms/fin/commissions',  icon: BadgeDollarSign, label: 'עמלות סוכנים' },
+      { path: '/pms/fin/cards',        icon: BadgeDollarSign, label: 'כרטיסי אשראי' },
       { path: '/pms/fin/reports',      icon: ReceiptText, label: 'דוחות כספיים ומע״מ' },
       { path: '/pms/fin/accounting',   icon: ReceiptText, label: 'הנהלת חשבונות' },
       { path: '/pms/bulk-jobs',        icon: ListChecks, label: 'פעולות מרוכזות' },
@@ -124,6 +130,8 @@ const PMS_NAV = [
       { path: '/pms/companies',        icon: Building2,  label: 'חברות וסוכנים' },
       { path: '/pms/admin/setup',      icon: Building2,  label: 'הקמת מלון: חדרים וסוגים' },
       { path: '/pms/admin/users',      icon: Users,      label: 'משתמשים והרשאות' },
+      { path: '/pms/admin/permissions', icon: Users,     label: 'קבוצות הרשאות' },
+      { path: '/pms/admin/payments',   icon: BadgeDollarSign, label: 'הגדרות סליקה' },
       { path: '/pms/admin/policy',     icon: FileText,   label: 'מדיניות' },
       { path: '/pms/admin/audit',      icon: ClipboardList, label: 'יומן ביקורת' },
       { path: '/pms/admin/charge-codes', icon: ListChecks, label: 'קודי חיוב ותשלום' },
@@ -142,6 +150,20 @@ const PMS_NAV = [
     ],
   },
 ];
+
+// Quick looks (gap-map item 8): open in place from any screen — '#action' is not a route.
+const QUICK_GROUP = {
+  group: 'מבטים',
+  items: [
+    { path: '#week',      icon: CalendarRange, label: 'מבט שבועי' },
+    { path: '#house',     icon: Building2,     label: 'מצב הבית וזמינות מקסימלית' },
+    { path: '#free',      icon: BedDouble,     label: 'חיפוש חדר פנוי' },
+    { path: '#rates',     icon: Coins,         label: 'שערי מטבע' },
+    { path: '#switch',    icon: UserRoundCog,  label: 'החלפת משתמש זמנית' },
+    { path: '#shortcuts', icon: Keyboard,      label: 'קיצורי מקלדת' },
+    { path: '#help',      icon: HelpCircle,    label: 'עזרה למסך הזה' },
+  ],
+};
 
 // Roles restricted to specific PMS sections only
 const PMS_ROLE_PATHS = {
@@ -168,11 +190,16 @@ export default function Sidebar({ open, onClose }) {
 
   const isAdmin = user?.role === 'admin';
   const isPMS = pathname.startsWith('/pms');
-  const navGroups = isPMS ? PMS_NAV : SALES_NAV;
+  const navGroups = isPMS ? (PMS_ROLE_PATHS[user?.role] ? PMS_NAV : [...PMS_NAV.slice(0, 1), QUICK_GROUP, ...PMS_NAV.slice(1)]) : SALES_NAV;
+  const openLook = useHomeStore((s) => s.open);
   const pmsAllowedPaths = isPMS ? PMS_ROLE_PATHS[user?.role] : undefined;
   const workspace = isPMS ? (property?.name || 'Hotel4U') : 'Hotel4U מכירות';
   const wsInitial = workspace.replace(/^מלון\s+/, '').trim().charAt(0);
-  const allowedGroups = navGroups.filter(section => (section.group !== 'עיצוב' || designToolsOn()) && (!section.adminOnly || isAdmin) && (!pmsAllowedPaths || section.items.some(item => pmsAllowedPaths.includes(item.path))));
+  // Live counters on the menu entries + the shortcut in each tooltip (gap-map item 8).
+  const counters = useHomeStore((s) => s.counters);
+  const decorate = (item) => ({ ...item, badge: isPMS ? counters?.nav?.[item.path] ?? null : null, keyHint: isPMS ? shortcutFor(item.path.startsWith('#') ? item.path.slice(1) : item.path) : null });
+  const allowedGroups0 = navGroups.filter(section => (section.group !== 'עיצוב' || designToolsOn()) && (!section.adminOnly || isAdmin) && (!pmsAllowedPaths || section.items.some(item => pmsAllowedPaths.includes(item.path))));
+  const allowedGroups = allowedGroups0.map((section) => ({ ...section, items: section.items.map(decorate) }));
   const visibleItems = allowedGroups.flatMap(section => section.items.map(item => ({ ...item, group: section.group }))).filter(item => !pmsAllowedPaths || pmsAllowedPaths.includes(item.path));
 
   // "/" opens search (PMS), like Linear.
@@ -185,8 +212,10 @@ export default function Sidebar({ open, onClose }) {
         setSearchOpen(true);
       }
     };
+    const onOpen = () => setSearchOpen(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('hotel4u:search', onOpen);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('hotel4u:search', onOpen); };
   }, [isPMS]);
 
 
@@ -202,7 +231,7 @@ export default function Sidebar({ open, onClose }) {
     };
   }, [menuOpen]);
 
-  const go = (path) => { setMenuOpen(false); nav(path); onClose?.(); };
+  const go = (path) => { setMenuOpen(false); onClose?.(); if (path.startsWith('#')) { if (path === '#search') setSearchOpen(true); else openLook(path.slice(1)); return; } nav(path); };
   const navStyle = useNavStyle((s) => s.style);
 
   if (navStyle !== 'current') {
@@ -229,9 +258,9 @@ export default function Sidebar({ open, onClose }) {
         <button type="button" className="hotjar-sidebar-toggle" onClick={() => { setExpanded(v => !v); setMenuOpen(false); }} aria-label={expanded ? 'צמצום סרגל הצד' : 'פתיחת סרגל הצד'} aria-expanded={expanded} title={expanded ? 'צמצום סרגל הצד' : 'פתיחת סרגל הצד'}><ChevronDown size={18} /><span className="hotjar-nav-heading"><strong>{isPMS ? 'ניהול המלון' : 'מכירות ותפעול'}</strong><small>Hotel4U · מרחב העבודה</small></span></button>
         {isPMS && <button type="button" className="hotjar-sidebar-search" onClick={() => setSearchOpen(true)} aria-label="חיפוש" title="חיפוש"><Search size={18} /><span>חיפוש במערכת</span><kbd>/</kbd></button>}
         <nav className="hotjar-context-nav" aria-label="תפריט ראשי">
-          {visibleItems.map(({path, label, icon: Icon, group}, index) => {
+          {visibleItems.map(({path, label, icon: Icon, group, badge, keyHint}, index) => {
             const active = isActivePath(pathname, path) && !visibleItems.some(item => item.path !== path && item.path.startsWith(`${path}/`) && isActivePath(pathname, item.path));
-            return <div key={path} className="hotjar-nav-entry">{(index === 0 || visibleItems[index - 1].group !== group) && <div className="hotjar-section-caption">{group}</div>}<button type="button" className={`hotjar-context-item ${active ? 'active' : ''}`} onClick={() => go(path)} aria-label={label} title={label} aria-current={active ? 'page' : undefined}><span className="hotjar-item-icon"><Icon size={18} /></span><span>{label}</span></button></div>;
+            return <div key={path} className="hotjar-nav-entry">{(index === 0 || visibleItems[index - 1].group !== group) && <div className="hotjar-section-caption">{group}</div>}<button type="button" className={`hotjar-context-item ${active ? 'active' : ''}`} onClick={() => go(path)} aria-label={`${label}${badge != null ? ` (${badge})` : ''}`} title={`${label}${keyHint ? ` · ${keyHint}` : ''}`} aria-current={active ? 'page' : undefined}><span className="hotjar-item-icon"><Icon size={18} /></span><span>{label}</span>{badge != null && <span className="nv-badge">{badge}</span>}</button></div>;
           })}
         </nav>
         <div className="hotjar-workspace" ref={menuRef}>

@@ -84,6 +84,8 @@ const BookStatementPage    = lazy(() => import('./pages/book/BookStatementPage')
 const OnlineCheckInPage    = lazy(() => import('./pages/checkin/OnlineCheckInPage'));
 const PreventivePage       = lazy(() => import('./pages/ops/PreventivePage'));
 const ReceivablesPage      = lazy(() => import('./pages/fin/ReceivablesPage'));
+const ArAccountPage        = lazy(() => import('./pages/fin/ArAccountPage'));
+const ArPrintPage          = lazy(() => import('./pages/fin/ArPrintPage'));
 const HotelSetupPage       = lazy(() => import('./pages/sys/HotelSetupPage'));
 const LostFoundPage        = lazy(() => import('./pages/ops/LostFoundPage'));
 const MaintenancePage      = lazy(() => import('./pages/ops/MaintenancePage'));
@@ -97,6 +99,9 @@ const GroupBlocksPage      = lazy(() => import('./pages/rsv/GroupBlocksPage'));
 const QuotesPage           = lazy(() => import('./pages/rsv/QuotesPage'));
 const EventsPage           = lazy(() => import('./pages/ops/EventsPage'));
 const DemandPage           = lazy(() => import('./pages/inv/DemandPage'));
+const RevenuePage          = lazy(() => import('./pages/inv/RevenuePage'));
+const PackagesPage         = lazy(() => import('./pages/inv/PackagesPage'));
+const AgentCommissionsPage = lazy(() => import('./pages/fin/CommissionsPage'));
 const CompaniesPage        = lazy(() => import('./pages/CompaniesPage'));
 const LeadInboxPage        = lazy(() => import('./pages/LeadInboxPage'));
 const OpportunityBoardPage = lazy(() => import('./pages/OpportunityBoardPage'));
@@ -120,6 +125,9 @@ const AutomationRulesPage       = lazy(() => import('./pages/AutomationRulesPage
 const ChannelManagerPage        = lazy(() => import('./pages/ChannelManagerPage'));
 const SettingsPage              = lazy(() => import('./pages/SettingsPage'));
 const UsersAdminPage            = lazy(() => import('./pages/sys/UsersAdminPage'));
+const PermissionsPage          = lazy(() => import('./pages/sys/PermissionsPage'));
+const PaymentSettingsPage      = lazy(() => import('./pages/sys/PaymentSettingsPage'));
+const CardsPage                = lazy(() => import('./pages/fin/CardsPage'));
 const PolicyPage                = lazy(() => import('./pages/sys/PolicyPage'));
 const AuditPage                 = lazy(() => import('./pages/sys/AuditPage'));
 const ProfilePage               = lazy(() => import('./pages/sys/ProfilePage'));
@@ -293,6 +301,9 @@ export default function App() {
               <Route path="quotes"            element={<QuotesPage />} />
               <Route path="events"            element={<EventsPage />} />
               <Route path="demand"            element={<DemandPage />} />
+              <Route path="revenue"           element={<RevenuePage />} />
+              <Route path="packages"          element={<PackagesPage />} />
+              <Route path="fin/commissions"   element={<AgentCommissionsPage />} />
               <Route path="invoices"          element={<InvoicesPage />} />
               <Route path="companies"         element={<CompaniesPage />} />
               <Route path="leads"             element={<LeadInboxPage />} />
@@ -309,6 +320,9 @@ export default function App() {
               <Route path="channel-manager"   element={<ChannelManagerPage />} />
               <Route path="settings"          element={<SettingsPage />} />
               <Route path="admin/users"       element={<UsersAdminPage />} />
+              <Route path="admin/permissions" element={<PermissionsPage />} />
+              <Route path="admin/payments"    element={<PaymentSettingsPage />} />
+              <Route path="fin/cards"         element={<CardsPage />} />
               <Route path="admin/policy"      element={<PolicyPage />} />
               <Route path="admin/audit"       element={<AuditPage />} />
               <Route path="admin/charge-codes" element={<ChargeCodesPage />} />
@@ -316,6 +330,8 @@ export default function App() {
               <Route path="admin/fiscal" element={<FiscalSettingsPage />} />
               <Route path="fin/reports" element={<FinanceReportsPage />} />
               <Route path="fin/receivables" element={<ReceivablesPage />} />
+              <Route path="fin/receivables/print" element={<ArPrintPage />} />
+              <Route path="fin/receivables/:companyId" element={<ArAccountPage />} />
               <Route path="fin/accounting" element={<AccountingPage />} />
               <Route path="admin/board" element={<BoardPage />} />
               <Route path="admin/setup" element={<HotelSetupPage />} />

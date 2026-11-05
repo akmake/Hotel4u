@@ -1,5 +1,6 @@
 // /api/pms/booking — availability & price (INV-03), create booking/quote (RSV-02/RSV-04),
 // reservation list (RSV-01) and stay file (RSV-03). Rules live in services/bookingService.js.
+import { requireCan } from '../services/permissionService.js';
 import { sendConfirmation, autoSendConfirmation, autoSendCancellation } from '../services/confirmationService.js';
 import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
@@ -218,7 +219,7 @@ router.post('/reservations/:id/voucher', handle(async (req) => {
 }));
 
 router.post('/reservations/:id/delete', handle(async (req) => {
-  requireRoles(req, DELETE_ROLES, 'מחיקת הזמנה מותרת למנהל משמרת ומעלה');
+  requireCan(req, 'reservation.delete', DELETE_ROLES, 'מחיקת הזמנה מותרת למנהל משמרת ומעלה');
   return deleteReservation({ propertyId: scope(req), reservationId: req.params.id, reasonCode: req.body?.reason, note: req.body?.note, actor: actorOf(req), ip: req.ip });
 }));
 

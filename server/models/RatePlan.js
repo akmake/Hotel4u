@@ -47,6 +47,9 @@ const RatePlanSchema = new Schema({
   name:              { type: String, required: true },
   type:              { type: String, enum: ['public', 'corporate', 'package', 'ota', 'promo', 'group'], default: 'public' },
   isRefundable:      { type: Boolean, default: true },
+  // How the house counts a stay on this rate (gap-map item 8, house status): paying, complimentary
+  // (free room for a guest) or house use (staff / owner / inspection — not sold).
+  use:               { type: String, enum: ['paying', 'comp', 'house_use'], default: 'paying' },
   includesBreakfast: { type: Boolean, default: false },
   halfBoard:         { type: Boolean, default: false },
   fullBoard:         { type: Boolean, default: false },
@@ -64,6 +67,23 @@ const RatePlanSchema = new Schema({
   },
   sortOrder:         { type: Number, default: 0 },
   active:            { type: Boolean, default: true },
+  // Revenue (gap-map item 9): takes part in day types (peak / low multipliers), and length-of-stay
+  // tiers — from N nights, a price per room type (replaces the night's price) or a percent off.
+  useDayTypes:       { type: Boolean, default: true },
+  // Agent commission (gap-map item 10): a plan that does not qualify pays none. `pct` blank = the agent's
+  // own default; a number here wins over the agent's.
+  commission: { type: new Schema({ eligible: { type: Boolean, default: false }, pct: { type: Number, min: 0, max: 100 } }, { _id: false }), default: undefined },
+  // Package components every reservation on this plan gets (optionally only for stays arriving in a range).
+  components: { type: [new Schema({ component: { type: Schema.Types.ObjectId, ref: 'PackageComponent', required: true }, from: String, to: String }, { _id: false })], default: [] },
+  tiers: {
+    type: [new Schema({
+      minNights: { type: Number, required: true, min: 2, max: 365 },
+      label:     String,
+      pct:       { type: Number, min: -90, max: 100 },
+      prices:    [{ _id: false, roomType: { type: Schema.Types.ObjectId, ref: 'RoomType' }, price: { type: Number, min: 0 } }],
+    }, { _id: true })],
+    default: [],
+  },
 }, { timestamps: true });
 
 RatePlanSchema.index({ property: 1, code: 1 }, { unique: true });

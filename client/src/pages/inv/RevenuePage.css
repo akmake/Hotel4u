@@ -1,0 +1,29 @@
+/* Revenue management — hotel calendar (rv-*) */
+.rv-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .rv-layout { grid-template-columns: 1fr; } }
+.rv-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 10px; }
+.rv-dow { font-size: 12px; color: rgb(var(--fg-muted)); text-align: center; padding-bottom: 2px; }
+.rv-day { position: relative; text-align: start; min-height: 74px; padding: 6px 8px 6px 8px; border: 1px solid rgb(var(--border)); border-radius: 8px; background: rgb(var(--surface, 255 255 255)); display: flex; flex-direction: column; gap: 3px; cursor: pointer; font: inherit; color: inherit; overflow: hidden; }
+.rv-day:hover { border-color: rgb(var(--accent-600)); }
+.rv-day.is-past { opacity: .5; }
+.rv-day.is-today { box-shadow: inset 0 0 0 2px rgb(var(--accent-600)); }
+.rv-day-band { position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 4px; }
+.rv-day-top { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+.rv-day-num { font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
+.rv-day-type { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-day-occ { font-size: 11px; padding: 0 4px; min-width: 0; }
+.rv-day-line { font-size: 11px; color: rgb(var(--fg-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-day-auto { font-size: 10.5px; font-weight: 600; color: #9b1c1c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-types { display: flex; flex-direction: column; gap: 6px; padding: 10px; }
+.rv-type { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid rgb(var(--border)); border-radius: 8px; background: none; font: inherit; color: inherit; cursor: pointer; text-align: start; }
+.rv-type:hover { border-color: rgb(var(--accent-600)); }
+.rv-type.is-off { opacity: .55; }
+.rv-swatch { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+.rv-tiers { width: 100%; }
+.rv-tiers td, .rv-tiers th { vertical-align: middle; }
+.rv-tiers input { width: 100%; min-width: 64px; }
+.rv-plan-list { display: flex; flex-direction: column; gap: 4px; padding: 8px; }
+.rv-plan { text-align: start; padding: 7px 10px; border-radius: 8px; border: 1px solid transparent; background: none; font: inherit; color: inherit; cursor: pointer; }
+.rv-plan:hover { background: rgb(var(--bg-subtle, 241 245 249)); }
+.rv-plan.is-on { border-color: rgb(var(--accent-600)); background: rgb(var(--accent-50, 240 253 250)); }
+.rv-wd { display: flex; gap: 6px; flex-wrap: wrap; }

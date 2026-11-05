@@ -4,6 +4,7 @@ import XLSX from 'xlsx';
 import { assertPropertyScope, requireRoles, actorOrSystem } from '../middleware/authContext.js';
 import { audit } from '../services/auditService.js';
 import { catalog, runReport, toTable, REPORTS } from '../services/reportCenter.js';
+import { reportGroupAllowed } from '../services/permissionService.js';
 
 const SENSITIVE = new Set(REPORTS.filter((r) => r.roles).map((r) => r.code));
 
@@ -24,7 +25,12 @@ const fail = (res, err) => {
 };
 
 router.get('/catalog', (req, res) => {
-  try { scope(req); res.json({ success: true, data: catalog(req.actor?.role) }); } catch (err) { fail(res, err); }
+  try {
+    scope(req);
+    const c = catalog(req.actor?.role);
+    // A permission group may limit which report groups its members open (gap-map item 11).
+    res.json({ success: true, data: { ...c, reports: c.reports.filter((r) => reportGroupAllowed(req.actor, r.group)) } });
+  } catch (err) { fail(res, err); }
 });
 
 // Opening or exporting a report that shows ID numbers is recorded (who, which period, how).
@@ -34,8 +40,14 @@ function auditSensitive(req, report, how) {
   audit({ property: req.query.propertyId || req.actor?.propertyId, actor: a.id, actorName: a.name, action: `report.${how}`, entityType: 'Report', entityId: undefined, after: { code: report.code, from: report.period.from, to: report.period.to, rows: report.rows.length, format: req.query.format || null }, ip: req.ip }).catch(() => null);
 }
 
+function checkGroup(req) {
+  const def = REPORTS.find((r) => r.code === req.params.code);
+  if (def && !reportGroupAllowed(req.actor, def.group)) { const err = new Error('קבוצת ההרשאות שלך לא כוללת את קבוצת הדוחות הזו'); err.status = 403; throw err; }
+}
+
 router.get('/:code', async (req, res) => {
   try {
+    checkGroup(req);
     const report = await runReport({ propertyId: scope(req), code: req.params.code, query: req.query, role: req.actor?.role });
     auditSensitive(req, report, 'viewed');
     res.json({ success: true, data: report });
@@ -44,6 +56,7 @@ router.get('/:code', async (req, res) => {
 
 router.get('/:code/export', async (req, res) => {
   try {
+    checkGroup(req);
     const report = await runReport({ propertyId: scope(req), code: req.params.code, query: req.query, role: req.actor?.role });
     auditSensitive(req, report, 'exported');
     const head = [[report.name], [`${report.propertyName} · ${report.period.from === report.period.to ? report.period.from : `${report.period.from} – ${report.period.to}`}`], ...report.summary.map((s) => [s.label, s.value]), ...(report.note ? [[report.note]] : []), []];

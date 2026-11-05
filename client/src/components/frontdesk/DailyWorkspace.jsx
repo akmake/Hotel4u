@@ -573,6 +573,62 @@ function InHouseTable({ rows, onOpen, appearance }) {
   );
 }
 
+// Search across the whole day, grouped by where the guest is today: arriving, in house, leaving.
+// One table, one header row; each group has its own band, each row the same five columns.
+const dm = (ymd) => (ymd ? ymd.slice(5).split('-').reverse().join('/') : '');
+function SearchResults({ arrivals, inhouse, departures, onOpen, onCheckIn, onCheckOut }) {
+  const rooms$ = (list) => (list.filter(Boolean).join(' · ') || '—');
+  const groups = [
+    { key: 'arr', title: 'מגיעים היום', Icon: LogIn, rows: arrivals.map((r) => {
+      const st = r.readiness.state;
+      const done = st === 'checked_in';
+      return {
+        id: r.reservationId, key: r.key || r.reservationId, guest: r.guest, ref: r.confirmationNumber, company: r.company,
+        room: rooms$([r.room?.number]), roomType: r.roomType?.name,
+        pill: { tone: STATE_TONE[st] || 'warn', text: STATE_TEXT[st] || '' }, detail: `${r.nights || ''}${r.nights ? ' לילות' : ''}${r.eta ? ` · הגעה ${r.eta}` : ''}`,
+        money: payment(r.guarantee), act: done ? null : { label: 'צ׳ק-אין', run: () => onCheckIn(r.reservationId) },
+      };
+    }) },
+    { key: 'in', title: 'שוהים במלון', Icon: Users, rows: inhouse.map((r) => ({
+      id: r.reservationId, key: r.reservationId, guest: r.guest, ref: r.confirmationNumber, company: r.company,
+      room: rooms$((r.rooms || []).map((x) => x.number)), roomType: r.roomType,
+      pill: { tone: 'ok', text: 'שוהה' }, detail: r.departureDate ? `יציאה ${dm(r.departureDate)}` : '',
+      money: (r.money?.owed || 0) > 0 ? { tone: 'warn', text: `יתרה ${money(r.money.owed)}` } : { tone: 'ok', text: 'שולם' }, act: null,
+    })) },
+    { key: 'out', title: 'עוזבים היום', Icon: LogOut, rows: departures.map((r) => {
+      const done = r.state === 'completed'; const late = r.state === 'late';
+      return {
+        id: r.reservationId, key: r.reservationId, guest: r.guest, ref: r.confirmationNumber, company: r.company,
+        room: rooms$((r.units || []).map((u) => u.room)), roomType: '',
+        pill: { tone: done ? 'done' : late ? 'bad' : 'warn', text: done ? 'יצא' : late ? 'באיחור' : 'עוזב' }, detail: done ? '' : r.etd ? `יציאה עד ${r.etd}` : '',
+        money: (r.money?.owed || 0) > 0 ? { tone: 'warn', text: `יתרה ${money(r.money.owed)}` } : { tone: 'ok', text: 'שולם' },
+        act: done ? null : { label: 'צ׳ק-אאוט', run: () => onCheckOut(r.reservationId) },
+      };
+    }) },
+  ].filter((g) => g.rows.length);
+  return (
+    <table className="dk-table dk-results-table">
+      <thead><tr><th>אורח</th><th>חדר</th><th>מצב</th><th>חשבון</th><th><span className="sr-only">פעולה</span></th></tr></thead>
+      {groups.map(({ key, title, Icon, rows }) => (
+        <tbody key={key}>
+          <tr className="dk-results-band"><th colSpan={5} scope="colgroup"><Icon size={15} aria-hidden="true" />{title}<b>{rows.length}</b></th></tr>
+          {rows.map((x) => (
+            <tr key={`${key}-${x.key}`} className="reception-guest-row" onClick={() => onOpen(x.id)}>
+              <td><GuestCell name={x.guest?.name || '—'} vip={x.guest?.vip} sub={<><bdi>{x.ref}</bdi>{x.company ? ` · ${x.company.name}` : ''}</>} /></td>
+              <td><div className="dk-room"><b>{x.room}</b><span>{x.roomType || ''}</span></div></td>
+              <td><div className="dk-res-status"><span className={`dk-pill ${x.pill.tone}`}>{x.pill.text}</span>{x.detail && <small>{x.detail}</small>}</div></td>
+              <td><span className={`dk-pill ${x.money.tone}`}>{x.money.text}</span></td>
+              <td className="dk-act" onClick={(e) => e.stopPropagation()}>
+                {x.act ? <button type="button" className="dk-btn is-primary" onClick={x.act.run}>{x.act.label}</button> : <button type="button" className="dk-btn" onClick={() => onOpen(x.id)}>פרטים</button>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      ))}
+    </table>
+  );
+}
+
 // Guest search on the today list: any of the given fields contains the query.
 function matches(q, ...values) {
   return !q || values.some((v) => String(v ?? '').toLowerCase().includes(q));
@@ -663,6 +719,11 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
   const hAll = inhouse.data?.rows || [];
   const hRows = hAll.filter((r) => matches(q, r.guest?.name, r.confirmationNumber, r.company?.name, ...(r.rooms || []).map((x) => x.number)));
   const hOwed = hAll.filter((r) => (r.money?.owed || 0) > 0).length;
+  // A search looks across the whole day — arrivals, departures and in house — whatever tab is open.
+  const sA = q ? aAll.filter((r) => matches(q, r.guest?.name, r.billing?.occupantName, r.confirmationNumber, r.room?.number, r.company?.name)) : [];
+  const sD = q ? dAll.filter((r) => matches(q, r.guest?.name, r.confirmationNumber, r.company?.name, ...(r.units || []).map((u) => u.room))) : [];
+  const sH = q ? hRows : [];
+  const sTotal = sA.length + sD.length + sH.length;
   const urgent = (alerts.data || []).filter((a) => a.type === 'danger').length;
 
   const extra = (alerts.data?.length || 0) + notes.length;
@@ -737,10 +798,15 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
           </div>
           {headerAppearance === 'today' ? (
             <div className="dk-bar is-slim">
+              {q ? <>
+                <b className="reception-activity-caption">תוצאות חיפוש <span className="dk-results-n">{sTotal ? `${new Set([...sA, ...sH, ...sD].map((r) => r.reservationId)).size} בכל היום` : 'אין תוצאות'}</span></b>
+                <button type="button" className="dk-link-btn" onClick={() => window.dispatchEvent(new Event('hotel4u:search'))}><Search size={14} aria-hidden="true" />חיפוש בכל ההזמנות</button>
+              </> : <>
               <b className="reception-activity-caption">{{ arrivals: 'הגעות היום', departures: 'עזיבות היום', inhouse: 'אורחים במלון', alerts: 'התראות והעברת משמרת' }[tab]}</b>
               {tab === 'arrivals' && arrivals.data && <Modes value={mode} onChange={setMode} options={[['all', 'הכל', aAll.length], ['issues', 'דורשים טיפול', aIssues.length, 'warn'], ['ok', 'מוכנים', aReady.length, 'ok'], ['done', 'נכנסו', aDone.length]]} />}
               {tab === 'departures' && departures.data && <Modes value={mode} onChange={setMode} options={[['all', 'הכל', dAll.length], ['issues', 'דורשים טיפול', dIssues.length, 'warn'], ['ok', 'תקינים', dFine.length, 'ok'], ['done', 'יצאו', dDone.length]]} />}
               {(tab === 'inhouse' || tab === 'alerts') && <span className="dk-bar-note">{summary}</span>}
+              </>}
             </div>
           ) : (
           <div className="dk-bar">
@@ -760,6 +826,12 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
           )}
           {billingError && <div className="dk-state dk-err" role="alert">{billingError}</div>}
           <div className="dk-scroll">
+            {q ? (
+              <div className="dk-results" aria-live="polite">
+                {sTotal ? <SearchResults arrivals={sA} inhouse={sH} departures={sD} onOpen={onOpen} onCheckIn={(id) => onCheckIn(id)} onCheckOut={onCheckOut} />
+                  : <div className="dk-state">לא נמצא אורח בשם או במספר ״{query.trim()}״ בהגעות, בשוהים ובעזיבות של היום.</div>}
+              </div>
+            ) : <>
             {tab === 'arrivals' && (
               <Status query={arrivals} empty="אין הגעות היום.">
                 {aAll.length ? q && !aRows.length ? <NoMatch query={query} /> : <ArrivalsTable rows={aRows} openKey={openKey} setOpenKey={setOpenKey} onCheckIn={onCheckIn} onAssign={onAssign} onQueue={onQueue} onBilling={onBilling} appearance={rowAppearance} /> : null}
@@ -776,6 +848,7 @@ export default function DailyWorkspace({ propertyId, property, date, stats, arri
               </Status>
             )}
             {tab === 'alerts' && <Status query={alerts} empty="אין התראות פתוחות."><AlertsList alerts={alerts} notes={notes} onAlert={onAlert} q={q} /></Status>}
+            </>}
           </div>
         </section>
         <RoomsCard arrivals={arrivals} tickets={tickets} onPick={(key) => { setTab('arrivals'); setMode('all'); setOpenKey(key); }} />

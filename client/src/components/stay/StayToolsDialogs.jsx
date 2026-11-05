@@ -3,7 +3,7 @@
 // every rule; these dialogs show what will happen before it does.
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { booking } from '../../utils/api';
+import { booking, packages, commissions } from '../../utils/api';
 import { Modal, Field, ErrorBanner, Banner, Spinner, useAction, useLoader, money } from '../kit';
 import { formatShort } from '../../utils/date';
 
@@ -209,6 +209,45 @@ export function SharesCard({ propertyId, reservation, canWork, onAdd, onEnd, onC
         </div>
       ))}
       {past.map((s) => <p key={s.id} className="ui-sub">{s.name} — {s.status === 'separated' ? 'הופרד להזמנה נפרדת' : 'יצא מהחדר'}</p>)}
+    </section>
+  );
+}
+
+// Package (gap-map item 10): what is included each night of the stay, components added by hand, and the agent's commission.
+export function PackageCard({ propertyId, reservation, canWork, onChanged }) {
+  const [err, setErr] = useState(null);
+  const [pick, setPick] = useState('');
+  const live = !['cancelled', 'no_show', 'checked_out', 'deleted'].includes(reservation.status);
+  const bd = useLoader(async () => packages.breakdown(propertyId, reservation.id), [propertyId, reservation.id, reservation.updatedAt]);
+  const comps = useLoader(async () => (canWork && live ? packages.components(propertyId) : []), [propertyId, canWork, live]);
+  const com = useLoader(async () => commissions.forReservation(propertyId, reservation.id).catch(() => null), [propertyId, reservation.id]);
+  const nights = bd.data?.nights || [];
+  const has = nights.some((n) => n.components.length);
+  const manual = (reservation.packageItems || []);
+  const sellable = (comps.data || []).filter((c) => c.sellable && c.active && !manual.some((m) => m.component === c.id));
+  if (!has && !manual.length && !sellable.length && !com.data) return null;
+  const names = new Map((comps.data || []).map((c) => [c.id, c.name]));
+  const add = async () => { setErr(null); try { await packages.addItem(propertyId, reservation.id, { component: pick }); setPick(''); onChanged?.('הרכיב נוסף להזמנה'); } catch (e) { setErr(e); } };
+  const remove = async (id) => { setErr(null); try { await packages.removeItem(propertyId, reservation.id, id); onChanged?.('הרכיב הוסר'); } catch (e) { setErr(e); } };
+  const summary = [...new Map(nights.flatMap((n) => n.components).map((c) => [c.code, c])).values()];
+  return (
+    <section className="rsv-card" aria-labelledby="rsv-package">
+      <div className="rsv-card-head"><h2 id="rsv-package">חבילה ועמלה</h2></div>
+      <ErrorBanner error={err} />
+      {has && (
+        <div className="ui-sub">
+          מה כלול בשהייה: {summary.map((c) => `${c.name}${c.kind === 'allowance' ? ' (הקצבה)' : ''}${c.included ? ' · כלול במחיר' : ' · בנוסף'}`).join(' ; ')}
+          <div>{nights.map((n) => <span key={n.date} style={{ marginInlineEnd: 10 }}>{formatShort(n.date)}: חדר {money(n.room, 'ILS', 0)}{n.components.map((c) => ` + ${c.name} ${money(c.amount, 'ILS', 0)}${c.kind === 'allowance' && c.used ? ` (נוצל ${money(c.used, 'ILS', 0)}${c.excess ? `, חריגה ${money(c.excess, 'ILS', 0)}` : ''})` : ''}`).join('')}</span>)}</div>
+        </div>
+      )}
+      {manual.map((m) => <p key={m.id} className="ui-sub">נוסף ידנית: {names.get(m.component) || 'רכיב'} × {m.qty}{canWork && live && <> · <button type="button" className="rsv-link" onClick={() => remove(m.id)}>הסרה</button></>}</p>)}
+      {canWork && live && sellable.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select className="select" aria-label="רכיב להוספה" value={pick} onChange={(e) => setPick(e.target.value)}><option value="">הוספת רכיב לשהייה…</option>{sellable.map((c) => <option key={c.id} value={c.id}>{c.name} · {money(c.price, 'ILS', 0)}</option>)}</select>
+          <button type="button" className="rsv-link" disabled={!pick} onClick={add}>הוספה</button>
+        </div>
+      )}
+      {com.data && <p className="ui-sub">עמלת סוכן ({com.data.agentName}): {money(com.data.amount)} · {com.data.pct}% · {{ ready: 'מוכנה לתשלום', held: `מושהית${com.data.hold ? ` — ${com.data.hold.label}` : ''}`, paid: 'שולמה', cancelled: 'בוטלה' }[com.data.status]}</p>}
     </section>
   );
 }

@@ -502,3 +502,28 @@
   .today-page .reception-summary.is-glass:nth-child(odd) { border-inline-start: 0; }
   .today-page .reception-summary.is-glass:nth-child(n+3) { border-top: 1px solid rgb(var(--fg) / .07); }
 }
+
+/* Search across the whole day (arrivals, in house, departures), whatever tab is open: one table,
+   one row per booking, a status chip and the action that fits. */
+.today-page .dk-results { display: block; }
+.today-page .dk-results-n { margin-inline-start: 8px; font-size: 13px; font-weight: 400; color: #64748b; }
+.today-page .dk-link-btn { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: #006a61; font-size: 13px; font-weight: 500; cursor: pointer; }
+.today-page .dk-link-btn:hover { background: rgb(0 106 97 / .06); }
+.today-page .dk-res-status { display: grid; justify-items: start; gap: 3px; }
+.today-page .dk-res-status small { font-size: 12px; color: #64748b; }
+.today-page .dk-results-table td { vertical-align: middle; }
+.today-page .dk-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; background: #f1f5f9; color: #475569; }
+.today-page .dk-pill.ok { background: #e8f5ee; color: #166534; }
+.today-page .dk-pill.warn { background: #fff4e5; color: #9a5b00; }
+.today-page .dk-pill.bad { background: #fdecec; color: #b42318; }
+.today-page .dk-pill.done { background: #f1f5f9; color: #64748b; }
+
+.today-page .dk-results-table { width: 100%; table-layout: auto; }
+.today-page .dk-results-table th:nth-child(2) { width: 130px; }
+.today-page .dk-results-table th:nth-child(3) { width: 190px; }
+.today-page .dk-results-table th:nth-child(4) { width: 130px; }
+.today-page .dk-results-table th:nth-child(5), .today-page .dk-results-table td.dk-act { width: 130px; min-width: 130px; white-space: nowrap; }
+.today-page .dk-results-band th { padding: 10px 14px; background: #f1f6f5; border-top: 1px solid #e2ecea; border-bottom: 1px solid #e2ecea; text-align: start; font-size: 13.5px; font-weight: 600; color: #0f3f3a; }
+.today-page .dk-results-band svg { vertical-align: -2px; margin-inline-end: 7px; }
+.today-page .dk-results-band b { margin-inline-start: 8px; min-width: 22px; display: inline-block; padding: 0 7px; border-radius: 999px; background: #006a61; color: #fff; font-size: 11.5px; line-height: 20px; text-align: center; }
+.today-page .dk-results-table td.dk-act { text-align: end; }

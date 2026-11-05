@@ -11,6 +11,7 @@ import {
 import { audit } from '../services/auditService.js';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
 import { enqueueChannelUpdate } from '../services/channelQueueService.js';
+import { logRestrictionChanges } from '../services/revenueService.js';
 
 const router = Router();
 const INVENTORY_ROLES = ['super_admin', 'property_admin', 'general_manager', 'front_desk_manager', 'revenue_manager'];
@@ -114,9 +115,12 @@ router.put('/bulk', asyncHandler(async (req, res) => {
     },
   }));
 
+  const beforeRows = await InventoryDate.find({ property: propertyId, roomType: roomTypeId, date: { $in: dates } }).lean();
   if (ops.length) {
     await InventoryDate.bulkWrite(ops, { ordered: false });
   }
+  const afterRows = await InventoryDate.find({ property: propertyId, roomType: roomTypeId, date: { $in: dates } }).lean();
+  await logRestrictionChanges({ propertyId, level: 'inventory', roomType: roomTypeId, beforeRows, afterRows, actor: actorOrSystem(req) });
 
   await enqueueChannelUpdate({
     propertyId,
@@ -153,9 +157,12 @@ router.put('/bulk', asyncHandler(async (req, res) => {
 router.patch('/:id', asyncHandler(async (req, res) => {
   requireRoles(req, INVENTORY_ROLES, 'Inventory update requires revenue/manager permissions');
   const update = sanitizePatch(req.body || {});
+  // Scope is checked before the write (it used to be checked only after updating).
+  const prev = await InventoryDate.findById(req.params.id).lean();
+  if (!prev) return res.status(404).json({ success: false, error: 'Inventory row not found' });
+  assertPropertyScope(req, prev.property);
   const row = await InventoryDate.findByIdAndUpdate(req.params.id, { $set: update }, { new: true }).lean();
-  if (!row) return res.status(404).json({ success: false, error: 'Inventory row not found' });
-  assertPropertyScope(req, row.property);
+  await logRestrictionChanges({ propertyId: row.property, level: 'inventory', roomType: row.roomType, beforeRows: [prev], afterRows: [row], actor: actorOrSystem(req) });
 
   const actor = actorOrSystem(req);
   await audit({

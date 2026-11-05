@@ -25,10 +25,10 @@ const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 // Who may be the payer: the agent and/or the company already on the reservation.
 export async function payerOptions(res, session = null) {
   const ids = [['agent', res.travelAgent], ['company', res.company]].filter(([, id]) => id);
-  const docs = await Company.find({ _id: { $in: ids.map(([, id]) => id) } }).session(session).select('name type voucherRequired').lean();
+  const docs = await Company.find({ _id: { $in: ids.map(([, id]) => id) } }).session(session).select('name type voucherRequired ar.restricted').lean();
   return ids.map(([role, id]) => {
     const c = docs.find((d) => String(d._id) === String(id?._id || id));
-    return c ? { role, id: String(c._id), name: c.name, voucherRequired: !!c.voucherRequired } : null;
+    return c ? { role, id: String(c._id), name: c.name, voucherRequired: !!c.voucherRequired, restricted: !!c.ar?.restricted } : null;
   }).filter(Boolean);
 }
 
@@ -43,6 +43,7 @@ export async function buildVoucher({ res, input, actor, session = null }) {
   else if (options.length === 1) payer = options[0];
   if (type && type !== 'guest_all' && !payer) fields.voucherPayer = options.length > 1 ? 'יש לבחור מי משלם: הסוכן או החברה' : 'אין סוכן או חברה בהזמנה';
   if (input?.payerId && !payer) fields.voucherPayer = 'המשלם חייב להיות הסוכן או החברה של ההזמנה';
+  if (type && type !== 'guest_all' && payer?.restricted) fields.voucherPayer = `חשבון החייבים של ${payer.name} מוגבל — לא נרשמים אליו חיובים חדשים`;
   const number = String(input?.number || '').trim().slice(0, 40);
   if (payer?.voucherRequired && !number) fields.voucherNumber = `מספר Voucher חובה אצל ${payer.name}`;
   const amount = round2(input?.amount);

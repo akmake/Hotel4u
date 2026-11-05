@@ -15,6 +15,7 @@ import Reservation from '../models/Reservation.js';
 import { withLocks } from './locks.js';
 import { runStayTransaction } from './stayTransaction.js';
 import { vatForLine } from './touristService.js';
+import { loadContext as loadPackages, nightItems as packageNightItems, ensureUsage } from './packageService.js';
 
 const BOARD_LABEL = { breakfast: 'ארוחת בוקר', half_board: 'חצי פנסיון', full_board: 'פנסיון מלא' };
 
@@ -134,6 +135,8 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
     legacyByDate.set(l.serviceDate, (legacyByDate.get(l.serviceDate) || 0) + 1);
   }
   const items = [];
+  const packages = await loadPackages(reservation, { session });
+  const packageVat = new Map();
   const agreed = new Map((reservation.priceSnapshot?.nightly || []).filter((n) => n?.date && n.price != null && Number.isFinite(Number(n.price)) && Number(n.price) >= 0).map((n) => [n.date, Number(n.price)]));
   const list = units.length ? units : [null];
   for (const u of list) {
@@ -145,9 +148,13 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
     // A room whose guest pays for the room posts its nights to the room's own account.
     const route = u?.roomPayer === 'guest' ? { unitId: String(u._id), toUnit: true } : { unitId: u ? String(u._id) : null, toUnit: false };
     const flat =Number(u?.nightlyRate || reservation.ratePerNight || 0);
+    const fullNights = packages.items.length ? nightsOf(from, u?.departureDate || reservation.departureDate) : [];
     for (const date of nightsOf(from, to)) {
       // The price frozen at booking/extension for that night (per room), else the unit's rate.
-      const gross = agreed.has(date) ? agreed.get(date) : flat;
+      const quoted = agreed.has(date) ? agreed.get(date) : flat;
+      // Package components (gap-map item 10): "included" ones come off the room night, the rest post on their own line.
+      const pkg = packages.items.length ? packageNightItems(packages, { date, nightIndex: fullNights.indexOf(date) + 1, nights: fullNights.length, adults: u?.adults ?? reservation.adults ?? 1, children: u?.children ?? reservation.children ?? 0 }) : { items: [], included: 0 };
+      const gross = round2(Math.max(0, quoted - pkg.included));
       const { net, tax } = split(gross, vat);
       const reference = `night:${unitKey}:${date}`;
       const legacyCovered = !posted.has(reference) && (legacyByDate.get(date) || 0) > 0;
@@ -157,6 +164,18 @@ export async function planNights({ reservation, until, unitFilter, includeStatus
         reference, date, net, tax, gross: round2(net + tax), vatRate, taxReason: vat.reason || undefined, code: 'rooms',
         description: `לינה ${date}${u?.assignedRoom?.number ? ` · חדר ${u.assignedRoom.number}` : ''}`,
       })));
+      for (const x of pkg.items) {
+        const ref = `pkg:${unitKey}:${x.comp._id}:${date}`;
+        if (posted.has(ref)) continue;
+        if (!packageVat.has(x.comp.chargeCode)) packageVat.set(x.comp.chargeCode, await vatForLine({ reservation, code: x.comp.chargeCode, propertyVatRate: propertyVat ?? 18, session }));
+        const pv = packageVat.get(x.comp.chargeCode);
+        const b = split(x.gross, pv);
+        items.push(...routed({
+          ...route, reference: ref, date, net: b.net, tax: b.tax, gross: round2(b.net + b.tax), vatRate: pv.rate, taxReason: pv.reason || undefined, code: x.comp.chargeCode,
+          description: `חבילה: ${x.comp.name} ${date}`,
+          pkg: { kind: x.comp.kind, componentId: String(x.comp._id), componentCode: x.comp.code, price: x.gross, allowance: x.allowance },
+        }));
+      }
       // G2: the board of that night, posted on its own line (F&B revenue, own VAT decision).
       const boardGross = boardByDate.get(date);
       const boardRef = `board:${unitKey}:${date}`;
@@ -206,6 +225,9 @@ export async function postPlannedNights({ reservation, items, source = 'night_au
       here += 1;
     }
     if (here) await folio.save({ session });
+    for (const it of list) {
+      if (it.pkg?.kind === 'allowance') await ensureUsage({ propertyId: reservation.property, reservationId: reservation._id, comp: { _id: it.pkg.componentId, code: it.pkg.componentCode }, date: it.date, price: it.pkg.price, allowance: it.pkg.allowance, session });
+    }
     added += here;
   }
   return added;

@@ -41,19 +41,35 @@ const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.pa
 
 // Returns { price, source: 'calendar'|'base'|null, rules: [names] }; price null = cannot be priced.
 // parent = { plan, rd } of plan.derived.from for the same night (derived rates).
-export function priceNight({ plan, roomType, rd, date, adults = 2, children = 0, los = 1, today = null, context = {}, parent = null }) {
+// Length-of-stay tier of a plan for this stay: the highest minNights the stay reaches.
+export function tierFor(plan, los) {
+  return [...(plan?.tiers || [])].filter((t) => los >= Number(t.minNights)).sort((a, b) => b.minNights - a.minNights)[0] || null;
+}
+
+// dayType = { multiplier, addition, name } of the night (hotel calendar), applied to plans with useDayTypes.
+export function priceNight({ plan, roomType, rd, date, adults = 2, children = 0, los = 1, today = null, context = {}, parent = null, dayType = null }) {
   const fromRow = rd && Number(rd.price) >= 0 && rd.price !== null && rd.price !== undefined;
-  if (!fromRow && plan?.derived?.from && parent?.plan && String(parent.plan._id) !== String(plan._id)) {
-    const p = priceNight({ plan: parent.plan, roomType, rd: parent.rd, date, adults, children, los, today, context });
+  const tier = tierFor(plan, los);
+  const tierPrice = tier ? (tier.prices || []).find((x) => String(x.roomType) === String(roomType?._id) && Number(x.price) > 0) : null;
+  if (!fromRow && !tierPrice && plan?.derived?.from && parent?.plan && String(parent.plan._id) !== String(plan._id)) {
+    const p = priceNight({ plan: parent.plan, roomType, rd: parent.rd, date, adults, children, los, today, context, dayType });
     if (p.price === null) return p;
-    return { price: round2(Math.max(0, p.price * (1 + (Number(plan.derived.pct) || 0) / 100))), source: 'derived', rules: p.rules };
+    let dp = p.price * (1 + (Number(plan.derived.pct) || 0) / 100);
+    if (tier && Number(tier.pct)) dp *= 1 - Number(tier.pct) / 100;
+    return { price: round2(Math.max(0, dp)), source: 'derived', rules: p.rules, tier: tier?.label || (tier ? `${tier.minNights}+` : null), dayType: p.dayType };
   }
-  let price = fromRow ? Number(rd.price) : Number(roomType?.baseRate);
+  let price = tierPrice ? Number(tierPrice.price) : fromRow ? Number(rd.price) : Number(roomType?.baseRate);
   if (!(price > 0) && !fromRow) return { price: null, source: null, rules: [] };
-  if (fromRow) {
+  if (fromRow && !tierPrice) {
     const occ = { 2: rd.occupancy2Price, 3: rd.occupancy3Price, 4: rd.occupancy4Price }[Math.min(4, adults)];
     if (adults >= 2 && Number(occ) > 0) price = Number(occ);
     if (Number(rd.weekdayAdjustmentPct)) price *= 1 + Number(rd.weekdayAdjustmentPct) / 100;
+  }
+  if (tier && !tierPrice && Number(tier.pct)) price *= 1 - Number(tier.pct) / 100;
+  let dayTypeName = null;
+  if (dayType && plan?.useDayTypes !== false && (Number(dayType.multiplier) !== 1 || Number(dayType.addition))) {
+    price = (price + (Number(dayType.addition) || 0)) * (Number(dayType.multiplier) || 1);
+    dayTypeName = dayType.name || null;
   }
   const ctx = { date, weekday: new Date(`${date}T00:00:00Z`).getUTCDay(), adults, children, los, leadDays: today ? daysBetween(today, date) : 0, ...context };
   const rules = [...(plan?.pricingRules || [])].filter((r) => !(fromRow && r.appliesTo === 'base') && matchesRule(r, ctx)).sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
@@ -68,5 +84,5 @@ export function priceNight({ plan, roomType, rd, date, adults = 2, children = 0,
   const regular = Math.max(1, Number(roomType?.capacityBase) || 2);
   const extraAdults = Math.max(0, adults - regular);
   if (extraAdults > 0 && extraPrice) price += extraPrice * extraAdults;
-  return { price: round2(Math.max(0, price)), source: fromRow ? 'calendar' : 'base', rules: rules.map((r) => r.name) };
+  return { price: round2(Math.max(0, price)), source: tierPrice ? 'tier' : fromRow ? 'calendar' : 'base', rules: rules.map((r) => r.name), tier: tier ? (tier.label || `${tier.minNights}+`) : null, dayType: dayTypeName };
 }

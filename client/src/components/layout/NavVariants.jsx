@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { BarChart3, ChevronDown, LayoutDashboard, LogOut, Menu, Search, ShoppingCart, SquarePen, Wrench, X } from 'lucide-react';
+import { BarChart3, ChevronDown, Eye, LayoutDashboard, LogOut, Menu, Search, ShoppingCart, SquarePen, Wrench, X } from 'lucide-react';
 import { NAV_STYLES, useNavStyle } from '../../stores/navStyleStore';
 import './NavVariants.css';
 
 // Alternative looks for the same navigation (same items, same permissions, same routes).
-const GROUP_ICONS = { 'ראשי': LayoutDashboard, 'קבלה': LayoutDashboard, 'מכירות': ShoppingCart, 'תפעול': Wrench, 'ניהול': BarChart3, 'עיצוב': SquarePen };
+const GROUP_ICONS = { 'ראשי': LayoutDashboard, 'קבלה': LayoutDashboard, 'מכירות': ShoppingCart, 'תפעול': Wrench, 'ניהול': BarChart3, 'עיצוב': SquarePen, 'מבטים': Eye };
 const groupIcon = (name) => GROUP_ICONS[name] || LayoutDashboard;
 
 function useDismiss(ref, onDismiss, active) {
@@ -56,8 +56,8 @@ function AccountMenu({ account, placement, inline, onDone }) {
 function NavItem({ item, onPick }) {
   const Icon = item.icon;
   return (
-    <button type="button" role="menuitem" className={`nv-item ${item.active ? 'is-active' : ''}`} aria-current={item.active ? 'page' : undefined} onClick={() => onPick(item.path)}>
-      <span className="nv-item-ic"><Icon size={18} /></span><span>{item.label}</span>
+    <button type="button" role="menuitem" className={`nv-item ${item.active ? 'is-active' : ''}`} aria-current={item.active ? 'page' : undefined} onClick={() => onPick(item.path)} title={`${item.label}${item.keyHint ? ` · ${item.keyHint}` : ''}`}>
+      <span className="nv-item-ic"><Icon size={18} /></span><span>{item.label}</span>{item.badge != null && <span className="nv-badge">{item.badge}</span>}
     </button>
   );
 }
@@ -123,7 +123,7 @@ function Top({ groups, go, onSearch, account }) {
               const Icon = item.icon;
               return (
                 <button key={item.path} type="button" role="menuitem" className={`nv-card ${item.active ? 'is-active' : ''}`} aria-current={item.active ? 'page' : undefined} onClick={() => pick(item.path)}>
-                  <span className="nv-card-ic"><Icon size={20} /></span><span>{item.label}</span>
+                  <span className="nv-card-ic"><Icon size={20} /></span><span>{item.label}</span>{item.badge != null && <span className="nv-badge">{item.badge}</span>}
                 </button>
               );
             })}
@@ -173,7 +173,7 @@ function Launcher({ groups, go, onSearch, account }) {
                       const Icon = item.icon;
                       return (
                         <button key={item.path} type="button" className={`nv-tile ${item.active ? 'is-active' : ''}`} aria-current={item.active ? 'page' : undefined} onClick={() => pick(item.path)}>
-                          <span className="nv-tile-ic"><Icon size={22} /></span><span>{item.label}</span>
+                          <span className="nv-tile-ic"><Icon size={22} /></span><span>{item.label}</span>{item.badge != null && <span className="nv-badge">{item.badge}</span>}
                         </button>
                       );
                     })}

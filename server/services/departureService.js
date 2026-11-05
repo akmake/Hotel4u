@@ -8,6 +8,8 @@
 //  - a credit balance is not "paid": it must be refunded or approved;
 //  - payments and refunds are idempotent per client key, refunds are capped at the credit balance;
 //  - partial departure of a multi-room stay leaves the shared folios open.
+import { can } from './permissionService.js';
+import { absorbCharge } from './packageService.js';
 import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
@@ -288,11 +290,11 @@ export async function setEtd({ propertyId, reservationId, etd, actor, ip }) {
 
 // ── FD-08 context ───────────────────────────────────────────────────────────
 async function companyExposure(companyId, propertyId, session = null) {
-  const company = await Company.findOne({ _id: companyId, property: propertyId }).session(session).select('name creditLimit active').lean();
+  const company = await Company.findOne({ _id: companyId, property: propertyId }).session(session).select('name creditLimit active ar.restricted ar.active').lean();
   if (!company) return null;
   const open = await Folio.find({ property: propertyId, ownerType: 'company', ownerRef: String(companyId), status: { $ne: 'closed' } }).session(session).select('lines').lean();
   const exposure = round2(open.reduce((s, f) => s + Math.max(0, folioBalance(f)), 0));
-  return { id: String(company._id), name: company.name, active: company.active !== false, creditLimit: Number(company.creditLimit || 0), exposure };
+  return { id: String(company._id), name: company.name, active: company.active !== false, creditLimit: Number(company.creditLimit || 0), restricted: !!company.ar?.restricted, arActive: !!company.ar?.active, exposure };
 }
 
 export async function getCheckOutContext({ propertyId, reservationId }) {
@@ -409,7 +411,7 @@ function refundablePayments(folio) {
 
 export async function refundCredit({ propertyId, folioId, input, actor, ip, session = null, afterCommit = null }) {
   if (!session) return financialWrite(`folio:${folioId}`, (session, afterCommit) => refundCredit({ propertyId, folioId, input, actor, ip, session, afterCommit }), propertyId);
-  if (!REFUND_ROLES.includes(actor.role)) throw httpError('החזר כספי מותר למנהל או לכספים בלבד', 403);
+  if (!can(actor, 'refund.issue', REFUND_ROLES)) throw httpError('החזר כספי מותר למנהל או לכספים בלבד', 403);
   const folio = await loadFolioInScope(folioId, propertyId, session);
   const reference = idemRef(input.idempotencyKey);
   const existing = folio.lines.find((l) => l.reference === reference);
@@ -482,8 +484,10 @@ export async function postServiceCharge({ propertyId, reservationId, input, acto
   });
   await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
+  // Package allowance (gap-map item 10): the part of the charge the guest's package covers.
+  const packageAbsorbed = await absorbCharge({ propertyId, res, folio, line, code: code.code, gross, serviceDate: line.serviceDate, session });
   await audit({ property: res.property, actor: actor.id, actorName: actor.name, action: 'folio.charge', entityType: 'Folio', entityId: folio._id, after: { gross, net, tax: round2(gross - net), vatRate: property?.vatRate, vatClass: code.vatClass, department: code.code, lineId: String(line._id) }, ip, session, afterCommit });
-  return { folioId: String(folio._id), lineId: String(line._id), net, tax: round2(gross - net), duplicate: false };
+  return { folioId: String(folio._id), lineId: String(line._id), net, tax: round2(gross - net), duplicate: false, packageAbsorbed: packageAbsorbed || undefined };
 }
 
 // ── FD-08 complete ──────────────────────────────────────────────────────────
@@ -563,6 +567,9 @@ async function checkOutLocked({ propertyId, reservationId, unitIds, unitIndexes,
         if (f.ownerType !== 'company' || !isId(String(f.ownerRef || ''))) { problems.push({ folioId: String(f._id), label: 'רק חשבון של חברה יכול לעבור לחייבים' }); continue; }
         const exp = await companyExposure(f.ownerRef, propertyId, session);
         if (!exp || !exp.active) { problems.push({ folioId: String(f._id), label: 'החברה אינה פעילה בנכס' }); continue; }
+        if (exp.restricted) { problems.push({ folioId: String(f._id), label: `חשבון החייבים של ${exp.name} מוגבל — לא מעבירים אליו חוב חדש` }); continue; }
+        // Receivables (gap-map item 7): a balance moves to a company only when accounting opened its AR account.
+        if (!exp.arActive && (!isManager || String(chosen.reason || '').trim().length < 3)) { problems.push({ folioId: String(f._id), label: `ל${exp.name} אין חשבון חייבים פעיל (חייבים › פתיחת חשבון) — העברה בלי חשבון דורשת מנהל וסיבה` }); continue; }
         exp.exposure = round2(exp.exposure + folios.filter((other) => other.ownerType === 'company' && String(other.ownerRef) === String(f.ownerRef) && other.status !== 'closed').reduce((sum, other) => sum + Math.max(0, pendingGrossFor(other, nightPlan.items, lodging?._id)), 0));
         if (!(exp.creditLimit > 0)) {
           // T13 / "חברה ללא מסגרת": no credit line means no automatic receivable.

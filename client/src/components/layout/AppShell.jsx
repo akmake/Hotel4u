@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, Hotel } from 'lucide-react';
 import Sidebar from './Sidebar';
+import QuickLooks, { QuickBar, SwitchBanner } from './QuickLooks';
 import { NavStyleSwitch } from './NavVariants';
 import { designToolsOn } from '../../utils/designTools';
 import { useNavStyle } from '../../stores/navStyleStore';
@@ -90,7 +91,10 @@ export default function AppShell() {
               )}
             </h1>
           )}
+          {path.startsWith('/pms') && <QuickBar />}
         </header>
+        {path.startsWith('/pms') && <SwitchBanner />}
+        {path.startsWith('/pms') && <QuickLooks />}
         <main className={`page-content ${FLUSH_ROUTES.has(path) ? 'is-flush' : ''}`}>
           <Outlet />
         </main>

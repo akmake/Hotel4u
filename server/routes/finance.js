@@ -1,7 +1,8 @@
 // /api/pms/finance — folio (FIN-01), charges & reversals (FIN-02), payments/deposits (FIN-03),
 // refunds (FIN-04), credit notes (FIN-07) and day close (FIN-12).
 // Business rules live in services/financeService.js; this file gates roles and property scope.
-import { receivables, receiveCompanyPayment } from '../services/receivablesService.js';
+import { requireCan } from '../services/permissionService.js';
+import * as ar from '../services/arService.js';
 import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import {
@@ -339,17 +340,43 @@ router.get('/day-close/report', handle(async (req) => {
   return dayReport({ propertyId: scope(req), date: req.query.date });
 }));
 
-// G5 company receivables (city ledger).
-router.get('/receivables', handle(async (req) => { requireRoles(req, [...MONEY_WORK, 'auditor', 'owner_readonly'], 'אין הרשאה לחייבים'); return receivables({ propertyId: scope(req) }); }));
-router.post('/receivables/:companyId/payments', handle(async (req) => {
-  requireRoles(req, MONEY_WORK, 'אין הרשאה לרשום תשלום');
-  return receiveCompanyPayment({ propertyId: scope(req), companyId: req.params.companyId, input: req.body || {}, actor: actorOf(req), ip: req.ip });
-}));
+// G5 + gap-map item 7 — receivables / city ledger (services/arService.js).
+const AR_READ = [...ar.AR_ROLES_WORK, 'auditor', 'owner_readonly'];
+const arWork = (req) => requireRoles(req, ar.AR_ROLES_WORK, 'אין הרשאה לחייבים');
+const arManage = (req) => requireRoles(req, ar.AR_ROLES_MANAGE, 'פעולה בחשבון חייבים מותרת לכספים או למנהל כללי');
+const arCtx = (req) => ({ propertyId: scope(req), actor: actorOf(req), ip: req.ip });
+router.get('/receivables', handle(async (req) => { requireRoles(req, AR_READ, 'אין הרשאה לחייבים'); return ar.receivables({ propertyId: scope(req) }); }));
+router.get('/receivables/search', handle(async (req) => { requireRoles(req, AR_READ, 'אין הרשאה לחייבים'); return ar.searchDebts({ propertyId: scope(req), q: req.query.q, status: req.query.status, from: req.query.from, to: req.query.to }); }));
+router.get('/receivables/traces', handle(async (req) => { requireRoles(req, AR_READ, 'אין הרשאה לחייבים'); return ar.listTraces({ propertyId: scope(req), view: req.query.view }); }));
+router.get('/receivables/checklist', handle(async (req) => { requireRoles(req, AR_READ, 'אין הרשאה לחייבים'); return ar.dailyChecklist({ propertyId: scope(req) }); }));
+router.get('/receivables/letters', handle(async (req) => { requireRoles(req, AR_READ, 'אין הרשאה לחייבים'); return req.query.ids ? ar.getLetters({ propertyId: scope(req), ids: req.query.ids }) : ar.letterCandidates({ propertyId: scope(req), kind: req.query.kind, minBalance: req.query.minBalance, type: req.query.type }); }));
+router.post('/receivables/letters', handle(async (req) => { arWork(req); return ar.sendLetters({ ...arCtx(req), input: req.body || {} }); }));
+router.put('/receivables/policy', handle(async (req) => { arManage(req); return ar.setPolicy({ ...arCtx(req), input: req.body || {} }); }));
+router.post('/receivables/bin/approve', handle(async (req) => { arWork(req); return ar.approveBin({ ...arCtx(req), folioIds: req.body?.folioIds }); }));
+router.post('/receivables/mass-charge', handle(async (req) => { arManage(req); return ar.massCharge({ ...arCtx(req), input: req.body || {} }); }));
+router.post('/receivables/recurring/run', handle(async (req) => { arManage(req); return ar.runRecurring(arCtx(req)); }));
+router.put('/receivables/traces/:id', handle(async (req) => { arWork(req); return ar.setTraceDone({ ...arCtx(req), noteId: req.params.id, done: !!req.body?.done }); }));
+router.get('/receivables/debts/:folioId', handle(async (req) => { requireRoles(req, AR_READ, 'אין הרשאה לחייבים'); return ar.getDebt({ propertyId: scope(req), folioId: req.params.folioId }); }));
+router.post('/receivables/debts/:folioId/charge', handle(async (req) => { arWork(req); return ar.debtCharge({ ...arCtx(req), folioId: req.params.folioId, input: req.body || {} }); }));
+router.post('/receivables/debts/:folioId/adjust', handle(async (req) => { arWork(req); return ar.adjustDebt({ ...arCtx(req), folioId: req.params.folioId, input: req.body || {} }); }));
+router.post('/receivables/debts/:folioId/transfer', handle(async (req) => { arManage(req); return ar.transferDebt({ ...arCtx(req), folioId: req.params.folioId, input: req.body || {} }); }));
+router.post('/receivables/debts/:folioId/unconsolidate', handle(async (req) => { arManage(req); return ar.unconsolidateDebt({ ...arCtx(req), folioId: req.params.folioId }); }));
+router.post('/receivables/debts/:folioId/unallocate', handle(async (req) => { arWork(req); return ar.unallocatePayment({ ...arCtx(req), folioId: req.params.folioId, lineId: req.body?.lineId }); }));
+router.get('/receivables/:companyId', handle(async (req) => { requireRoles(req, AR_READ, 'אין הרשאה לחייבים'); return ar.getAccount({ propertyId: scope(req), companyId: req.params.companyId, view: req.query.view, q: req.query.q }); }));
+router.get('/receivables/:companyId/statement', handle(async (req) => { requireRoles(req, AR_READ, 'אין הרשאה לחייבים'); return ar.statementPreview({ propertyId: scope(req), companyId: req.params.companyId, query: req.query }); }));
+router.put('/receivables/:companyId/account', handle(async (req) => { arManage(req); return ar.saveAccount({ ...arCtx(req), companyId: req.params.companyId, input: req.body || {} }); }));
+router.post('/receivables/:companyId/recurring', handle(async (req) => { arManage(req); return ar.saveRecurring({ ...arCtx(req), companyId: req.params.companyId, input: req.body || {} }); }));
+router.post('/receivables/:companyId/debts', handle(async (req) => { arWork(req); return ar.newDebt({ ...arCtx(req), companyId: req.params.companyId, input: req.body || {} }); }));
+router.post('/receivables/:companyId/consolidate', handle(async (req) => { arManage(req); return ar.consolidateDebts({ ...arCtx(req), companyId: req.params.companyId, input: req.body || {} }); }));
+router.post('/receivables/:companyId/payments', handle(async (req) => { arWork(req); return ar.receiveCompanyPayment({ ...arCtx(req), companyId: req.params.companyId, input: req.body || {} }); }));
+router.post('/receivables/:companyId/allocate', handle(async (req) => { arWork(req); return ar.allocateUnapplied({ ...arCtx(req), companyId: req.params.companyId, input: req.body || {} }); }));
+router.post('/receivables/:companyId/payments/:lineId/void', handle(async (req) => { arManage(req); return ar.voidPayment({ ...arCtx(req), companyId: req.params.companyId, folioId: req.body?.folioId, lineId: req.params.lineId, input: req.body || {} }); }));
+router.post('/receivables/:companyId/notes', handle(async (req) => { arWork(req); return ar.addNote({ ...arCtx(req), companyId: req.params.companyId, input: req.body || {} }); }));
 
 router.put('/day-close/auto', handle(async (req) => setAutoDayClose({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip })));
 
 router.post('/day-close/run', handle(async (req) => {
-  requireRoles(req, NIGHT_ROLES, 'סגירת יום מותרת למנהל משמרת/לילה או לכספים');
+  requireCan(req, 'day.close', NIGHT_ROLES, 'סגירת יום מותרת למנהל משמרת/לילה או לכספים');
   const b = req.body || {};
   return runDayClose({ propertyId: scope(req), date: b.date, arrivals: b.arrivals, reason: b.reason, actor: actorOf(req), ip: req.ip });
 }));

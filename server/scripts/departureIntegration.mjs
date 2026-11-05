@@ -173,7 +173,7 @@ async function main() {
 
     // ── Company receivable: limit enforced, no limit needs a manager ────────
     const coLimitless = await Company.create({ property: P, name: `${TAG} בע"מ`, type: 'corporate', creditLimit: 0, active: true });
-    const coLimited = await Company.create({ property: P, name: `${TAG} מסגרת`, type: 'corporate', creditLimit: 2000, active: true });
+    const coLimited = await Company.create({ property: P, name: `${TAG} מסגרת`, type: 'corporate', creditLimit: 2000, active: true, ar: { active: true, number: `${TAG}-AR` } });
     created.companies.push(coLimitless._id, coLimited._id);
     const s4 = await mkStay({ company: coLimitless, extraFolios: [{ ownerType: 'company', ownerRef: String(coLimitless._id), lines: [{ type: 'charge', description: 'לינה לחברה', amount: 800, taxAmount: 0, serviceDate: today, status: 'posted' }] }] });
     await Folio.updateOne({ _id: s4.guestFolio._id }, { $push: { lines: { type: 'charge', description: 'לינה (ישן)', amount: 1000, taxAmount: 0, department: 'rooms', serviceDate: addDays(today, -2), status: 'posted' } } });
@@ -184,6 +184,11 @@ async function main() {
     await call('POST', `/frontdesk/folios/${s4.guestFolio._id}/payments`, R, { propertyId: P, amount: 2000, method: 'cash', idempotencyKey: key() });
     co = await call('POST', `/frontdesk/reservations/${s4.r._id}/check-out`, R, { propertyId: P, settlements: [{ folioId: String(s4.extra[0]._id), mode: 'company_ar' }] });
     check('Company without a credit line: receivable needs a manager (T13)', co.status === 409, co.status);
+    const coNoAr = await Company.create({ property: P, name: `${TAG} בלי חשבון`, type: 'corporate', creditLimit: 2000, active: true });
+    created.companies.push(coNoAr._id);
+    await Folio.updateOne({ _id: s4.extra[0]._id }, { $set: { ownerRef: String(coNoAr._id) } });
+    co = await call('POST', `/frontdesk/reservations/${s4.r._id}/check-out`, R, { propertyId: P, settlements: [{ folioId: String(s4.extra[0]._id), mode: 'company_ar' }] });
+    check('Company with a limit but no active AR account: receivable needs a manager', co.status === 409 && JSON.stringify(co).includes('חשבון חייבים'), co.status);
     await Folio.updateOne({ _id: s4.extra[0]._id }, { $set: { ownerRef: String(coLimited._id) } });
     co = await call('POST', `/frontdesk/reservations/${s4.r._id}/check-out`, R, { propertyId: P, settlements: [{ folioId: String(s4.extra[0]._id), mode: 'company_ar' }] });
     const s4c = await Folio.findById(s4.extra[0]._id).lean();

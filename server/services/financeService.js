@@ -10,6 +10,8 @@
 //    threshold only a manager/finance role may refund (T36);
 //  - day close runs once per business day, in order, and resumes from the failed step without
 //    posting a night twice (T33).
+import { can } from './permissionService.js';
+import { absorbCharge } from './packageService.js';
 import { routesExtras, payerFolio } from './voucherService.js';
 import { LODGING_CODES } from './noPostService.js';
 import { noPostGate } from './noPostService.js';
@@ -416,15 +418,17 @@ export async function postCharge({ propertyId, folioId, input, actor, ip, sessio
   });
   await target.save({ session });
   const line = target.lines[target.lines.length - 1];
+  // Package allowance (gap-map item 10): the part of this charge the guest's package covers is credited on a new line.
+  const absorbed = res && target === folio && input.auditAction !== 'folio.post_stay_charge' ? await absorbCharge({ propertyId, res, folio: target, line, code: code.code, gross, serviceDate, session }) : 0;
   if (noPostApproval) await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'folio.no_post_override', entityType: 'Folio', entityId: folio._id, after: { lineId: String(line._id), gross, department: code.code }, reason: noPostApproval.reason, ip, session, afterCommit });
   await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: input.auditAction || 'folio.charge', entityType: 'Folio', entityId: target._id, after: { lineId: String(line._id), ...(target !== folio ? { routedFrom: String(folio._id), routing: 'voucher' } : {}), gross, net, tax, department: code.code, vatClass: code.vatClass, serviceDate, ...(fx ? { fx } : {}) }, reason: input.reason || undefined, ip, session, afterCommit });
-  return { folioId: String(target._id), lineId: String(line._id), gross, net, tax, duplicate: false, balance: folioBalance(target), routed: target !== folio ? { to: String(target._id), reason: 'voucher' } : null };
+  return { folioId: String(target._id), lineId: String(line._id), gross, net, tax, duplicate: false, balance: folioBalance(target), routed: target !== folio ? { to: String(target._id), reason: 'voucher' } : null, packageAbsorbed: absorbed || undefined };
 }
 
 // FIN-02-A03: a reversal is an opposite line linked to the original — nothing is deleted.
 export async function reverseCharge({ propertyId, folioId, lineId, reason, actor, ip, session = null, afterCommit = null }) {
   if (!session) return financialWrite(`folio:${folioId}`, (session, afterCommit) => reverseCharge({ propertyId, folioId, lineId, reason, actor, ip, session, afterCommit }), propertyId);
-  if (!REVERSE_ROLES.includes(actor.role)) throw httpError('היפוך חיוב מותר למנהל או לכספים', 403);
+  if (!can(actor, 'charge.reverse', REVERSE_ROLES)) throw httpError('היפוך חיוב מותר למנהל או לכספים', 403);
   const why = String(reason || '').trim().slice(0, 300);
   if (why.length < 3) throw httpError('היפוך חיוב מחייב סיבה', 422, { fields: { reason: 'יש לפרט סיבה' } });
   const folio = await loadFolio(folioId, propertyId, session);
@@ -491,7 +495,9 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   // A group's account takes payments in advance (a group pays before its charges are posted), up to
   // what the group is expected to pay; any other house account has no deposit.
   const groupAccount = house && folio.account?.outlet === 'groups' && folio.account?.groupBlock;
-  if (house && input.kind === 'deposit' && !groupAccount) throw httpError('בחשבון מזדמן אין מקדמה — רושמים חיוב ואז תשלום', 422, { fields: { kind: 'לא זמין' } });
+  // A company's receivables "on account" folio takes payments not yet matched to a debt (gap-map item 7).
+  const arUnapplied = house && folio.ownerType === 'company' && folio.ar?.origin === 'unapplied';
+  if (house && input.kind === 'deposit' && !groupAccount && !arUnapplied) throw httpError('בחשבון מזדמן אין מקדמה — רושמים חיוב ואז תשלום', 422, { fields: { kind: 'לא זמין' } });
   if (groupAccount && input.kind === 'deposit') {
     const { groupExpected } = await import('./groupMoneyService.js');
     res.totalAmount = await groupExpected(propertyId, folio.account.groupBlock, session);
@@ -527,7 +533,7 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   if (kind === 'payment' && amount - balance > 0.005) {
     throw httpError(balance > 0.005 ? `הסכום גבוה מהיתרה (${balance.toFixed(2)}) — לתשלום מראש בחרו "מקדמה"` : 'אין יתרה לתשלום — לתשלום מראש בחרו "מקדמה"', 422, { fields: { amount: 'גבוה מהיתרה' } });
   }
-  if (kind === 'deposit') {
+  if (kind === 'deposit' && !arUnapplied) {
     // A deposit is capped by what the stay is expected to cost, minus what was already paid.
     const all = await stayFolios();
     const paid = round2(all.flatMap((f) => f.lines).filter((l) => l.status === 'posted' && ['payment', 'deposit'].includes(l.type)).reduce((s, l) => s - Number(l.amount || 0), 0));
@@ -590,7 +596,7 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
   const property = await Property.findById(propertyId).session(session).select('timezone financePolicy dayClose').lean();
   const threshold = Number(property?.financePolicy?.refundApprovalOver ?? 0);
   // T36: above the threshold only a manager/finance role may refund — checked here, not in the UI.
-  if (amount > threshold && !REFUND_ROLES.includes(actor.role)) throw httpError(threshold > 0 ? `החזר מעל ${threshold.toFixed(2)} מחייב מנהל או כספים` : 'החזר כספי מחייב מנהל או כספים', 403, { code: 'approval_required' });
+  if (amount > threshold && !can(actor, 'refund.issue', REFUND_ROLES)) throw httpError(threshold > 0 ? `החזר מעל ${threshold.toFixed(2)} מחייב מנהל או כספים` : 'החזר כספי מחייב מנהל או כספים', 403, { code: 'approval_required' });
   // T16: cumulative per payment.
   const already = round2(folio.lines.filter((l) => l.type === 'refund' && l.status === 'posted' && String(l.refundOf || '') === String(pay._id)).reduce((s, l) => s + Number(l.amount || 0), 0));
   const refundable = round2(Math.abs(Number(pay.amount || 0)) - already);
@@ -611,7 +617,7 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
 
 // ── FIN-07 credit note (scope + role here; caps and immutability in invoiceService) ──
 export async function creditNote({ propertyId, invoiceId, amount, selections, purpose, reason, idempotencyKey, actor, ip }) {
-  if (!CREDIT_ROLES.includes(actor.role)) throw httpError('מסמך זיכוי מופק על ידי כספים או הנהלה', 403);
+  if (!can(actor, 'credit.note', CREDIT_ROLES)) throw httpError('מסמך זיכוי מופק על ידי כספים או הנהלה', 403);
   if (!isId(String(invoiceId || ''))) throw httpError('מזהה מסמך לא תקין', 400);
   const inv = await Invoice.findOne({ _id: invoiceId, property: propertyId }).select('_id type issuer').lean();
   if (!inv) throw httpError('המסמך לא נמצא', 404);
@@ -702,7 +708,7 @@ function runDto(r) {
 
 // ── Automatic day close ─────────────────────────────────────────────────────
 export async function setAutoDayClose({ propertyId, input, actor, ip }) {
-  if (!NIGHT_ROLES.includes(actor.role)) throw httpError('הגדרת סגירה אוטומטית מותרת למנהל', 403);
+  if (!can(actor, 'day.close', NIGHT_ROLES)) throw httpError('הגדרת סגירה אוטומטית מותרת למנהל', 403);
   const time = String(input.time || '03:00');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw httpError('שעה HH:MM', 422, { fields: { time: 'שעה' } });
   const auto = { enabled: !!input.enabled, time, arrivals: input.arrivals === 'no_show' ? 'no_show' : 'keep', by: actor.name || undefined, at: new Date() };
@@ -823,8 +829,15 @@ async function snapshotFor(propertyId, date) {
 }
 
 export async function runDayClose({ propertyId, date, arrivals, reason, actor, ip }) {
-  if (!NIGHT_ROLES.includes(actor.role) && actor.role !== 'system') throw httpError('סגירת יום מותרת למנהל משמרת/לילה או לכספים', 403);
-  return withLocks([`dayclose:${propertyId}`], (lease) => runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip, lease }), { waitMs: 4000 });
+  if (!can(actor, 'day.close', NIGHT_ROLES) && actor.role !== 'system') throw httpError('סגירת יום מותרת למנהל משמרת/לילה או לכספים', 403);
+  const out = await withLocks([`dayclose:${propertyId}`], (lease) => runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip, lease }), { waitMs: 4000 });
+  // Receivables (gap-map item 7): after the close — enter departed balances (no holding bin) and post
+  // the month's recurring charges. Never fails the close.
+  if (out?.status === 'done') {
+    const { arDayCloseHook } = await import('./arService.js');
+    out.receivables = await arDayCloseHook({ propertyId, actor });
+  }
+  return out;
 }
 
 async function runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip, lease }) {

@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import { pmsJwtSecret } from '../utils/jwtSecret.js';
+import { resolvePerms, runAs } from '../services/permissionService.js';
 
 const getJwtSecret = pmsJwtSecret;
 
@@ -26,7 +27,7 @@ export async function attachActor(req, _res, next) {
     const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     const payload = safeVerifyToken(bearer);
     if (payload?.id && mongoose.isValidObjectId(String(payload.id))) {
-      const user = await User.findById(payload.id).select('firstName lastName email role property active tokenVersion accessUntil').lean();
+      const user = await User.findById(payload.id).select('firstName lastName email role property active tokenVersion accessUntil permissionGroup perms').lean();
       const tokenVersion = Number(payload.tv || 0);
       const expired = user?.accessUntil && new Date(user.accessUntil) < new Date();
       if (user && user.active !== false && !expired && tokenVersion === Number(user.tokenVersion || 0)) {
@@ -38,13 +39,16 @@ export async function attachActor(req, _res, next) {
           email: user.email || null,
           role: user.role || null,
           propertyId: user.property ? String(user.property) : null,
+          // Custom permissions overlay (gap-map item 11) — null for the many users without one.
+          perms: await resolvePerms(user),
         };
       }
     }
   } catch {
     req.actor = null;
   }
-  next();
+  // The rest of the request sees the actor's overlay too (services call can(actor, key, roles) with a plain actor).
+  if (req.actor) runAs(req.actor, () => next()); else next();
 }
 
 export function requireActor(req, res, next) {

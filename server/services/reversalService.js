@@ -11,6 +11,7 @@
 //  - Post-stay charge: a late charge (minibar found after departure) goes to a separate "post-stay"
 //    folio window, so issued documents of the stay are untouched; manager/finance, reason required,
 //    within the property's post-stay window.
+import { can } from './permissionService.js';
 import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
@@ -178,7 +179,7 @@ export async function reverseCheckIn({ propertyId, reservationId, reason, roomUs
 
 // ── Post-stay (late) charge ─────────────────────────────────────────────────
 export async function postStayCharge({ propertyId, reservationId, input, actor, ip }) {
-  if (!MANAGER_POST_ROLES.includes(actor.role)) throw httpError('חיוב אחרי יציאה מותר למנהל או לכספים', 403);
+  if (!can(actor, 'charge.post_manager', MANAGER_POST_ROLES)) throw httpError('חיוב אחרי יציאה מותר למנהל או לכספים', 403);
   const why = reasonOf(input.reason);
   const res = await loadRes(propertyId, reservationId);
   if (res.status !== 'checked_out') throw httpError('חיוב אחרי יציאה רק להזמנה שיצאה — לשהייה פעילה רושמים חיוב רגיל', 409);

@@ -4,6 +4,7 @@
 // property defined: the revenue group feeds the day-close report, the VAT class decides whether
 // VAT is extracted, and the post level decides who may post it by hand. Codes are created once and
 // never renamed or deleted — only deactivated — so lines posted under them stay readable.
+import { canAs, chargeCodeAllowedAs } from './permissionService.js';
 import mongoose from 'mongoose';
 import ChargeCode, { REVENUE_GROUPS, VAT_CLASSES, POST_LEVELS } from '../models/ChargeCode.js';
 import { audit } from './auditService.js';
@@ -220,7 +221,8 @@ export async function resolveChargeCode({ propertyId, code, actorRole, unitPrice
   const doc = typeof key === 'string' && key ? await ChargeCode.findOne({ property: propertyId, kind: 'charge', code: key }).lean() : null;
   if (!doc || doc.active === false) throw httpError('יש לבחור קוד חיוב פעיל מהקטלוג', 422, { fields: { department: 'קוד לא קיים או מושבת' } });
   if (doc.postLevel === 'system') throw httpError(`"${doc.name}" נרשם רק על ידי המערכת (סגירת יום ויציאה)`, 422, { fields: { department: 'לא לרישום ידני' } });
-  if (doc.postLevel === 'manager' && !MANAGER_POST_ROLES.includes(actorRole)) throw httpError(`רישום "${doc.name}" מותר למנהל או לכספים`, 403, { code: 'approval_required' });
+  if (!chargeCodeAllowedAs(actorRole, doc.code)) throw httpError(`הקוד "${doc.name}" אינו מורשה לקבוצת ההרשאות שלך`, 403, { code: 'code_not_permitted' });
+  if (doc.postLevel === 'manager' && !canAs(actorRole, 'charge.post_manager', MANAGER_POST_ROLES)) throw httpError(`רישום "${doc.name}" מותר למנהל או לכספים`, 403, { code: 'approval_required' });
   let price = unitPrice === undefined || unitPrice === null || unitPrice === '' ? null : round2(unitPrice);
   if (doc.priceEditable === false) {
     if (price !== null && Math.abs(price - Number(doc.defaultPrice)) > 0.005) throw httpError(`המחיר של "${doc.name}" קבוע (${Number(doc.defaultPrice).toFixed(2)})`, 422, { fields: { unitPrice: 'מחיר קבוע' } });

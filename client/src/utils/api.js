@@ -150,6 +150,12 @@ export const dashboard = {
 
 // ── Front desk: arrivals, check-in, room assignment, waiting queue ───────────
 export const frontdesk = {
+  // Home screen & quick looks (gap-map item 8)
+  homeCounters:   (propertyId) => api.get(`/frontdesk/home/counters?propertyId=${propertyId}`),
+  homeWeek:       (propertyId, params = {}) => api.get(`/frontdesk/home/week?propertyId=${propertyId}${qs(params)}`),
+  homeHouse:      (propertyId, params = {}) => api.get(`/frontdesk/home/house?propertyId=${propertyId}${qs(params)}`),
+  freeRooms:      (propertyId, params = {}) => api.get(`/frontdesk/home/free-rooms?propertyId=${propertyId}${qs(params)}`),
+  turnAway:       (propertyId, body) => api.post('/frontdesk/home/turnaways', { ...body, propertyId }),
   cribDesk:       (propertyId, q) => api.get(`/frontdesk/cribs?propertyId=${propertyId}${qs({ q })}`),
   cribContext:    (propertyId, id, unitId) => api.get(`/frontdesk/reservations/${id}/units/${unitId}/cribs?propertyId=${propertyId}`),
   cribAction:     (propertyId, id, unitId, body) => api.post(`/frontdesk/reservations/${id}/units/${unitId}/cribs`, { ...body, propertyId }),
@@ -271,6 +277,32 @@ export const finance = {
   setAutoDayClose: (propertyId, body)    => api.put('/finance/day-close/auto', { ...body, propertyId }),
   receivables: (propertyId)               => api.get(`/finance/receivables?propertyId=${propertyId}`),
   receivePayment: (propertyId, companyId, body) => api.post(`/finance/receivables/${companyId}/payments`, { ...body, propertyId }),
+  // Receivables / city ledger (gap-map item 7)
+  arAccount:     (pid, cid, params = {})   => api.get(`/finance/receivables/${cid}?propertyId=${pid}${qs(params)}`),
+  arSaveAccount: (pid, cid, body)          => api.put(`/finance/receivables/${cid}/account`, { ...body, propertyId: pid }),
+  arDebt:        (pid, fid)                => api.get(`/finance/receivables/debts/${fid}?propertyId=${pid}`),
+  arDebtCharge:  (pid, fid, body)          => api.post(`/finance/receivables/debts/${fid}/charge`, { ...body, propertyId: pid }),
+  arAdjust:      (pid, fid, body)          => api.post(`/finance/receivables/debts/${fid}/adjust`, { ...body, propertyId: pid }),
+  arTransfer:    (pid, fid, body)          => api.post(`/finance/receivables/debts/${fid}/transfer`, { ...body, propertyId: pid }),
+  arUnconsolidate: (pid, fid)              => api.post(`/finance/receivables/debts/${fid}/unconsolidate`, { propertyId: pid }),
+  arUnallocate:  (pid, fid, lineId)        => api.post(`/finance/receivables/debts/${fid}/unallocate`, { lineId, propertyId: pid }),
+  arNewDebt:     (pid, cid, body)          => api.post(`/finance/receivables/${cid}/debts`, { ...body, propertyId: pid }),
+  arConsolidate: (pid, cid, body)          => api.post(`/finance/receivables/${cid}/consolidate`, { ...body, propertyId: pid }),
+  arAllocate:    (pid, cid, body)          => api.post(`/finance/receivables/${cid}/allocate`, { ...body, propertyId: pid }),
+  arVoidPayment: (pid, cid, lineId, body)  => api.post(`/finance/receivables/${cid}/payments/${lineId}/void`, { ...body, propertyId: pid }),
+  arNote:        (pid, cid, body)          => api.post(`/finance/receivables/${cid}/notes`, { ...body, propertyId: pid }),
+  arRecurring:   (pid, cid, body)          => api.post(`/finance/receivables/${cid}/recurring`, { ...body, propertyId: pid }),
+  arTraces:      (pid, view)               => api.get(`/finance/receivables/traces?propertyId=${pid}${qs({ view })}`),
+  arTraceDone:   (pid, id, done)           => api.put(`/finance/receivables/traces/${id}`, { done, propertyId: pid }),
+  arSearch:      (pid, params = {})        => api.get(`/finance/receivables/search?propertyId=${pid}${qs(params)}`),
+  arChecklist:   (pid)                     => api.get(`/finance/receivables/checklist?propertyId=${pid}`),
+  arCandidates:  (pid, params = {})        => api.get(`/finance/receivables/letters?propertyId=${pid}${qs(params)}`),
+  arLetters:     (pid, ids)                => api.get(`/finance/receivables/letters?propertyId=${pid}${qs({ ids })}`),
+  arSendLetters: (pid, body)               => api.post('/finance/receivables/letters', { ...body, propertyId: pid }),
+  arPolicy:      (pid, body)               => api.put('/finance/receivables/policy', { ...body, propertyId: pid }),
+  arApproveBin:  (pid, folioIds)           => api.post('/finance/receivables/bin/approve', { folioIds, propertyId: pid }),
+  arMassCharge:  (pid, body)               => api.post('/finance/receivables/mass-charge', { ...body, propertyId: pid }),
+  arRunRecurring:(pid)                     => api.post('/finance/receivables/recurring/run', { propertyId: pid }),
   dayReport:   (propertyId, date)        => api.get(`/finance/day-close/report?propertyId=${propertyId}${qs({ date })}`),
   closeFolio:  (propertyId, folioId)     => api.post(`/finance/folios/${folioId}/close`, { propertyId }),
   // Folio line operations (gap-map item 2)
@@ -806,6 +838,85 @@ export const events = {
 export const demand = {
   calendar: (propertyId, params = {}) => api.get(`/demand?propertyId=${propertyId}${qs(params)}`),
   apply:    (propertyId, body)        => api.post('/demand/apply', { ...body, propertyId }),
+};
+
+// ── Revenue management (day types, LOS tiers, channel rules, strategies) ────
+export const revenue = {
+  calendar:      (propertyId, params = {}) => api.get(`/revenue/calendar?propertyId=${propertyId}${qs(params)}`),
+  setCalendar:   (propertyId, body)        => api.put('/revenue/calendar', { ...body, propertyId }),
+  dayTypes:      (propertyId)              => api.get(`/revenue/day-types?propertyId=${propertyId}`),
+  saveDayType:   (propertyId, id, body)    => (id ? api.patch(`/revenue/day-types/${id}`, { ...body, propertyId }) : api.post('/revenue/day-types', { ...body, propertyId })),
+  plans:         (propertyId)              => api.get(`/revenue/plans?propertyId=${propertyId}`),
+  savePlan:      (propertyId, id, body)    => api.put(`/revenue/plans/${id}`, { ...body, propertyId }),
+  channelRules:  (propertyId)              => api.get(`/revenue/channel-rules?propertyId=${propertyId}`),
+  saveChannelRule: (propertyId, id, body)  => (id ? api.patch(`/revenue/channel-rules/${id}`, { ...body, propertyId }) : api.post('/revenue/channel-rules', { ...body, propertyId })),
+  strategies:    (propertyId)              => api.get(`/revenue/strategies?propertyId=${propertyId}`),
+  saveStrategy:  (propertyId, id, body)    => (id ? api.patch(`/revenue/strategies/${id}`, { ...body, propertyId }) : api.post('/revenue/strategies', { ...body, propertyId })),
+  runStrategies: (propertyId)              => api.post('/revenue/strategies/run', { propertyId }),
+  restrictions:  (propertyId, params = {}) => api.get(`/revenue/restrictions?propertyId=${propertyId}${qs(params)}`),
+  manualRestrictions: (propertyId, params = {}) => api.get(`/revenue/restrictions/manual?propertyId=${propertyId}${qs(params)}`),
+};
+
+// ── Packages (components, plan links, ledger) and agent commissions (gap-map item 10) ──
+export const packages = {
+  components:  (propertyId)              => api.get(`/packages/components?propertyId=${propertyId}`),
+  saveComponent: (propertyId, id, body)  => (id ? api.patch(`/packages/components/${id}`, { ...body, propertyId }) : api.post('/packages/components', { ...body, propertyId })),
+  plans:       (propertyId)              => api.get(`/packages/plans?propertyId=${propertyId}`),
+  savePlan:    (propertyId, id, body)    => api.put(`/packages/plans/${id}`, { ...body, propertyId }),
+  ledger:      (propertyId, params = {}) => api.get(`/packages/ledger?propertyId=${propertyId}${qs(params)}`),
+  breakdown:   (propertyId, reservationId) => api.get(`/packages/reservations/${reservationId}?propertyId=${propertyId}`),
+  addItem:     (propertyId, reservationId, body) => api.post(`/packages/reservations/${reservationId}/items`, { ...body, propertyId }),
+  removeItem:  (propertyId, reservationId, itemId) => api.delete(`/packages/reservations/${reservationId}/items/${itemId}?propertyId=${propertyId}`),
+};
+export const commissions = {
+  list:        (propertyId, params = {}) => api.get(`/commissions?propertyId=${propertyId}${qs(params)}`),
+  agents:      (propertyId)              => api.get(`/commissions/agents?propertyId=${propertyId}`),
+  process:     (propertyId, body = {})   => api.post('/commissions/process', { ...body, propertyId }),
+  manual:      (propertyId, body)        => api.post('/commissions/manual', { ...body, propertyId }),
+  hold:        (propertyId, body)        => api.post('/commissions/hold', { ...body, propertyId }),
+  release:     (propertyId, body)        => api.post('/commissions/release', { ...body, propertyId }),
+  edit:        (propertyId, id, body)    => api.patch(`/commissions/${id}`, { ...body, propertyId }),
+  detach:      (propertyId, body)        => api.post('/commissions/detach', { ...body, propertyId }),
+  prePayment:  (propertyId, params = {}) => api.get(`/commissions/pre-payment?propertyId=${propertyId}${qs(params)}`),
+  pay:         (propertyId, body)        => api.post('/commissions/pay', { ...body, propertyId }),
+  payments:    (propertyId, params = {}) => api.get(`/commissions/payments?propertyId=${propertyId}${qs(params)}`),
+  payment:     (propertyId, id)          => api.get(`/commissions/payments/${id}?propertyId=${propertyId}`),
+  setPaymentStatus: (propertyId, id, body) => api.post(`/commissions/payments/${id}/status`, { ...body, propertyId }),
+  printPayment: (propertyId, id)         => api.post(`/commissions/payments/${id}/print`, { propertyId }),
+  report:      (propertyId, params = {}) => api.get(`/commissions/report?propertyId=${propertyId}${qs(params)}`),
+  forReservation: (propertyId, id)       => api.get(`/commissions/reservation/${id}?propertyId=${propertyId}`),
+};
+
+// Card clearing (gap-map item 12)
+export const cards = {
+  settings:     (propertyId)                 => api.get(`/cards/settings?propertyId=${propertyId}`),
+  saveSettings: (propertyId, body)           => api.put('/cards/settings', { ...body, propertyId }),
+  startCapture: (propertyId, body)           => api.post('/cards/capture', { ...body, propertyId }),
+  finishCapture:(propertyId, token, payload) => api.post(`/cards/capture/${token}`, { payload, propertyId }),
+  list:         (propertyId, params = {})    => api.get(`/cards?propertyId=${propertyId}${qs(params)}`),
+  verify:       (propertyId, id)             => api.post(`/cards/${id}/verify`, { propertyId }),
+  remove:       (propertyId, id)             => api.post(`/cards/${id}/remove`, { propertyId }),
+  state:        (propertyId, reservationId)  => api.get(`/cards/reservations/${reservationId}?propertyId=${propertyId}`),
+  setCard:      (propertyId, reservationId, card) => api.post(`/cards/reservations/${reservationId}/card`, { card, propertyId }),
+  authorize:    (propertyId, reservationId, body = {}) => api.post(`/cards/reservations/${reservationId}/authorize`, { ...body, propertyId }),
+  topUp:        (propertyId, reservationId)  => api.post(`/cards/reservations/${reservationId}/top-up`, { propertyId }),
+  release:      (propertyId, reservationId)  => api.post(`/cards/reservations/${reservationId}/release`, { propertyId }),
+  board:        (propertyId)                 => api.get(`/cards/authorizations?propertyId=${propertyId}`),
+  charge:       (propertyId, folioId, body)  => api.post(`/cards/folios/${folioId}/charge`, { ...body, propertyId }),
+  refund:       (propertyId, folioId, body)  => api.post(`/cards/folios/${folioId}/refund`, { ...body, propertyId }),
+  settlements:  (propertyId, params = {})    => api.get(`/cards/settlements?propertyId=${propertyId}${qs(params)}`),
+  deposit:      (propertyId, id, body)       => api.post(`/cards/settlements/${id}/deposit`, { ...body, propertyId }),
+  transactions: (propertyId, params = {})    => api.get(`/cards/transactions?propertyId=${propertyId}${qs(params)}`),
+};
+
+// Custom permissions (gap-map item 11)
+export const permissions = {
+  catalog:   (propertyId)           => api.get(`/permissions/catalog?propertyId=${propertyId}`),
+  groups:    (propertyId)           => api.get(`/permissions/groups?propertyId=${propertyId}`),
+  saveGroup: (propertyId, id, body) => (id ? api.patch(`/permissions/groups/${id}`, { ...body, propertyId }) : api.post('/permissions/groups', { ...body, propertyId })),
+  users:     (propertyId, params = {}) => api.get(`/permissions/users?propertyId=${propertyId}${qs(params)}`),
+  assign:    (propertyId, id, body) => api.patch(`/permissions/users/${id}`, { ...body, propertyId }),
+  unlock:    (propertyId, id)       => api.post(`/permissions/users/${id}/unlock`, { propertyId }),
 };
 
 // ── Promotions (promo codes) ─────────────────────────────────────────────────

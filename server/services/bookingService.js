@@ -11,6 +11,7 @@
 //  - the agreed price and terms are frozen on the reservation (snapshot);
 //  - a quote is not a booking: it holds inventory only when asked, until its validity ends;
 //    an expired hold releases its inventory.
+import { can } from './permissionService.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
@@ -37,6 +38,7 @@ import { folioBalance } from './departureService.js';
 import { partyMembers } from './partyBookingService.js';
 import { boardOfPlan, supplementPerNight, BOARD_LABELS, BOARDS } from './boardService.js';
 import { resolvePromotion, applyPromotion } from './promotionService.js';
+import { revenueContext, restrictionsFor, channelOf, orderPlans } from './revenueService.js';
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const isId = (v) => typeof v === 'string' && mongoose.isValidObjectId(v);
@@ -84,7 +86,7 @@ function validateStay({ arrival, departure, adults, children, rooms, today }) {
   return { nights, adults: a, children: c, rooms: r };
 }
 
-async function offersFor({ propertyId, property, roomType, plans, arrival, departure, adults, children, rooms, nights, board, childAges, promo = null, promoCode, session = null, excludeReservationId = null }) {
+async function offersFor({ propertyId, property, roomType, plans, arrival, departure, adults, children, rooms, nights, board, childAges, promo = null, promoCode, session = null, excludeReservationId = null, rev = null, channel = 'desk' }) {
   const dates = getStayDates(arrival, departure);
   const perRoomAdults = Math.ceil(adults / rooms);
   const perRoomChildren = Math.ceil(children / rooms);
@@ -123,20 +125,27 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
       const nightly = [];
       const missingRate = [];
       const today = businessDateOf(property);
+      // Revenue: channel close / discount and strategy restrictions for this plan × type.
+      const rx = restrictionsFor(rev, { dates, channel, planId: plan._id, roomTypeId: roomType._id });
+      reasons.push(...rx.reasons);
+      let tierLabel = null; const dayTypeNames = new Set();
       for (const d of dates) {
         const rd = cal.get(d);
         if (rd?.stopSell) reasons.push({ code: 'rate_closed', label: `התעריף סגור ל־${d}` });
         const parentPlan = plan.derived?.from ? parents.get(String(plan.derived.from)) : null;
         const parent = parentPlan ? { plan: parentPlan, rd: byPlan.get(String(parentPlan._id))?.get(d) } : null;
-        const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: nights, today, parent, context: promoCode ? { promoCode } : {} });
+        const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: nights, today, parent, context: promoCode ? { promoCode, channel } : { channel }, dayType: rev?.dayTypes?.get(d) || null });
         if (p.price === null) { missingRate.push(d); continue; }
-        nightly.push({ date: d, price: p.price });
+        if (p.tier) tierLabel = p.tier;
+        if (p.dayType) dayTypeNames.add(p.dayType);
+        const off = rx.discounts.get(d);
+        nightly.push({ date: d, price: off ? round2(p.price * (1 - off / 100)) : p.price });
       }
       if (missingRate.length) reasons.push({ code: 'missing_rate', label: `אין מחיר ל־${missingRate.slice(0, 3).join(', ')}${missingRate.length > 3 ? '…' : ''} — אין מחיר בלוח התעריפים ואין מחיר בסיס לסוג החדר` });
       const first = cal.get(arrival);
       if (first?.cta) reasons.push({ code: 'cta', label: 'התעריף סגור להגעה בתאריך זה' });
       if (cal.get(departure)?.ctd) reasons.push({ code: 'ctd', label: 'התעריף סגור ליציאה בתאריך זה' });
-      const minLos = Math.max(Number(first?.minLos || 1), Number(nightsAvail[0]?.minLos || 1));
+      const minLos = Math.max(Number(first?.minLos || 1), Number(nightsAvail[0]?.minLos || 1), Number(rx.minLos || 1));
       const maxLos = Number(first?.maxLos || nightsAvail[0]?.maxLos || 0);
       if (nights < minLos) reasons.push({ code: 'min_los', label: `מינימום ${minLos} לילות` });
       if (maxLos && nights > maxLos) reasons.push({ code: 'max_los', label: `מקסימום ${maxLos} לילות` });
@@ -166,6 +175,7 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
         roomPerRoom,
         nightly, perRoom, total, averageNight: nightly.length ? round2(perRoom / nightly.length) : 0,
         promotion: promoApplied ? { code: promo.code, name: promo.name, label: promoApplied.label, saving: round2(promoApplied.saving * rooms), listTotal: round2((listPerRoom + supp * nightly.length) * rooms) } : null,
+        revenue: { tier: tierLabel, dayTypes: [...dayTypeNames], channelDiscount: rx.discounts.size ? Math.max(...rx.discounts.values()) : 0, strategyMinLos: rx.minLos || null },
         available: Math.max(0, minAvail), availability: nightsAvail.map((n) => ({ date: n.date, available: n.missing ? null : n.available })),
         bookable: uniq.length === 0 && nightly.length === dates.length,
         reasons: uniq,
@@ -193,10 +203,15 @@ export async function searchAvailability({ propertyId, query, session = null, ex
   const offers = [];
   const childAges = Array.isArray(query.childAges) ? query.childAges.map(Number) : String(query.childAges || '').split(',').filter((x) => x !== '').map(Number);
   const promo = query.promoCode ? await resolvePromotion({ propertyId, code: query.promoCode, arrival: query.arrival, nights: stay.nights, today, channel: query.channel === 'web' ? 'web' : 'desk', session }) : null;
-  for (const rt of roomTypes) offers.push(...await offersFor({ propertyId, property, roomType: rt, plans, arrival: query.arrival, departure: query.departure, ...stay, board: query.board, childAges, promo, promoCode: promo?.ok ? promo.code : undefined, session, excludeReservationId }));
+  const channel = ['web', 'ota'].includes(query.channel) ? query.channel : 'desk';
+  const rev = await revenueContext({ propertyId, dates: getStayDates(query.arrival, query.departure), session });
+  const arrivalType = rev.dayTypes.get(query.arrival) || null;
+  const ordered = orderPlans(plans, arrivalType);
+  for (const rt of roomTypes) offers.push(...await offersFor({ propertyId, property, roomType: rt, plans: ordered, arrival: query.arrival, departure: query.departure, ...stay, board: query.board, childAges, promo, promoCode: promo?.ok ? promo.code : undefined, session, excludeReservationId, rev, channel }));
   return {
     arrival: query.arrival, departure: query.departure, nights: stay.nights, adults: stay.adults, children: stay.children, rooms: stay.rooms,
     currency: property.defaultCurrency || 'ILS', businessDate: today,
+    dayType: arrivalType ? { name: arrivalType.name, color: arrivalType.color, planOrder: (arrivalType.planOrder || []).length > 0 } : null,
     validUntil: new Date(Date.now() + OFFER_TTL_MIN * 60000).toISOString(),
     promo: promo ? { code: promo.code, ok: promo.ok, why: promo.why || null, name: promo.name || null, description: promo.description || null } : null,
     offers,
@@ -315,7 +330,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
     nightly = getStayDates(search.arrival, search.departure).map((d) => ({ date: d, price: round2(groupRate) }));
     override = { by: actor.name, reason: input.groupReason || 'מחיר קבוצה' };
   } else if (input.override?.ratePerNight !== undefined && input.override?.ratePerNight !== null && input.override?.ratePerNight !== '') {
-    if (!PRICE_OVERRIDE_ROLES.includes(actor.role)) throw httpError('שינוי מחיר ידני מותר למנהל או להכנסות', 403);
+    if (!can(actor, 'price.override', PRICE_OVERRIDE_ROLES)) throw httpError('שינוי מחיר ידני מותר למנהל או להכנסות', 403);
     const rate = round2(input.override.ratePerNight);
     const why = String(input.override.reason || '').trim().slice(0, 300);
     if (!(rate > 0)) throw httpError('מחיר לא תקין', 422, { fields: { override: 'מחיר חיובי' } });
@@ -343,7 +358,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
     const saving = kind === 'percent' ? round2(base * value / 100) : value;
     const threshold = Number(property?.discountApprovalPercent ?? 10);
     const needsApproval = (saving / base) * 100 > threshold + 1e-9;
-    if (needsApproval && !PRICE_OVERRIDE_ROLES.includes(actor.role)) throw httpError(`הנחה מעל ${threshold}% מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
+    if (needsApproval && !can(actor, 'discount.approve', PRICE_OVERRIDE_ROLES)) throw httpError(`הנחה מעל ${threshold}% מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
     // Spread over the nights by share of each night's price; rounding rest goes on the last night.
     const factor = (base - saving) / base;
     nightly = nightly.map((n) => ({ date: n.date, price: round2(n.price * factor) }));
@@ -353,7 +368,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
   }
   // Only a draft may be saved for something that cannot be sold right now (it holds nothing).
   // A group price ignores the public rate's restrictions (rate closed, LOS, missing calendar price) — not inventory.
-  const blocking = groupPriced ? offer.reasons.filter((r) => !['missing_rate', 'rate_closed', 'min_los', 'max_los', 'cta', 'ctd', 'board_unpriced'].includes(r.code)) : offer.reasons;
+  const blocking = groupPriced ? offer.reasons.filter((r) => !['missing_rate', 'rate_closed', 'min_los', 'max_los', 'cta', 'ctd', 'board_unpriced', 'channel_closed', 'strategy_closed', 'strategy_cta'].includes(r.code)) : offer.reasons;
   if (mode !== 'draft' && (groupPriced ? blocking.length > 0 : !offer.bookable)) {
     throw httpError(blocking[0]?.label || 'לא ניתן למכור את ההצעה', 409, { code: 'not_bookable', details: blocking });
   }
@@ -374,7 +389,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
       data: {
         roomTypeId: offer.roomType.id, ratePlanId: offer.ratePlan.id, arrivalDate: search.arrival, departureDate: search.departure,
         primaryGuestId: guest._id, adults: search.adults, children: search.children, roomsCount: search.rooms,
-        ratePerNight: avgRate, source: input.source || 'direct', specialRequests: input.specialRequests ? String(input.specialRequests).slice(0, 1000) : undefined,
+        ratePerNight: avgRate, source: input.source || 'direct', salesChannel: ['web', 'ota'].includes(input.channel) ? input.channel : 'desk',specialRequests: input.specialRequests ? String(input.specialRequests).slice(0, 1000) : undefined,
         internalNotes: input.internalNotes ? String(input.internalNotes).slice(0, 1000) : undefined,
         companyId: company?._id, idempotencyKey: key, bookingStatus: status,
         cancellationPolicy: offer.cancellation.text, depositPolicy: offer.deposit,
@@ -466,7 +481,7 @@ export async function convertQuote({ propertyId, id, priceSignature, actor, ip }
     if (!['quote', 'hold'].includes(r.status) || (r.status === 'quote' && !r.quote?.version)) throw httpError('ההצעה כבר הומרה או נסגרה', 409);
     const now = new Date();
     if ((r.quote?.validUntil && r.quote.validUntil < now) || (r.status === 'hold' && r.holdExpiresAt && r.holdExpiresAt < now)) throw httpError('תוקף ההצעה או האופציה עבר — יש לבדוק מחדש', 409, { code: 'expired' });
-    const { offer } = await resolveOffer({ propertyId, input: { arrival: r.arrivalDate, departure: r.departureDate, adults: r.adults, children: r.children || 0, rooms: r.roomsCount || 1, roomTypeId: String(r.roomType), ratePlanId: String(r.ratePlan), board: r.board || undefined, childAges: r.childAges || [] }, session, excludeReservationId: r._id });
+    const { offer } = await resolveOffer({ propertyId, input: { arrival: r.arrivalDate, departure: r.departureDate, adults: r.adults, children: r.children || 0, rooms: r.roomsCount || 1, roomTypeId: String(r.roomType), ratePlanId: String(r.ratePlan), board: r.board || undefined, childAges: r.childAges || [], channel: channelOf(r) }, session, excludeReservationId: r._id });
     if (!offer.bookable) throw httpError(offer.reasons[0]?.label || 'ההצעה אינה זמינה לאישור', 409, { code: 'not_bookable', details: offer.reasons });
     const boardByDate = new Map((r.priceSnapshot?.board?.nightly || []).map((n) => [n.date, Number(n.price)]));
     const agreed = r.priceSnapshot?.override?.reason ? null : signature((r.priceSnapshot?.nightly || []).map((n) => ({ date: n.date, price: round2(Number(n.price) + (boardByDate.get(n.date) || 0)) })));
@@ -640,6 +655,7 @@ export async function getStayFile({ propertyId, id, role }) {
     arrivalDate: r.arrivalDate, departureDate: r.departureDate, nights: r.nights, adults: r.adults, children: r.children || 0, childAges: r.childAges || [],
     roomType: r.roomType?.name || null, roomTypeId: r.roomType?._id ? String(r.roomType._id) : null, ratePlan: r.ratePlan ? { code: r.ratePlan.code, name: r.ratePlan.name } : null,
     notes: { requests: r.specialRequests || '', internal: r.internalNotes || '' },
+    packageItems: (r.packageItems || []).map((x) => ({ id: String(x._id), component: String(x.component), qty: x.qty, from: x.from, to: x.to })),
     shares: (r.shares || []).map((s) => ({ id: String(s._id), name: s.name, split: s.split, status: s.status, folioId: s.folio ? String(s.folio) : null, mergedFrom: s.mergedFrom || null, newReservationId: s.newReservation ? String(s.newReservation) : null, at: s.at, by: s.byName || null })),
     party: r.party?.id ? { code: r.party.code, index: r.party.index, size: r.party.size } : null,
     splitFrom: r.splitFrom?.confirmationNumber ? { id: String(r.splitFrom.reservation), confirmationNumber: r.splitFrom.confirmationNumber } : null,
@@ -685,7 +701,7 @@ export async function getStayFile({ propertyId, id, role }) {
 
 // Price of given nights (used by stay changes: extension, modification) — same engine as booking.
 // A night that cannot be priced (no calendar row and no base price) is returned as missing, never invented.
-export async function priceNights({ roomTypeId, ratePlanId, dates, adults = 2, children = 0, rooms = 1, session = null }) {
+export async function priceNights({ roomTypeId, ratePlanId, dates, adults = 2, children = 0, rooms = 1, session = null, channel = 'desk' }) {
   const perRoomAdults = Math.ceil(adults / rooms);
   const perRoomChildren = Math.ceil(children / rooms);
   const rds = ratePlanId ? await RateDate.find({ roomType: roomTypeId, ratePlan: ratePlanId, date: { $in: dates } }).session(session).lean() : [];
@@ -694,15 +710,21 @@ export async function priceNights({ roomTypeId, ratePlanId, dates, adults = 2, c
   const by = new Map(rds.map((rd) => [rd.date, rd]));
   const parentPlan = plan?.derived?.from ? await RatePlan.findById(plan.derived.from).session(session).lean() : null;
   const parentRows = parentPlan ? new Map((await RateDate.find({ roomType: roomTypeId, ratePlan: parentPlan._id, date: { $in: dates } }).session(session).lean()).map((r) => [r.date, r])) : new Map();
+  // Same revenue rules as booking: day type per night, and the channel discount of the channel the stay was
+  // sold on (a closure does not stop changing a stay that already exists).
+  const rev = roomType?.property && dates.length ? await revenueContext({ propertyId: roomType.property, dates, session }) : null;
+  const dayTypes = rev?.dayTypes || new Map();
+  const { discounts } = restrictionsFor(rev, { dates, channel, planId: ratePlanId, roomTypeId });
   const nightly = [];
   const missing = [];
   const closed = [];
   for (const d of dates) {
     const rd = by.get(d);
     if (rd?.stopSell) closed.push(d);
-    const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: dates.length, parent: parentPlan ? { plan: parentPlan, rd: parentRows.get(d) } : null });
+    const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: dates.length, parent: parentPlan ? { plan: parentPlan, rd: parentRows.get(d) } : null, dayType: dayTypes.get(d) || null });
     if (p.price === null) { missing.push(d); continue; }
-    nightly.push({ date: d, price: p.price });
+    const off = discounts.get(d);
+    nightly.push({ date: d, price: off ? round2(p.price * (1 - off / 100)) : p.price });
   }
   return { nightly, missing, closed, perRoom: round2(nightly.reduce((s, n) => s + n.price, 0)), signature: signature(nightly) };
 }

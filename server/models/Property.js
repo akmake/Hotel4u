@@ -237,6 +237,21 @@ const PropertySchema = new Schema({
   // How the property sells: 'rates' (choose a rate plan) or 'board' (choose a board — each board is
   // a rate plan with its own price calendar). The manager decides; the booking form shows one choice.
   pricingMode: { type: String, enum: ['rates', 'board'], default: 'rates' },
+  // Card clearing (gap-map item 12, services/cardGateway.js): each property uses its own provider account.
+  // Credentials are sealed; 'mock' is the test provider (refuses in production).
+  payments: {
+    type: new Schema({
+      provider:     { type: String, default: 'mock' },
+      mode:         { type: String, enum: ['test', 'live'], default: 'test' },
+      credentials:  String,                              // sealed JSON (utils/secretBox) — never returned to the client
+      authOnCheckIn:{ type: Boolean, default: true },     // place an authorization when a guest with a card checks in
+      authBasis:    { type: String, enum: ['stay', 'per_night', 'fixed'], default: 'stay' },
+      authAmount:   { type: Number, min: 0 },             // per_night: per night · fixed: total
+      incidentals:  { type: Number, min: 0, default: 0 }, // added per night for extras
+      updatedByName: String,
+    }, { _id: false }),
+    default: undefined,
+  },
   // Public booking site (/book). Off until a manager turns it on; payment is taken at booking time
   // through the payment provider (services/paymentGateway.js) — full amount or a deposit.
   // Public statements the hotel must publish: accessibility arrangements (Equal Rights regulations,
@@ -317,6 +332,12 @@ const PropertySchema = new Schema({
       version:       { type: Number, default: 0 },
       updatedByName: String,
     },
+  },
+  // Receivables (gap-map item 7): holdBin = departed company balances wait in a holding bin until
+  // accounting enters them; off = day close enters them automatically. Reminder cycles per account type.
+  arPolicy: {
+    holdBin:   { type: Boolean, default: true },
+    writeOffApprovalOver: { type: Number, default: 0 },   // write-offs above this need finance/GM (0 = always)
   },
   financePolicy: {
     cashLimitPerStay:   { type: Number, default: null },     // cumulative cash per reservation

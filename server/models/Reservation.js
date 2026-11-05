@@ -38,7 +38,9 @@ const ReservationSchema = new Schema({
   // Booking details
   source:            { type: String, enum: SOURCE, default: 'direct' },
   marketSegment:     String,
-  ratePlan:          { type: Schema.Types.ObjectId, ref: 'RatePlan' },
+  // Where the stay was sold (gap-map item 9): channel rules (web discount) keep applying when it is repriced.
+  salesChannel:      { type: String, enum: ['desk', 'web', 'ota'] },
+  ratePlan:         { type: Schema.Types.ObjectId, ref: 'RatePlan' },
   roomType:          { type: Schema.Types.ObjectId, ref: 'RoomType', required: true },
   assignedRoom:      { type: Schema.Types.ObjectId, ref: 'Room' },
 
@@ -176,6 +178,12 @@ const ReservationSchema = new Schema({
   // Relations
   company:           { type: Schema.Types.ObjectId, ref: 'Company' },
   travelAgent:       { type: Schema.Types.ObjectId, ref: 'Company' },
+  // The card on file for this stay (gap-map item 12) — a reference to the tokenized card, last 4 for display.
+  card:              { type: new Schema({ ref: { type: Schema.Types.ObjectId, ref: 'PaymentCard' }, last4: String, brand: String }, { _id: false }), default: undefined },
+  // Commission % for this reservation only (a group agreed a different rate) — beats plan and agent.
+  commissionPct:     { type: Number, min: 0, max: 100 },
+  // Package components added to this reservation by hand (gap-map item 10) — on top of the plan's.
+  packageItems:      { type: [new Schema({ component: { type: Schema.Types.ObjectId, ref: 'PackageComponent', required: true }, qty: { type: Number, default: 1, min: 1, max: 50 }, from: String, to: String, byName: String, at: Date }, { _id: true })], default: [] },
   group:             String,
   groupCode:         String,
   groupName:         String,

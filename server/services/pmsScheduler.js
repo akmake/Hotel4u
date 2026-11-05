@@ -186,6 +186,18 @@ export function initPmsScheduler() {
     });
   });
 
+  // Card authorizations of stays that left or were cancelled are released (gap-map item 12).
+  cron.schedule('*/10 * * * *', async () => {
+    const { releaseFinished } = await import('./cardService.js');
+    await releaseFinished().catch((err) => console.error('[cards]', err.message));
+  });
+
+  // Agent commissions (gap-map item 10): departures of the day before become commission records, every morning.
+  cron.schedule('20 6 * * *', async () => {
+    const { processDepartures } = await import('./commissionService.js');
+    for (const prop of await getActivePropertyIds()) await processDepartures({ propertyId: String(prop._id) }).catch((err) => console.error('[commissions]', err.message));
+  });
+
   // Expired holds give their inventory back (RSV-04 / RSV-02 hold) — every 10 minutes.
   cron.schedule('*/10 * * * *', async () => {
     try {
@@ -223,6 +235,16 @@ export function initPmsScheduler() {
       await autoDayCloseTick();
     } catch (err) {
       console.error('[pmsScheduler] autoDayClose failed:', err.message);
+    }
+  });
+
+  // Revenue strategies: place / lift automatic restrictions by occupancy — every 15 minutes.
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      const { runAllStrategies } = await import('./revenueService.js');
+      await runAllStrategies();
+    } catch (err) {
+      console.error('[pmsScheduler] revenue strategies failed:', err.message);
     }
   });
 

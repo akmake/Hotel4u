@@ -14,6 +14,7 @@ import { priceNight } from './ratePricing.js';
 import { audit } from './auditService.js';
 import { httpError, businessDateOf } from './frontDeskService.js';
 import { enqueueChannelUpdate } from './channelQueueService.js';
+import { dayTypesFor } from './revenueService.js';
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const isId = (v) => mongoose.isValidObjectId(String(v || ''));
@@ -72,6 +73,7 @@ export async function demandCalendar({ propertyId, from, days = 60, roomTypeId, 
     refPlan?.derived?.from && refType ? RateDate.find({ ratePlan: refPlan.derived.from, roomType: refType._id, date: { $gte: start, $lt: end } }).lean() : [],
   ]);
   const parentPlan = refPlan?.derived?.from ? await RatePlan.findById(refPlan.derived.from).lean() : null;
+  const dayTypes = await dayTypesFor({ propertyId, dates });
   const rdBy = new Map(rds.map((r) => [r.date, r]));
   const prdBy = new Map(parentRds.map((r) => [r.date, r]));
   const weekAgo = new Date(Date.now() - 7 * 86400000);
@@ -94,7 +96,7 @@ export async function demandCalendar({ propertyId, from, days = 60, roomTypeId, 
     const forecast = Math.min(cap, onBooks + groupHold + expected);
     const occ = cap ? (onBooks + groupHold) / cap : 0;
     const forecastOcc = cap ? forecast / cap : 0;
-    const p = refPlan && refType ? priceNight({ plan: refPlan, roomType: refType, rd: rdBy.get(d), date: d, adults: 2, children: 0, los: 1, today, parent: parentPlan ? { plan: parentPlan, rd: prdBy.get(d) } : null }) : { price: null };
+    const p = refPlan && refType ? priceNight({ plan: refPlan, roomType: refType, rd: rdBy.get(d), date: d, adults: 2, children: 0, los: 1, today, parent: parentPlan ? { plan: parentPlan, rd: prdBy.get(d) } : null, dayType: dayTypes.get(d) || null }) : { price: null };
     const rec = recommend({ forecastOcc, daysOut, pace, eventPeople, current: p.price });
     return {
       date: d, weekday: new Date(`${d}T00:00:00Z`).getUTCDay(), daysOut, rooms: cap, onBooks, groupHold, pace, lastYear,

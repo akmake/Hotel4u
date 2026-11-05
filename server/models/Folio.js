@@ -37,6 +37,10 @@ const FolioLineSchema = new Schema({
   // Foreign currency (gap-map item 3): the folio stays in shekels; the line keeps what was charged or
   // handed over in the foreign currency and the rate applied (charge: price; payment: cash tendered).
   fx:          { type: new Schema({ currency: String, amount: Number, rate: Number }, { _id: false }), default: undefined },
+  // Receivables (gap-map item 7, services/arService.js): a line that moves money between debts of the
+  // city ledger — allocation of an "on account" payment, transfer / consolidation of a debt, write-off,
+  // voided payment. The pair lines of a transfer/consolidation are hidden on the statement.
+  arLink:      { type: new Schema({ kind: String, folio: Schema.Types.ObjectId, line: Schema.Types.ObjectId, number: String }, { _id: false }), default: undefined },
   quantity:    Number,
   unitPrice:   Number,                                     // gross per unit as entered
   method:      String,                                     // payment/refund method
@@ -70,7 +74,8 @@ const FolioLineSchema = new Schema({
 const FolioSchema = new Schema({
   property:    { type: Schema.Types.ObjectId, ref: 'Property', required: true },
   // A house / passer-by account (NR folio: restaurant, spa, a visitor who does not stay) has no reservation.
-  reservation: { type: Schema.Types.ObjectId, ref: 'Reservation', required: function () { return this.ownerType !== 'house'; } },
+  // A receivable debt opened directly on a company account (or its "on account" folio) has none either.
+  reservation: { type: Schema.Types.ObjectId, ref: 'Reservation', required: function () { return this.ownerType !== 'house' && !(this.ownerType === 'company' && this.ar?.origin && this.ar.origin !== 'stay'); } },
   ownerType:   { type: String, enum: ['guest','room','company','group','house'], default: 'guest' },
   ownerRef:    String,
   account: {
@@ -84,6 +89,27 @@ const FolioSchema = new Schema({
     groupBlock: { type: Schema.Types.ObjectId, ref: 'GroupBlock' }, // the account of a group (outlet groups)
     note:    String,
     openedByName: String,
+  },
+  // Receivables (gap-map item 7): a company folio is one debt of the company's AR account once it is
+  // entered (number + date entered + due date). origin says how it was born; 'unapplied' is the
+  // account's "on account" folio that holds payments not yet matched to a debt.
+  ar: {
+    type: new Schema({
+      number:    String,                                   // D-000123
+      origin:    { type: String, enum: ['stay', 'direct', 'transfer', 'consolidated', 'recurring', 'mass', 'unapplied'] },
+      enteredOn: String,                                   // YYYY-MM-DD business date the debt entered the account
+      dueDate:   String,
+      ref:       String,                                   // external reference (PO, flight, contract)
+      note:      String,
+      opKey:     String,                                   // idempotency of the operation that created it
+      transferFrom: Schema.Types.ObjectId,
+      transferredTo: Schema.Types.ObjectId,
+      consolidatedFrom: { type: [Schema.Types.ObjectId], default: undefined },
+      consolidatedInto: Schema.Types.ObjectId,
+      consolidatedOn: String,
+      enteredByName: String,
+    }, { _id: false }),
+    default: undefined,
   },
   status:      { type: String, enum: FOLIO_STATUS, default: 'open' },
   currency:    { type: String, default: 'ILS' },
@@ -112,6 +138,7 @@ const FolioSchema = new Schema({
 }, { timestamps: true, toJSON: { virtuals: true } });
 
 FolioSchema.index({ property: 1, ownerType: 1, status: 1 });
+FolioSchema.index({ property: 1, ownerType: 1, ownerRef: 1 });
 
 FolioSchema.virtual('balance').get(function () {
   return this.lines

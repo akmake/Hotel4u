@@ -7,7 +7,7 @@
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, LogIn, LogOut, Plus, X } from 'lucide-react';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuthStore } from '../../stores/authStore';
 import { ops } from '../../utils/api';
@@ -22,6 +22,7 @@ const addDays = (ymd, n) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDa
 const addMonths = (ym, n) => new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1)).toISOString().slice(0, 7);
 const localMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const monthName = (ym) => new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${ym}-01T00:00:00Z`));
+const monthOnly = (ymd) => new Intl.DateTimeFormat('he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(`${ymd}T00:00:00Z`));
 const dm = (ymd) => `${Number(ymd.slice(8))}.${Number(ymd.slice(5, 7))}`;
 const dayMonth = (ymd) => new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${ymd}T00:00:00Z`));
 const he = (ymd) => ymd.split('-').reverse().join('.');
@@ -41,6 +42,7 @@ export default function AvailabilityPage({ layout = 'current' }) {
   const [sel, setSel] = useState(null); // { a, b } day indexes in the month
   const [blockRange, setBlockRange] = useState(null);
   const [release, setRelease] = useState(null);
+  const [showBlocks, setShowBlocks] = useState(false);
   const dragging = useRef(false);
   const dragged = useRef(false);
   const downAt = useRef(null); // where the press started: a layout shift under a still pointer must not count as a drag
@@ -94,24 +96,25 @@ export default function AvailabilityPage({ layout = 'current' }) {
           <button type="button" className="avl-btn" onClick={goToday}>היום</button>
           {loading && <Spinner />}
         </div>
-        {data?.staleArrivals > 0 && (
-          <button type="button" className="avl-alert" onClick={() => navigate('/pms/arrivals')} title="הזמנות שתאריך ההגעה שלהן עבר ולא נקלטו">
-            <AlertTriangle size={15} aria-hidden="true" />{data.staleArrivals} הזמנות לטיפול
-          </button>
-        )}
         {s && (
           <dl className="avl-sum" aria-label={`סיכום ${monthName(month)}`}>
             <div><dt>תפוסה בחודש</dt><dd className="ui-num">{s.occupancyPct}%</dd></div>
             <div><dt>לילות חדר נמכרו</dt><dd className="ui-num">{s.definite.toLocaleString('he-IL')}</dd></div>
             <div><dt>הגעות בחודש</dt><dd className="ui-num">{s.arrivals.toLocaleString('he-IL')}</dd></div>
             {peak >= 0 && (
-              <div><dt>הלילה העמוס שלפנינו</dt><dd>
-                <button type="button" className="avl-peak ui-num" onClick={() => setSel({ a: peak, b: peak })} title="פתיחת פרטי הלילה">
-                  {data.totals[peak].occupancyPct}%<small>{DAYS[dow(data.dates[peak])]} {dm(data.dates[peak])}</small>
+              <div><dt>הלילה הנמכר שלפנינו</dt><dd>
+                <button type="button" className="avl-peak ui-num" onClick={() => setSel({ a: peak, b: peak })} title={`${DAYS[dow(data.dates[peak])]} ${dm(data.dates[peak])} — פתיחת פרטי הלילה`}>
+                  {data.totals[peak].occupancyPct}%
                 </button>
               </dd></div>
             )}
           </dl>
+        )}
+        {data?.blocks?.length > 0 && <button type="button" className="avl-btn avl-blocks" onClick={() => setShowBlocks(true)}>חסימות ({data.blocks.length})</button>}
+        {data?.staleArrivals > 0 && (
+          <button type="button" className="avl-alert" onClick={() => navigate('/pms/arrivals')} title="הזמנות שתאריך ההגעה שלהן עבר ולא נקלטו">
+            <AlertTriangle size={15} aria-hidden="true" />{data.staleArrivals} הזמנות לטיפול
+          </button>
         )}
       </header>
       <ErrorBanner error={error} onRetry={reload} />
@@ -142,23 +145,25 @@ export default function AvailabilityPage({ layout = 'current' }) {
                   >
                     {closed && <span className="ac-fill" aria-hidden="true" />}
                     {layout === 'original' ? (
-                      // The day card as it was at the start of the 2026-11-01 session: date badge, free rooms, occupancy bar, arrivals/departures footer.
+                      // Large daily availability tile: date, inventory, occupancy and daily movement.
                       <>
                         <span className="ac-d-top">
                           <span className="ac-d-num ui-num">{Number(d.slice(8))}</span>
+                          <span className="ac-d-month">{monthOnly(d)}</span>
                           {d === today && <span className="ac-today">היום</span>}
+                          {d !== today && dow(d) >= 5 && <span className="ac-wk-chip">{DAYS[dow(d)]}</span>}
                           {!past && t.tentative > 0 && <span className="ac-d-opt" title={`${t.tentative} חדרים באופציה`}>{t.tentative} אופ׳</span>}
                         </span>
                         <span className={`ac-d-free ${past ? '' : closed ? 'is-full' : freeTone(t.available)}`}>
                           <b className="ui-num">{closed ? <X size={24} aria-hidden="true" /> : t.available}</b>
-                          <span>{closed ? 'סגור' : !past && t.available <= 0 ? 'מלא' : 'פנויים'}</span>
+                          <span>{closed ? 'סגור' : !past && t.available <= 0 ? 'מלא' : 'חדרים פנויים'}</span>
                         </span>
                         <span className="ac-d-occ ui-num">
-                          <span className="ac-bar"><i className={lvl(t.occupancyPct)} style={{ width: `${Math.min(100, t.occupancyPct)}%` }} /></span>{t.occupancyPct}%
+                          <b>{t.occupancyPct}%</b><span className="ac-bar"><i className={lvl(t.occupancyPct)} style={{ width: `${Math.min(100, t.occupancyPct)}%` }} /></span>
                         </span>
                         <span className="ac-d-move ui-num">
-                          <span className="ac-chip is-in" title={`${t.arrivals} מגיעים`}><ArrowDown size={12} />{t.arrivals}<em> הגעות</em></span>
-                          <span className="ac-chip is-out" title={`${t.departures} עוזבים`}><ArrowUp size={12} />{t.departures}<em> יציאות</em></span>
+                          <span className="ac-chip is-in" title={`${t.arrivals} כניסות`}><LogIn aria-hidden="true" /><b>{t.arrivals}</b><em>כניסות</em></span>
+                          <span className="ac-chip is-out" title={`${t.departures} יציאות`}><LogOut aria-hidden="true" /><b>{t.departures}</b><em>יציאות</em></span>
                         </span>
                       </>
                     ) : (<>
@@ -223,10 +228,6 @@ export default function AvailabilityPage({ layout = 'current' }) {
               {layout === 'two-months' && <h2 className="ac-cal-title">{monthName(month)}</h2>}
               <div className="ac-dows">{DAYS.map((d, i) => <div key={d} className={i >= 5 ? 'is-wk' : ''}>{d}</div>)}{layout === 'weeks' && <div>השבוע</div>}</div>
               <div className="ac-grid">{layout === 'weeks' ? weekRows : cells}</div>
-              <footer className="avl-foot">
-                <span>{layout === 'curve' || layout === 'two-months' ? 'בכל יום: חדרים פנויים · שאר הפרטים בלחיצה על היום' : 'בכל יום: תאריך · חדרים פנויים · תפוסה % · ↓ הגעות · ↑ יציאות'}</span>
-                <span className="avl-keys">לחיצה על יום לפרטים · גרירה לטווח · Esc לניקוי</span>
-              </footer>
             </section>
             {nextMonth && (
               <section className="ac-cal is-next" aria-label={`לוח זמינות ${monthName(addMonths(month, 1))}`}>
@@ -256,7 +257,7 @@ export default function AvailabilityPage({ layout = 'current' }) {
         );
       })()}
       {data && data.blocks.length > 0 && (
-        <Card title={`חסימות בחודש (${data.blocks.length})`}>
+        <Modal open={showBlocks} onClose={() => setShowBlocks(false)} title={`חסימות בחודש (${data.blocks.length})`}>
           {(
             <table className="ui-table">
               <tbody>
@@ -272,7 +273,7 @@ export default function AvailabilityPage({ layout = 'current' }) {
               </tbody>
             </table>
           )}
-        </Card>
+        </Modal>
       )}
       <BlockDialog
         open={!!blockRange}

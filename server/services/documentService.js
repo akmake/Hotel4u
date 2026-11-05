@@ -176,7 +176,12 @@ export async function reconcileFolios(folios) {
 }
 
 function eligibleLines(folio, coverage, propertyVat) {
-  const posted = folio.lines.filter((l) => l.status === 'posted');
+  let posted = folio.lines.filter((l) => l.status === 'posted');
+  // Receivables moves (gap-map item 7) are internal: a payment matched to another debt, a write-off,
+  // the pair lines of a debt moved to another account. No document is issued for them, and a payment
+  // voided on the account (bounced cheque) is no longer receipted.
+  const voidedPay = new Set(posted.filter((l) => l.arLink?.kind === 'void').map((l) => String(l.reversalOf)));
+  posted = posted.filter((l) => !l.arLink && !voidedPay.has(String(l._id)));
   // A reversed charge and its reversal cancel out — neither is invoiced.
   const reversed = new Set(posted.filter((l) => l.reversalOf).map((l) => String(l.reversalOf)));
   const charges = posted

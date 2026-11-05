@@ -139,7 +139,7 @@ export function guaranteeState(res, folio) {
   if (res.paymentStatus === 'paid') { ok = true; label = 'שולם מראש'; }
   else if (type === 'deposit') { ok = paid > 0; label = ok ? 'מקדמה התקבלה' : 'מקדמה לא התקבלה'; }
   else if (type === 'company_guarantee') { ok = !!res.company; label = ok ? 'ערבות חברה' : 'ערבות חברה ללא חברה משויכת'; }
-  else if (type === 'credit_card') { ok = true; label = 'כרטיס אשראי (נרשם ידנית, ללא אימות ספק)'; }
+  else if (type === 'credit_card') { ok = true; label = res.card?.last4 ? `כרטיס ${res.card.brand || ''} ••${res.card.last4} (טוקן אצל ספק הסליקה)` : 'כרטיס אשראי (נרשם ידנית, ללא אימות ספק)'; }
   else if (type === 'voucher') { ok = true; label = 'שובר'; }
   else if (type === 'non_guaranteed') { ok = false; label = `לא מובטחת — נשמרת עד ${res.holdUntilTime || '18:00'}`; }
   return { type, ok, label, holdUntil: type === 'non_guaranteed' ? res.holdUntilTime || '18:00' : null, paid, total: Number(res.totalAmount || 0), paymentStatus: res.paymentStatus };
@@ -702,7 +702,11 @@ export async function completeCheckIn({ propertyId, reservationId, unitIds, unit
   const initial = await loadReservationInScope(reservationId, propertyId);
   const assigned = await ReservationRoom.find({ reservation: reservationId }).select('assignedRoom').lean();
   const keys = [`res:${reservationId}`, ...[initial.assignedRoom, ...assigned.map((u) => u.assignedRoom)].filter(Boolean).map((r) => `room:${r}`)];
-  return withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, noPost, actor, ip, session, afterCommit }), lease, { operation: 'כניסת אורח' }));
+  const out = await withLocks(keys, (lease) => runStayTransaction((session, afterCommit) => completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, noPost, actor, ip, session, afterCommit }), lease, { operation: 'כניסת אורח' }));
+  // Card authorization (gap-map item 12): placed after check-in when the stay has a card; never blocks it.
+  const { authorizeOnCheckIn } = await import('./cardService.js');
+  const cardAuth = await authorizeOnCheckIn({ propertyId, reservationId, actor, ip });
+  return cardAuth && out && typeof out === 'object' ? { ...out, cardAuth } : out;
 }
 
 async function completeCheckInTransaction({ propertyId, reservationId, unitIds, unitIndexes, guarantee, unitGuarantees, override, noPost, actor, ip, session, afterCommit }) {

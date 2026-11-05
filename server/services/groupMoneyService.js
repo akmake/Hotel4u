@@ -7,6 +7,7 @@
 //    the money to the group's account (a house folio of outlet "groups") through the money core —
 //    in advance as a deposit, capped by the expected amount. Receipts are issued from that account
 //    through the invoicing system, like any folio.
+import { can } from './permissionService.js';
 import mongoose from 'mongoose';
 import GroupBlock from '../models/GroupBlock.js';
 import Folio from '../models/Folio.js';
@@ -122,7 +123,7 @@ export async function saveBilling({ propertyId, id, input, actor, ip }) {
     const property = await Property.findById(propertyId).select('discountApprovalPercent').lean();
     const pct = t.subtotal > 0 ? round2(t.discount * 100 / t.subtotal) : 0;
     const threshold = Number(property?.discountApprovalPercent ?? 10);
-    if (pct - threshold > 0.005 && !PRICE_OVERRIDE_ROLES.includes(actor.role)) throw httpError(`הנחה של ${pct}% (מעל ${threshold}%) מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
+    if (pct - threshold > 0.005 && !can(actor, 'discount.approve', PRICE_OVERRIDE_ROLES)) throw httpError(`הנחה של ${pct}% (מעל ${threshold}%) מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
     if (pct - threshold > 0.005) discount.approvedByName = actor.name;
   }
   const before = g.billing ? billingTotals(g.billing) : null;

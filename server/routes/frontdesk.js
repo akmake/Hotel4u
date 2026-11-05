@@ -1,5 +1,6 @@
 // /api/pms/frontdesk — arrivals (FD-02), check-in wizard (FD-03/FD-05), room assignment (INV-02)
 // and the waiting-for-room queue (FD-04). Business rules live in services/frontDeskService.js.
+import { requireCan } from '../services/permissionService.js';
 import { Router } from 'express';
 import { assertPropertyScope, actorOrSystem, requireRoles } from '../middleware/authContext.js';
 import User from '../models/User.js';
@@ -17,6 +18,7 @@ import { nonGuaranteedToday, releaseNonGuaranteed, GTD_ROLES } from '../services
 import { proposeRoomPlan, applyRoomPlan } from '../services/roomPlanService.js';
 import { issueLink, deskView, decideUpsell, postApprovedUpsells } from '../services/onlineCheckInService.js';
 import { cribDesk, getCribContext, setCribStock, changeCribs } from '../services/cribService.js';
+import { navCounters, weekView, houseStatus, freeRooms, addTurnAway } from '../services/homeService.js';
 
 const router = Router();
 
@@ -77,6 +79,13 @@ function actorOf(req) {
 }
 
 // ── FD-02 ───────────────────────────────────────────────────────────────────
+// Home screen & quick looks (gap-map item 8). Counts only — no guest identity.
+router.get('/home/counters', handle(async (req) => navCounters({ propertyId: scope(req) })));
+router.get('/home/week', handle(async (req) => weekView({ propertyId: scope(req), from: req.query.from, days: req.query.days })));
+router.get('/home/house', handle(async (req) => houseStatus({ propertyId: scope(req), date: req.query.date })));
+router.get('/home/free-rooms', handle(async (req) => freeRooms({ propertyId: scope(req), from: req.query.from, to: req.query.to, roomTypeId: req.query.roomTypeId, status: req.query.status })));
+router.post('/home/turnaways', handle(async (req) => { requireRoles(req, FRONT_ROLES, 'רישום פנייה שנדחתה — לקבלה'); return addTurnAway({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip }); }));
+
 router.get('/cribs', handle(async (req) => cribDesk({ propertyId: scope(req), q: req.query.q, actor: actorOf(req) })));
 router.post('/cribs/stock', handle(async (req) => setCribStock({ propertyId: scope(req), input: req.body || {}, actor: actorOf(req), ip: req.ip })));
 router.get('/reservations/:id/units/:unitId/cribs', handle(async (req) => getCribContext({ propertyId: scope(req), reservationId: req.params.id, unitId: req.params.unitId, actor: actorOf(req) })));
@@ -113,7 +122,7 @@ router.get('/arrivals/non-guaranteed', handle(async (req) => {
 }));
 
 router.post('/arrivals/release-non-guaranteed', handle(async (req) => {
-  requireRoles(req, GTD_ROLES, 'שחרור הזמנות לא מובטחות מותר למנהל משמרת ומעלה');
+  requireCan(req, 'gtd.release', GTD_ROLES, 'שחרור הזמנות לא מובטחות מותר למנהל משמרת ומעלה');
   return releaseNonGuaranteed({ propertyId: scope(req), ids: req.body?.ids, actor: actorOf(req), ip: req.ip });
 }));
 

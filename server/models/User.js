@@ -88,6 +88,10 @@ const UserSchema = new Schema({
   },
   deactivatedAt:       Date,
   deactivatedBy:       String,
+  // Custom permissions (gap-map item 11, services/permissionService.js): a group overlay and individual
+  // grants / denies on top of the built-in role. Read on every request, so a change applies at once.
+  permissionGroup:     { type: Schema.Types.ObjectId, ref: 'PermissionGroup', default: null },
+  perms:               { type: new Schema({ grants: { type: [String], default: [] }, denies: { type: [String], default: [] } }, { _id: false }), default: undefined },
 }, { timestamps: true, versionKey: false });
 
 // ─── Virtuals ─────────────────────────────────────────────────────────────────

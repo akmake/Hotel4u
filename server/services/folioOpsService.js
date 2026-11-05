@@ -2,6 +2,7 @@
 // invoice combinations, extra windows, Paid Out. Same rule as the money core: a posted line is never
 // edited or deleted — every operation adds new lines (a discount line, or a linked reversal plus the
 // new part / copy). A line already on an issued document is never touched (credit note instead).
+import { can } from './permissionService.js';
 import mongoose from 'mongoose';
 import Folio from '../models/Folio.js';
 import Reservation from '../models/Reservation.js';
@@ -149,7 +150,7 @@ export async function discountLines({ propertyId, folioId, input, actor, ip }) {
     const pct = basis > 0 ? round2((total + items.reduce((s, x) => s - x.discounts.reduce((a, d) => a + gross(d), 0), 0)) * 100 / basis) : 0;
     const property = await Property.findById(propertyId).session(session).select('discountApprovalPercent timezone dayClose').lean();
     const threshold = Number(property?.discountApprovalPercent ?? 10);
-    if (pct - threshold > 0.005 && !PRICE_OVERRIDE_ROLES.includes(actor.role)) throw httpError(`הנחה של ${pct}% (מעל ${threshold}%) מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
+    if (pct - threshold > 0.005 && !can(actor, 'discount.approve', PRICE_OVERRIDE_ROLES)) throw httpError(`הנחה של ${pct}% (מעל ${threshold}%) מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
     const why = `${DISCOUNT_REASONS[input.reasonCode]}${note ? ` · ${note}` : ''}`;
     const invoicedParts = parts.filter((p) => p.invoiced);
     const credits = invoicedParts.length
@@ -354,7 +355,7 @@ export async function paidOut({ propertyId, folioId, input, actor, ip }) {
     if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי ה־Paid Out', 422, { fields: errors });
     const property = await Property.findById(propertyId).session(session).select('timezone financePolicy dayClose').lean();
     const threshold = Number(property?.financePolicy?.refundApprovalOver ?? 0);
-    if (threshold > 0 && amount > threshold && !REFUND_ROLES.includes(actor.role)) throw httpError(`Paid Out מעל ${threshold.toFixed(2)} מחייב מנהל או כספים`, 403, { code: 'approval_required' });
+    if (threshold > 0 && amount > threshold && !can(actor, 'refund.issue', REFUND_ROLES)) throw httpError(`Paid Out מעל ${threshold.toFixed(2)} מחייב מנהל או כספים`, 403, { code: 'approval_required' });
     const purpose = PAID_OUT_PURPOSES[input.purpose];
     folio.lines.push({
       type: 'refund', description: `Paid Out — ${purpose}${payee ? ` · ל${payee}` : ''}${note ? ` · ${note}` : ''}`.slice(0, 200),

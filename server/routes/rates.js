@@ -7,6 +7,8 @@ import Reservation from '../models/Reservation.js';
 import { audit } from '../services/auditService.js';
 import { enqueueChannelUpdate } from '../services/channelQueueService.js';
 import { actorOrSystem, assertPropertyScope, requireRoles } from '../middleware/authContext.js';
+import mongoose from 'mongoose';
+import { logRestrictionChanges } from '../services/revenueService.js';
 
 const router = Router();
 const OVERRIDE_ROLES = ['super_admin', 'property_admin', 'general_manager', 'revenue_manager'];
@@ -31,6 +33,22 @@ function daysBetween(fromDate, toDate) {
 }
 
 // Rule matching lives in services/ratePricing.js — one price engine for booking and this quote.
+
+// Calendar writes: the plan and room type must belong to the property in scope.
+async function assertPlanAndType(propertyId, ratePlanId, roomTypeId) {
+  const ok = (v) => mongoose.isValidObjectId(String(v || ''));
+  const [plan, type] = ok(ratePlanId) && ok(roomTypeId)
+    ? await Promise.all([RatePlan.exists({ _id: ratePlanId, property: propertyId }), RoomType.exists({ _id: roomTypeId, property: propertyId })])
+    : [null, null];
+  if (!plan || !type) throw Object.assign(new Error('התעריף או סוג החדר לא שייכים לנכס'), { status: 404, statusCode: 404 });
+}
+
+// Audit + restriction history (gap-map item 9: what was set, when and by whom, vs what is active now).
+async function recordRateChange(req, { ratePlanId, roomTypeId, dates, beforeRows, afterRows, fields }) {
+  const actor = actorOrSystem(req);
+  const changed = await logRestrictionChanges({ propertyId: req.body.propertyId, level: 'rate', ratePlan: ratePlanId, roomType: roomTypeId, beforeRows, afterRows, actor });
+  await audit({ property: req.body.propertyId, actor: actor.id || null, actorName: actor.name || 'system', action: dates.length > 1 ? 'rates.bulk_update' : 'rates.date_update', entityType: 'RatePlan', entityId: ratePlanId, after: { roomTypeId, from: dates[0], to: dates[dates.length - 1], fields, restrictionNights: changed }, ip: req.ip }).catch(() => null);
+}
 
 // GET /api/rates/plans?propertyId=&all=1
 router.get('/plans', asyncHandler(async (req, res) => {
@@ -66,6 +84,7 @@ router.post('/plans', asyncHandler(async (req, res) => {
     activeRoomTypes,
     pricingRules,
     sortOrder,
+    use,
   } = req.body;
 
   if (!propertyId || !code || !name) {
@@ -89,6 +108,7 @@ router.post('/plans', asyncHandler(async (req, res) => {
     activeRoomTypes: Array.isArray(activeRoomTypes) ? activeRoomTypes : [],
     pricingRules: Array.isArray(pricingRules) ? pricingRules : [],
     sortOrder: Number(sortOrder) || 0,
+    use: ['comp', 'house_use'].includes(use) ? use : 'paying',
   });
 
   res.status(201).json({ success: true, data: plan });
@@ -101,7 +121,7 @@ router.patch('/plans/:id', asyncHandler(async (req, res) => {
     'name', 'type', 'isRefundable', 'includesBreakfast',
     'halfBoard', 'fullBoard', 'allInclusive',
     'cancellationPolicy', 'depositPolicy', 'channels', 'activeRoomTypes',
-    'pricingRules', 'sortOrder', 'active',
+    'pricingRules', 'sortOrder', 'active', 'use',
   ];
 
   const update = {};
@@ -111,6 +131,7 @@ router.patch('/plans/:id', asyncHandler(async (req, res) => {
     }
   });
 
+  if (update.use !== undefined && !['paying', 'comp', 'house_use'].includes(update.use)) return res.status(422).json({ success: false, error: 'שימוש בתעריף: משלם / חינם / שימוש בית' });
   const existing = await RatePlan.findById(req.params.id).select('property').lean();
   if (!existing) return res.status(404).json({ success: false, error: 'Rate plan not found' });
   assertPropertyScope(req, String(existing.property));
@@ -229,11 +250,14 @@ router.put('/date', asyncHandler(async (req, res) => {
   if (childPricePerNight != null) setFields.childPricePerNight = Number(childPricePerNight);
   if (extraGuestPricePerNight != null) setFields.extraGuestPricePerNight = Number(extraGuestPricePerNight);
 
+  await assertPlanAndType(req.body.propertyId, ratePlanId, roomTypeId);
+  const prev = await RateDate.findOne({ ratePlan: ratePlanId, roomType: roomTypeId, date }).lean();
   const doc = await RateDate.findOneAndUpdate(
     { ratePlan: ratePlanId, roomType: roomTypeId, date },
     { $set: setFields },
     { upsert: true, new: true }
   );
+  await recordRateChange(req, { ratePlanId, roomTypeId, dates: [date], beforeRows: prev ? [prev] : [], afterRows: [doc.toObject()], fields: setFields });
 
   await enqueueChannelUpdate({
     propertyId: req.body.propertyId,
@@ -299,7 +323,11 @@ router.put('/bulk', asyncHandler(async (req, res) => {
     },
   }));
 
+  await assertPlanAndType(req.body.propertyId, ratePlanId, roomTypeId);
+  const beforeRows = await RateDate.find({ ratePlan: ratePlanId, roomType: roomTypeId, date: { $in: dates } }).lean();
   await RateDate.bulkWrite(ops, { ordered: false });
+  const afterRows = await RateDate.find({ ratePlan: ratePlanId, roomType: roomTypeId, date: { $in: dates } }).lean();
+  await recordRateChange(req, { ratePlanId, roomTypeId, dates, beforeRows, afterRows, fields: setFields });
 
   await enqueueChannelUpdate({
     propertyId: req.body.propertyId,

@@ -39,6 +39,7 @@ function RatePlanModal({ plan, plans = [], propertyId, onClose, onSaved }) {
     name:               plan?.name || '',
     type:               plan?.type || 'public',
     isRefundable:       plan?.isRefundable ?? true,
+    use:                plan?.use || 'paying',
     includesBreakfast:  plan?.includesBreakfast ?? false,
     halfBoard:          plan?.halfBoard ?? false,
     fullBoard:          plan?.fullBoard ?? false,
@@ -122,6 +123,16 @@ function RatePlanModal({ plan, plans = [], propertyId, onClose, onSaved }) {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="form-label" htmlFor="rp-use">שימוש בתעריף</label>
+            <select id="rp-use" className="input w-full" value={form.use} onChange={e => set('use', e.target.value)}>
+              <option value="paying">משלם</option>
+              <option value="comp">חינם (Comp) — חדר ללא תשלום לאורח</option>
+              <option value="house_use">שימוש בית — צוות / בעלים / בדיקה</option>
+            </select>
+            <p className="text-xs text-ink-muted mt-1">הזמנות בתעריף חינם או שימוש בית נספרות בנפרד במצב הבית.</p>
           </div>
 
           <div>

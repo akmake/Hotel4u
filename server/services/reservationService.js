@@ -112,6 +112,7 @@ async function createReservationUnlocked({ propertyId, data, actorId, actorName,
     quoteExpiresAt,
     holdExpiresAt,
     allowOverbooking,
+    salesChannel,
   } = data;
 
   // A valid property scope on the endpoint does not validate the referenced records.
@@ -185,6 +186,7 @@ async function createReservationUnlocked({ propertyId, data, actorId, actorName,
     roomsCount: normalizedRoomsCount,
     source: source || 'direct',
     marketSegment: marketSegment || undefined,
+    salesChannel: ['desk', 'web', 'ota'].includes(salesChannel) ? salesChannel : undefined,
     company: companyId || undefined,
     travelAgent: travelAgentId || undefined,
     roomType: roomTypeId,

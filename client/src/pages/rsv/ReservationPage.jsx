@@ -22,7 +22,8 @@ import { ReinstateDialog, ReverseCheckInDialog, PostStayChargeDialog, DeleteRese
 import TouristDialog, { DECISION_TONE } from '../../components/stay/TouristDialog';
 import VoucherDialog from '../../components/stay/VoucherDialog';
 import { StayDeskCard, DeskAlerts } from '../../components/desk/DeskParts';
-import { ReinstateCheckOutDialog, CopyBookingDialog, SplitUnitDialog, AddShareDialog, EndShareDialog, SharesCard } from '../../components/stay/StayToolsDialogs';
+import { CardsCard } from '../../components/stay/CardsCard';
+import { ReinstateCheckOutDialog, CopyBookingDialog, SplitUnitDialog, AddShareDialog, EndShareDialog, SharesCard, PackageCard } from '../../components/stay/StayToolsDialogs';
 import CheckInWizard from '../../components/frontdesk/CheckInWizard';
 import CheckOutWizard from '../../components/frontdesk/CheckOutWizard';
 import AssignRoomDialog from '../../components/frontdesk/AssignRoomDialog';
@@ -325,8 +326,12 @@ export default function ReservationPage() {
             </ul>
           </section>
           {[...PRE_ARRIVAL, ...IN_HOUSE].includes(r.status) && !isQuote && (
+            <>
+            <PackageCard propertyId={propertyId} reservation={r} canWork={CANCEL_ROLES.includes(role)} onChanged={(m) => { success(m); reload(); }} />
             <SharesCard propertyId={propertyId} reservation={r} canWork={CANCEL_ROLES.includes(role)} onAdd={() => setDialog({ kind: 'share-add' })} onEnd={(s) => setDialog({ kind: 'share-end', share: s })} onChanged={(m) => { success(m); reload(); }} onOpenFolio={(fid) => nav(`/pms/folio?reservation=${r.id}&folio=${fid}`)} />
+            </>
           )}
+          {!isQuote && <CardsCard propertyId={propertyId} reservation={r} canWork={CANCEL_ROLES.includes(role) || ['cashier', 'finance_manager'].includes(role)} onChanged={(m) => { success(m); reload(); }} />}
           {!['cancelled', 'no_show', 'deleted'].includes(r.status) && (
             <StayDeskCard propertyId={propertyId} reservation={{ id: r.id, room: r.units?.[0]?.room?.number || null, guest: r.guest?.name || '' }} canWork={canFront && r.status !== 'checked_out'} businessDate={r.businessDate} onToast={success} />
           )}
