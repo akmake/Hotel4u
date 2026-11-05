@@ -452,6 +452,7 @@ function StayFolios({ propertyId, reservationId, folioParam, url, role }) {
           </dl>
         </div>
       </header>
+      {r.cashierNote && <Banner tone="info"><b>הערה לקופה:</b> {r.cashierNote}</Banner>}
       {data.exceptions.map((x) => <Banner key={`${x.code}-${x.folioId}`} tone="warn">{x.label}</Banner>)}
       <ErrorBanner error={closeAct.error} />
       {!folio && <Card><Empty title="אין חשבון להזמנה זו">חשבון נפתח אוטומטית עם החיוב או התשלום הראשון בכניסה.</Empty></Card>}

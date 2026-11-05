@@ -127,6 +127,8 @@ const SettingsPage              = lazy(() => import('./pages/SettingsPage'));
 const UsersAdminPage            = lazy(() => import('./pages/sys/UsersAdminPage'));
 const PermissionsPage          = lazy(() => import('./pages/sys/PermissionsPage'));
 const PaymentSettingsPage      = lazy(() => import('./pages/sys/PaymentSettingsPage'));
+const CodesPage                = lazy(() => import('./pages/sys/CodesPage'));
+const WaitlistPage             = lazy(() => import('./pages/rsv/WaitlistPage'));
 const CardsPage                = lazy(() => import('./pages/fin/CardsPage'));
 const PolicyPage                = lazy(() => import('./pages/sys/PolicyPage'));
 const AuditPage                 = lazy(() => import('./pages/sys/AuditPage'));
@@ -322,6 +324,8 @@ export default function App() {
               <Route path="admin/users"       element={<UsersAdminPage />} />
               <Route path="admin/permissions" element={<PermissionsPage />} />
               <Route path="admin/payments"    element={<PaymentSettingsPage />} />
+              <Route path="admin/codes"       element={<CodesPage />} />
+              <Route path="waitlist"          element={<WaitlistPage />} />
               <Route path="fin/cards"         element={<CardsPage />} />
               <Route path="admin/policy"      element={<PolicyPage />} />
               <Route path="admin/audit"       element={<AuditPage />} />

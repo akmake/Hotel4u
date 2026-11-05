@@ -10,6 +10,7 @@
 //    threshold only a manager/finance role may refund (T36);
 //  - day close runs once per business day, in order, and resumes from the failed step without
 //    posting a night twice (T33).
+import { reasonMap } from './codeListService.js';
 import { can } from './permissionService.js';
 import { absorbCharge } from './packageService.js';
 import { routesExtras, payerFolio } from './voucherService.js';
@@ -342,6 +343,7 @@ export async function getStayFolios({ propertyId, reservationId }) {
       totalAmount: res.totalAmount ?? null, currency: res.currency || property?.defaultCurrency || 'ILS',
       // read-only guest context for the folio header
       phone: res.primaryGuest?.phone || null, email: res.primaryGuest?.email || null, vipLevel: res.primaryGuest?.vipLevel || 0,
+      cashierNote: res.cashierNote || null,   // gap-map item 14: note for whoever takes the money
       adults: res.adults ?? null, children: res.children ?? 0, source: res.source || null,
       roomType: res.roomType?.name || null, ratePlan: res.priceSnapshot?.ratePlanName || null,
     },
@@ -358,7 +360,7 @@ export async function getStayFolios({ propertyId, reservationId }) {
     })),
     exceptions,
     policy: { refundApprovalOver: property?.financePolicy?.refundApprovalOver ?? 0, cashLimitPerStay: property?.financePolicy?.cashLimitPerStay ?? null },
-    lineOps: lineOpsConfig(property),
+    lineOps: await lineOpsConfig({ ...property, _id: propertyId }),
     // Folio rates per currency (pay / charge): balance in every currency, foreign charge and payment.
     fxRates: await folioRates(propertyId),
     inHouse: IN_HOUSE_STATUSES.includes(res.status),
@@ -374,9 +376,11 @@ export async function postCharge({ propertyId, folioId, input, actor, ip, sessio
   if (dup) return { folioId: String(folio._id), lineId: String(dup._id), duplicate: true, balance: folioBalance(folio) };
   if (folio.status === 'closed') throw httpError('החשבון סגור — חיוב נרשם בחשבון פתוח בלבד', 409);
   // A house / passer-by account has no stay behind it: it is charged while it is open.
-  const res = folio.reservation ? await Reservation.findById(folio.reservation).session(session).select('status arrivalDate departureDate tourist property noPost voucher currency').lean() : null;
+  const res = folio.reservation ? await Reservation.findById(folio.reservation).session(session).select('status arrivalDate departureDate tourist property noPost voucher currency privileges').lean() : null;
   if (folio.reservation && (!res || !ACTIVE_STAY.includes(res.status))) throw httpError('לא ניתן לחייב הזמנה שבוטלה או לא הגיעה', 409);
   // G6: after departure a charge is a post-stay charge (manager, reason, own window) — not a regular one.
+  // Privileges (gap-map item 15): a stay marked "no charges before arrival" refuses them until check-in.
+  if (res && ['confirmed', 'modified', 'pending_payment', 'hold'].includes(res.status) && res.privileges?.preArrivalCharges === false) throw httpError('בהזמנה הזו אסור לחייב לפני ההגעה', 409, { code: 'no_pre_arrival' });
   if (res && res.status === 'checked_out' && input.auditAction !== 'folio.post_stay_charge') throw httpError('האורח כבר יצא — חיוב מאוחר נרשם דרך "חיוב אחרי יציאה" בתיק ההזמנה', 409, { code: 'post_stay_required' });
   const property = await Property.findById(propertyId).session(session).select('vatRate timezone dayClose').lean();
   const today = businessDateOf(property);
@@ -590,7 +594,8 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
   const why = String(input.note || '').trim().slice(0, 300);
   const errors = {};
   if (!(amount > 0)) errors.amount = 'סכום חיובי';
-  if (!REFUND_REASONS[input.reasonCode]) errors.reasonCode = 'יש לבחור סיבה';
+  const refundReasons = await reasonMap(propertyId, 'reason_refund');
+  if (!refundReasons[input.reasonCode]) errors.reasonCode = 'יש לבחור סיבה';
   if (input.reasonCode === 'other' && why.length < 3) errors.note = 'יש לפרט';
   if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי ההחזר', 422, { fields: errors });
   const property = await Property.findById(propertyId).session(session).select('timezone financePolicy dayClose').lean();
@@ -605,9 +610,9 @@ export async function refundPayment({ propertyId, folioId, paymentLineId, input,
   const credit = -folioBalance(folio);
   if (amount - credit > 0.005) throw httpError(credit > 0.005 ? `יתרת הזכות בחשבון היא ${credit.toFixed(2)} — החזר גדול יותר ישאיר חוב` : 'אין יתרת זכות בחשבון — קודם יש לבטל או לזכות חיובים', 422, { fields: { amount: 'מעל יתרת הזכות' }, code: 'exceeds_credit' });
   folio.lines.push({
-    type: 'refund', description: `החזר — ${REFUND_REASONS[input.reasonCode]}${why ? ` · ${why}` : ''} (${METHOD_LABELS[pay.method] || 'אמצעי מקורי'})`,
+    type: 'refund', description: `החזר — ${refundReasons[input.reasonCode]}${why ? ` · ${why}` : ''} (${METHOD_LABELS[pay.method] || 'אמצעי מקורי'})`,
     amount, taxAmount: 0, serviceDate: businessDateOf(property), source: 'manual', status: 'posted', reference,
-    refundOf: pay._id, method: pay.method || undefined, reason: why || REFUND_REASONS[input.reasonCode], createdBy: actor.id || undefined,
+    refundOf: pay._id, method: pay.method || undefined, reason: why || refundReasons[input.reasonCode], createdBy: actor.id || undefined,
   });
   await folio.save({ session });
   const line = folio.lines[folio.lines.length - 1];
@@ -836,6 +841,9 @@ export async function runDayClose({ propertyId, date, arrivals, reason, actor, i
   if (out?.status === 'done') {
     const { arDayCloseHook } = await import('./arService.js');
     out.receivables = await arDayCloseHook({ propertyId, actor });
+    // Waitlist requests whose arrival passed leave the list (gap-map item 15). Never fails the close.
+    const { cleanupWaitlist } = await import('./reservationExtrasService.js');
+    out.waitlistRemoved = await cleanupWaitlist({ propertyId, actor }).catch(() => 0);
   }
   return out;
 }

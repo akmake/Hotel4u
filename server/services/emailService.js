@@ -106,7 +106,27 @@ function row(label, value) {
 
 // ── Email templates ───────────────────────────────────────────────────────────
 
-export function buildReservationConfirmationEmail({ guestName, confirmationNumber, arrivalDate, departureDate, roomType, nights, totalAmount, currency, propertyName, propertyPhone, propertyEmail }) {
+export function buildReservationConfirmationEmail({ guestName, confirmationNumber, arrivalDate, departureDate, roomType, nights, totalAmount, currency, propertyName, propertyPhone, propertyEmail, language = 'he' }) {
+  // English for guests whose language is English (gap-map item 15); Hebrew otherwise. No amount row when the price is hidden.
+  if (language === 'en') {
+    const amt = totalAmount != null ? `${Number(totalAmount).toLocaleString('en-US')} ${currency || 'ILS'}` : null;
+    const body = `
+    <p style="font-size:16px;color:#1e293b;margin:0 0 20px;" dir="ltr">Dear ${guestName || 'guest'},</p>
+    <p style="color:#475569;margin:0 0 24px;" dir="ltr">Your reservation at <strong>${propertyName || 'the hotel'}</strong> is confirmed.</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;" dir="ltr">
+      ${row('Confirmation', confirmationNumber)}${row('Room', roomType)}${row('Arrival', arrivalDate)}${row('Departure', departureDate)}${row('Nights', nights)}${amt ? row('Total', amt) : ''}
+    </table>
+    ${propertyPhone || propertyEmail ? `<p style="color:#64748b;font-size:13px;" dir="ltr">Questions: ${propertyPhone || ''}${propertyPhone && propertyEmail ? ' &bull; ' : ''}${propertyEmail || ''}</p>` : ''}`;
+    return {
+      subject: `Reservation confirmation #${confirmationNumber} — ${propertyName || 'the hotel'}`,
+      html: baseTemplate({ title: `Reservation #${confirmationNumber}`, preheader: `${arrivalDate} — ${departureDate} | ${roomType || ''}`, body, footer: propertyName || 'Hotel4U' }),
+      text: `Reservation #${confirmationNumber}
+Arrival: ${arrivalDate}
+Departure: ${departureDate}
+Room: ${roomType}${amt ? `
+Total: ${amt}` : ''}`,
+    };
+  }
   const cur = currency || 'ILS';
   const amount = totalAmount != null ? `${Number(totalAmount).toLocaleString('he-IL')} ${cur}` : '—';
 
@@ -119,7 +139,7 @@ export function buildReservationConfirmationEmail({ guestName, confirmationNumbe
       ${row('תאריך הגעה',   arrivalDate)}
       ${row('תאריך עזיבה',  departureDate)}
       ${row('מספר לילות',   nights)}
-      ${row('סכום כולל',    amount)}
+      ${totalAmount != null ? row('סכום כולל', amount) : ''}
     </table>
     ${propertyPhone || propertyEmail ? `
     <p style="color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:0;">

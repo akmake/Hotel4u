@@ -10,6 +10,8 @@
 //  - a cancellation notice is always accepted and recorded with when/how it arrived; stock is
 //    released; the rules produce a *proposal* with its source — no cancellation fee is charged
 //    automatically (gate G06); credit note and refund are separate steps (W07).
+import { can } from './permissionService.js';
+import { reasonMap } from './codeListService.js';
 import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
@@ -147,7 +149,7 @@ export async function moveCandidates({ propertyId, reservationId, unitId, fromRo
       agreed: { total: round2(remaining.reduce((a, n) => a + n.price, 0)), nightly: remaining },
       byType,
       ratePlan: !!res.ratePlan,
-      reasons: Object.entries(MOVE_REASONS).map(([value, label]) => ({ value, label, guestInitiated: GUEST_INITIATED.includes(value), onlyUp: UPGRADE_REASONS.includes(value) })),
+      reasons: Object.entries(await reasonMap(propertyId, 'reason_move')).map(([value, label]) => ({ value, label, guestInitiated: GUEST_INITIATED.includes(value), onlyUp: UPGRADE_REASONS.includes(value) })),
     },
     rooms: rooms.filter((r) => String(r._id) !== String(unit.assignedRoom)).map((r) => {
       const conflict = conflicts.get(String(r._id)) || null;
@@ -201,7 +203,8 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip, ou
   const hash = payloadHash(requestBody);
   await RoomMoveOperation.init();
   const reasonKey = REASON_ALIASES[input.reason] || input.reason;
-  const reason = MOVE_REASONS[reasonKey] ? reasonKey : null;
+  const moveReasons = await reasonMap(propertyId, 'reason_move');
+  const reason = moveReasons[reasonKey] ? reasonKey : null;
   const note = String(input.note || '').trim().slice(0, 300);
   const fields = {};
   if (!reason) fields.reason = 'יש לבחור סיבה';
@@ -239,9 +242,12 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip, ou
     }
     const property = await loadProperty(propertyId);
     const today = businessDateOf(property);
-    const policy = policyOf(await Property.findById(propertyId).select('checkInPolicy').lean());
+    const propPolicy = await Property.findById(propertyId).select('checkInPolicy upgradeNeedsApproval').lean();
+    const policy = policyOf(propPolicy);
     const res = await loadRes(propertyId, reservationId, session);
     if (!IN_HOUSE_STATUSES.includes(res.status)) throw httpError('מעבר חדר מתבצע רק לאורח שבבית', 409);
+    // A free upgrade may need a manager (property choice, gap-map item 14).
+    if (reason === 'upgrade_free' && propPolicy?.upgradeNeedsApproval && !can(actor, 'price.override', PRICE_ROLES)) throw httpError('שדרוג מטעם המלון מחייב אישור מנהל', 403, { code: 'approval_required' });
     const { unit, units } = await inHouseUnit(res, input.unitId, input.fromRoomId, session);
     const target = await Room.findOne({ _id: input.roomId, property: propertyId, active: { $ne: false } }).session(session);
     if (!target) throw httpError('חדר היעד לא נמצא', 404);
@@ -300,7 +306,7 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip, ou
     }
     await StaySegment.create([{
       reservationRoom: unit._id, reservation: res._id, property: propertyId, fromDate: today, toDate: to, roomType: newType, room: target._id,
-      ratePerNight: rate, ratePlan: res.ratePlan || undefined, changeReason: `מעבר חדר: ${MOVE_REASONS[reason]}${note ? ` — ${note}` : ''}`,
+      ratePerNight: rate, ratePlan: res.ratePlan || undefined, changeReason: `מעבר חדר: ${moveReasons[reason]}${note ? ` — ${note}` : ''}`,
       createdBy: actor.id || undefined, createdByName: actor.name,
     }], { session });
     unit.assignedRoom = target._id;
@@ -309,6 +315,8 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip, ou
     await unit.save({ session });
     const set = {};
     if (String(res.assignedRoom || '') === String(oldRoomId || '')) set.assignedRoom = target._id;
+    // Free upgrade: the stay is billed as the type it was sold as (gap-map item 14).
+    if (reason === 'upgrade_free' && !newNightly && !res.billedRoomType && String(oldType) !== String(newType)) set.billedRoomType = oldType;
     if (newNightly) {
       // Nights already slept keep their price; remaining nights take the new per-night price.
       const kept = (res.priceSnapshot?.nightly || []).filter((n) => n.date < today);
@@ -355,7 +363,7 @@ export async function moveRoom({ propertyId, reservationId, input, actor, ip, ou
     await audit({
       property: propertyId, actor: actor.id, actorName: actor.name, action: 'stay.room_moved', entityType: 'Reservation', entityId: res._id,
       before: { room: oldRoom?.number || null, remainingTotal: agreedTotal }, after: { room: target.number, priceMode: newNightly ? priceMode : 'keep', remainingTotal: newTotal, keyRequested: !!input.keyRequested, guestConsentRef: input.guestConsentRef || undefined },
-      reason: [MOVE_REASONS[reason], note, newNightly ? `מחיר: ${input.rateReason}` : ''].filter(Boolean).join(' · '), ip, ...tx,
+      reason: [moveReasons[reason], note, newNightly ? `מחיר: ${input.rateReason}` : ''].filter(Boolean).join(' · '), ip, ...tx,
     });
     const result = {
       reservationId: String(res._id), unitId: String(unit._id), from: oldRoom?.number || null, to: target.number, rate,
@@ -397,6 +405,9 @@ async function extensionPlan({ propertyId, res, newDeparture, session = null }) 
   const short = inv.nights.filter((n) => n.missing || n.stopSell || n.available < units.length);
   if (short.length) blockers.push({ code: 'no_stock', label: `אין מלאי ל־${short.slice(0, 3).map((n) => n.date).join(', ')}${short.length > 3 ? '…' : ''}` });
   const price = await priceNights({ roomTypeId, ratePlanId: res.ratePlan, dates, adults: res.adults || 1, children: res.children || 0, rooms: units.length, session, channel: channelOf(res) });
+  // Fixed rate (gap-map item 14): added nights keep the first night's agreed price.
+  const fixedFirst = res.fixedRate ? Number(res.priceSnapshot?.nightly?.[0]?.price ?? res.ratePerNight ?? 0) : 0;
+  if (fixedFirst > 0) { price.nightly = dates.map((date) => ({ date, price: fixedFirst })); price.missing = []; price.closed = []; price.perRoom = round2(fixedFirst * dates.length); }
   if (price.closed.length) blockers.push({ code: 'rate_closed', label: 'התעריף סגור בלילות הנוספים' });
   const property = await Property.findById(propertyId).session(session).select('vatRate boardPricing childMaxAge').lean();
   const ratePlan = res.ratePlan ? await RatePlan.findOne({ _id: res.ratePlan, property: propertyId }).session(session).lean() : null;
@@ -742,11 +753,15 @@ export function cancellationProposal({ res, input, paid, property }) {
   };
 }
 
-function validateCancelInput(input) {
+// Reasons come from the hotel's list (gap-map item 13). 'regret' and 'service_failure' carry the legal meaning
+// (consumer-protection eligibility); any other code is treated like 'other'.
+async function validateCancelInput(input, propertyId) {
   const fields = {};
+  const reasons = await reasonMap(propertyId, 'reason_cancel');
   if (!['phone', 'web', 'desk', 'ota', 'company', 'email', 'other'].includes(input.channel)) fields.channel = 'יש לבחור ערוץ';
   if (!['regular', 'protected', 'contractual', 'review'].includes(input.track)) fields.track = 'יש לבחור מסלול';
-  if (!['regret', 'service_failure', 'other'].includes(input.reason)) fields.reason = 'יש לבחור סיבה';
+  if (!reasons[input.reason] && !['regret', 'service_failure', 'other'].includes(input.reason)) fields.reason = 'יש לבחור סיבה';
+  input.reasonLabel = reasons[input.reason] || { regret: 'חרטה', service_failure: 'כשל שירות', other: 'אחר' }[input.reason];
   if (input.receivedAt && Number.isNaN(Date.parse(input.receivedAt))) fields.receivedAt = 'מועד לא תקין';
   if (input.receivedAt && Date.parse(input.receivedAt) > Date.now() + 60000) fields.receivedAt = 'מועד קבלה לא יכול להיות בעתיד';
   if (input.reason === 'other' && String(input.note || '').trim().length < 3) fields.note = 'יש לפרט';
@@ -761,7 +776,7 @@ async function paidOn(resId, session = null) {
 }
 
 export async function cancellationPreview({ propertyId, reservationId, input }) {
-  validateCancelInput(input);
+  await validateCancelInput(input, propertyId);
   const res = await loadRes(propertyId, reservationId);
   if (IN_HOUSE_STATUSES.includes(res.status)) throw httpError('השהייה כבר התחילה — לא מבטלים אחרי כניסה (T32)', 409);
   if (['cancelled', 'checked_out', 'no_show', 'deleted'].includes(res.status)) throw httpError('ההזמנה כבר נסגרה', 409);
@@ -772,7 +787,7 @@ export async function cancellationPreview({ propertyId, reservationId, input }) 
 }
 
 export async function cancelWithNotice({ propertyId, reservationId, input, actor, ip }) {
-  validateCancelInput(input);
+  await validateCancelInput(input, propertyId);
   return withReservationTransaction({ reservationId, propertyId }, async (session, afterCommit) => {
   const res = await loadRes(propertyId, reservationId, session);
   if (IN_HOUSE_STATUSES.includes(res.status)) throw httpError('השהייה כבר התחילה — לא מבטלים אחרי כניסה (T32)', 409);
@@ -780,7 +795,7 @@ export async function cancelWithNotice({ propertyId, reservationId, input, actor
   const paid = await paidOn(res._id, session);
   const proposal = cancellationProposal({ res, input, paid, property });
   const note = String(input.note || '').trim().slice(0, 500);
-  const reasonText = `${{ regret: 'חרטה', service_failure: 'כשל שירות', other: 'אחר' }[input.reason]}${note ? ` — ${note}` : ''}`;
+  const reasonText = `${input.reasonLabel}${note ? ` — ${note}` : ''}`;
   // Receiving the notice and releasing stock happen now; money is decided separately.
   const out = await cancelReservation({ reservationId: res._id, reason: reasonText, actorId: actor.id, actorName: actor.name, ip, session, afterCommit });
   await Reservation.updateOne({ _id: res._id }, {

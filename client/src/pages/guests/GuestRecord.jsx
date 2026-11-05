@@ -9,9 +9,10 @@ import {
   CalendarClock, Hash, Globe, Languages, Cake, Building2, Briefcase, IdCard, Star, Clock, StickyNote, Sparkles,
 } from 'lucide-react';
 import { useApi } from '../../hooks/useApi';
-import { guests as guestApi } from '../../utils/api';
+import { guests as guestApi, codes as codesApi } from '../../utils/api';
 import { Spinner } from '../../components/ui/Spinner';
 import { GuestDrawer } from '../GuestsPage';
+import ProfileExtras from './ProfileExtras';
 import { Avatar } from './GuestDirectory';
 import { TIER_LABELS, STATUS_LABELS, fullName, money, dateShort, monthYear, since, portrait, nightsOf } from './guestFormat';
 
@@ -165,14 +166,19 @@ function Notes({ g, reload }) {
   );
 }
 
-function Prefs({ g }) {
+function Prefs({ g, reload }) {
   const rows = PREFS.map(([k, label]) => [label, g[k] ? (PREF_VALUES[g[k]] || g[k]) : null]);
+  // The hotel's own preference list (gap-map item 13): toggled here, saved to the profile.
+  const { data: prefList } = useApi(() => (g.property ? codesApi.list(g.property, 'preference', true) : Promise.resolve([])), [g.property]);
+  const picked = g.preferenceCodes || [];
+  const toggle = async (code) => { try { await guestApi.update(g._id, { preferenceCodes: picked.includes(code) ? picked.filter((x) => x !== code) : [...picked, code] }); reload?.(); } catch { /* the refresh shows the truth */ } };
   const texts = NOTES_FIELDS.filter(([k]) => g[k]);
   return (
     <div className="gr-prefs">
       <dl>
         {rows.map(([label, v]) => <div key={label}><dt>{label}</dt><dd>{v || <span className="gx-dash">—</span>}</dd></div>)}
       </dl>
+      {!!prefList?.length && <div className="gr-tags is-neutral" aria-label="העדפות מהרשימה">{prefList.map((p) => <button key={p.code} type="button" className={`gx-pill ${picked.includes(p.code) ? 'is-c1' : ''}`} aria-pressed={picked.includes(p.code)} onClick={() => toggle(p.code)}>{p.label}</button>)}</div>}
       {texts.map(([k, label]) => <div key={k} className={`gr-pref-text ${k === 'allergies' ? 'is-alert' : ''}`}><b>{label}</b><p>{g[k]}</p></div>)}
       {!texts.length && <p className="gr-empty">אין בקשות, אלרגיות או הערות קבועות.</p>}
     </div>
@@ -214,6 +220,7 @@ const TABS = (g) => [
   ['stays', `שהיות${(g.reservations || []).length ? ` ${g.reservations.length}` : ''}`],
   ['notes', `הערות${(g.notes || []).length ? ` ${g.notes.length}` : ''}`],
   ['prefs', 'העדפות'],
+  ['more', 'קשרים, קבצים והיסטוריה'],
 ];
 
 // ── Attio: details column beside a tabbed main panel ─────────────────────────
@@ -253,7 +260,8 @@ function AttioRecord({ g, tab, setTab, onEdit, reload }) {
           )}
           {tab === 'stays' && <Stays g={g} />}
           {tab === 'notes' && <Notes g={g} reload={reload} />}
-          {tab === 'prefs' && <Prefs g={g} />}
+          {tab === 'prefs' && <Prefs g={g} reload={reload} />}
+          {tab === 'more' && <ProfileExtras g={g} />}
         </main>
       </div>
     </div>
@@ -313,7 +321,8 @@ function FolkRecord({ g, tab, setTab, onEdit, reload }) {
           </nav>
           {current === 'stays' && <Stays g={g} />}
           {current === 'notes' && <Notes g={g} reload={reload} />}
-          {current === 'prefs' && <Prefs g={g} />}
+          {current === 'prefs' && <Prefs g={g} reload={reload} />}
+          {current === 'more' && <ProfileExtras g={g} />}
         </main>
       </div>
     </div>
@@ -364,7 +373,8 @@ function SevenRoomsRecord({ g, onEdit, reload }) {
       <section className="gr-panel"><h3>היסטוריית שהיות</h3><Stays g={g} /></section>
       <div className="gr-two">
         <section className="gr-panel"><h3>הערות</h3><Notes g={g} reload={reload} /></section>
-        <section className="gr-panel"><h3>העדפות</h3><Prefs g={g} /></section>
+        <section className="gr-panel"><h3>העדפות</h3><Prefs g={g} reload={reload} /></section>
+        <section className="gr-panel"><h3>קשרים, קבצים והיסטוריה</h3><ProfileExtras g={g} /></section>
       </div>
       <section className="gr-panel"><h3>פרטים</h3><Details g={g} variant="seven" /></section>
     </div>

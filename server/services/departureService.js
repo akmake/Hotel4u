@@ -11,6 +11,7 @@
 import { can } from './permissionService.js';
 import { absorbCharge } from './packageService.js';
 import mongoose from 'mongoose';
+import GuestProfile from '../models/GuestProfile.js';
 import Reservation from '../models/Reservation.js';
 import ReservationRoom from '../models/ReservationRoom.js';
 import StaySegment from '../models/StaySegment.js';
@@ -361,8 +362,10 @@ export async function getCheckOutContext({ propertyId, reservationId }) {
   const invoices = await Invoice.find({ reservation: res._id }).select('status type invoiceNumber totalGross issuedAt allocationStatus allocationNumber folio').lean();
   const openRequests = await GuestRequest.countDocuments({ reservation: res._id, status: { $in: OPEN_REQUEST } });
   const g = res.primaryGuest || {};
+  // A restricted guest's rule pops up at checkout too (gap-map item 16).
+  const guestAlert = res.primaryGuest ? (await GuestProfile.findById(res.primaryGuest?._id || res.primaryGuest).select('restriction').lean())?.restriction || null : null;
   return {
-    businessDate,
+    businessDate, guestAlert,
     reservation: {
       id: String(res._id), confirmationNumber: res.confirmationNumber, status: res.status,
       arrivalDate: res.arrivalDate, departureDate: res.departureDate, nights: res.nights,

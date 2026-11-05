@@ -1,3 +1,4 @@
+import { reasonMap } from './codeListService.js';
 import Reservation from '../models/Reservation.js';
 import Room from '../models/Room.js';
 import Folio from '../models/Folio.js';
@@ -572,7 +573,8 @@ export async function deletionBlockers(res, session = null) {
 }
 
 export async function deleteReservation({ propertyId, reservationId, reasonCode, note, actor, ip }) {
-  if (!DELETE_REASONS[reasonCode]) throw Object.assign(httpError('יש לבחור סיבת מחיקה', 422), { fields: { reason: 'נדרש' } });
+  const deleteReasons = await reasonMap(propertyId, 'reason_delete');
+  if (!deleteReasons[reasonCode]) throw Object.assign(httpError('יש לבחור סיבת מחיקה', 422), { fields: { reason: 'נדרש' } });
   const text = String(note || '').trim().slice(0, 300);
   if (reasonCode === 'other' && text.length < 3) throw Object.assign(httpError('יש לפרט את הסיבה', 422), { fields: { note: 'נדרש' } });
   return withReservationTransaction({ reservationId, propertyId }, async (session, afterCommit) => {
@@ -583,7 +585,7 @@ export async function deleteReservation({ propertyId, reservationId, reasonCode,
     await assertNoEnteredUnits(res._id, session);
     const heldInventory = ['confirmed', 'modified', 'pending_payment', 'hold'].includes(res.status);
     const before = { status: res.status };
-    const reason = `${DELETE_REASONS[reasonCode]}${text ? ` — ${text}` : ''}`;
+    const reason = `${deleteReasons[reasonCode]}${text ? ` — ${text}` : ''}`;
     res.status = 'deleted';
     res.deletion = { at: new Date(), by: actor.id || undefined, byName: actor.name, reason: reasonCode, note: text || undefined };
     res.assignedRoom = undefined;

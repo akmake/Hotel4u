@@ -91,7 +91,7 @@ async function blockingTickets(roomId) {
 // Who is in which room / who arrives: occupancy derived from stays, never edited here.
 async function occupancyByRoom(propertyId, roomIds, businessDate) {
   const [stays, units, arrivals, queue] = await Promise.all([
-    Reservation.find({ property: propertyId, assignedRoom: { $in: roomIds }, status: { $in: IN_HOUSE_STATUSES } }).select('assignedRoom departureDate').lean(),
+    Reservation.find({ property: propertyId, assignedRoom: { $in: roomIds }, status: { $in: IN_HOUSE_STATUSES } }).select('assignedRoom departureDate arrivalDate housekeeping').lean(),
     ReservationRoom.find({ property: propertyId, assignedRoom: { $in: roomIds }, status: { $in: ['in_house', 'checked_in', 'reserved', 'tentative'] }, arrivalDate: { $lte: businessDate }, departureDate: { $gte: businessDate } })
       .populate('reservation', 'status eta departureDate arrivalDate').lean(),
     Reservation.find({ property: propertyId, assignedRoom: { $in: roomIds }, arrivalDate: businessDate, status: { $in: ['confirmed', 'modified', 'pending_payment'] } }).select('assignedRoom eta').lean(),
@@ -102,6 +102,7 @@ async function occupancyByRoom(propertyId, roomIds, businessDate) {
   for (const s of stays) {
     const o = get(String(s.assignedRoom));
     o.inHouse = true;
+    o.stayArrival = s.arrivalDate; o.hk = s.housekeeping || null;
     if (s.departureDate <= businessDate) o.dueOut = true;
   }
   for (const u of units) {
@@ -241,8 +242,16 @@ export async function generateTasks({ propertyId, date, actor, ip }) {
     else if (o?.inHouse) type = 'stayover';
     else if (['dirty', 'pickup'].includes(r.cleanStatus)) { type = 'checkout_clean'; priority = o?.arrival ? 'high' : 'medium'; }
     if (o?.arrival?.waiting) priority = 'urgent';
+    // Housekeeping set on the stay (gap-map item 15): a long stay cleaned every N days; turndown at its hour.
+    if (type === 'stayover' && o?.hk) {
+      const dayN = Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${o.stayArrival}T00:00:00Z`)) / 86400000);
+      if (o.hk.cleaningEvery > 1 && dayN % o.hk.cleaningEvery !== 0) type = null;
+      if (o.hk.turndown && !has.has(`${r._id}:turndown`)) { toCreate.push({ property: propertyId, room: r._id, type: 'turndown', priority: 'medium', date: day, dueTime: o.hk.turndownTime || undefined, status: 'new', autoCreated: true }); has.add(`${r._id}:turndown`); }
+      const linen = o.hk.linenEvery > 0 && dayN > 0 && dayN % o.hk.linenEvery === 0;
+      if (type && linen) priority = 'high';
+    }
     if (!type || has.has(`${r._id}:${type}`)) continue;
-    toCreate.push({ property: propertyId, room: r._id, type, priority, date: day, status: 'new', autoCreated: true });
+    toCreate.push({ property: propertyId, room: r._id, type, priority, date: day, status: 'new', autoCreated: true, ...(type === 'stayover' && o?.hk?.linenEvery > 0 && o.hk && Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${o.stayArrival}T00:00:00Z`)) / 86400000) % o.hk.linenEvery === 0 ? { notes: 'החלפת מצעים ומגבות' } : {}), ...(o?.hk?.note && type === 'stayover' ? { notes: o.hk.note } : {}) });
     has.add(`${r._id}:${type}`);
   }
   const created = toCreate.length ? await HousekeepingTask.insertMany(toCreate) : [];

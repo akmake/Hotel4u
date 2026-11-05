@@ -23,6 +23,8 @@ import TouristDialog, { DECISION_TONE } from '../../components/stay/TouristDialo
 import VoucherDialog from '../../components/stay/VoucherDialog';
 import { StayDeskCard, DeskAlerts } from '../../components/desk/DeskParts';
 import { CardsCard } from '../../components/stay/CardsCard';
+import { DetailsCard } from '../../components/stay/DetailsCard';
+import { RulesCard } from '../../components/stay/RulesCard';
 import { ReinstateCheckOutDialog, CopyBookingDialog, SplitUnitDialog, AddShareDialog, EndShareDialog, SharesCard, PackageCard } from '../../components/stay/StayToolsDialogs';
 import CheckInWizard from '../../components/frontdesk/CheckInWizard';
 import CheckOutWizard from '../../components/frontdesk/CheckOutWizard';
@@ -331,6 +333,8 @@ export default function ReservationPage() {
             <SharesCard propertyId={propertyId} reservation={r} canWork={CANCEL_ROLES.includes(role)} onAdd={() => setDialog({ kind: 'share-add' })} onEnd={(s) => setDialog({ kind: 'share-end', share: s })} onChanged={(m) => { success(m); reload(); }} onOpenFolio={(fid) => nav(`/pms/folio?reservation=${r.id}&folio=${fid}`)} />
             </>
           )}
+          {!isQuote && <DetailsCard propertyId={propertyId} reservation={r} canWork={CANCEL_ROLES.includes(role) || ['revenue_manager'].includes(role)} onChanged={(m) => { success(m); reload(); }} />}
+          {!isQuote && <RulesCard propertyId={propertyId} reservation={r} canWork={CANCEL_ROLES.includes(role) || ['finance_manager', 'revenue_manager'].includes(role)} onChanged={(m) => { success(m); reload(); }} />}
           {!isQuote && <CardsCard propertyId={propertyId} reservation={r} canWork={CANCEL_ROLES.includes(role) || ['cashier', 'finance_manager'].includes(role)} onChanged={(m) => { success(m); reload(); }} />}
           {!['cancelled', 'no_show', 'deleted'].includes(r.status) && (
             <StayDeskCard propertyId={propertyId} reservation={{ id: r.id, room: r.units?.[0]?.room?.number || null, guest: r.guest?.name || '' }} canWork={canFront && r.status !== 'checked_out'} businessDate={r.businessDate} onToast={success} />

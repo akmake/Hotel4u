@@ -128,6 +128,8 @@ export const api = {
   put:    (path, body) => request('PUT',    path, body),
   patch:  (path, body) => request('PATCH',  path, body),
   delete: (path)       => request('DELETE', path),
+  // A protected file (e.g. a profile attachment) as a Blob, with the bearer token.
+  blob: async (path) => { const token = getToken(); const res = await fetch(`${PMS_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, credentials: 'include' }); if (!res.ok) throw new Error('הקובץ לא נפתח'); return res.blob(); },
 };
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -885,6 +887,55 @@ export const commissions = {
   printPayment: (propertyId, id)         => api.post(`/commissions/payments/${id}/print`, { propertyId }),
   report:      (propertyId, params = {}) => api.get(`/commissions/report?propertyId=${propertyId}${qs(params)}`),
   forReservation: (propertyId, id)       => api.get(`/commissions/reservation/${id}?propertyId=${propertyId}`),
+};
+
+// Code lists the hotel manages (gap-map item 13)
+export const codes = {
+  all:  (propertyId)                 => api.get(`/codes?propertyId=${propertyId}`),
+  list: (propertyId, list, active)   => api.get(`/codes?propertyId=${propertyId}&list=${list}${active ? '&active=1' : ''}`),
+  save: (propertyId, list, code, body) => api.put(`/codes/${list}/${encodeURIComponent(code)}`, { ...body, propertyId }),
+};
+
+// Reservation details (gap-map item 14)
+export const resDetails = {
+  options:   (propertyId)              => api.get(`/res-details/options?propertyId=${propertyId}`),
+  get:       (propertyId, id)          => api.get(`/res-details/${id}?propertyId=${propertyId}`),
+  save:      (propertyId, id, body)    => api.patch(`/res-details/${id}`, { ...body, propertyId }),
+  splitRate: (propertyId, id, body)    => api.post(`/res-details/${id}/split-rate`, { ...body, propertyId }),
+  summary:   (propertyId, id)          => api.get(`/res-details/${id}/summary?propertyId=${propertyId}`),
+};
+
+// Waitlist, deposits, confirmations, items, stay rules (gap-map item 15)
+export const resExtras = {
+  waitlist:      (propertyId)            => api.get(`/res-extras/waitlist?propertyId=${propertyId}`),
+  addWaitlist:   (propertyId, body)      => api.post('/res-extras/waitlist', { ...body, propertyId }),
+  promote:       (propertyId, id, body = {}) => api.post(`/res-extras/waitlist/${id}/promote`, { ...body, propertyId }),
+  removeWait:    (propertyId, id, reason) => api.post(`/res-extras/waitlist/${id}/remove`, { reason, propertyId }),
+  deposits:      (propertyId)            => api.get(`/res-extras/deposits?propertyId=${propertyId}`),
+  setDeposit:    (propertyId, id, body)  => api.put(`/res-extras/deposits/${id}`, { ...body, propertyId }),
+  remind:        (propertyId, id)        => api.post(`/res-extras/deposits/${id}/remind`, { propertyId }),
+  unconfirmed:   (propertyId, from, to)  => api.get(`/res-extras/confirmations?propertyId=${propertyId}&from=${from}&to=${to}`),
+  sendConfirmations: (propertyId, ids)   => api.post('/res-extras/confirmations', { ids, propertyId }),
+  items:         (propertyId)            => api.get(`/res-extras/items?propertyId=${propertyId}`),
+  saveItem:      (propertyId, id, body)  => (id ? api.patch(`/res-extras/items/${id}`, { ...body, propertyId }) : api.post('/res-extras/items', { ...body, propertyId })),
+  itemAvailability: (propertyId, from, to) => api.get(`/res-extras/items/availability?propertyId=${propertyId}&from=${from}&to=${to}`),
+  bookItem:      (propertyId, resId, body) => api.post(`/res-extras/reservations/${resId}/items`, { ...body, propertyId }),
+  releaseItem:   (propertyId, bookingId) => api.post(`/res-extras/item-bookings/${bookingId}/release`, { propertyId }),
+  rules:         (propertyId, resId)     => api.get(`/res-extras/reservations/${resId}/rules?propertyId=${propertyId}`),
+  saveRules:     (propertyId, resId, body) => api.put(`/res-extras/reservations/${resId}/rules`, { ...body, propertyId }),
+};
+
+// Profiles (gap-map item 16)
+export const profiles = {
+  guest:          (propertyId, id)        => api.get(`/profiles/guests/${id}?propertyId=${propertyId}`),
+  saveRelations:  (propertyId, id, relations) => api.put(`/profiles/guests/${id}/relations`, { relations, propertyId }),
+  setRestriction: (propertyId, id, body)  => api.put(`/profiles/guests/${id}/restriction`, { ...body, propertyId }),
+  addPastStay:    (propertyId, id, body)  => api.post(`/profiles/guests/${id}/past-stays`, { ...body, propertyId }),
+  addFile:        (propertyId, id, body)  => api.post(`/profiles/guests/${id}/files`, { ...body, propertyId }),
+  removeFile:     (propertyId, fileId)    => api.post(`/profiles/files/${fileId}/remove`, { propertyId }),
+  company:        (propertyId, id)        => api.get(`/profiles/companies/${id}?propertyId=${propertyId}`),
+  setAccountManager: (propertyId, id, userId) => api.put(`/profiles/companies/${id}/account-manager`, { userId, propertyId }),
+  setBookingProfiles: (propertyId, resId, body) => api.put(`/profiles/reservations/${resId}`, { ...body, propertyId }),
 };
 
 // Card clearing (gap-map item 12)

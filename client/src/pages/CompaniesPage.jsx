@@ -8,13 +8,13 @@ import {
 import { useProperty } from '../context/PropertyContext';
 import { useApi } from '../hooks/useApi';
 import { useToast } from '../hooks/useToast';
-import { companies as companiesApi, reservations as resApi } from '../utils/api';
+import { companies as companiesApi, reservations as resApi, profiles as profilesApi, resDetails as resDetailsApi } from '../utils/api';
 import { PageSpinner, ErrorState, Spinner } from '../components/ui/Spinner';
 import { ToastContainer } from '../components/ui/Toast';
 import { BackArrow } from '../components/kit';
 
-const TYPE_HE    = { corporate:'חברה', agency:'סוכנות', tour_operator:'מפעיל סיורים', government:'ממשלתי' };
-const TYPE_COLOR = { corporate:'#6366f1', agency:'#0891b2', tour_operator:'#059669', government:'#ea580c' };
+const TYPE_HE    = { corporate:'חברה', agency:'סוכנות', tour_operator:'מפעיל סיורים', government:'ממשלתי', source:'מקור', group:'קבוצה' };
+const TYPE_COLOR = { corporate:'#6366f1', agency:'#0891b2', tour_operator:'#059669', government:'#ea580c', source:'#64748b', group:'#a16207' };
 const TYPES      = Object.keys(TYPE_HE);
 
 const STATUS_BADGE = {
@@ -134,6 +134,30 @@ function CompanyModal({ propertyId, company, onClose, onSaved }) {
 }
 
 /* ── Company Drawer ───────────────────────────────────────────────────────── */
+// Account manager, negotiated rates and contacts of the company (gap-map item 16).
+function AccountTab({ propertyId, companyId }) {
+  const { data, loading, refetch } = useApi(() => profilesApi.company(propertyId, companyId), [companyId]);
+  const { data: opts } = useApi(() => resDetailsApi.options(propertyId), [propertyId]);
+  const [err, setErr] = useState(null);
+  if (loading && !data) return <Spinner />;
+  return (
+    <div className="flex flex-col gap-4 text-sm">
+      {err && <div className="text-red-600">{err}</div>}
+      <label className="flex flex-col gap-1">אחראי מכירות
+        <select className="select" value={data?.accountManager?.id || ''} onChange={async (e) => { setErr(null); try { await profilesApi.setAccountManager(propertyId, companyId, e.target.value || null); refetch(); } catch (x) { setErr(x.message); } }}>
+          <option value="">—</option>{(opts?.users || []).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+      </label>
+      <div><b>תעריפים מוסכמים</b>
+        {data?.negotiatedRates?.length ? <ul>{data.negotiatedRates.map((r, i) => <li key={i}>{r.planName} ({r.plan}) · {r.rule} · {r.adjustment}{r.from || r.to ? ` · ${r.from || '…'}–${r.to || '…'}` : ''}{r.active ? '' : ' · מושבת'}</li>)}</ul> : <p className="text-slate-500">אין כללי מחיר לחברה. מגדירים במסך המחירים (כלל לפי חברה).</p>}
+      </div>
+      <div><b>אנשי קשר</b>
+        {data?.contacts?.length ? <ul>{data.contacts.map((c) => <li key={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}{c.email ? ` · ${c.email}` : ''}{c.isContact ? ' · איש קשר' : ''}</li>)}</ul> : <p className="text-slate-500">אין פרופילים מקושרים לחברה (קשר "חברה" בפרופיל האורח).</p>}
+      </div>
+    </div>
+  );
+}
+
 function CompanyDrawer({ propertyId, company, onClose, onEdit, onDeleted }) {
   const [tab, setTab] = useState('details');
   const color = TYPE_COLOR[company.type] || '#6366f1';
@@ -166,6 +190,7 @@ function CompanyDrawer({ propertyId, company, onClose, onEdit, onDeleted }) {
   const TABS = [
     { id:'details',      label:'פרטים',   icon: Building2  },
     { id:'reservations', label:'הזמנות',  icon: Calendar   },
+    { id:'account',      label:'מכירות ותעריפים', icon: Building2 },
   ];
 
   return (
@@ -312,6 +337,7 @@ function CompanyDrawer({ propertyId, company, onClose, onEdit, onDeleted }) {
             </div>
           )}
 
+          {tab === 'account' && <AccountTab propertyId={propertyId} companyId={company._id} />}
           {tab === 'reservations' && (
             <div className="px-5 py-4">
               {resLoading ? (

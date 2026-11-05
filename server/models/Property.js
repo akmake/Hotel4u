@@ -237,6 +237,7 @@ const PropertySchema = new Schema({
   // How the property sells: 'rates' (choose a rate plan) or 'board' (choose a board — each board is
   // a rate plan with its own price calendar). The manager decides; the booking form shows one choice.
   pricingMode: { type: String, enum: ['rates', 'board'], default: 'rates' },
+  upgradeNeedsApproval: { type: Boolean, default: false },   // free upgrade (room move) only by a manager — gap-map item 14
   // Card clearing (gap-map item 12, services/cardGateway.js): each property uses its own provider account.
   // Credentials are sealed; 'mock' is the test provider (refuses in production).
   payments: {

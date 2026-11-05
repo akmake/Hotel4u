@@ -27,8 +27,8 @@ export async function sendConfirmation({ propertyId, reservationId, to, actor, i
   const mail = buildReservationConfirmationEmail({
     guestName: `${guest?.firstName || ''} ${guest?.lastName || ''}`.trim(),
     confirmationNumber: r.confirmationNumber, arrivalDate: r.arrivalDate, departureDate: r.departureDate,
-    roomType: roomType?.name || '', nights: r.nights, totalAmount: r.totalAmount, currency: r.currency || 'ILS',
-    propertyName: property?.name, propertyPhone: property?.phone, propertyEmail: property?.email,
+    roomType: roomType?.name || '', nights: r.nights, totalAmount: r.hidePrice ? null : r.totalAmount, currency: r.currency || 'ILS',
+    propertyName: property?.name, propertyPhone: property?.phone, propertyEmail: property?.email, language: r.language === 'en' ? 'en' : 'he',
   });
   const info = await sendEmail({ to: address, subject: mail.subject, html: mail.html, text: mail.text, replyTo: property?.email || undefined });
   if (!info) throw httpError('שליחת דוא״ל אינה מוגדרת בשרת (EMAIL_USER / EMAIL_PASS)', 409, { code: 'email_not_configured' });

@@ -7,6 +7,7 @@
 //    the money to the group's account (a house folio of outlet "groups") through the money core —
 //    in advance as a deposit, capped by the expected amount. Receipts are issued from that account
 //    through the invoicing system, like any folio.
+import { reasonMap } from './codeListService.js';
 import { can } from './permissionService.js';
 import mongoose from 'mongoose';
 import GroupBlock from '../models/GroupBlock.js';
@@ -107,7 +108,7 @@ export async function saveBilling({ propertyId, id, input, actor, ip }) {
     const kind = v.discount.kind === 'amount' ? 'amount' : 'percent';
     const value = round2(v.discount.value);
     if (kind === 'percent' && value > 100) errors.discount = 'אחוז עד 100';
-    if (!DISCOUNT_REASONS[v.discount.reason]) errors.discountReason = 'יש לבחור סיבה';
+    if (!(await reasonMap(propertyId, 'reason_discount'))[v.discount.reason]) errors.discountReason = 'יש לבחור סיבה';
     if (v.discount.reason === 'other' && clip(v.discount.note, 200).length < 3) errors.discountNote = 'יש לפרט';
     discount = { kind, value, reason: v.discount.reason, note: clip(v.discount.note, 200) || undefined };
   }
@@ -183,7 +184,7 @@ export async function getMoney({ propertyId, id }) {
     payments: payments.map(paymentDto),
     summary: { expected: t.total, approved, pending, left: round2(Math.max(0, t.total - approved)), state, progress: t.total > 0 ? Math.min(100, Math.round(approved * 100 / t.total)) : 0, overdue: !!(g.billing?.dueDate && g.billing.dueDate < today && approved < t.total - 0.005) },
     account,
-    options: { categories: BILLING_CATEGORIES, terms: PAYMENT_TERMS, methods: METHOD_LABELS, discountReasons: DISCOUNT_REASONS, discountApprovalPercent: Number(property?.discountApprovalPercent ?? 10) },
+    options: { categories: BILLING_CATEGORIES, terms: PAYMENT_TERMS, methods: METHOD_LABELS, discountReasons: await reasonMap(propertyId, 'reason_discount'), discountApprovalPercent: Number(property?.discountApprovalPercent ?? 10) },
     today,
   };
 }

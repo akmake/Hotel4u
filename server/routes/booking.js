@@ -1,5 +1,6 @@
 // /api/pms/booking — availability & price (INV-03), create booking/quote (RSV-02/RSV-04),
 // reservation list (RSV-01) and stay file (RSV-03). Rules live in services/bookingService.js.
+import { reasonMap } from '../services/codeListService.js';
 import { requireCan } from '../services/permissionService.js';
 import { sendConfirmation, autoSendConfirmation, autoSendCancellation } from '../services/confirmationService.js';
 import { Router } from 'express';
@@ -88,7 +89,7 @@ router.post('/reservations/:id/confirmation', handle(async (req) => {
 router.get('/discount-config', handle(async (req) => {
   requireRoles(req, READ_ROLES, 'אין הרשאה');
   const p = await Property.findById(scope(req)).select('discountApprovalPercent').lean();
-  return { reasons: Object.entries(DISCOUNT_REASONS).map(([code, label]) => ({ code, label })), threshold: Number(p?.discountApprovalPercent ?? 10), canApprove: PRICE_OVERRIDE_ROLES.includes(req.actor?.role) };
+  return { reasons: Object.entries(await reasonMap(scope(req), 'reason_discount')).map(([code, label]) => ({ code, label })), threshold: Number(p?.discountApprovalPercent ?? 10), canApprove: PRICE_OVERRIDE_ROLES.includes(req.actor?.role) };
 }));
 
 router.get('/board-config', handle(async (req) => {
@@ -167,7 +168,7 @@ router.post('/reservations/:id/cancel', handle(async (req) => {
 // Deleted vs cancelled: a booking entered by mistake leaves every statistic. Manager only, reason from a list.
 router.get('/delete-reasons', handle(async (req) => {
   requireRoles(req, READ_ROLES, 'אין הרשאה');
-  return Object.entries(DELETE_REASONS).map(([code, label]) => ({ code, label }));
+  return Object.entries(await reasonMap(scope(req), 'reason_delete')).map(([code, label]) => ({ code, label }));
 }));
 
 // GTD: mark as non-guaranteed (held until a time on arrival day) or back to a regular booking.

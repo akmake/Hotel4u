@@ -2,7 +2,9 @@
 // the house status of a day (with comp / house use and maximum availability), the vacant room search
 // and turned-away requests. Nothing here changes stays; everything is read from the same sources as the
 // availability board, the front desk and housekeeping.
+import { reasonMap } from './codeListService.js';
 import mongoose from 'mongoose';
+import GuestProfile from '../models/GuestProfile.js';
 import Room from '../models/Room.js';
 import RoomType from '../models/RoomType.js';
 import Reservation from '../models/Reservation.js';
@@ -124,19 +126,20 @@ export async function weekView({ propertyId, from, days = 7 }) {
       turnaways: { count: ta.length, rooms: sum(ta, 'rooms') },
     };
   });
-  return { today, from: start, rows, reasons: TURNAWAY_REASONS };
+  return { today, from: start, rows, reasons: await reasonMap(propertyId, 'reason_turnaway') };
 }
 
 export async function addTurnAway({ propertyId, input, actor, ip }) {
   const fields = {};
   if (!YMD.test(input.date || '')) fields.date = 'תאריך הגעה';
-  if (!TURNAWAY_REASONS[input.reason]) fields.reason = 'סיבה';
+  if (!(await reasonMap(propertyId, 'reason_turnaway'))[input.reason]) fields.reason = 'סיבה';
   const nights = Number(input.nights || 1); const rooms = Number(input.rooms || 1);
   if (!(nights >= 1 && nights <= 60)) fields.nights = '1–60';
   if (!(rooms >= 1 && rooms <= 100)) fields.rooms = '1–100';
   if (input.roomTypeId && !isId(input.roomTypeId)) fields.roomTypeId = 'סוג חדר';
   if (Object.keys(fields).length) throw httpError('יש להשלים את פרטי הפנייה', 422, { fields });
-  const t = await TurnAway.create({ property: propertyId, date: input.date, nights, rooms, roomType: input.roomTypeId || undefined, reason: input.reason, note: String(input.note || '').trim().slice(0, 300) || undefined, by: actor.id || undefined, byName: actor.name });
+  const guestRef = input.guestId && mongoose.isValidObjectId(String(input.guestId)) && await GuestProfile.exists({ _id: input.guestId, property: propertyId }) ? input.guestId : undefined;
+  const t = await TurnAway.create({ property: propertyId, date: input.date, nights, rooms, roomType: input.roomTypeId || undefined, guest: guestRef, reason: input.reason, note: String(input.note || '').trim().slice(0, 300) || undefined, by: actor.id || undefined, byName: actor.name });
   await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'home.turnaway', entityType: 'TurnAway', entityId: t._id, after: { date: t.date, nights, rooms, reason: t.reason }, ip });
   return { id: String(t._id) };
 }

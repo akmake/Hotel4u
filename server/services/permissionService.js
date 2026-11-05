@@ -27,6 +27,7 @@ export const CAPABILITIES = [
   { key: 'rates.manage', area: 'הכנסות', label: 'ניהול הכנסות: סוגי יום, מדרגות, ערוצים ואסטרטגיה' },
   { key: 'package.manage', area: 'הכנסות', label: 'הגדרת חבילות ושיוך לתעריפים' },
   { key: 'commission.manage', area: 'כספים', label: 'עריכה ותשלום של עמלות סוכנים' },
+  { key: 'codes.manage', area: 'הגדרות', label: 'רשימות קוד: פלחים, סיבות, שירותים, VIP, עונות' },
   { key: 'card.settle', area: 'כספים', label: 'הגדרות סליקה והפקדות של חברות האשראי' },
 ];
 export const CAP_KEYS = CAPABILITIES.map((c) => c.key);

@@ -4,6 +4,7 @@ const { Schema, model } = mongoose;
 const GuestNoteSchema = new Schema({
   text:      { type: String, required: true },
   createdBy: String,
+  type:      String,   // code from the hotel's note types ('reservation' notes are copied to every new booking)
 }, { timestamps: true });
 
 const GuestProfileSchema = new Schema({
@@ -66,9 +67,15 @@ const GuestProfileSchema = new Schema({
   newspaper:          String,
   specialRequests:    String,
   preferences:    String,
+  preferenceCodes:{ type: [String], default: [] },   // codes from the hotel's preference list (CodeList 'preference')
   allergies:      String,
   internalNotes:  String,
   notes:          [GuestNoteSchema],
+  // Profiles (gap-map item 16): relations, restriction rule, stays from a previous system, contact (does not stay).
+  relations:      { type: [new Schema({ kind: { type: String, enum: ['company', 'family', 'assistant', 'colleague', 'other'] }, guest: { type: Schema.Types.ObjectId, ref: 'GuestProfile' }, company: { type: Schema.Types.ObjectId, ref: 'Company' }, note: String }, { _id: true })], default: [] },
+  restriction:    { type: new Schema({ rule: { type: String, enum: ['alert', 'manager_approval', 'prepay_only'] }, note: String, byName: String, at: Date }, { _id: false }), default: undefined },
+  pastStays:      { type: [new Schema({ arrival: String, departure: String, nights: Number, roomType: String, amount: Number, source: String, note: String, byName: String, at: Date }, { _id: true })], default: [] },
+  isContact:      { type: Boolean, default: false },
   tags:           [{ type: String }],
   // הסכמות — עם audit trail לפי חוק הספאם (תיקון 40) וחוק הגנת הפרטיות
   marketingConsent:        { type: Boolean, default: false },
@@ -117,3 +124,17 @@ GuestProfileSchema.pre('save', function () {
 
 export default model('GuestProfile', GuestProfileSchema);
 
+
+// Files attached to a guest profile (gap-map item 16): kept in the database, served only to signed-in users of the property.
+const GuestAttachmentSchema = new Schema({
+  property: { type: Schema.Types.ObjectId, ref: 'Property', required: true },
+  guest:    { type: Schema.Types.ObjectId, ref: 'GuestProfile', required: true },
+  name:     { type: String, required: true, maxlength: 120 },
+  mime:     { type: String, required: true },
+  size:     Number,
+  data:     { type: Buffer, required: true },
+  byName:   String,
+  removed:  { type: Boolean, default: false },
+}, { timestamps: true });
+GuestAttachmentSchema.index({ property: 1, guest: 1 });
+export const GuestAttachment = mongoose.models.GuestAttachment || model('GuestAttachment', GuestAttachmentSchema);

@@ -9,6 +9,7 @@ const PricingRuleSchema = new Schema({
   weekdays: { type: [Number], default: [] }, // 0-6
   seasonFrom: String, // YYYY-MM-DD
   seasonTo: String,   // YYYY-MM-DD
+  season: String,     // code of a shared season (CodeList 'season') — its ranges, instead of seasonFrom/To
 
   minGuests: Number,
   maxGuests: Number,

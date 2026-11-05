@@ -73,7 +73,7 @@ const ReservationSchema = new Schema({
   priceSnapshot: {
     ratePlanCode: String,
     ratePlanName: String,
-    nightly:      [{ date: String, price: Number }],     // gross per room per night
+    nightly:      [{ date: String, price: Number, planCode: String }],     // gross per room per night; planCode when part of the stay is on another rate (gap-map item 14)
     total:        Number,                               // gross for all rooms and nights
     vatRate:      Number,
     refundable:   Boolean,
@@ -116,7 +116,7 @@ const ReservationSchema = new Schema({
     disclosureAt:  Date,
     priorCall:     Boolean,
     track:         { type: String, enum: ['regular', 'protected', 'contractual', 'review'] },
-    reason:        { type: String, enum: ['regret', 'service_failure', 'other'] },
+    reason:        { type: String },   // code from the hotel's cancellation reasons; 'regret' / 'service_failure' carry the legal meaning
     note:          String,
     proposal:      Schema.Types.Mixed,                     // what the rules suggested, with sources
     decidedBy:     String,
@@ -180,6 +180,29 @@ const ReservationSchema = new Schema({
   travelAgent:       { type: Schema.Types.ObjectId, ref: 'Company' },
   // The card on file for this stay (gap-map item 12) — a reference to the tokenized card, last 4 for display.
   card:              { type: new Schema({ ref: { type: Schema.Types.ObjectId, ref: 'PaymentCard' }, last4: String, brand: String }, { _id: false }), default: undefined },
+  // Profiles on the booking (gap-map item 16): a source profile (company of type 'source') and a contact who does not stay.
+  sourceProfile:     { type: Schema.Types.ObjectId, ref: 'Company' },
+  contactProfile:    { type: Schema.Types.ObjectId, ref: 'GuestProfile' },
+  // Reservation details (gap-map item 14).
+  teens:             { type: Number, min: 0, max: 20, default: 0 },
+  infants:           { type: Number, min: 0, max: 10, default: 0 },
+  coordinator:       { type: Schema.Types.ObjectId, ref: 'User' },       // reservation coordinator
+  salesperson:       { type: Schema.Types.ObjectId, ref: 'User' },       // account / sales owner
+  flight:            { type: new Schema({ arrivalNo: String, arrivalTime: String, departureNo: String, departureTime: String }, { _id: false }), default: undefined },
+  lateCheckout:      { type: new Schema({ time: String, byName: String, at: Date }, { _id: false }), default: undefined },
+  cashierNote:       { type: String, maxlength: 300 },                  // shown on the folio screen
+  hidePrice:         { type: Boolean, default: false },                 // price left out of confirmation, summary and registration card
+  fixedRate:         { type: Boolean, default: false },                 // added nights keep the first night's price
+  billedRoomType:    { type: Schema.Types.ObjectId, ref: 'RoomType' }, // a free upgrade: billed as this type, staying in another
+  vipReason:         { type: String, maxlength: 200 },
+  // Waitlist, deposit due date, payment methods, privileges, housekeeping (gap-map item 15).
+  waitlist:          { type: new Schema({ priority: { type: Number, default: 3 }, note: String, promotedTo: { type: Schema.Types.ObjectId, ref: 'Reservation' }, byName: String, at: Date }, { _id: false }), default: undefined },
+  depositDue:        { type: new Schema({ amount: Number, dueDate: String, remindedAt: Date, note: String, byName: String }, { _id: false }), default: undefined },
+  paymentMethods:    { type: [new Schema({ method: { type: String, enum: ['credit_card', 'cash', 'company', 'voucher', 'bank_transfer'] }, covers: { type: String, enum: ['all', 'room', 'extras'], default: 'all' }, limit: Number, rule: { type: String, enum: ['none', 'authorization', 'manager', 'voucher_number'], default: 'none' }, ref: String, company: { type: Schema.Types.ObjectId, ref: 'Company' } }, { _id: false })], default: [] },
+  privileges:        { type: new Schema({ preArrivalCharges: Boolean, postStayCharges: Boolean, selfCheckout: Boolean }, { _id: false }), default: undefined },
+  housekeeping:      { type: new Schema({ turndown: Boolean, turndownTime: String, cleaningEvery: Number, linenEvery: Number, note: String }, { _id: false }), default: undefined },
+  // Special services (gap-map item 13/14): from the hotel's list, added by hand or automatically for a VIP level.
+  specialServices:   { type: [new Schema({ code: String, label: String, source: { type: String, enum: ['vip', 'manual'], default: 'manual' }, byName: String, at: Date }, { _id: false })], default: [] },
   // Commission % for this reservation only (a group agreed a different rate) — beats plan and agent.
   commissionPct:     { type: Number, min: 0, max: 100 },
   // Package components added to this reservation by hand (gap-map item 10) — on top of the plan's.

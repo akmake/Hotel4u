@@ -15,6 +15,7 @@ export function matchesRule(rule, ctx) {
   if (rule.weekdays?.length && !rule.weekdays.includes(ctx.weekday)) return false;
   if (rule.seasonFrom && ctx.date < rule.seasonFrom) return false;
   if (rule.seasonTo && ctx.date > rule.seasonTo) return false;
+  if (rule.season && !(ctx.seasons?.[rule.season] || []).some((r) => r.from <= ctx.date && ctx.date <= r.to)) return false;
   if (rule.minGuests != null && ctx.adults < rule.minGuests) return false;
   if (rule.maxGuests != null && ctx.adults > rule.maxGuests) return false;
   if (rule.minChildren != null && ctx.children < rule.minChildren) return false;

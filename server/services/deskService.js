@@ -1,6 +1,7 @@
 // Front-desk communication (gap-map item 4): guest messages, alerts, traces, wake-up calls, locators,
 // the shift log book, the phone book and the operator's guest search. Everything is per property,
 // audited, and a record is closed (done / no answer / cancelled) — never deleted.
+import { getList } from './codeListService.js';
 import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import { DeskItem, PhoneBookEntry, DESK_KINDS } from '../models/DeskItem.js';
@@ -199,7 +200,7 @@ export async function listDesk({ propertyId, kind, view = 'open', date, from, to
   return {
     businessDate: today, kind, rows: list.map(deskDto),
     ...(kind === 'logbook' ? { unread: list.filter((x) => !(x.readBy || []).some((r) => String(r.user) === String(actor.id))).length } : {}),
-    ...(kind === 'trace' ? { departments: TRACE_DEPARTMENTS, templates: TRACE_TEMPLATES, ownDepartment: DEPT_OF_ROLE[actor.role] || null } : {}),
+    ...(kind === 'trace' ? { departments: TRACE_DEPARTMENTS, templates: (await getList(propertyId, 'trace_text', { activeOnly: true })).map((x) => x.label), ownDepartment: DEPT_OF_ROLE[actor.role] || null } : {}),
   };
 }
 
@@ -215,7 +216,7 @@ export async function stayDesk({ propertyId, reservationId }) {
     traces: live.filter((x) => x.kind === 'trace').map(deskDto),
     wakeups: live.filter((x) => x.kind === 'wakeup').map(deskDto),
     locator: live.filter((x) => x.kind === 'locator').map(deskDto)[0] || null,
-    departments: TRACE_DEPARTMENTS, templates: TRACE_TEMPLATES,
+    departments: TRACE_DEPARTMENTS, templates: (await getList(propertyId, 'trace_text', { activeOnly: true })).map((x) => x.label),
   };
 }
 

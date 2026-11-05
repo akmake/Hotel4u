@@ -9,6 +9,7 @@
 //  - a merge needs a reason and a choice for every conflicting field; two different identity
 //    documents block it; the narrower marketing consent wins; final documents are not rewritten;
 //    the source profile stays as an alias pointing at the target (evidence kept).
+import { getList } from './codeListService.js';
 import mongoose from 'mongoose';
 import GuestProfile from '../models/GuestProfile.js';
 import Reservation from '../models/Reservation.js';
@@ -115,7 +116,7 @@ function profileDto(g, role) {
     dateOfBirth: g.dateOfBirth || null,
     idDoc: { type: g.idDocType || null, country: g.idDocCountry || null, number: manager ? g.passportNumber || null : maskDoc(g.passportNumber), expiry: g.passportExpiry || null, verifiedBy: g.idVerifiedBy || null, verifiedAt: g.idVerifiedAt || null, masked: !manager },
     vipLevel: g.vipLevel || 0, blacklisted: !!g.isBlacklisted, blacklistReason: manager ? g.blacklistReason || null : null,
-    preferences: { room: g.roomTypePreference || '', bed: g.bedTypePreference || '', floor: g.floorPreference || 'any', smoking: g.smokingPreference || 'non-smoking', notes: g.preferences || '', specialRequests: g.specialRequests || '' },
+    preferences: { room: g.roomTypePreference || '', bed: g.bedTypePreference || '', floor: g.floorPreference || 'any', smoking: g.smokingPreference || 'non-smoking', codes: g.preferenceCodes || [], notes: g.preferences || '', specialRequests: g.specialRequests || '' },
     sensitive: manager ? { allergies: g.allergies || '', internalNotes: g.internalNotes || '' } : { restricted: true, hasData: !!(g.allergies || g.internalNotes) },
     consents: {
       marketing: !!g.marketingConsent && !g.marketingOptOutAt, marketingAt: g.marketingConsentAt || null, marketingVersion: g.marketingConsentFormVer || null, marketingOptOutAt: g.marketingOptOutAt || null,
@@ -207,6 +208,12 @@ export async function updateGuest({ propertyId, id, input, actor, ip }) {
     if (pr.smoking !== undefined && ['smoking', 'non-smoking', 'any'].includes(pr.smoking)) g.smokingPreference = pr.smoking;
     if (pr.notes !== undefined) g.preferences = str(pr.notes, 500);
     if (pr.specialRequests !== undefined) g.specialRequests = str(pr.specialRequests, 500);
+    if (pr.codes !== undefined) {
+      const allowed = new Set((await getList(propertyId, 'preference', { activeOnly: true })).map((x) => x.code));
+      const codes = [...new Set((Array.isArray(pr.codes) ? pr.codes : []).map(String))];
+      if (codes.some((c) => !allowed.has(c))) fields.preferences = 'העדפה לא קיימת ברשימת המלון';
+      else g.preferenceCodes = codes;
+    }
   }
   if (input.sensitive) {
     if (!manager) throw httpError('מידע רגיש נערך על ידי מנהל בלבד', 403);

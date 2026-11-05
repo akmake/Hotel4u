@@ -132,6 +132,14 @@ function GuestCard({ propertyId, form, setForm, duplicates }) {
   }
   const g = form.newGuest;
   const fe = form.fieldErrors || {};
+  // Live suggestion (gap-map item 16): while a new guest's name or phone is typed, existing profiles that match show up.
+  useEffect(() => {
+    if (form.guest) return undefined;
+    const term = [g.firstName, g.lastName].join(' ').trim().length >= 3 ? `${g.firstName} ${g.lastName}`.trim() : (g.phone || '').replace(/\D/g, '').length >= 6 ? g.phone : '';
+    if (!term) return undefined;
+    const t = setTimeout(async () => { try { setHits(await booking.guests(propertyId, term)); } catch { /* typing goes on */ } }, 400);
+    return () => clearTimeout(t);
+  }, [g.firstName, g.lastName, g.phone, form.guest, propertyId]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Card title="אורח ראשי">
       {duplicates?.length > 0 && (

@@ -1,4 +1,5 @@
-﻿import { Router } from 'express';
+﻿import { getList } from '../services/codeListService.js';
+import { Router } from 'express';
 import ReservationRoom from '../models/ReservationRoom.js';
 import GuestRegistrationCard from '../models/GuestRegistrationCard.js';
 import GuestRequest from '../models/GuestRequest.js';
@@ -197,7 +198,7 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     'isBlacklisted', 'blacklistReason',
     'address',
     'roomTypePreference', 'bedTypePreference', 'floorPreference',
-    'smokingPreference', 'pillow', 'newspaper', 'specialRequests',
+    'smokingPreference', 'pillow', 'newspaper', 'specialRequests', 'preferenceCodes', 'isContact',
   ];
 
   const guest = await GuestProfile.findById(req.params.id);
@@ -208,6 +209,13 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     Object.entries(req.body).filter(([key]) => allowed.includes(key))
   );
   if (updates.email) updates.email = updates.email.toLowerCase().trim();
+  // Preferences from the hotel's own list (gap-map item 13).
+  if (updates.preferenceCodes !== undefined) {
+    const allowedCodes = new Set((await getList(String(guest.property), 'preference', { activeOnly: true })).map((x) => x.code));
+    const codes = [...new Set((Array.isArray(updates.preferenceCodes) ? updates.preferenceCodes : []).map(String))];
+    if (codes.some((c) => !allowedCodes.has(c))) return res.status(422).json({ success: false, error: 'העדפה לא קיימת ברשימת המלון', fields: { preferenceCodes: 'לא ברשימה' } });
+    updates.preferenceCodes = codes;
+  }
   if (guest.isAnonymized) return res.status(409).json({ success: false, error: 'פרופיל מותמם — אין לשנות אותו' });
   if (updates.isBlacklisted === true && String(updates.blacklistReason ?? guest.blacklistReason ?? '').trim().length < 3) {
     return res.status(422).json({ success: false, error: 'סימון ברשימה שחורה מחייב סיבה', fields: { blacklistReason: 'סיבה' } });
@@ -252,7 +260,7 @@ router.post('/:id/tags', asyncHandler(async (req, res) => {
 router.post('/:id/notes', asyncHandler(async (req, res) => {
   requireRoles(req, GUEST_WRITE_ROLES);
 
-  const { text, createdBy } = req.body;
+  const { text, createdBy, type } = req.body;
   if (!text?.trim()) return res.status(400).json({ success: false, error: 'text is required' });
 
   const guest = await GuestProfile.findById(req.params.id);
@@ -263,6 +271,7 @@ router.post('/:id/notes', asyncHandler(async (req, res) => {
   guest.notes.push({
     text: text.trim(),
     createdBy: createdBy || req.actor?.name || req.actor?.email || 'system',
+    ...(type ? { type: String(type).slice(0, 40) } : {}),
   });
   await guest.save();
 

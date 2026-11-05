@@ -1,6 +1,7 @@
 // Revenue management (gap-map item 9): day types + hotel calendar, length-of-stay tiers, channel
 // restrictions and automatic strategies. Booking reads the day type of each night (price), the channel
 // rules (close / web discount) and the restrictions strategies placed (stop sell, CTA, min nights).
+import { seasonRanges } from './codeListService.js';
 import { can } from './permissionService.js';
 import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
@@ -55,7 +56,9 @@ export async function revenueContext({ propertyId, dates, session = null }) {
     ChannelRule.find({ property: propertyId, active: { $ne: false }, from: { $lte: to }, to: { $gte: from } }).session(session).lean(),
     AutoRestriction.find({ property: propertyId, date: { $in: dates }, liftedAt: null }).session(session).lean(),
   ]);
-  return { dayTypes, channelRules, auto };
+  // Shared seasons (gap-map item 13): a price rule may name a season instead of its own dates.
+  const seasons = await seasonRanges(propertyId);
+  return { dayTypes, channelRules, auto, seasons };
 }
 
 // The channel a reservation was sold on (older site bookings have only marketSegment 'website').

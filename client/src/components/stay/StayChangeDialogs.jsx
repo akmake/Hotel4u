@@ -2,7 +2,7 @@
 // checkout wizard), RSV-05 booking change and RSV-06 cancellation notice. Each shows the
 // consequences from the server first; the commit re-checks everything.
 import { useEffect, useMemo, useState } from 'react';
-import { stay } from '../../utils/api';
+import { stay, codes } from '../../utils/api';
 import { Modal, Field, ErrorBanner, Banner, Spinner, KeyValues, Tag, useAction, useLoader, money } from '../kit';
 import { formatShort, formatLong, addDays } from '../../utils/date';
 import { cleanLabel, TICKET_CATEGORY_LABELS } from '../../lib/labels';
@@ -462,6 +462,9 @@ export function ModifyBookingDialog({ open, onClose, propertyId, reservation, ro
 
 // ── RSV-06 ──────────────────────────────────────────────────────────────────
 export function CancelBookingDialog({ open, onClose, propertyId, reservation, onDone }) {
+  // Reasons from the hotel's list (gap-map item 13); the built-in three are the fallback.
+  const reasonList = useLoader(async () => (open && propertyId ? codes.list(propertyId, 'reason_cancel', true) : null), [open, propertyId]);
+  const cancelReasons = reasonList.data?.length ? reasonList.data.map((x) => [x.code, x.label]) : Object.entries(CANCEL_REASONS);
   const action = useAction();
   const check = useAction();
   const [f, setF] = useState({});
@@ -491,7 +494,7 @@ export function CancelBookingDialog({ open, onClose, propertyId, reservation, on
           <input id="cx-at" type="datetime-local" className="input w-full" max={localNow()} value={f.receivedAt} onChange={(e) => set('receivedAt')(e.target.value)} />
         </Field>
         <Field id="cx-r" label="סיבה" required error={check.fields.reason}>
-          <select id="cx-r" className="select w-full" value={f.reason} onChange={(e) => set('reason')(e.target.value)}><option value="">בחירה…</option>{Object.entries(CANCEL_REASONS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <select id="cx-r" className="select w-full" value={f.reason} onChange={(e) => set('reason')(e.target.value)}><option value="">בחירה…</option>{cancelReasons.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </Field>
         <Field id="cx-tx" label="מועד העסקה" optional hint="ריק = מועד יצירת ההזמנה"><input id="cx-tx" type="datetime-local" className="input w-full" value={f.transactionAt} onChange={(e) => set('transactionAt')(e.target.value)} /></Field>
         <Field id="cx-dc" label="מועד מסירת גילוי/תנאים" optional hint="ריק = מועד העסקה"><input id="cx-dc" type="datetime-local" className="input w-full" value={f.disclosureAt} onChange={(e) => set('disclosureAt')(e.target.value)} /></Field>

@@ -10,7 +10,8 @@ const ContractDocSchema = new Schema({
 const CompanySchema = new Schema({
   property:    { type: Schema.Types.ObjectId, ref: 'Property', required: true },
   name:        { type: String, required: true, trim: true },
-  type:        { type: String, enum: ['corporate', 'agency', 'tour_operator', 'government'], default: 'corporate' },
+  type:        { type: String, enum: ['corporate', 'agency', 'tour_operator', 'government', 'source', 'group'], default: 'corporate' },
+  accountManager: { type: Schema.Types.ObjectId, ref: 'User' },   // sales owner of the account (gap-map item 16)
 
   // Contact
   contactName:  String,

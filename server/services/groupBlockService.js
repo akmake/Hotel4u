@@ -302,6 +302,8 @@ export async function createBlock({ propertyId, input, actor, ip }) {
   const n = await getNextSequenceValue(`group-block:${propertyId}`);
   const code = String(input?.groupCode || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20) || `G${data.arrivalDate.slice(2, 4)}${data.arrivalDate.slice(5, 7)}-${String(n).padStart(3, '0')}`;
   if (await GroupBlock.exists({ groupCode: code })) throw httpError('קוד הקבוצה כבר קיים', 409, { fields: { groupCode: 'קיים' } });
+  // A block without a company gets its own group profile (gap-map item 16).
+  if (!data.company) { const { ensureGroupProfile } = await import('./profileService.js'); data.company = await ensureGroupProfile({ propertyId, blockName: data.name }); }
   const b = await GroupBlock.create({ ...data, property: propertyId, groupCode: code, status: 'tentative', createdBy: actor.id || undefined });
   await syncBlock(b);
   await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'group.created', entityType: 'GroupBlock', entityId: b._id, after: { code, name: data.name, rooms: b.totalRoomsBlocked, arrivalDate: data.arrivalDate, departureDate: data.departureDate }, ip });

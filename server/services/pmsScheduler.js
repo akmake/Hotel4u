@@ -192,6 +192,12 @@ export function initPmsScheduler() {
     await releaseFinished().catch((err) => console.error('[cards]', err.message));
   });
 
+  // Deposit reminders two days before the due date (gap-map item 15).
+  cron.schedule('0 9 * * *', async () => {
+    const { autoRemindDeposits } = await import('./reservationExtrasService.js');
+    for (const prop of await getActivePropertyIds()) await autoRemindDeposits({ propertyId: String(prop._id) }).catch((err) => console.error('[deposits]', err.message));
+  });
+
   // Agent commissions (gap-map item 10): departures of the day before become commission records, every morning.
   cron.schedule('20 6 * * *', async () => {
     const { processDepartures } = await import('./commissionService.js');

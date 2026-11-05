@@ -2,6 +2,7 @@
 // invoice combinations, extra windows, Paid Out. Same rule as the money core: a posted line is never
 // edited or deleted — every operation adds new lines (a discount line, or a linked reversal plus the
 // new part / copy). A line already on an issued document is never touched (credit note instead).
+import { reasonMap } from './codeListService.js';
 import { can } from './permissionService.js';
 import mongoose from 'mongoose';
 import Folio from '../models/Folio.js';
@@ -28,9 +29,9 @@ const MAX_WINDOWS = 8;
 
 export const PAID_OUT_PURPOSES = { taxi: 'מונית', courier: 'שליח', tickets: 'כרטיסים / הופעה', pharmacy: 'בית מרקחת', shopping: 'קנייה בשביל האורח', tip: 'טיפ בשם האורח', other: 'אחר' };
 
-export function lineOpsConfig(property) {
+export async function lineOpsConfig(property) {
   return {
-    discountReasons: DISCOUNT_REASONS,
+    discountReasons: await reasonMap(property._id, 'reason_discount'),
     discountApprovalPercent: Number(property?.discountApprovalPercent ?? 10),
     paidOutPurposes: PAID_OUT_PURPOSES,
     paidOutApprovalOver: Number(property?.financePolicy?.refundApprovalOver ?? 0),
@@ -121,7 +122,8 @@ export async function discountLines({ propertyId, folioId, input, actor, ip }) {
     const errors = {};
     if (!ids.length || ids.length > 200) errors.lineIds = 'יש לבחור שורות';
     if (!(value > 0) || (kind === 'percent' && value > 100)) errors.value = kind === 'percent' ? 'אחוז בין 0 ל־100' : 'סכום חיובי';
-    if (!DISCOUNT_REASONS[input.reasonCode]) errors.reasonCode = 'יש לבחור סיבה';
+    const discountReasons = await reasonMap(propertyId, 'reason_discount');
+    if (!discountReasons[input.reasonCode]) errors.reasonCode = 'יש לבחור סיבה';
     if (input.reasonCode === 'other' && note.length < 3) errors.note = 'יש לפרט';
     if (Object.keys(errors).length) throw httpError('יש לתקן את פרטי ההנחה', 422, { fields: errors });
     const onDocs = (await docCoverage(folio._id, session)).charges;
@@ -151,7 +153,7 @@ export async function discountLines({ propertyId, folioId, input, actor, ip }) {
     const property = await Property.findById(propertyId).session(session).select('discountApprovalPercent timezone dayClose').lean();
     const threshold = Number(property?.discountApprovalPercent ?? 10);
     if (pct - threshold > 0.005 && !can(actor, 'discount.approve', PRICE_OVERRIDE_ROLES)) throw httpError(`הנחה של ${pct}% (מעל ${threshold}%) מחייבת אישור מנהל`, 403, { code: 'discount_needs_approval' });
-    const why = `${DISCOUNT_REASONS[input.reasonCode]}${note ? ` · ${note}` : ''}`;
+    const why = `${discountReasons[input.reasonCode]}${note ? ` · ${note}` : ''}`;
     const invoicedParts = parts.filter((p) => p.invoiced);
     const credits = invoicedParts.length
       ? await creditInvoicedParts({ folio, parts: invoicedParts.map((p) => ({ folioLineId: String(p.line._id), gross: p.d })), reason: why, key: ref, session })

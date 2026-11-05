@@ -11,7 +11,8 @@ const TurnAwaySchema = new Schema({
   nights:   { type: Number, default: 1, min: 1, max: 60 },
   rooms:    { type: Number, default: 1, min: 1, max: 100 },
   roomType: { type: Schema.Types.ObjectId, ref: 'RoomType' },
-  reason:   { type: String, enum: Object.keys(TURNAWAY_REASONS), required: true },
+  reason:   { type: String, required: true },
+  guest:    { type: Schema.Types.ObjectId, ref: 'GuestProfile' },   // when the caller is a known guest (shown in the profile)   // code from the hotel's turnaway reasons (codeListService)
   note:     { type: String, maxlength: 300 },
   by:       { type: Schema.Types.ObjectId, ref: 'User' },
   byName:   String,

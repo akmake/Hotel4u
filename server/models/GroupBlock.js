@@ -75,6 +75,7 @@ const GroupBlockSchema = new Schema({
   copiedFrom:    { type: Schema.Types.ObjectId, ref: 'GroupBlock' },
 
   company:       { type: Schema.Types.ObjectId, ref: 'Company' },
+  contactProfile: { type: Schema.Types.ObjectId, ref: 'GuestProfile' },   // organiser profile (gap-map item 16)
   contactName:   String,
   contactEmail:  String,
   contactPhone:  String,

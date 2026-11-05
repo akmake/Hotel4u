@@ -179,9 +179,10 @@ export async function reverseCheckIn({ propertyId, reservationId, reason, roomUs
 
 // ── Post-stay (late) charge ─────────────────────────────────────────────────
 export async function postStayCharge({ propertyId, reservationId, input, actor, ip }) {
-  if (!can(actor, 'charge.post_manager', MANAGER_POST_ROLES)) throw httpError('חיוב אחרי יציאה מותר למנהל או לכספים', 403);
   const why = reasonOf(input.reason);
   const res = await loadRes(propertyId, reservationId);
+  // A stay with the post-stay privilege (set by a manager, gap-map item 15) lets the desk post it.
+  if (!can(actor, 'charge.post_manager', MANAGER_POST_ROLES) && !res.privileges?.postStayCharges) throw httpError('חיוב אחרי יציאה מותר למנהל או לכספים', 403);
   if (res.status !== 'checked_out') throw httpError('חיוב אחרי יציאה רק להזמנה שיצאה — לשהייה פעילה רושמים חיוב רגיל', 409);
   const property = await Property.findById(propertyId).select('timezone financePolicy dayClose').lean();
   const today = businessDateOf(property);

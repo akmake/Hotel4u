@@ -11,6 +11,8 @@
 //  - the agreed price and terms are frozen on the reservation (snapshot);
 //  - a quote is not a booking: it holds inventory only when asked, until its validity ends;
 //    an expired hold releases its inventory.
+import { applyBookingDefaults } from './codeListService.js';
+import { reasonMap } from './codeListService.js';
 import { can } from './permissionService.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
@@ -134,7 +136,7 @@ async function offersFor({ propertyId, property, roomType, plans, arrival, depar
         if (rd?.stopSell) reasons.push({ code: 'rate_closed', label: `התעריף סגור ל־${d}` });
         const parentPlan = plan.derived?.from ? parents.get(String(plan.derived.from)) : null;
         const parent = parentPlan ? { plan: parentPlan, rd: byPlan.get(String(parentPlan._id))?.get(d) } : null;
-        const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: nights, today, parent, context: promoCode ? { promoCode, channel } : { channel }, dayType: rev?.dayTypes?.get(d) || null });
+        const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: nights, today, parent, context: promoCode ? { promoCode, channel, seasons: rev?.seasons } : { channel, seasons: rev?.seasons }, dayType: rev?.dayTypes?.get(d) || null });
         if (p.price === null) { missingRate.push(d); continue; }
         if (p.tier) tierLabel = p.tier;
         if (p.dayType) dayTypeNames.add(p.dayType);
@@ -351,7 +353,7 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
     const note = String(input.discount.note || '').trim().slice(0, 300);
     const base = round2(nightly.reduce((s, n) => s + n.price, 0));
     const df = {};
-    if (!DISCOUNT_REASONS[reason]) df.discountReason = 'יש לבחור סיבה';
+    if (!(await reasonMap(propertyId, 'reason_discount'))[reason]) df.discountReason = 'יש לבחור סיבה';
     if (reason === 'other' && note.length < 3) df.discountNote = 'יש לפרט';
     if (!(value > 0) || (kind === 'percent' && value >= 100) || (kind === 'amount' && value >= base)) df.discount = kind === 'percent' ? 'אחוז בין 0 ל־100' : `סכום עד ${base}`;
     if (Object.keys(df).length) throw httpError('יש לתקן את פרטי ההנחה', 422, { fields: df });
@@ -374,6 +376,9 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
   }
 
   const guest = await resolveGuest({ propertyId, input, actor, ip, session, afterCommit });
+  // Restricted guest (gap-map item 16): manager approval / prepayment only.
+  const { restrictionGate } = await import('./profileService.js');
+  restrictionGate(guest, { actor, input });
   const roomPerRoom = round2(nightly.reduce((s, n) => s + n.price, 0));
   const perRoom = round2(roomPerRoom + Number(offer.board?.total || 0));
   const total = round2(perRoom * search.rooms);
@@ -425,6 +430,8 @@ async function createBookingLocked({ propertyId, input, actor, ip, session, afte
   }
   if (discount) await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.discount', entityType: 'Reservation', entityId: res._id, reason: `${DISCOUNT_REASONS[discount.reason]}${discount.note ? ` — ${discount.note}` : ''}`, before: { lodging: discount.baseTotal }, after: { lodging: round2(discount.baseTotal - discount.saving), kind: discount.kind, value: discount.value, approvedBy: discount.approvedBy || null }, ip, session, afterCommit });
   if (override) await audit({ property: propertyId, actor: actor.id, actorName: actor.name, action: 'reservation.price_override', entityType: 'Reservation', entityId: res._id, reason: override.reason, before: { total: offer.total }, after: { total }, ip, session, afterCommit });
+  // Code lists (gap-map item 13): VIP services, guest language, market segment by rule.
+  await applyBookingDefaults({ propertyId, reservationId: res._id, session });
   return { id: String(res._id), confirmationNumber: res.confirmationNumber, status, total, duplicate: false };
 }
 
@@ -721,7 +728,7 @@ export async function priceNights({ roomTypeId, ratePlanId, dates, adults = 2, c
   for (const d of dates) {
     const rd = by.get(d);
     if (rd?.stopSell) closed.push(d);
-    const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: dates.length, parent: parentPlan ? { plan: parentPlan, rd: parentRows.get(d) } : null, dayType: dayTypes.get(d) || null });
+    const p = priceNight({ plan, roomType, rd, date: d, adults: perRoomAdults, children: perRoomChildren, los: dates.length, parent: parentPlan ? { plan: parentPlan, rd: parentRows.get(d) } : null, context: { seasons: rev?.seasons }, dayType: dayTypes.get(d) || null });
     if (p.price === null) { missing.push(d); continue; }
     const off = discounts.get(d);
     nightly.push({ date: d, price: off ? round2(p.price * (1 - off / 100)) : p.price });
