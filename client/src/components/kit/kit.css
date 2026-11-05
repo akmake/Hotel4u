@@ -477,3 +477,38 @@ nav.ui-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .ops-table tr { break-inside: avoid; }
   .ops-table tr.is-alert td, .ops-table thead th, .ops-table tfoot td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Group programme (gap-map item 6): days strip, items, printable schedule / kitchen sheet. */
+.gp { display: grid; gap: 10px; }
+.gp-days { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.gp-day { display: grid; gap: 1px; min-width: 104px; padding: 7px 10px; text-align: start; border: 1px solid rgb(var(--border)); border-radius: 10px; background: rgb(var(--bg)); cursor: pointer; }
+.gp-day b { font-size: 13px; font-weight: 600; }
+.gp-day span { font-size: 12px; color: rgb(var(--fg-secondary)); }
+.gp-day small { font-size: 11px; color: rgb(var(--fg-muted)); }
+.gp-day.is-on { border-color: #006a61; background: rgb(0 106 97 / .06); }
+.gp-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gp-time { display: grid; min-width: 46px; font-weight: 600; font-size: 13px; }
+.gp-time small { font-weight: 400; font-size: 11px; color: rgb(var(--fg-muted)); }
+.gp-acts { display: flex; gap: 2px; margin-inline-start: auto; }
+.gp-pick { display: grid; gap: 4px; max-height: 240px; overflow-y: auto; }
+.print-only { display: none; }
+@page kitchen-a3 { size: A3 landscape; margin: 12mm; }
+@media print {
+  .print-only { display: block; }
+  .ops-doc.is-a3 { page: kitchen-a3; font-size: 13px; }
+  .ops-doc.is-a3 .ops-table { font-size: 12.5px; }
+}
+.gp-acts svg, .gp .fo-line-t svg, .gp .fo-line-meta svg { width: 14px; height: 14px; min-width: 14px; flex: none; display: inline-block; vertical-align: -2px; }
+/* Group money: summary with progress bar, payments with proof. */
+.gm { display: grid; gap: 10px; }
+.gm-sum { display: grid; gap: 10px; padding: 14px 16px; }
+.gm-sum-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.gm-nums { display: flex; gap: 22px; }
+.gm-nums div { display: grid; gap: 2px; }
+.gm-nums span { font-size: 12px; color: rgb(var(--fg-muted)); }
+.gm-nums b { font-size: 17px; }
+.gm-bar { height: 8px; border-radius: 999px; background: rgb(var(--bg-hover)); overflow: hidden; }
+.gm-bar i { display: block; height: 100%; background: #006a61; border-radius: 999px; }
+.gm-files { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.gm-files svg, .gm .gp-acts svg { width: 13px; height: 13px; min-width: 13px; flex: none; }
+.gm-pay { align-items: flex-start; }

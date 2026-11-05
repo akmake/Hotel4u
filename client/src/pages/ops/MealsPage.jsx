@@ -75,6 +75,7 @@ export default function MealsPage() {
         )}
         end={(
           <>
+            <Link className="btn btn-secondary btn-sm" to="/pms/kitchen/groups">ארוחות קבוצות</Link>
             <Link className="btn btn-primary btn-sm" to="/pms/ops-reports?r=kitchen-daily">דוחות מטבח להדפסה</Link>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => window.print()} disabled={!data}><Printer size={14} /> הדפסה</button>
           </>

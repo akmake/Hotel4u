@@ -736,6 +736,40 @@ export const groupBlocks = {
   act:     (propertyId, id, action, body = {}) => api.post(`/group-blocks/${id}/${action}`, { ...body, propertyId }),
   pickup:  (propertyId, id, body)    => api.post(`/group-blocks/${id}/pickup`, { ...body, propertyId }),
   roster:  (propertyId, id, entries) => api.put(`/group-blocks/${id}/rooming-list`, { entries, propertyId }),
+  move:    (propertyId, id, body)    => api.post(`/group-blocks/${id}/move`, { ...body, propertyId }),
+  grid:    (propertyId, id, body)    => api.put(`/group-blocks/${id}/grid`, { ...body, propertyId }),
+  rosterStatus: (propertyId, id, body) => api.post(`/group-blocks/${id}/rooming-status`, { ...body, propertyId }),
+  rosterFill:   (propertyId, id)       => api.post(`/group-blocks/${id}/rooming-fill`, { propertyId }),
+  rosterBook:   (propertyId, id)       => api.post(`/group-blocks/${id}/rooming-book`, { propertyId }),
+  assignRooms:  (propertyId, id, body = {}) => api.post(`/group-blocks/${id}/assign-rooms`, { ...body, propertyId }),
+  checkIn:      (propertyId, id)       => api.post(`/group-blocks/${id}/check-in`, { propertyId }),
+  copy:         (propertyId, id, body) => api.post(`/group-blocks/${id}/copy`, { ...body, propertyId }),
+  // Programme (schedule, meals) and the kitchen's week
+  program:      (propertyId, id)               => api.get(`/group-blocks/${id}/program?propertyId=${propertyId}`),
+  addItem:      (propertyId, id, body)         => api.post(`/group-blocks/${id}/program`, { ...body, propertyId }),
+  updateItem:   (propertyId, id, itemId, body) => api.patch(`/group-blocks/${id}/program/${itemId}`, { ...body, propertyId }),
+  removeItem:   (propertyId, id, itemId)       => api.delete(`/group-blocks/${id}/program/${itemId}?propertyId=${propertyId}`),
+  duplicateDay: (propertyId, id, body)         => api.post(`/group-blocks/${id}/program/duplicate-day`, { ...body, propertyId }),
+  mealTypes:    (propertyId, all = false)      => api.get(`/group-blocks/meal-types?propertyId=${propertyId}${all ? '&all=1' : ''}`),
+  saveMealType: (propertyId, id, body)         => (id ? api.patch(`/group-blocks/meal-types/${id}`, { ...body, propertyId }) : api.post('/group-blocks/meal-types', { ...body, propertyId })),
+  kitchen:      (propertyId, params = {})      => api.get(`/group-blocks/kitchen?propertyId=${propertyId}${qs(params)}`),
+  // Money: billing profile, payments with proof, finance approval
+  money:        (propertyId, id)               => api.get(`/group-blocks/${id}/money?propertyId=${propertyId}`),
+  suggestBilling: (propertyId, id)             => api.get(`/group-blocks/${id}/billing/suggest?propertyId=${propertyId}`),
+  saveBilling:  (propertyId, id, body)         => api.put(`/group-blocks/${id}/billing`, { ...body, propertyId }),
+  addPayment:   (propertyId, id, body)         => api.post(`/group-blocks/${id}/payments`, { ...body, propertyId }),
+  decidePayment: (propertyId, id, paymentId, decision, body = {}) => api.post(`/group-blocks/${id}/payments/${paymentId}/${decision}`, { ...body, propertyId }),
+  attach: (propertyId, id, paymentId, file) => { const form = new FormData(); form.append('file', file); return uploadForm(`/group-blocks/${id}/payments/${paymentId}/attachments?propertyId=${propertyId}`, form); },
+  // Opens a payment proof (photo / PDF) in a new tab — served only with the session's token.
+  openAttachment: async (propertyId, id, attachmentId) => {
+    const win = window.open('', '_blank');
+    const token = getToken();
+    const res = await fetch(`${PMS_BASE}/group-blocks/${id}/attachments/${attachmentId}?propertyId=${propertyId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, credentials: 'include' });
+    if (!res.ok) { if (win) win.close(); let msg = 'הקובץ לא נפתח'; try { msg = (await res.json()).error || msg; } catch { /* binary */ } throw new Error(msg); }
+    const url = URL.createObjectURL(await res.blob());
+    if (win) win.location.href = url; else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  },
 };
 
 // ── Multi-option quotations ─────────────────────────────────────────────────

@@ -106,6 +106,7 @@ const ReportsHomePage      = lazy(() => import('./pages/reports/ReportsHomePage'
 const ReportViewPage       = lazy(() => import('./pages/reports/ReportViewPage'));
 const InvoicesPage         = lazy(() => import('./pages/InvoicesPage'));
 const DayClosePage         = lazy(() => import('./pages/fin/DayClosePage'));
+const GroupKitchenPage     = lazy(() => import('./pages/ops/GroupKitchenPage'));
 const DayReportPage        = lazy(() => import('./pages/fin/DayReportPage'));
 const ChargeCodesPage      = lazy(() => import('./pages/sys/ChargeCodesPage'));
 const TaxPolicyPage        = lazy(() => import('./pages/sys/TaxPolicyPage'));
@@ -277,6 +278,7 @@ export default function App() {
               <Route path="housekeeping/rooms" element={<OpsRoomStatusPage />} />
               <Route path="availability"      element={<AvailabilityPage layout="original" />} />
               <Route path="meals"             element={<MealsPage />} />
+              <Route path="kitchen/groups"    element={<GroupKitchenPage />} />
               <Route path="maintenance/preventive" element={<PreventivePage />} />
               <Route path="housekeeping/lost-found" element={<LostFoundPage />} />
               <Route path="maintenance"       element={<MaintenancePage />} />

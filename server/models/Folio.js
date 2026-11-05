@@ -81,6 +81,7 @@ const FolioSchema = new Schema({
     taxId:   String,
     company: { type: Schema.Types.ObjectId, ref: 'Company' },
     outlet:  String,                                       // restaurant, spa, bar, events, other
+    groupBlock: { type: Schema.Types.ObjectId, ref: 'GroupBlock' }, // the account of a group (outlet groups)
     note:    String,
     openedByName: String,
   },

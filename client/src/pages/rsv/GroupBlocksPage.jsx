@@ -9,6 +9,11 @@ import { groupBlocks, booking, roomTypes as roomTypesApi, rates as ratesApi } fr
 import { formatShort } from '../../utils/date';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/ui/Toast';
+import GroupProgram, { MealCatalogDialog } from '../../components/groups/GroupProgram';
+import GroupMoney from '../../components/groups/GroupMoney';
+import { GridDialog, ImportDialog, ResultDialog, CopyDialog } from '../../components/groups/GroupRooms';
+
+const ROSTER_STATUS = { none: 'אין רשימה', preliminary: 'ראשונית', final: 'סופית' };
 import {
   Page, PageBar, Card, Segmented, SearchBox, DataTable, Empty, Modal, Field, ConfirmDialog, Tag, Banner,
   ErrorBanner, Spinner, GlassTiles, useUrlState, useLoader, useAction, money, newOpKey,
@@ -43,6 +48,8 @@ function BlockDialog({ open, onClose, propertyId, initial, onSaved }) {
       name: b.name || '', groupCode: '', arrivalDate: b.arrivalDate || '', departureDate: b.departureDate || '', cutoffDate: b.cutoffDate || '', autoReleaseOnCutoff: b.autoReleaseOnCutoff ?? true,
       companyId: b.company?.id || '', ratePlanId: b.ratePlanId || '', contactName: b.contactName || '', contactPhone: b.contactPhone || '', contactEmail: b.contactEmail || '',
       depositAmount: b.depositAmount || '', depositDueDate: b.depositDueDate || '', internalNotes: b.internalNotes || '',
+      stayType: b.stayType || 'lodging', pax: b.pax || '', minPax: b.minPax || '',
+      freePaxPer: b.freePaxPer || '', freePaxCount: b.freePaxCount ?? '', roomingDueDate: b.roomingDueDate || '',
       allot: Object.fromEntries((b.allotments || []).map((a) => [a.roomTypeId, { blocked: String(a.blocked), rate: a.negotiatedRate ?? '' }])),
     });
     roomTypesApi.list(propertyId).then((r) => setTypes(Array.isArray(r) ? r : [])).catch(() => setTypes([]));
@@ -54,9 +61,10 @@ function BlockDialog({ open, onClose, propertyId, initial, onSaved }) {
   const allotments = Object.entries(f.allot || {}).filter(([, a]) => Number(a.blocked) > 0 || initial).map(([roomTypeId, a]) => ({ roomTypeId, blocked: Number(a.blocked || 0), negotiatedRate: a.rate === '' ? undefined : Number(a.rate) }));
   const rooms = allotments.reduce((s, a) => s + a.blocked, 0);
   const e = act.fields;
-  const why = (f.name || '').trim().length < 2 ? 'נדרש שם' : !initial && (!f.arrivalDate || !f.departureDate) ? 'נדרשים תאריכים' : !rooms ? 'חסמו לפחות חדר אחד' : null;
+  const day = f.stayType === 'day';
+  const why = (f.name || '').trim().length < 2 ? 'נדרש שם' : !initial && (!f.arrivalDate || !f.departureDate) ? 'נדרשים תאריכים' : !day && !rooms ? 'חסמו לפחות חדר אחד' : Number(f.minPax || 0) > Number(f.pax || 0) && Number(f.pax || 0) > 0 ? 'ההתחייבות גבוהה ממספר המשתתפים' : null;
   const submit = () => act.run(async () => {
-    const body = { ...f, allotments, depositAmount: Number(f.depositAmount || 0) };
+    const body = { ...f, allotments: day ? [] : allotments, depositAmount: Number(f.depositAmount || 0), pax: Number(f.pax || 0), minPax: Number(f.minPax || 0), freePaxPer: Number(f.freePaxPer || 0), freePaxCount: f.freePaxCount === '' ? null : Number(f.freePaxCount) };
     delete body.allot;
     onSaved(initial ? await groupBlocks.update(propertyId, initial.id, body) : await groupBlocks.create(propertyId, body));
   });
@@ -64,6 +72,7 @@ function BlockDialog({ open, onClose, propertyId, initial, onSaved }) {
     <Modal open={open} onClose={onClose} busy={act.busy} width={720} title={initial ? `עריכת קבוצה ${initial.groupCode}` : 'קבוצה חדשה'} subtitle="החדרים שנחסמים יורדים מהזמינות עד שנרשמות הזמנות או עד תאריך השחרור" footer={<Foot onClose={onClose} busy={act.busy} label={initial ? 'שמירה' : 'פתיחת קבוצה'} why={why} form="gb-form" />}>
       <form id="gb-form" className="ui-stack" noValidate onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }}>
         <ErrorBanner error={act.error} />
+        <Segmented label="סוג אירוח" value={f.stayType || 'lodging'} onChange={(v) => setF((p) => ({ ...p, stayType: v }))} options={[{ value: 'lodging', label: 'לינה' }, { value: 'day', label: 'יום עיון (בלי חדרים)' }]} />
         <div className="ui-grid-2">
           <Field id="gb-name" label="שם הקבוצה" required error={e.name}><input id="gb-name" className="input w-full" maxLength={120} value={f.name || ''} onChange={set('name')} /></Field>
           {!initial && <Field id="gb-code" label="קוד קבוצה" optional hint="ריק = יוקצה אוטומטית" error={e.groupCode}><input id="gb-code" dir="ltr" className="input w-full" maxLength={20} value={f.groupCode || ''} onChange={(ev) => setF((p) => ({ ...p, groupCode: ev.target.value.toUpperCase() }))} /></Field>}
@@ -79,10 +88,15 @@ function BlockDialog({ open, onClose, propertyId, initial, onSaved }) {
           <Field id="gb-cn" label="איש קשר" optional><input id="gb-cn" className="input w-full" maxLength={120} value={f.contactName || ''} onChange={set('contactName')} /></Field>
           <Field id="gb-cp" label="טלפון" optional><input id="gb-cp" dir="ltr" className="input w-full" maxLength={30} value={f.contactPhone || ''} onChange={set('contactPhone')} /></Field>
           <Field id="gb-ce" label="דוא״ל" optional><input id="gb-ce" dir="ltr" className="input w-full" maxLength={120} value={f.contactEmail || ''} onChange={set('contactEmail')} /></Field>
+          <Field id="gb-pax" label="משתתפים" optional error={e.pax}><input id="gb-pax" type="number" min="0" className="input w-full" value={f.pax} onChange={set('pax')} /></Field>
+          <Field id="gb-min" label="התחייבות מינימום (משתתפים)" optional hint="הלקוח משלם לפחות על המספר הזה" error={e.minPax}><input id="gb-min" type="number" min="0" className="input w-full" value={f.minPax} onChange={set('minPax')} /></Field>
+          <Field id="gb-fpp" label="מקום חינם לכל (משלמים)" optional hint="למשל 20 = אחד חינם על כל 20" error={e.freePaxPer}><input id="gb-fpp" type="number" min="0" className="input w-full" value={f.freePaxPer} onChange={set('freePaxPer')} /></Field>
+          <Field id="gb-fpc" label="או מספר מקומות חינם" optional hint="גובר על החישוב" error={e.freePaxCount}><input id="gb-fpc" type="number" min="0" className="input w-full" value={f.freePaxCount} onChange={set('freePaxCount')} /></Field>
+          {!day && <Field id="gb-rld" label="יעד לרשימת השמות" optional hint="מתי הסוכן שולח את הרשימה"><input id="gb-rld" type="date" className="input w-full" value={f.roomingDueDate} onChange={set('roomingDueDate')} /></Field>}
           <Field id="gb-dep-a" label="מקדמה נדרשת (₪)" optional><input id="gb-dep-a" type="number" min="0" className="input w-full" value={f.depositAmount} onChange={set('depositAmount')} /></Field>
           <Field id="gb-dep-d" label="מקדמה עד" optional><input id="gb-dep-d" type="date" className="input w-full" value={f.depositDueDate} onChange={set('depositDueDate')} /></Field>
         </div>
-        <fieldset className="ui-fieldset">
+        {!day && <fieldset className="ui-fieldset">
           <legend className="ui-label">חדרים בבלוק {rooms ? <span className="ui-sub">· {rooms} חדרים</span> : null}</legend>
           {e.allotments && <Banner tone="warn">{e.allotments}</Banner>}
           <table className="ui-table" style={{ width: '100%' }}>
@@ -97,8 +111,8 @@ function BlockDialog({ open, onClose, propertyId, initial, onSaved }) {
               ))}
             </tbody>
           </table>
-        </fieldset>
-        <label className="ui-check"><input type="checkbox" checked={!!f.autoReleaseOnCutoff} onChange={set('autoReleaseOnCutoff')} /><span>לשחרר אוטומטית חדרים שלא נרשמו בתאריך השחרור</span></label>
+        </fieldset>}
+        {!day && <label className="ui-check"><input type="checkbox" checked={!!f.autoReleaseOnCutoff} onChange={set('autoReleaseOnCutoff')} /><span>לשחרר אוטומטית חדרים שלא נרשמו בתאריך השחרור</span></label>}
         <Field id="gb-notes" label="הערה פנימית" optional><input id="gb-notes" className="input w-full" maxLength={1000} value={f.internalNotes || ''} onChange={set('internalNotes')} /></Field>
       </form>
     </Modal>
@@ -178,10 +192,52 @@ function RosterDialog({ open, onClose, propertyId, block, onSaved }) {
   );
 }
 
+// Move the group to other dates: a preview first (rooms on the new nights, the programme, other groups).
+function MoveDialog({ open, onClose, propertyId, block, onSaved }) {
+  const act = useAction();
+  const [f, setF] = useState({ arrivalDate: '', departureDate: '' });
+  const [pv, setPv] = useState(null);
+  useEffect(() => { if (open) { act.reset(); setPv(null); setF({ arrivalDate: block.arrivalDate, departureDate: block.departureDate }); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!open || !f.arrivalDate || !f.departureDate || f.departureDate <= f.arrivalDate || (f.arrivalDate === block.arrivalDate && f.departureDate === block.departureDate)) { setPv(null); return; }
+    let on = true;
+    groupBlocks.move(propertyId, block.id, { ...f, dryRun: true }).then((r) => on && setPv(r)).catch((e) => on && setPv({ error: e.message }));
+    return () => { on = false; };
+  }, [open, f.arrivalDate, f.departureDate]); // eslint-disable-line react-hooks/exhaustive-deps
+  const why = !pv ? 'בחרו תאריכים חדשים' : pv.error ? pv.error : pv.roomsShort?.length ? 'אין מספיק חדרים' : null;
+  const submit = () => act.run(async () => onSaved(await groupBlocks.move(propertyId, block.id, f)));
+  return (
+    <Modal open={open} onClose={onClose} busy={act.busy} width={560} title="הזזת תאריכי הקבוצה" subtitle={`${block.name} · היום ${formatShort(block.arrivalDate)} – ${formatShort(block.departureDate)}`} footer={<Foot onClose={onClose} busy={act.busy} label="הזזה" why={why} form="mv-form" />}>
+      <form id="mv-form" className="ui-stack" noValidate onSubmit={(ev) => { ev.preventDefault(); if (!why) submit(); }}>
+        <ErrorBanner error={act.error} />
+        <div className="ui-grid-2">
+          <Field id="mv-a" label="הגעה" required><input id="mv-a" type="date" className="input w-full" value={f.arrivalDate} onChange={(e) => setF((p) => ({ ...p, arrivalDate: e.target.value }))} /></Field>
+          <Field id="mv-d" label="עזיבה" required><input id="mv-d" type="date" className="input w-full" min={f.arrivalDate || undefined} value={f.departureDate} onChange={(e) => setF((p) => ({ ...p, departureDate: e.target.value }))} /></Field>
+        </div>
+        {pv?.error && <Banner tone="bad">{pv.error}</Banner>}
+        {pv && !pv.error && (
+          <>
+            {pv.roomsShort.length ? <Banner tone="bad">אין מספיק חדרים: {pv.roomsShort.join(' · ')}</Banner> : block.stayType !== 'day' && <Banner tone="ok">החדרים של הקבוצה פנויים בתאריכים החדשים.</Banner>}
+            {pv.programItems > 0 && <Banner tone={pv.programMoves ? 'info' : 'warn'}>{pv.programMoves ? `כל ${pv.programItems} פריטי הלו״ז יזוזו איתה (${pv.delta > 0 ? '+' : ''}${pv.delta} ימים).` : `משך הקבוצה משתנה — ${pv.programItems} פריטי הלו״ז לא יוזזו. יש לעדכן אותם ידנית.`}</Banner>}
+            <div>
+              <div className="ui-label">קבוצות אחרות בתאריכים האלה</div>
+              {pv.others.length ? <ul className="gp-pick">{pv.others.map((o) => <li key={o.id} className="ui-sub"><b>{o.name}</b> · {formatShort(o.arrivalDate)} – {formatShort(o.departureDate)}{o.rooms ? ` · ${o.rooms} חדרים` : ''}{o.pax ? ` · ${o.pax} משתתפים` : ''} · {o.status}</li>)}</ul> : <div className="ui-sub">אין</div>}
+            </div>
+          </>
+        )}
+      </form>
+    </Modal>
+  );
+}
+
 function BlockView({ propertyId, id, role }) {
   const nav = useNavigate();
   const { toasts, success } = useToast();
   const [dialog, setDialog] = useState(null);
+  const [tab, setTab] = useState('');
+  const [result, setResult] = useState(null);
+  const [busyAct, setBusyAct] = useState(null);
+  const [actErr, setActErr] = useState(null);
   const { data: b, loading, error, reload } = useLoader(async () => (propertyId ? groupBlocks.get(propertyId, id) : null), [propertyId, id]);
   const canWork = WORK.includes(role);
   const canManage = MANAGE.includes(role);
@@ -189,6 +245,18 @@ function BlockView({ propertyId, id, role }) {
   if (error) return <ErrorBanner error={error} onRetry={reload} />;
   if (!b) return null;
   const live = ['tentative', 'confirmed', 'active'].includes(b.status);
+  const dayOnly = b.stayType === 'day';
+  // A bulk action (book the list, assign rooms, check in): run it, then show what was done and what was not.
+  const bulk = async (key, title, fn) => {
+    setActErr(null); setBusyAct(key);
+    try { const out = await fn(); setResult({ title, done: out.done || [], failed: out.failed || [] }); reload(); } catch (e) { setActErr(e); } finally { setBusyAct(null); }
+  };
+  const setStatus = async (status) => {
+    setActErr(null);
+    try { await groupBlocks.rosterStatus(propertyId, b.id, { status }); success(`רשימת השמות: ${ROSTER_STATUS[status]}`); reload(); } catch (e) { setActErr(e); }
+  };
+  const unbooked = b.roomingList.filter((r) => !r.reservationId).length;
+  const view = tab || (dayOnly ? 'program' : 'rooms');
   const act = (action, body) => groupBlocks.act(propertyId, b.id, action, body).then(() => { setDialog(null); success(action === 'confirm' ? 'הקבוצה אושרה' : action === 'release' ? 'החדרים שוחררו למכירה' : 'הקבוצה בוטלה'); reload(); });
   return (
     <>
@@ -196,10 +264,12 @@ function BlockView({ propertyId, id, role }) {
       <PageBar
         back="/pms/groups"
         title={<>{b.name} <bdi className="ui-sub">{b.groupCode}</bdi> <Tag tone={TONE[b.status]}>{b.statusLabel}</Tag></>}
-        meta={`${formatShort(b.arrivalDate)} – ${formatShort(b.departureDate)} · ${b.nights} לילות${b.company ? ` · ${b.company.name}` : ''}${b.contactName ? ` · ${b.contactName}` : ''}${b.contactPhone ? ` ${b.contactPhone}` : ''}`}
+        meta={`${formatShort(b.arrivalDate)} – ${formatShort(b.departureDate)} · ${b.stayType === 'day' ? 'יום עיון' : `${b.nights} לילות`}${b.company ? ` · ${b.company.name}` : ''}${b.contactName ? ` · ${b.contactName}` : ''}${b.contactPhone ? ` ${b.contactPhone}` : ''}`}
         tools={(
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {live && canWork && <button type="button" className="btn btn-secondary" onClick={() => setDialog({ kind: 'edit' })}>עריכה</button>}
+            {live && canManage && <button type="button" className="btn btn-secondary" onClick={() => setDialog({ kind: 'move' })}>הזזת תאריכים</button>}
+            {canManage && <button type="button" className="btn btn-secondary" onClick={() => setDialog({ kind: 'copy' })}>שכפול / סדרה</button>}
             {b.status === 'tentative' && canManage && <button type="button" className="btn btn-secondary" onClick={() => setDialog({ kind: 'confirm' })}>אישור קבוצה</button>}
             {live && canManage && b.totals.remaining > 0 && <button type="button" className="btn btn-secondary" onClick={() => setDialog({ kind: 'release' })}>שחרור יתרה</button>}
             {live && canManage && <button type="button" className="btn btn-ghost" onClick={() => setDialog({ kind: 'cancel' })}>ביטול קבוצה</button>}
@@ -208,6 +278,31 @@ function BlockView({ propertyId, id, role }) {
         )}
       />
       {b.status === 'cancelled' && <Banner tone="warn">הקבוצה בוטלה{b.cancellationReason ? `: ${b.cancellationReason}` : ''}</Banner>}
+      <div className="no-print"><Segmented label="תצוגה" value={view} onChange={setTab} options={[...(dayOnly ? [] : [{ value: 'rooms', label: 'חדרים ושמות' }]), { value: 'program', label: `תוכנית${b.pax ? ` · ${b.pax} משתתפים` : ''}` }, { value: 'money', label: 'כסף' }]} /></div>
+      {view === 'money' && <GroupMoney propertyId={propertyId} groupId={b.id} role={role} onToast={success} />}
+      {view === 'program' && <GroupProgram propertyId={propertyId} groupId={b.id} canWork={canWork} onToast={success} />}
+      <ErrorBanner error={actErr} />
+      {b.series?.length > 0 && (
+        <div className="gm-files no-print" aria-label="סדרה">
+          <span className="ui-sub">סדרה:</span>
+          {b.series.map((x) => <button key={x.id} type="button" className={`btn btn-sm ${x.current ? 'btn-secondary' : 'btn-ghost'}`} disabled={x.current} onClick={() => nav(`/pms/groups?block=${x.id}`)}>{formatShort(x.arrivalDate)}{x.master ? ' (אב)' : ''} · {x.status}</button>)}
+        </div>
+      )}
+      {view === 'rooms' && <>
+      {live && b.arrival && b.reservations.length > 0 && (
+        <div className="gp-bar fo-panel" style={{ padding: '10px 14px' }}>
+          <div className="ui-sub">
+            קבלת הקבוצה · היום מגיעים {b.arrival.arriving} · משובצים {b.arrival.assigned} · חדרים מוכנים {b.arrival.ready}
+            {b.arrival.inHouse ? ` · בבית ${b.arrival.inHouse}` : ''}{b.roomingStatus !== 'final' ? ' · הרשימה עוד לא סופית' : ''}
+          </div>
+          {canWork && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!!busyAct} onClick={() => bulk('assign', 'שיבוץ חדרים לקבוצה', () => groupBlocks.assignRooms(propertyId, b.id))}>{busyAct === 'assign' ? <Spinner /> : 'שיבוץ חדרים'}</button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!!busyAct || b.roomingStatus !== 'final' || !b.arrival.arriving} title={b.roomingStatus !== 'final' ? 'רק אחרי שהרשימה סופית' : !b.arrival.arriving ? 'אין מגיעים היום' : undefined} onClick={() => bulk('checkin', 'צ׳ק־אין קבוצתי', () => groupBlocks.checkIn(propertyId, b.id))}>{busyAct === 'checkin' ? <Spinner /> : 'צ׳ק־אין קבוצתי'}</button>
+            </div>
+          )}
+        </div>
+      )}
       <GlassTiles label="מצב הבלוק" items={[
         { id: 'b', label: 'חדרים בבלוק', value: b.totals.blocked, icon: BedDouble },
         { id: 'p', label: 'נרשמו', value: `${b.totals.picked} (${b.pickupPct}%)`, icon: Users },
@@ -223,6 +318,12 @@ function BlockView({ propertyId, id, role }) {
           { key: 'x', label: 'שוחררו', nowrap: true, render: (a) => <span className="ui-num">{a.released}</span> },
           { key: 'r', label: 'נותרו', nowrap: true, render: (a) => <b className="ui-num">{a.remaining}</b> },
           { key: 'n', label: 'מחיר ללילה', nowrap: true, align: 'left', render: (a) => (a.negotiatedRate ? money(a.negotiatedRate) : <span className="ui-sub">לפי התעריף</span>) },
+          { key: 'g', label: 'לפי לילה', nowrap: true, render: (a) => (
+            <span>
+              {a.varies ? <span className="ui-sub ui-num">{a.grid.map((g) => g.blocked).join(' · ')} </span> : <span className="ui-sub">שווה בכל הלילות </span>}
+              {live && canManage && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setDialog({ kind: 'grid', allotment: a }); }}>עריכה</button>}
+            </span>
+          ) },
         ]} />
       </Card>
       <div className="fo-layout">
@@ -239,15 +340,39 @@ function BlockView({ propertyId, id, role }) {
         <aside className="fo-panel" aria-label="רשימת שמות">
           <h2 className="fo-panel-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>רשימת שמות <span className="ui-sub">{b.roomingList.length || ''}</span></span>
-            {live && canWork && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDialog({ kind: 'roster' })}>הוספת שמות</button>}
+            {live && canWork && b.roomingStatus !== 'final' && (
+              <span style={{ display: 'flex', gap: 2 }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDialog({ kind: 'import' })}>ייבוא</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => groupBlocks.rosterFill(propertyId, b.id).then(() => { success('נוספו שורות לפי הבלוק'); reload(); }).catch(setActErr)}>שורות לפי הבלוק</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDialog({ kind: 'roster' })}>הוספה</button>
+              </span>
+            )}
           </h2>
+          <div className="gp-bar" style={{ padding: '0 0 8px' }}>
+            <div className="ui-sub">
+              מצב הרשימה: <b>{ROSTER_STATUS[b.roomingStatus] || '—'}</b>
+              {b.roomingDueDate && b.roomingStatus !== 'final' ? ` · יעד מהסוכן ${formatShort(b.roomingDueDate)}` : ''}{unbooked ? ` · ${unbooked} בלי הזמנה` : ''}
+            </div>
+            {live && canWork && (
+              <div style={{ display: 'flex', gap: 4 }}>
+                {unbooked > 0 && <button type="button" className="btn btn-secondary btn-sm" disabled={!!busyAct} onClick={() => bulk('book', 'רישום רשימת השמות', () => groupBlocks.rosterBook(propertyId, b.id))}>{busyAct === 'book' ? <Spinner /> : `רישום ${unbooked} הזמנות`}</button>}
+                {b.roomingStatus !== 'final' && b.roomingList.length > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStatus(b.roomingStatus === 'none' ? 'preliminary' : 'final')}>{b.roomingStatus === 'none' ? 'סימון ראשונית' : 'סימון סופית'}</button>}
+                {b.roomingStatus === 'final' && canManage && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStatus('preliminary')}>החזרה לראשונית</button>}
+              </div>
+            )}
+          </div>
           {!b.roomingList.length && <Empty title="אין רשימת שמות">הדביקו את הרשימה שהתקבלה מהקבוצה ורשמו הזמנה לכל שורה.</Empty>}
           <ul className="fo-lines">
             {b.roomingList.map((r) => (
               <li key={r.id} className={`fo-line ${r.reservationId ? 'is-done' : ''}`}>
                 <div className="fo-line-main">
                   <div className="fo-line-t">{r.guestName}</div>
-                  <div className="fo-line-meta"><span>{r.roomTypeName || '—'}</span>{r.guestPhone && <span dir="ltr">{r.guestPhone}</span>}</div>
+                  <div className="fo-line-meta">
+                    {r.share ? <span>Share עם השורה מעל</span> : <span>{r.roomTypeName || '—'}</span>}
+                    {r.adults && <span className="ui-num">{r.adults}{r.children ? `+${r.children}` : ''} אורחים</span>}
+                    {r.arrivalDate && <span className="ui-num">{formatShort(r.arrivalDate)}–{formatShort(r.departureDate || b.departureDate)}</span>}
+                    {r.guestPhone && <span dir="ltr">{r.guestPhone}</span>}
+                  </div>
                 </div>
                 {r.reservationId
                   ? <button type="button" className="fo-line-act" onClick={() => nav(`/pms/reservations/${r.reservationId}`)}>להזמנה</button>
@@ -257,6 +382,15 @@ function BlockView({ propertyId, id, role }) {
           </ul>
         </aside>
       </div>
+      </>}
+      <GridDialog open={dialog?.kind === 'grid'} onClose={() => setDialog(null)} propertyId={propertyId} block={b} allotment={dialog?.allotment} onSaved={() => { setDialog(null); success('הכמות לפי לילה נשמרה'); reload(); }} />
+      <ImportDialog open={dialog?.kind === 'import'} onClose={() => setDialog(null)} propertyId={propertyId} block={b} onSaved={() => { setDialog(null); success('הרשימה יובאה'); reload(); }} />
+      <CopyDialog
+        open={dialog?.kind === 'copy'} onClose={() => setDialog(null)} propertyId={propertyId} block={b}
+        onSaved={(o) => { setDialog(null); setResult({ title: 'הקבוצה שוכפלה', done: o.created.map((c) => ({ guest: `${c.groupCode} · ${formatShort(c.arrivalDate)}–${formatShort(c.departureDate)}${c.programItems ? ` · ${c.programItems} פריטי לו״ז` : ''}` })), failed: [] }); reload(); }}
+      />
+      <ResultDialog result={result} onClose={() => setResult(null)} />
+      <MoveDialog open={dialog?.kind === 'move'} onClose={() => setDialog(null)} propertyId={propertyId} block={b} onSaved={(o) => { setDialog(null); success(o?.moved?.programKept ? `הקבוצה הוזזה · ${o.moved.programKept} פריטי לו״ז לא הוזזו` : 'הקבוצה הוזזה'); reload(); }} />
       <BlockDialog open={dialog?.kind === 'edit'} onClose={() => setDialog(null)} propertyId={propertyId} initial={b} onSaved={() => { setDialog(null); success('הקבוצה עודכנה'); reload(); }} />
       <PickupDialog open={dialog?.kind === 'pickup'} onClose={() => setDialog(null)} propertyId={propertyId} block={b} roster={dialog?.roster} onSaved={(o) => { setDialog(null); success(`נרשמה הזמנה ${o.confirmationNumber}`); reload(); }} />
       <RosterDialog open={dialog?.kind === 'roster'} onClose={() => setDialog(null)} propertyId={propertyId} block={b} onSaved={() => { setDialog(null); success('רשימת השמות עודכנה'); reload(); }} />
@@ -267,8 +401,10 @@ function BlockView({ propertyId, id, role }) {
   );
 }
 
-function BlockIndex({ propertyId, url, canWork, onOpen }) {
+function BlockIndex({ propertyId, url, canWork, canManage, onOpen }) {
   const [creating, setCreating] = useState(false);
+  const [catalog, setCatalog] = useState(false);
+  const nav = useNavigate();
   const { data, loading, error, reload } = useLoader(async () => (propertyId ? groupBlocks.list(propertyId, { view: url.get('view'), q: url.get('q') || undefined }) : null), [propertyId, url.key]);
   const cols = [
     { key: 'n', label: 'קבוצה', render: (g) => (<div><button type="button" className="ui-guest-name" onClick={() => onOpen(g)}>{g.name}</button><div className="ui-sub"><bdi>{g.groupCode}</bdi>{g.company ? ` · ${g.company.name}` : ''}</div></div>) },
@@ -284,6 +420,8 @@ function BlockIndex({ propertyId, url, canWork, onOpen }) {
         tools={(
           <>
             <SearchBox value={url.get('q')} onCommit={(q) => url.set({ q })} placeholder="שם קבוצה, קוד או איש קשר" id="gb-q" />
+            <button type="button" className="btn btn-secondary" onClick={() => nav('/pms/kitchen/groups')}>מטבח</button>
+            {canManage && <button type="button" className="btn btn-secondary" onClick={() => setCatalog(true)}>קטלוג ארוחות</button>}
             {canWork && <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}><Plus size={16} /> קבוצה חדשה</button>}
           </>
         )} />
@@ -293,6 +431,7 @@ function BlockIndex({ propertyId, url, canWork, onOpen }) {
           empty={<Empty title="אין קבוצות בתצוגה זו">קבוצה חוסמת חדרים לאירוע, כנס או טיול, במחיר מוסכם, עד תאריך שחרור.</Empty>} />
       </Card>
       <BlockDialog open={creating} onClose={() => setCreating(false)} propertyId={propertyId} onSaved={(o) => { setCreating(false); onOpen(o); }} />
+      <MealCatalogDialog open={catalog} onClose={() => setCatalog(false)} propertyId={propertyId} />
     </>
   );
 }
@@ -306,7 +445,7 @@ export default function GroupBlocksPage() {
     <Page wide approved>
       {id
         ? <BlockView propertyId={propertyId} id={id} role={role} />
-        : <BlockIndex propertyId={propertyId} url={url} canWork={WORK.includes(role)} onOpen={(g) => url.set({ block: g.id }, { resetPage: false })} />}
+        : <BlockIndex propertyId={propertyId} url={url} canWork={WORK.includes(role)} canManage={MANAGE.includes(role)} onOpen={(g) => url.set({ block: g.id }, { resetPage: false })} />}
     </Page>
   );
 }

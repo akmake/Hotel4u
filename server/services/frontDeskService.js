@@ -710,6 +710,12 @@ async function completeCheckInTransaction({ propertyId, reservationId, unitIds, 
   const policy = policyOf(property);
   const res = await loadReservationInScope(reservationId, propertyId, session);
   const isManager = MANAGER_ROLES.includes(actor.role);
+  // A group's guests are not checked in before its rooming list is final (knowledge 05 §6).
+  if (res.group && mongoose.isValidObjectId(String(res.group))) {
+    const { default: GroupBlock } = await import('../models/GroupBlock.js');
+    const g = await GroupBlock.findOne({ _id: res.group, property: propertyId }).select('roomingStatus name').session(session).lean();
+    if (g && g.roomingStatus !== 'final') throw httpError(`רשימת השמות של הקבוצה "${g.name}" עוד לא סופית — מסמנים אותה כסופית בקבוצה ואז מכניסים`, 409, { code: 'rooming_not_final' });
+  }
 
   const overrideOn = !!override?.enabled;
   const overrideReason = String(override?.reason || '').trim().slice(0, 500);

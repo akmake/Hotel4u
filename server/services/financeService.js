@@ -488,7 +488,14 @@ export async function recordFolioPayment({ propertyId, folioId, input, actor, ip
   const house = !folio.reservation;
   const res = house ? { status: 'house', totalAmount: 0 } : await Reservation.findById(folio.reservation).session(session).select('status totalAmount tourist').lean();
   if (!res || ['cancelled', 'no_show', 'deleted'].includes(res.status)) throw httpError('לא ניתן לרשום תשלום להזמנה שבוטלה', 409);
-  if (house && input.kind === 'deposit') throw httpError('בחשבון מזדמן אין מקדמה — רושמים חיוב ואז תשלום', 422, { fields: { kind: 'לא זמין' } });
+  // A group's account takes payments in advance (a group pays before its charges are posted), up to
+  // what the group is expected to pay; any other house account has no deposit.
+  const groupAccount = house && folio.account?.outlet === 'groups' && folio.account?.groupBlock;
+  if (house && input.kind === 'deposit' && !groupAccount) throw httpError('בחשבון מזדמן אין מקדמה — רושמים חיוב ואז תשלום', 422, { fields: { kind: 'לא זמין' } });
+  if (groupAccount && input.kind === 'deposit') {
+    const { groupExpected } = await import('./groupMoneyService.js');
+    res.totalAmount = await groupExpected(propertyId, folio.account.groupBlock, session);
+  }
   // Every cumulative check below runs over the stay's folios; a house account is its own transaction.
   const stayFolios = async () => (house ? [folio.toObject()] : Folio.find({ reservation: folio.reservation }).session(session).select('lines').lean());
   const property = await Property.findById(propertyId).session(session).select('timezone financePolicy dayClose').lean();
@@ -923,7 +930,7 @@ async function runDayCloseLocked({ propertyId, date, arrivals, reason, actor, ip
 // ── NR folio: house / passer-by accounts (no reservation) ───────────────────
 // A visitor who eats, uses the spa or buys something without staying gets a folio of their own.
 // Charges, payments, refunds, reversals and documents go through the same money core as a stay.
-export const HOUSE_OUTLETS = { restaurant: 'מסעדה', bar: 'בר', spa: 'ספא', events: 'אירועים', shop: 'חנות', other: 'אחר' };
+export const HOUSE_OUTLETS = { restaurant: 'מסעדה', bar: 'בר', spa: 'ספא', events: 'אירועים', groups: 'קבוצות', shop: 'חנות', other: 'אחר' };
 
 export async function createHouseAccount({ propertyId, input, actor, ip }) {
   const name = String(input?.name || '').trim().slice(0, 120);
